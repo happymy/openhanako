@@ -8195,22 +8195,27 @@ body.resizing .jian-sidebar-inner {
 .channel-dm-icon {
     display: flex;
     align-items: center;
-    gap: 2px;
     flex-shrink: 0;
 }
 
 .channel-dm-avatar {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     background: var(--overlay-light);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.55rem;
+    font-size: 0.5rem;
     font-weight: 600;
     color: var(--accent);
     overflow: hidden;
+    border: 1.5px solid var(--bg);
+    position: relative;
+}
+
+.channel-dm-avatar + .channel-dm-link + .channel-dm-avatar {
+    margin-left: -4px;
 }
 
 .channel-dm-avatar img {
@@ -8221,9 +8226,11 @@ body.resizing .jian-sidebar-inner {
 }
 
 .channel-dm-link {
-    color: var(--accent);
+    color: var(--text-muted);
     flex-shrink: 0;
-    opacity: 0.7;
+    opacity: 0.45;
+    margin: 0 -1px;
+    z-index: 1;
 }
 
 .channel-item-body {

@@ -327,21 +327,42 @@ function _buildChannelItem(ch: any, isDM: boolean): HTMLElement {
 
   if (isDM) {
     const peerInfo = resolveChannelMember(ch.peerId || ch.members?.[0] || '');
+    const selfInfo = resolveChannelMember(s.currentAgentId || '');
     const dmIcon = document.createElement('div');
     dmIcon.className = 'channel-dm-icon';
 
-    const av = document.createElement('div');
-    av.className = 'channel-dm-avatar';
+    // 主 Agent 头像（左）
+    const selfAv = document.createElement('div');
+    selfAv.className = 'channel-dm-avatar';
+    if (selfInfo.avatarUrl) {
+      const img = document.createElement('img') as HTMLImageElement;
+      img.src = selfInfo.avatarUrl;
+      img.onerror = () => { img.onerror = null; img.src = selfInfo.fallbackAvatar || 'assets/Hanako.png'; };
+      selfAv.appendChild(img);
+    } else {
+      selfAv.textContent = (selfInfo.displayName || '?').charAt(0).toUpperCase();
+    }
+    dmIcon.appendChild(selfAv);
+
+    // 链接符号
+    const link = document.createElement('div');
+    link.className = 'channel-dm-link';
+    link.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+    dmIcon.appendChild(link);
+
+    // 对方 Agent 头像（右）
+    const peerAv = document.createElement('div');
+    peerAv.className = 'channel-dm-avatar';
     if (peerInfo.avatarUrl) {
       const img = document.createElement('img') as HTMLImageElement;
       img.src = peerInfo.avatarUrl;
       img.onerror = () => { img.onerror = null; img.src = peerInfo.fallbackAvatar || 'assets/Hanako.png'; };
-      av.appendChild(img);
+      peerAv.appendChild(img);
     } else {
-      av.textContent = (peerInfo.displayName || '?').charAt(0).toUpperCase();
+      peerAv.textContent = (peerInfo.displayName || '?').charAt(0).toUpperCase();
     }
+    dmIcon.appendChild(peerAv);
 
-    dmIcon.appendChild(av);
     item.appendChild(dmIcon);
   } else {
     const icon = document.createElement('div');
@@ -356,7 +377,9 @@ function _buildChannelItem(ch: any, isDM: boolean): HTMLElement {
   const nameEl = document.createElement('div');
   nameEl.className = 'channel-item-name';
   if (isDM) {
-    nameEl.textContent = ch.peerName || ch.name;
+    const selfInfo = resolveChannelMember(s.currentAgentId || '');
+    const peerName = ch.peerName || ch.name;
+    nameEl.textContent = `${selfInfo.displayName} · ${peerName}`;
   } else {
     nameEl.textContent = ch.name || ch.id;
   }
