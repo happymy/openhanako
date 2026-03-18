@@ -758,14 +758,29 @@ function DeskCwdSkillsPanel() {
 
   const [dragging, setDragging] = useState(false);
   const [cmPos, setCmPos] = useState<{ x: number; y: number } | null>(null);
+  const [cmSkill, setCmSkill] = useState<CwdSkill | null>(null);
 
   // 点击任意位置关闭右键菜单
   useEffect(() => {
     if (!cmPos) return;
-    const close = () => setCmPos(null);
+    const close = () => { setCmPos(null); setCmSkill(null); };
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
   }, [cmPos]);
+
+  const deleteSkill = useCallback(async (skill: CwdSkill) => {
+    if (!skill.baseDir) return;
+    try {
+      await hanaFetch('/api/desk/delete-skill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skillDir: skill.baseDir }),
+      });
+      await loadCwdSkills();
+    } catch (err) {
+      console.error('[cwd-skills] delete failed:', err);
+    }
+  }, []);
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
@@ -847,13 +862,19 @@ function DeskCwdSkillsPanel() {
                     <div
                       className="desk-cwd-skill-item"
                       key={s.name}
-                      onClick={() => {
+                      onDoubleClick={() => {
                         (window as any).platform?.openSkillViewer?.({
                           name: s.name,
                           baseDir: s.baseDir,
                           filePath: s.filePath,
                           installed: false,
                         });
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setCmPos({ x: e.clientX, y: e.clientY });
+                        setCmSkill(s);
                       }}
                     >
                       <span className="desk-cwd-skill-name">{s.name}</span>
@@ -870,12 +891,20 @@ function DeskCwdSkillsPanel() {
         {cmPos && (
           <div className="desk-cwd-ctx-menu" style={{ position: 'fixed', left: cmPos.x, top: cmPos.y, zIndex: 9999 }}>
             <button onClick={() => {
-              const dir = useStore.getState().deskBasePath;
-              if (dir) (window as any).platform?.showInFinder?.(dir + '/.agents/skills');
+              const target = cmSkill?.baseDir || (useStore.getState().deskBasePath + '/.agents/skills');
+              (window as any).platform?.showInFinder?.(target);
               setCmPos(null);
             }}>
               {t('desk.openInFinder')}
             </button>
+            {cmSkill && (
+              <button className="desk-cwd-ctx-danger" onClick={() => {
+                deleteSkill(cmSkill);
+                setCmPos(null);
+              }}>
+                {t('desk.deleteSkill') || '删除技能'}
+              </button>
+            )}
           </div>
         )}
       </div>

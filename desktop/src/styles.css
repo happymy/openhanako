@@ -4194,6 +4194,14 @@ body.resizing .jian-sidebar-inner {
     background: var(--accent-light);
 }
 
+.desk-cwd-ctx-menu button.desk-cwd-ctx-danger {
+    color: var(--danger, #c55);
+}
+
+.desk-cwd-ctx-menu button.desk-cwd-ctx-danger:hover {
+    background: rgba(200, 80, 80, 0.08);
+}
+
 .desk-cwd-desc-text {
     font-size: 0.6rem;
     color: var(--text-muted);

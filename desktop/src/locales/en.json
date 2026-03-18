@@ -771,6 +771,7 @@
     "cwdSkillsHint": "Create a .agents/skills/ directory to get started",
     "cwdSkillsDesc": "Skills follow workspace",
     "cwdSkillsDrop": "Drop folder or .zip to install skills",
+    "deleteSkill": "Delete Skill",
     "openInFinder": "Open in Finder",
     "jianLabel": "Jian",
     "jianPlaceholder": "Write something to tell the assistant how to handle files in this folder...",

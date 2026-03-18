@@ -381,6 +381,27 @@ export default async function deskRoute(app, { engine, hub }) {
     }
   });
 
+  /** 删除项目技能 */
+  app.post("/api/desk/delete-skill", async (req, reply) => {
+    const { skillDir } = req.body || {};
+    if (!skillDir) {
+      reply.code(400);
+      return { error: "skillDir is required" };
+    }
+    // 安全检查：只允许删除 .agents/skills/ 下的目录
+    if (!skillDir.includes('/.agents/skills/') && !skillDir.includes('\\.agents\\skills\\')) {
+      reply.code(403);
+      return { error: "Only skills in .agents/skills/ can be deleted" };
+    }
+    try {
+      fs.rmSync(skillDir, { recursive: true, force: true });
+      return { ok: true };
+    } catch (err) {
+      reply.code(500);
+      return { error: err.message };
+    }
+  });
+
   /** 工作空间路径 */
   app.get("/api/desk/path", async (req) => {
     const dir = req.query.dir ? decodeURIComponent(req.query.dir) : engine.deskCwd;
