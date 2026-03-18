@@ -877,6 +877,15 @@ html[data-platform="linux"] .tb-toggle-right {
     to   { opacity: 1; transform: translateX(0) scale(1); }
 }
 
+.floating-panel.closing .floating-panel-inner {
+    animation: floatSlideOut 0.08s ease-in forwards;
+}
+
+@keyframes floatSlideOut {
+    from { opacity: 1; transform: translateX(0) scale(1); }
+    to   { opacity: 0; transform: translateX(-12px) scale(0.97); }
+}
+
 .floating-panel-header {
     display: flex;
     align-items: center;
@@ -2349,6 +2358,69 @@ html[data-platform="linux"] .tb-toggle-right {
 
 .xing-card.loading .xing-card-copy { display: none; }
 
+/* ========================================
+   Compaction 压缩提示
+   ======================================== */
+
+.compaction-notice {
+    --compaction-accent: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: var(--space-md) auto;
+    padding: 0.55rem 1rem;
+    width: fit-content;
+    max-width: 80%;
+    font-size: 0.8rem;
+    font-family: var(--font-serif);
+    color: var(--compaction-accent);
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--compaction-accent) 18%, transparent);
+    border-radius: var(--radius-md);
+    opacity: 1;
+    transition: opacity 0.3s ease;
+    animation: compaction-breathe 2.5s ease-in-out infinite;
+}
+
+.compaction-notice.fade-out {
+    opacity: 0;
+}
+
+.compaction-notice[data-yuan="hanako"] { --compaction-accent: var(--accent); }
+.compaction-notice[data-yuan="butter"]  { --compaction-accent: #5BA88C; }
+.compaction-notice[data-yuan="ming"]    { --compaction-accent: #8BA4B4; }
+
+.compaction-notice-icon {
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.compaction-notice-text {
+    letter-spacing: 0.02em;
+}
+
+.compaction-notice-dots {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: 2px;
+}
+
+.compaction-notice-dots span {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: dot-pulse 1.2s infinite;
+}
+
+.compaction-notice-dots span:nth-child(2) { animation-delay: 0.2s; }
+.compaction-notice-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes compaction-breathe {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
 /* ═══ Bridge 接入设置 ═══ */
 
 .bridge-platform-header {
@@ -3242,6 +3314,58 @@ html[data-platform="linux"] .tb-toggle-right {
     letter-spacing: 0.02em;
 }
 
+/* ── Context Usage Ring ── */
+
+.context-ring {
+    --ring-bg: var(--border);
+    --ring-fg: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.15rem 0.4rem 0.15rem 0.2rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--text-muted);
+    transition: color var(--duration) var(--ease-out);
+    -webkit-app-region: no-drag;
+}
+
+.context-ring:hover {
+    color: var(--ring-fg);
+}
+
+.context-ring:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.context-ring[data-yuan="hanako"] { --ring-fg: var(--accent); }
+.context-ring[data-yuan="butter"]  { --ring-fg: #5BA88C; }
+.context-ring[data-yuan="ming"]    { --ring-fg: #8BA4B4; }
+
+.context-ring-progress {
+    transition: stroke-dashoffset 0.6s ease;
+}
+
+.context-ring.compacting svg {
+    animation: ring-spin 1.5s linear infinite;
+    transform-origin: center;
+}
+
+.context-ring-label {
+    letter-spacing: 0.02em;
+    min-width: 2ch;
+    text-align: right;
+}
+
+@keyframes ring-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
 /* 思考强度选择器 */
 .thinking-selector {
     position: relative;
@@ -3789,6 +3913,19 @@ body.resizing .jian-sidebar-inner {
 }
 
 /* 打开文件夹按钮 */
+/* 书桌标题行 */
+.jian-desk-header {
+    position: relative;
+}
+
+.jian-desk-header .desk-cwd-btn {
+    position: absolute;
+    right: var(--space-sm);
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+}
+
 .jian-desk-open {
     display: flex;
     align-items: center;
@@ -3799,11 +3936,12 @@ body.resizing .jian-sidebar-inner {
     background: none;
     border: 1px solid var(--overlay-light);
     border-radius: var(--radius-sm);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     color: var(--text-muted);
     font-size: 0.7rem;
     font-family: inherit;
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
+    transition: color 0.15s, border-color 0.15s, box-shadow 0.15s;
     flex-shrink: 0;
 }
 
@@ -3937,6 +4075,130 @@ body.resizing .jian-sidebar-inner {
 
 .jian-desk-sort-btn svg {
     opacity: 0.6;
+}
+
+/* 项目技能按钮（卡片式） */
+.desk-cwd-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    background: none;
+    border: 1px solid var(--overlay-light);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.desk-cwd-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+}
+
+.desk-cwd-btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.desk-cwd-btn svg {
+    opacity: 0.6;
+}
+
+.desk-cwd-btn:hover svg,
+.desk-cwd-btn.active svg {
+    opacity: 1;
+}
+
+/* 项目技能面板（悬浮卡片） */
+.desk-cwd-panel-wrap {
+    position: relative;
+    z-index: 20;
+    margin: 0 var(--space-sm);
+}
+
+.desk-cwd-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--overlay-light);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    padding: 0.5rem 0.75rem 0.6rem;
+    max-height: 240px;
+    overflow-y: auto;
+    animation: cwd-panel-in 0.18s ease-out;
+    transform-origin: top right;
+}
+
+@keyframes cwd-panel-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.desk-cwd-panel-wrap.closing .desk-cwd-panel {
+    animation: cwd-panel-out 0.08s ease-in forwards;
+}
+
+@keyframes cwd-panel-out {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-6px); }
+}
+
+.desk-cwd-empty {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 0.4rem 0 0.1rem;
+}
+
+.desk-cwd-hint {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    opacity: 0.5;
+    text-align: center;
+    padding-bottom: 0.2rem;
+}
+
+.desk-cwd-group-label {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    padding: 0.25rem 0 0.1rem;
+}
+
+.desk-cwd-skill-item {
+    display: flex;
+    flex-direction: column;
+    padding: 0.2rem 0.3rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.desk-cwd-skill-item:hover {
+    background: var(--overlay-light);
+}
+
+.desk-cwd-skill-name {
+    font-size: 0.72rem;
+    color: var(--text);
+}
+
+.desk-cwd-skill-desc {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* 子目录导航 */
@@ -5539,6 +5801,279 @@ body.resizing .jian-sidebar-inner {
     background: var(--overlay-light);
 }
 
+/* 来源标记 */
+.skills-source-badge {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    opacity: 0.7;
+    white-space: nowrap;
+    margin-right: 6px;
+}
+
+/* 兼容技能路径管理 */
+.compat-paths-group {
+    border: 1px solid var(--overlay-light);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 0.4rem;
+}
+
+.compat-path-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.65rem;
+    gap: 8px;
+}
+
+.compat-path-item + .compat-path-item {
+    border-top: 1px solid var(--overlay-light);
+}
+
+.compat-path-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.compat-path-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.compat-path-value {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.compat-path-badge {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    opacity: 0.6;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.compat-path-badge.muted {
+    opacity: 0.35;
+}
+
+.compat-path-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    opacity: 0;
+    padding: 2px;
+    border-radius: 3px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.compat-path-item:hover .compat-path-remove {
+    opacity: 1;
+}
+
+.compat-path-remove:hover {
+    color: var(--danger);
+    background: var(--overlay-light);
+}
+
+/* 兼容技能抽屉 */
+.compat-drawer + .compat-drawer {
+    border-top: 1px solid var(--overlay-light);
+}
+
+.compat-drawer-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 0.5rem 0.65rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+}
+
+.compat-drawer-header:hover:not(.disabled) {
+    background: var(--overlay-light);
+}
+
+.compat-drawer-header.disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.compat-drawer-chevron {
+    flex-shrink: 0;
+    transition: transform 0.2s;
+}
+
+.compat-drawer-chevron.open {
+    transform: rotate(90deg);
+}
+
+.compat-drawer-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.compat-drawer-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.compat-drawer-path {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.compat-drawer-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.compat-drawer-skills {
+    padding: 0 0.65rem 0.5rem 1.8rem;
+}
+
+.compat-drawer-skills .skills-list-item {
+    border-top: none;
+    padding: 0.3rem 0;
+}
+
+.compat-drawer-skills .skills-list-item + .skills-list-item {
+    border-top: 1px solid var(--overlay-light);
+}
+
+.compat-add-path {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 0.45rem;
+    border: none;
+    border-top: 1px dashed var(--overlay-light);
+    background: none;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.compat-add-path:hover {
+    color: var(--accent);
+    background: var(--overlay-light);
+}
+
+/* 书桌技能快捷区 */
+.desk-skills-section {
+    padding: 0.4rem 0.75rem 0.5rem;
+    border-bottom: 1px solid var(--overlay-light);
+}
+
+.desk-skills-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 500;
+}
+
+.desk-skills-header:hover {
+    color: var(--text);
+}
+
+.desk-skills-count {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    background: var(--overlay-light);
+    padding: 0 5px;
+    border-radius: 8px;
+    line-height: 1.5;
+}
+
+.desk-skills-chevron {
+    margin-left: auto;
+    transition: transform 0.2s;
+}
+
+.desk-skills-chevron.open {
+    transform: rotate(90deg);
+}
+
+.desk-skills-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-top: 0.35rem;
+}
+
+.desk-skill-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+    font-size: 0.72rem;
+}
+
+.desk-skill-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+}
+
+.desk-skill-source {
+    font-size: 0.58rem;
+    color: var(--text-muted);
+    opacity: 0.5;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* 缩小版 toggle */
+.hana-toggle.mini {
+    width: 28px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.hana-toggle.mini::after {
+    width: 10px;
+    height: 10px;
+    top: 3px;
+    left: 3px;
+}
+
+.hana-toggle.mini.on::after {
+    left: 15px;
+}
+
 /* 文件夹选择器 */
 .settings-folder-picker {
     display: flex;
@@ -6001,33 +6536,31 @@ body.resizing .jian-sidebar-inner {
 /* Toast */
 .settings-toast {
     position: fixed;
-    bottom: var(--space-lg);
-    left: 50%;
-    transform: translateX(-50%) translateY(16px);
-    padding: 0.5rem 1.2rem;
-    border-radius: var(--radius-md);
+    bottom: 0;
+    right: 0;
+    padding: 0.35rem 0.75rem;
+    border-radius: 0;
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: 0.65rem;
     opacity: 0;
     pointer-events: none;
-    transition: all 0.3s var(--ease-out);
+    transition: opacity 0.4s ease-out;
     z-index: 90;
 }
 
 .settings-toast.show {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
     pointer-events: auto;
 }
 
 .settings-toast.success {
-    background: var(--green);
-    color: white;
+    background: none;
+    color: var(--text-muted);
 }
 
 .settings-toast.error {
-    background: var(--coral);
-    color: white;
+    background: none;
+    color: var(--coral);
 }
 
 /* Tab 导航 */

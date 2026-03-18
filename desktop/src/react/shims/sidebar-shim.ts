@@ -99,6 +99,11 @@ async function switchSession(path: string): Promise<void> {
     ctx!.loadDeskFiles('');
     renderSessionList();
 
+    // 切换会话后刷新 context ring
+    if (state().ws?.readyState === WebSocket.OPEN) {
+      state().ws.send(JSON.stringify({ type: 'context_usage' }));
+    }
+
     if (data.isStreaming && state().ws?.readyState === WebSocket.OPEN) {
       ctx!.requestStreamResume(path, { fromStart: true });
     }

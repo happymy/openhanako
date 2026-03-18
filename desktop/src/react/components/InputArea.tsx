@@ -194,6 +194,22 @@ function InputAreaInner() {
     await sendAsUser(XING_PROMPT);
   }, [sendAsUser]);
 
+  const executeCompact = useCallback(async () => {
+    setSlashBusy('compact');
+    setInputText('');
+    setSlashMenuOpen(false);
+    try {
+      const state = (window as any).__hanaState;
+      if (state.ws?.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify({ type: 'compact' }));
+      }
+    } finally {
+      // compaction_end 事件会通过 WS 回来，这里只需清 busy
+      // 延迟清除，让用户看到执行状态
+      setTimeout(() => setSlashBusy(null), 1500);
+    }
+  }, []);
+
   const slashCommands: SlashCommand[] = useMemo(() => [
     {
       name: 'diary',
@@ -211,7 +227,15 @@ function InputAreaInner() {
       icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
       execute: executeXing,
     },
-  ], [executeDiary, executeXing, t]);
+    {
+      name: 'compact',
+      label: '/compact',
+      description: tSafe(t, 'slash.compact', '压缩上下文'),
+      busyLabel: tSafe(t, 'slash.compactBusy', '正在压缩...'),
+      icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>',
+      execute: executeCompact,
+    },
+  ], [executeDiary, executeXing, executeCompact, t]);
 
   // 过滤匹配的命令
   const filteredCommands = useMemo(() => {
@@ -505,6 +529,7 @@ function InputAreaInner() {
               disabled={!hasDoc}
               onToggle={toggleDocContext}
             />
+            <ContextRing />
           </div>
           <div className="input-controls">
             {currentModelInfo?.reasoning !== false && (
@@ -647,6 +672,80 @@ function DocContextButton({ active, disabled, onToggle }: {
         <polyline points="10 9 9 9 8 9" />
       </svg>
       <span className="desk-context-label">{t('input.docContext') || '看着文档说'}</span>
+    </button>
+  );
+}
+
+// ── Context Usage Ring ──
+
+function ContextRing() {
+  const agentYuan = useStore(s => s.agentYuan);
+  const isStreaming = useStore(s => s.isStreaming);
+  const [tokens, setTokens] = useState<number | null>(null);
+  const [contextWindow, setContextWindow] = useState<number | null>(null);
+  const [percent, setPercent] = useState<number | null>(null);
+  const [compacting, setCompacting] = useState(false);
+
+  // 从 __hanaState 同步 context 数据
+  useEffect(() => {
+    const state = (window as any).__hanaState;
+    const sync = () => {
+      if (state.contextTokens != null) {
+        setTokens(state.contextTokens);
+        setContextWindow(state.contextWindow);
+        setPercent(state.contextPercent);
+      }
+      setCompacting(!!state._compacting);
+    };
+    sync();
+    const id = setInterval(sync, 2000);
+    return () => clearInterval(id);
+  }, [isStreaming]);
+
+  const handleClick = useCallback(() => {
+    if (compacting) return;
+    const state = (window as any).__hanaState;
+    if (state.ws?.readyState === WebSocket.OPEN) {
+      state.ws.send(JSON.stringify({ type: 'compact' }));
+    }
+  }, [compacting]);
+
+  const pct = percent ?? 0;
+  if (tokens == null) return null;
+
+  // SVG 圆环参数
+  const r = 8;
+  const circumference = 2 * Math.PI * r;
+  const strokeDashoffset = circumference * (1 - Math.min(pct, 100) / 100);
+  const yuan = agentYuan || 'hanako';
+
+  // token 数量格式化
+  const tokensK = Math.round(tokens / 1000);
+  const windowK = contextWindow != null ? Math.round(contextWindow / 1000) : 0;
+
+  return (
+    <button
+      className={`context-ring${compacting ? ' compacting' : ''}`}
+      data-yuan={yuan}
+      title={`${tokensK}k / ${windowK}k tokens (${Math.round(pct)}%)\n点击压缩上下文`}
+      onClick={handleClick}
+      disabled={compacting}
+    >
+      <svg width="20" height="20" viewBox="0 0 20 20">
+        <circle cx="10" cy="10" r={r} fill="none" stroke="var(--ring-bg)" strokeWidth="2" />
+        <circle
+          cx="10" cy="10" r={r}
+          fill="none"
+          stroke="var(--ring-fg)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          transform="rotate(-90 10 10)"
+          className="context-ring-progress"
+        />
+      </svg>
+      <span className="context-ring-label">{tokensK}k</span>
     </button>
   );
 }

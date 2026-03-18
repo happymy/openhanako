@@ -268,6 +268,48 @@ export default async function deskRoute(app, { engine, hub }) {
   //  工作空间文件（直接使用 cwd）
   // ════════════════════════════
 
+  /** 扫描工作空间下的项目级技能 */
+  app.get("/api/desk/skills", async (req) => {
+    const dir = req.query.dir ? decodeURIComponent(req.query.dir) : engine.deskCwd;
+    if (!dir) return { skills: [] };
+    if (req.query.dir && !isApprovedDir(dir, engine)) return { skills: [] };
+
+    const CWD_SKILL_DIRS = [
+      { sub: ".claude/skills",   label: "Claude Code" },
+      { sub: ".codex/skills",    label: "Codex" },
+      { sub: ".openclaw/skills", label: "OpenClaw" },
+      { sub: ".agents/skills",   label: "Agents" },
+      { sub: ".pi/skills",       label: "Pi" },
+    ];
+
+    const results = [];
+    for (const { sub, label } of CWD_SKILL_DIRS) {
+      const skillsDir = path.join(dir, sub);
+      if (!fs.existsSync(skillsDir)) continue;
+      try {
+        for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const skillFile = path.join(skillsDir, entry.name, "SKILL.md");
+          if (!fs.existsSync(skillFile)) continue;
+          try {
+            const content = fs.readFileSync(skillFile, "utf-8");
+            const nameMatch = content.match(/^name:\s*(.+?)\s*$/m);
+            const descMatch = content.match(/^description:\s*(.+?)\s*$/m);
+            results.push({
+              name: nameMatch ? nameMatch[1].replace(/["']/g, "") : entry.name,
+              description: descMatch ? descMatch[1].replace(/["']/g, "") : "",
+              source: label,
+              dirPath: skillsDir,
+              filePath: skillFile,
+              baseDir: path.join(skillsDir, entry.name),
+            });
+          } catch {}
+        }
+      } catch {}
+    }
+    return { skills: results };
+  });
+
   /** 工作空间路径 */
   app.get("/api/desk/path", async (req) => {
     const dir = req.query.dir ? decodeURIComponent(req.query.dir) : engine.deskCwd;

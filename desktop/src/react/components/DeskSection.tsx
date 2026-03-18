@@ -668,6 +668,263 @@ function DeskDropZone({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ── 项目技能（CWD Skills） ──
+
+interface CwdSkill {
+  name: string;
+  description: string;
+  source: string;
+  filePath: string;
+  baseDir: string;
+}
+
+let _cwdSkillsOpen = false;
+let _cwdSkills: CwdSkill[] = [];
+let _cwdSkillsListeners: Set<() => void> = new Set();
+
+function useCwdSkillsOpen() {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const cb = () => force(n => n + 1);
+    _cwdSkillsListeners.add(cb);
+    return () => { _cwdSkillsListeners.delete(cb); };
+  }, []);
+  return {
+    open: _cwdSkillsOpen,
+    skills: _cwdSkills,
+    toggle: () => {
+      _cwdSkillsOpen = !_cwdSkillsOpen;
+      _cwdSkillsListeners.forEach(cb => cb());
+    },
+    setSkills: (s: CwdSkill[]) => {
+      _cwdSkills = s;
+      _cwdSkillsListeners.forEach(cb => cb());
+    },
+  };
+}
+
+function DeskCwdSkillsButton() {
+  const deskBasePath = useStore(s => s.deskBasePath);
+  const { open, skills, toggle, setSkills } = useCwdSkillsOpen();
+  const loadedRef = useRef('');
+
+  const loadCwdSkills = useCallback(async () => {
+    if (!deskBasePath) return;
+    try {
+      const res = await getDeskCtx().hanaFetch(
+        `/api/desk/skills?dir=${encodeURIComponent(deskBasePath)}`,
+      );
+      const data = await res.json();
+      setSkills(data.skills || []);
+      loadedRef.current = deskBasePath;
+    } catch {}
+  }, [deskBasePath, setSkills]);
+
+  // 切换文件夹时重新加载
+  useEffect(() => {
+    if (deskBasePath && deskBasePath !== loadedRef.current) {
+      loadCwdSkills();
+    }
+  }, [deskBasePath, loadCwdSkills]);
+
+  const handleClick = useCallback(() => {
+    if (!open && deskBasePath !== loadedRef.current) loadCwdSkills();
+    toggle();
+  }, [open, deskBasePath, loadCwdSkills, toggle]);
+
+  if (!deskBasePath) return null;
+
+  const t = window.t ?? ((p: string) => p);
+  const label = skills.length > 0
+    ? `${t('desk.cwdSkills') || '项目技能'} · ${skills.length}`
+    : t('desk.cwdSkills') || '项目技能';
+
+  return (
+    <button
+      className={`desk-cwd-btn${open ? ' active' : ''}`}
+      onClick={handleClick}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function DeskCwdSkillsPanel() {
+  const { open, skills } = useCwdSkillsOpen();
+  const t = window.t ?? ((p: string) => p);
+  const [visible, setVisible] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setVisible(true);
+      setClosing(false);
+    } else if (visible) {
+      setClosing(true);
+      const timer = setTimeout(() => { setVisible(false); setClosing(false); }, 80);
+      return () => clearTimeout(timer);
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!visible) return null;
+
+  const content = skills.length === 0 ? (
+    <div className="desk-cwd-panel">
+      <p className="desk-cwd-empty">{t('desk.cwdSkillsEmpty') || '当前文件夹没有项目技能'}</p>
+      <p className="desk-cwd-hint">{t('desk.cwdSkillsHint') || '在文件夹下创建 .agents/skills/ 目录即可'}</p>
+    </div>
+  ) : (() => {
+    const grouped: Record<string, CwdSkill[]> = {};
+    for (const s of skills) {
+      (grouped[s.source] ??= []).push(s);
+    }
+    return (
+      <div className="desk-cwd-panel">
+        {Object.entries(grouped).map(([source, items]) => (
+          <div key={source}>
+            <div className="desk-cwd-group-label">{source}</div>
+            {items.map(s => {
+              let desc = s.description || '';
+              if (desc.length > 60) desc = desc.slice(0, 60) + '…';
+              return (
+                <div
+                  className="desk-cwd-skill-item"
+                  key={s.name}
+                  onClick={() => {
+                    (window as any).platform?.openSkillViewer?.({
+                      name: s.name,
+                      baseDir: s.baseDir,
+                      filePath: s.filePath,
+                      installed: false,
+                    });
+                  }}
+                >
+                  <span className="desk-cwd-skill-name">{s.name}</span>
+                  {desc && <span className="desk-cwd-skill-desc">{desc}</span>}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  })();
+
+  return (
+    <div className={`desk-cwd-panel-wrap${closing ? ' closing' : ''}`}>
+      {content}
+    </div>
+  );
+}
+
+// ── 技能快捷区 ──
+
+const DESK_SKILLS_KEY = 'hana-desk-skills-collapsed';
+
+function DeskSkillsSection() {
+  const skills = useStore(s => s.deskSkills);
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem(DESK_SKILLS_KEY) === '1',
+  );
+
+  const loadDeskSkills = useCallback(async () => {
+    try {
+      const res = await getDeskCtx().hanaFetch('/api/skills');
+      const data = await res.json();
+      const all = (data.skills || []) as Array<{
+        name: string; enabled: boolean; hidden?: boolean;
+        source?: string; externalLabel?: string | null;
+      }>;
+      useStore.getState().setDeskSkills(
+        all.filter(s => !s.hidden).map(s => ({
+          name: s.name,
+          enabled: s.enabled,
+          source: s.source,
+          externalLabel: s.externalLabel,
+        })),
+      );
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadDeskSkills();
+    // 挂到 window 上供 app.js 事件驱动刷新
+    (window as any).__loadDeskSkills = loadDeskSkills;
+    return () => { delete (window as any).__loadDeskSkills; };
+  }, [loadDeskSkills]);
+
+  const toggleCollapse = useCallback(() => {
+    setCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem(DESK_SKILLS_KEY, next ? '1' : '0');
+      return next;
+    });
+  }, []);
+
+  const toggleSkill = useCallback(async (name: string, enable: boolean) => {
+    // 乐观更新
+    const prev = useStore.getState().deskSkills;
+    useStore.getState().setDeskSkills(
+      prev.map(s => s.name === name ? { ...s, enabled: enable } : s),
+    );
+    const enabledList = prev.map(s => s.name === name ? { ...s, enabled: enable } : s)
+      .filter(s => s.enabled).map(s => s.name);
+    try {
+      const state = (window as any).__hanaState || {};
+      const agentId = state.currentAgentId || '';
+      await getDeskCtx().hanaFetch(`/api/agents/${agentId}/skills`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: enabledList }),
+      });
+    } catch {
+      // 回滚
+      useStore.getState().setDeskSkills(prev);
+    }
+  }, []);
+
+  const enabledCount = skills.filter(s => s.enabled).length;
+  const t = window.t ?? ((p: string) => p);
+
+  if (skills.length === 0) return null;
+
+  return (
+    <div className="desk-skills-section">
+      <button className="desk-skills-header" onClick={toggleCollapse}>
+        <span>{t('desk.skills') || '技能'}</span>
+        <span className="desk-skills-count">{enabledCount}</span>
+        <svg
+          className={`desk-skills-chevron${collapsed ? '' : ' open'}`}
+          width="10" height="10" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+      {!collapsed && (
+        <div className="desk-skills-list">
+          {skills.map(s => (
+            <div className="desk-skill-item" key={s.name}>
+              <span className="desk-skill-name">{s.name}</span>
+              {s.externalLabel && (
+                <span className="desk-skill-source">{s.externalLabel}</span>
+              )}
+              <button
+                className={`hana-toggle mini${s.enabled ? ' on' : ''}`}
+                onClick={() => toggleSkill(s.name, !s.enabled)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 主组件 ──
 
 export function DeskSection() {
@@ -687,8 +944,13 @@ export function DeskSection() {
 
   return createPortal(
     <DeskDropZone>
-      <div className="jian-section-title">{t('desk.title')}</div>
+      <div className="jian-desk-header">
+        <div className="jian-section-title">{t('desk.title')}</div>
+        <DeskCwdSkillsButton />
+      </div>
       <DeskOpenButton />
+      <DeskCwdSkillsPanel />
+      <DeskSkillsSection />
       <div className="jian-desk-toolbar">
         <DeskBreadcrumb />
         <DeskSortButton sortMode={sortMode} onSort={setSortMode} />

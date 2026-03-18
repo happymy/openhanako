@@ -599,7 +599,14 @@
       "dropzone": "拖入技能文件夹安装，或点击选择",
       "learnHint": "试着对助手说：帮我从 GitHub 上找一些安全并且有用的技能",
       "reloaded": "技能已刷新",
-      "reload": "刷新技能"
+      "reload": "刷新技能",
+      "compatTitle": "兼容技能",
+      "compatDesc": "自动发现其他 AI 工具安装的技能",
+      "compatNoSkills": "未发现外部技能",
+      "compatAddPath": "添加目录",
+      "compatRemove": "移除",
+      "compatAutoDiscovered": "自动发现",
+      "compatNotInstalled": "未安装"
     },
     "bridge": {
       "telegram": "Telegram",
@@ -745,6 +752,10 @@
   },
   "desk": {
     "title": "书桌",
+    "skills": "技能",
+    "cwdSkills": "项目技能",
+    "cwdSkillsEmpty": "当前文件夹没有项目技能",
+    "cwdSkillsHint": "在文件夹下创建 .agents/skills/ 目录即可",
     "openInFinder": "在访达中打开",
     "jianLabel": "笺",
     "jianPlaceholder": "写点什么，告诉助手这个文件夹里面的文件该如何处理...",

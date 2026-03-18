@@ -19,6 +19,9 @@ export interface SkillInfo {
   baseDir?: string;
   filePath?: string;
   source?: string;
+  externalLabel?: string | null;
+  externalPath?: string | null;
+  readonly?: boolean;
 }
 
 export interface SettingsState {
@@ -123,6 +126,6 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     set({ toastMessage: message, toastType: type, toastVisible: true });
     _toastTimer = setTimeout(() => {
       set({ toastVisible: false });
-    }, 2500);
+    }, 1500);
   },
 }));

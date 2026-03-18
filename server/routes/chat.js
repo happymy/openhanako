@@ -411,6 +411,18 @@ export default async function chatRoute(app, { engine, hub }) {
         debugLog()?.log("ws", "assistant reply done");
         maybeGenerateFirstTurnTitle(sessionPath, ss);
       }
+    } else if (event.type === "auto_compaction_start") {
+      if (isActive) broadcast({ type: "compaction_start" });
+    } else if (event.type === "auto_compaction_end") {
+      if (isActive) {
+        const usage = engine.session?.getContextUsage?.();
+        broadcast({
+          type: "compaction_end",
+          tokens: usage?.tokens ?? null,
+          contextWindow: usage?.contextWindow ?? null,
+          percent: usage?.percent ?? null,
+        });
+      }
     }
   });
 
@@ -480,6 +492,55 @@ export default async function chatRoute(app, { engine, hub }) {
             isStreaming: false,
             events: [],
           });
+        }
+        return;
+      }
+
+      if (msg.type === "context_usage") {
+        const usage = engine.session?.getContextUsage?.();
+        wsSend(ws, {
+          type: "context_usage",
+          tokens: usage?.tokens ?? null,
+          contextWindow: usage?.contextWindow ?? null,
+          percent: usage?.percent ?? null,
+        });
+        return;
+      }
+
+      if (msg.type === "compact") {
+        const session = engine.session;
+        if (!session) {
+          wsSend(ws, { type: "error", message: "没有活跃的 session" });
+          return;
+        }
+        if (session.isCompacting) {
+          wsSend(ws, { type: "error", message: "正在压缩中" });
+          return;
+        }
+        // streaming 时不允许手动压缩，避免与 prompt 并发
+        if (engine.isStreaming) {
+          wsSend(ws, { type: "error", message: "请等待回复结束后再压缩" });
+          return;
+        }
+        broadcast({ type: "compaction_start" });
+        try {
+          await session.compact();
+          const usage = session.getContextUsage?.();
+          broadcast({
+            type: "compaction_end",
+            tokens: usage?.tokens ?? null,
+            contextWindow: usage?.contextWindow ?? null,
+            percent: usage?.percent ?? null,
+          });
+        } catch (err) {
+          // Already compacted / Nothing to compact 不算错误
+          const msg = err.message || "";
+          if (msg.includes("Already compacted") || msg.includes("Nothing to compact")) {
+            broadcast({ type: "compaction_end" });
+          } else {
+            broadcast({ type: "compaction_end" });
+            wsSend(ws, { type: "error", message: `压缩失败: ${msg}` });
+          }
         }
         return;
       }
