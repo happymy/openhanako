@@ -67,61 +67,10 @@ function injectCopyButtons(container) {
   }
 }
 
-function formatSessionDate(isoStr) {
-  const date = new Date(isoStr);
-  const now = new Date();
-  const diffMs = now - date;
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMs / 3600000);
-  const diffDay = Math.floor(diffMs / 86400000);
-
-  if (diffMin < 1) return t("time.justNow");
-  if (diffMin < 60) return t("time.minutesAgo", { n: diffMin });
-  if (diffHr < 24) return t("time.hoursAgo", { n: diffHr });
-  if (diffDay < 7) return t("time.daysAgo", { n: diffDay });
-
-  const m = date.getMonth() + 1;
-  const d = date.getDate();
-  return t("time.dateFormat", { m, d });
-}
-
-function cronToHuman(schedule) {
-  if (typeof schedule === "number") {
-    const h = Math.round(schedule / 3600000);
-    return h > 0 ? `每 ${h} 小时` : `每 ${Math.round(schedule / 60000)} 分钟`;
-  }
-  const s = String(schedule);
-  const parts = s.split(" ");
-  if (parts.length !== 5) return s;
-  const [min, hour, , , dow] = parts;
-  if (min.startsWith("*/") && hour === "*" && dow === "*") {
-    return `每 ${min.slice(2)} 分钟`;
-  }
-  if (min === "0" && hour.startsWith("*/") && dow === "*") {
-    return `每 ${hour.slice(2)} 小时`;
-  }
-  if (min === "0" && hour === "*" && dow === "*") {
-    return "每小时";
-  }
-  if (hour === "*" && dow === "*" && /^\d+$/.test(min)) {
-    return "每小时";
-  }
-  if (dow === "*" && hour !== "*" && min !== "*") {
-    return `每天 ${hour}:${min.padStart(2, "0")}`;
-  }
-  const dayNames = ["日", "一", "二", "三", "四", "五", "六"];
-  if (dow !== "*" && hour !== "*") {
-    const dayStr = dow.split(",").map(d => `周${dayNames[+d] || d}`).join("/");
-    return `${dayStr} ${hour}:${min.padStart(2, "0")}`;
-  }
-  return s;
-}
-
 // 暴露到全局命名空间
 window.HanaModules = window.HanaModules || {};
 window.HanaModules.utils = {
-  escapeHtml, parseCSV, isImageFile, injectCopyButtons,
-  formatSessionDate, cronToHuman, IMAGE_EXTS,
+  escapeHtml, parseCSV, isImageFile, injectCopyButtons, IMAGE_EXTS,
 };
 
 })();
