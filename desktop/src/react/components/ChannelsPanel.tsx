@@ -15,8 +15,13 @@ import { toggleJianSidebar } from '../stores/desk-actions';
 import { ContextMenu } from './ContextMenu';
 import type { ContextMenuItem } from './ContextMenu';
 import type { Channel, Agent } from '../types';
+import { yuanFallbackAvatar } from '../utils/agent-helpers';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+// ── 稳定头像时间戳（避免每次渲染生成新 URL） ──
+let _avatarTs = Date.now();
+export function refreshAvatarTs() { _avatarTs = Date.now(); }
 
 // ── 辅助类型 ──
 
@@ -30,16 +35,6 @@ interface MemberInfo {
 }
 
 // ── 辅助函数 ──
-
-function yuanFallbackAvatar(yuan?: string): string {
-  const t = window.t ?? ((p: string) => p);
-  const types = t('yuan.types') as unknown;
-  if (types && typeof types === 'object') {
-    const entry = (types as Record<string, { avatar?: string }>)[yuan || 'hanako'];
-    return `assets/${entry?.avatar || 'Hanako.png'}`;
-  }
-  return 'assets/Hanako.png';
-}
 
 function resolveChannelMember(
   memberId: string,
@@ -62,7 +57,7 @@ function resolveChannelMember(
     return {
       id: memberId,
       displayName: agent.name || agent.id,
-      avatarUrl: hanaUrl(`/api/agents/${agent.id}/avatar?t=${Date.now()}`),
+      avatarUrl: hanaUrl(`/api/agents/${agent.id}/avatar?t=${_avatarTs}`),
       fallbackAvatar: yuanFallbackAvatar(agent.yuan),
       yuan: agent.yuan,
       isUser: false,
@@ -222,13 +217,6 @@ export function ChannelsPanel() {
   );
 }
 
-// ── 导出子组件供 App.tsx 布局使用 ──
-export const ChannelList = ChannelListSection;
-export const ChannelMessages = ChannelMessagesSection;
-export const ChannelMembers = ChannelMembersSection;
-export const ChannelInput = ChannelInputSection;
-export const ChannelReadonly = ChannelReadonlyNotice;
-export const ChannelCreate = ChannelCreateModal;
 
 // ══════════════════════════════════════════════════════
 // Hooks for titlebar tab management
@@ -500,10 +488,10 @@ function ChannelHeaderSync() {
 }
 
 // ══════════════════════════════════════════════════════
-// ChannelListSection — 频道列表
+// ChannelList — 频道列表
 // ══════════════════════════════════════════════════════
 
-function ChannelListSection() {
+export function ChannelList() {
   const { t } = useI18n();
   const channels = useStore((s) => s.channels);
   const currentChannel = useStore((s) => s.currentChannel);
@@ -681,10 +669,10 @@ function DmIcon({ channel, selfInfo, agents, userName, userAvatarUrl, currentAge
 }
 
 // ══════════════════════════════════════════════════════
-// ChannelMessagesSection — 消息列表
+// ChannelMessages — 消息列表
 // ══════════════════════════════════════════════════════
 
-function ChannelMessagesSection() {
+export function ChannelMessages() {
   const { t } = useI18n();
   const messages = useStore((s) => s.channelMessages);
   const currentChannel = useStore((s) => s.currentChannel);
@@ -751,10 +739,10 @@ function ChannelMessagesSection() {
 }
 
 // ══════════════════════════════════════════════════════
-// ChannelMembersSection — 右侧面板成员列表
+// ChannelMembers — 右侧面板成员列表
 // ══════════════════════════════════════════════════════
 
-function ChannelMembersSection() {
+export function ChannelMembers() {
   const currentChannel = useStore((s) => s.currentChannel);
   const channelMembers = useStore((s) => s.channelMembers);
   const isDM = useStore((s) => s.channelIsDM);
@@ -813,10 +801,10 @@ function ChannelMembersSection() {
 }
 
 // ══════════════════════════════════════════════════════
-// ChannelInputSection — 输入区域 + @mention
+// ChannelInput — 输入区域 + @mention
 // ══════════════════════════════════════════════════════
 
-function ChannelInputSection() {
+export function ChannelInput() {
   const currentChannel = useStore((s) => s.currentChannel);
   const isDM = useStore((s) => s.channelIsDM);
   const channelMembers = useStore((s) => s.channelMembers);
@@ -993,10 +981,10 @@ function ChannelInputSection() {
 }
 
 // ══════════════════════════════════════════════════════
-// ChannelReadonlyNotice
+// ChannelReadonly
 // ══════════════════════════════════════════════════════
 
-function ChannelReadonlyNotice() {
+export function ChannelReadonly() {
   const isDM = useStore((s) => s.channelIsDM);
   const currentChannel = useStore((s) => s.currentChannel);
 
@@ -1014,10 +1002,10 @@ function ChannelReadonlyNotice() {
 }
 
 // ══════════════════════════════════════════════════════
-// ChannelCreateModal — 新建频道弹窗
+// ChannelCreate — 新建频道弹窗
 // ══════════════════════════════════════════════════════
 
-function ChannelCreateModal() {
+export function ChannelCreate() {
   const { t } = useI18n();
   const agents = useStore((s) => s.agents);
   const createChannel = useStore((s) => s.createChannel);
@@ -1186,7 +1174,7 @@ function ChannelCreateModal() {
 
 function AgentChipAvatar({ agentId, agentName }: { agentId: string; agentName: string }) {
   const [error, setError] = useState(false);
-  const src = hanaUrl(`/api/agents/${agentId}/avatar?t=${Date.now()}`);
+  const src = hanaUrl(`/api/agents/${agentId}/avatar?t=${_avatarTs}`);
 
   return (
     <span className="chip-avatar">

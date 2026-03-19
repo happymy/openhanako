@@ -26,6 +26,7 @@ import { applyAgentIdentity, loadAgents, loadAvatars } from './stores/agent-acti
 import { loadSessions } from './stores/session-actions';
 import { connectWebSocket } from './services/websocket';
 import { setStatus, loadModels, applyStaticI18n } from './utils/ui-helpers';
+import { toSlash, baseName } from './utils/format';
 import { initJian } from './stores/desk-actions';
 import { initEditorEvents } from './stores/artifact-actions';
 
@@ -267,8 +268,6 @@ function initDragDrop(): void {
     if (srcPaths.length === 0) return;
 
     // Desk 文件直接附加（保留原始路径，不走 upload）
-    const toSlash = (s: string) => s.replace(/\\/g, '/');
-    const baseName = (s: string) => s.replace(/\\/g, '/').split('/').pop() || s;
     const s = useStore.getState();
     const deskBase = toSlash(s.deskBasePath ?? '').replace(/\/+$/, '');
     if (deskBase) {

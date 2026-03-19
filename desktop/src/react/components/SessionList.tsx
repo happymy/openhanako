@@ -12,6 +12,7 @@ import { useI18n } from '../hooks/use-i18n';
 import { formatSessionDate } from '../utils/format';
 import { switchSession, archiveSession } from '../stores/session-actions';
 import type { Session, Agent } from '../types';
+import { yuanFallbackAvatar } from '../utils/agent-helpers';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -55,18 +56,6 @@ function groupSessionsByDate(sessions: Session[]): GroupedSessions[] {
   return order
     .filter(key => groups[key].length > 0)
     .map(key => ({ key, items: groups[key] }));
-}
-
-// ── Yuan fallback ──
-
-function yuanFallbackAvatar(yuan?: string): string {
-  const t = window.t ?? ((p: string) => p);
-  const types = t('yuan.types') as unknown;
-  if (types && typeof types === 'object') {
-    const entry = (types as Record<string, { avatar?: string }>)[yuan || 'hanako'];
-    return `assets/${entry?.avatar || 'Hanako.png'}`;
-  }
-  return 'assets/Hanako.png';
 }
 
 // ── 内部组件 ──

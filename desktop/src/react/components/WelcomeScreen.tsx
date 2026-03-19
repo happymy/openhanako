@@ -12,8 +12,13 @@ import { hanaUrl } from '../hooks/use-hana-fetch';
 import { useI18n } from '../hooks/use-i18n';
 import { loadDeskFiles } from '../stores/desk-actions';
 import type { Agent } from '../types';
+import { yuanFallbackAvatar } from '../utils/agent-helpers';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+// ── 稳定头像时间戳（避免每次渲染生成新 URL） ──
+let _avatarTs = _avatarTs;
+export function refreshAvatarTs() { _avatarTs = _avatarTs; }
 
 // ── 主组件 ──
 
@@ -23,16 +28,6 @@ export function WelcomeScreen() {
 }
 
 // ── Yuan helpers ──
-
-function yuanFallbackAvatar(yuan?: string): string {
-  const t = window.t ?? ((p: string) => p);
-  const types = t('yuan.types') as unknown;
-  if (types && typeof types === 'object') {
-    const entry = (types as Record<string, { avatar?: string }>)[yuan || 'hanako'];
-    return `assets/${entry?.avatar || 'Hanako.png'}`;
-  }
-  return 'assets/Hanako.png';
-}
 
 function randomWelcome(agentName: string, yuan: string): string {
   const t = window.t ?? ((p: string) => p);
@@ -137,13 +132,13 @@ function WelcomeAvatar({ agentId, hasAvatar, agentAvatarUrl, yuan, name }: {
   name: string;
 }) {
   const [src, setSrc] = useState(() => {
-    if (agentId && hasAvatar) return hanaUrl(`/api/agents/${agentId}/avatar?t=${Date.now()}`);
+    if (agentId && hasAvatar) return hanaUrl(`/api/agents/${agentId}/avatar?t=${_avatarTs}`);
     return agentAvatarUrl || yuanFallbackAvatar(yuan);
   });
 
   useEffect(() => {
     if (agentId && hasAvatar) {
-      setSrc(hanaUrl(`/api/agents/${agentId}/avatar?t=${Date.now()}`));
+      setSrc(hanaUrl(`/api/agents/${agentId}/avatar?t=${_avatarTs}`));
     } else if (agentAvatarUrl) {
       setSrc(agentAvatarUrl);
     } else {
@@ -196,7 +191,7 @@ function AgentChip({ agent, isSelected, onClick }: {
   onClick: (id: string) => void;
 }) {
   const [src, setSrc] = useState(() =>
-    agent.hasAvatar ? hanaUrl(`/api/agents/${agent.id}/avatar?t=${Date.now()}`) : yuanFallbackAvatar(agent.yuan),
+    agent.hasAvatar ? hanaUrl(`/api/agents/${agent.id}/avatar?t=${_avatarTs}`) : yuanFallbackAvatar(agent.yuan),
   );
 
   const handleError = useCallback(() => {

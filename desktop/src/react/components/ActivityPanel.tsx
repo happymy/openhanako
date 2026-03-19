@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../stores';
 import { hanaFetch, hanaUrl } from '../hooks/use-hana-fetch';
 import { formatSessionDate, injectCopyButtons, parseMoodFromContent } from '../utils/format';
+import { yuanFallbackAvatar } from '../utils/agent-helpers';
+
+// ── 稳定头像时间戳（避免每次渲染生成新 URL） ──
+let _avatarTs = Date.now();
 
 interface ActivityItem {
   id: string;
@@ -24,16 +28,6 @@ interface DetailMessage {
 interface DetailState {
   title: string;
   messages: DetailMessage[];
-}
-
-function yuanFallbackAvatar(yuan?: string): string {
-  const t = window.t ?? ((p: string) => p);
-  const types = t('yuan.types') as unknown;
-  if (types && typeof types === 'object') {
-    const entry = (types as Record<string, { avatar?: string }>)[yuan || 'hanako'];
-    return `assets/${entry?.avatar || 'Hanako.png'}`;
-  }
-  return 'assets/Hanako.png';
 }
 
 export function ActivityPanel() {
@@ -187,7 +181,7 @@ function ActivityCard({
   onOpen: (id: string) => void;
 }) {
   const agentId = a.agentId || currentAgentId;
-  const avatarSrc = hanaUrl(`/api/agents/${agentId}/avatar?t=${Date.now()}`);
+  const avatarSrc = hanaUrl(`/api/agents/${agentId}/avatar?t=${_avatarTs}`);
   const ag = agents.find(x => x.id === agentId);
 
   const t = window.t ?? ((p: string) => p);

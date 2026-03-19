@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../stores';
 import { hanaFetch } from '../hooks/use-hana-fetch';
+import { toSlash } from '../utils/format';
 import type { DeskFile } from '../types';
 import { openFilePreview } from '../utils/file-preview';
 import {
@@ -208,7 +209,6 @@ async function handleExternalDropToFolder(
   }
   if (paths.length === 0) return;
 
-  const toSlash = (str: string) => str.replace(/\\/g, '/');
   const curDirNorm = toSlash(curDir).replace(/\/+$/, '') + '/';
   const internalNames: string[] = [];
   const externalPaths: string[] = [];
