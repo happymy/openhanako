@@ -447,10 +447,17 @@ export class SessionCoordinator {
       try {
         const sessions = await SessionManager.list(process.cwd(), sessionDir);
         const titles = await this._loadSessionTitlesFor(sessionDir);
+        // 读取 session-meta.json 获取 modelId
+        let meta = {};
+        try {
+          meta = JSON.parse(fs.readFileSync(path.join(sessionDir, "..", "session-meta.json"), "utf-8"));
+        } catch {}
         for (const s of sessions) {
           if (titles[s.path]) s.title = titles[s.path];
           s.agentId = agent.id;
           s.agentName = agent.name;
+          const sessKey = path.basename(s.path);
+          s.modelId = meta[sessKey]?.modelId || null;
           allSessions.push(s);
         }
       } catch {}
@@ -459,6 +466,7 @@ export class SessionCoordinator {
     const currentPath = this.currentSessionPath;
     const activeAgentId = this._d.getActiveAgentId();
     if (currentPath && this._sessionStarted && !allSessions.find(s => s.path === currentPath)) {
+      const currentEntry = this._sessions.get(currentPath);
       allSessions.unshift({
         path: currentPath,
         title: null,
@@ -468,6 +476,7 @@ export class SessionCoordinator {
         cwd: this._session?.sessionManager?.getCwd?.() || "",
         agentId: activeAgentId,
         agentName: this._d.getAgent().agentName,
+        modelId: currentEntry?.modelId || null,
       });
     }
 
