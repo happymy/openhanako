@@ -75,7 +75,7 @@ export function ApiKeyCredentials({ providerId, summary, providerConfig, isPrese
       const testRes = await hanaFetch('/api/providers/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base_url: baseUrl, api, api_key: (keyEdited && keyVal.trim()) || undefined }),
+        body: JSON.stringify({ base_url: baseUrl, api, api_key: keyVal.trim() || undefined }),
       });
       const testData = await testRes.json();
       setConnStatus(testData.ok ? 'ok' : 'fail');
