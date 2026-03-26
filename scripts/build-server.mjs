@@ -343,6 +343,11 @@ for (const ext of viteExternals) {
   }
 }
 
+if (protectedDirs.size > 0) {
+  const names = [...protectedDirs].map(d => path.relative(nmDir, d));
+  console.log(`[build-server] nft: protecting ${protectedDirs.size} Vite externals from pruning: ${names.join(", ")}`);
+}
+
 // 遍历 node_modules，删除未追踪的文件（跳过受保护的包）
 let removedFiles = 0;
 let removedSize = 0;
