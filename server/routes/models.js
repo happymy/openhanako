@@ -54,7 +54,7 @@ export function createModelsRoute(engine) {
       const model = findModel(engine.availableModels, modelId, provider);
       if (!model) return c.json({ error: `model "${modelId}" not found` }, 404);
 
-      // 凭证解析：providers.yaml → auth.json OAuth（含 resourceUrl）→ 模型对象自带 baseUrl
+      // 凭证解析：added-models.yaml → auth.json OAuth（含 resourceUrl）→ 模型对象自带 baseUrl
       const creds = engine.resolveProviderCredentials(model.provider);
 
       // OAuth provider 可能有 resourceUrl（实际使用的域名，可能和内置不同）

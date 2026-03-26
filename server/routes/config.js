@@ -71,7 +71,7 @@ export function createConfigRoute(engine) {
         engine[setter](value);
       }
 
-      // providers 块 → 全局 providers.yaml
+      // providers 块 → 全局 added-models.yaml
       let providersChanged = false;
       if (agentPartial.providers) {
         for (const [name, data] of Object.entries(agentPartial.providers)) {
@@ -85,7 +85,7 @@ export function createConfigRoute(engine) {
         providersChanged = true;
       }
 
-      // 内联 API 凭证 → 全局 providers.yaml 对应条目
+      // 内联 API 凭证 → 全局 added-models.yaml 对应条目
       const rawConfig = getRawConfig(engine.configPath) || {};
       for (const blockName of ["api", "embedding_api", "utility_api"]) {
         const block = agentPartial[blockName];

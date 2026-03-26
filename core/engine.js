@@ -428,7 +428,7 @@ export class HanaEngine {
       log,
     });
 
-    // 0b. Provider 迁移（旧数据 → providers.yaml，只跑一次）
+    // 0b. Provider 迁移（旧数据 → added-models.yaml，只跑一次）
     migrateToProvidersYaml(this.hanakoHome, this.agentsDir, log);
 
     // 1. Pi SDK + 模型基础设施（必须在 agent init 之前，agent 需要解析记忆模型）

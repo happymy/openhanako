@@ -1,7 +1,7 @@
 /**
  * model-sync.js 单元测试
  *
- * 测试：providers.yaml → models.json 单向投影
+ * 测试：added-models.yaml → models.json 单向投影
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";

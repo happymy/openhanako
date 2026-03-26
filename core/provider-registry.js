@@ -3,7 +3,7 @@
  *
  * 职责：
  *   - 管理所有已知 provider 的静态声明（能力、协议、认证类型）
- *   - 将插件声明与 providers.yaml 用户配置合并为 ProviderEntry
+ *   - 将插件声明与 added-models.yaml 用户配置合并为 ProviderEntry
  *   - 读取 provider 凭证（api_key / base_url / api）
  *   - 管理 provider 的模型列表（CRUD + 持久化）
  *
@@ -146,16 +146,16 @@ export class ProviderRegistry {
     this._entries.delete(plugin.id);
   }
 
-  /** 从 _hanakoHome 直接读 providers.yaml（不走全局 config-loader） */
-  _loadProvidersYaml() {
-    const ymlPath = path.join(this._hanakoHome, "providers.yaml");
+  /** 从 _hanakoHome 直接读 added-models.yaml（不走全局 config-loader） */
+  _loadAddedModels() {
+    const ymlPath = path.join(this._hanakoHome, "added-models.yaml");
     const raw = safeReadYAMLSync(ymlPath, {}, YAML) || {};
     return raw.providers || {};
   }
 
-  /** 将 providers 对象写入 _hanakoHome/providers.yaml */
-  _saveProvidersYaml(providers) {
-    const ymlPath = path.join(this._hanakoHome, "providers.yaml");
+  /** 将 providers 对象写入 _hanakoHome/added-models.yaml */
+  _saveAddedModels(providers) {
+    const ymlPath = path.join(this._hanakoHome, "added-models.yaml");
     // 读取现有文件以保留 _migrated 等顶层元数据
     const existing = safeReadYAMLSync(ymlPath, {}, YAML) || {};
     const header =
@@ -175,12 +175,12 @@ export class ProviderRegistry {
   }
 
   /**
-   * 从 providers.yaml 加载用户配置，与所有插件声明合并
-   * 每次 providers.yaml 变更后调用
+   * 从 added-models.yaml 加载用户配置，与所有插件声明合并
+   * 每次 added-models.yaml 变更后调用
    */
   reload() {
     this._entries.clear();
-    const userConfig = this._loadProvidersYaml();
+    const userConfig = this._loadAddedModels();
 
     // 1. 先处理所有已注册插件（内置 + 外部注册的）
     for (const [id, plugin] of this._plugins) {
@@ -188,7 +188,7 @@ export class ProviderRegistry {
       this._entries.set(id, this._merge(plugin, uc, true));
     }
 
-    // 2. 处理 providers.yaml 中有但没有对应插件的条目（用户自定义 provider）
+    // 2. 处理 added-models.yaml 中有但没有对应插件的条目（用户自定义 provider）
     for (const [id, uc] of Object.entries(userConfig)) {
       if (this._entries.has(id)) continue;
       // 没有插件声明，从配置推断
@@ -290,15 +290,15 @@ export class ProviderRegistry {
   }
 
   /**
-   * 更新 provider 的用户配置（写 providers.yaml）
+   * 更新 provider 的用户配置（写 added-models.yaml）
    * 只更新非凭证字段（base_url / api / display_name / auth_type）
    * @param {string} providerId
    * @param {{ base_url?: string, api?: string, display_name?: string, auth_type?: string }} overrides
    */
   setUserConfig(providerId, overrides) {
-    const userConfig = this._loadProvidersYaml();
+    const userConfig = this._loadAddedModels();
     userConfig[providerId] = { ...(userConfig[providerId] || {}), ...overrides };
-    this._saveProvidersYaml(userConfig);
+    this._saveAddedModels(userConfig);
     // 更新内存中的 entry
     this._entries.delete(providerId);
     if (this._plugins.has(providerId)) {
@@ -310,14 +310,14 @@ export class ProviderRegistry {
   }
 
   /**
-   * 删除一个 provider（仅从 providers.yaml，内置插件的插件声明保留）
+   * 删除一个 provider（仅从 added-models.yaml，内置插件的插件声明保留）
    * @param {string} providerId
    */
   remove(providerId) {
-    const userConfig = this._loadProvidersYaml();
+    const userConfig = this._loadAddedModels();
     if (!Object.prototype.hasOwnProperty.call(userConfig, providerId)) return;
     delete userConfig[providerId];
-    this._saveProvidersYaml(userConfig);
+    this._saveAddedModels(userConfig);
     this._entries.delete(providerId);
     // 如果有内置插件声明，以默认值重建 entry
     if (this._plugins.has(providerId)) {
@@ -338,12 +338,12 @@ export class ProviderRegistry {
 
   /**
    * 读取 provider 的凭证信息（apiKey, baseUrl, api）
-   * 从 providers.yaml 读取用户配置值，baseUrl/api 不存在时回退到插件默认值
+   * 从 added-models.yaml 读取用户配置值，baseUrl/api 不存在时回退到插件默认值
    * @param {string} providerId
    * @returns {{ apiKey: string, baseUrl: string, api: string } | null}
    */
   getCredentials(providerId) {
-    const userConfig = this._loadProvidersYaml();
+    const userConfig = this._loadAddedModels();
     const uc = userConfig[providerId];
     if (!uc) return null;
 
@@ -356,24 +356,24 @@ export class ProviderRegistry {
   }
 
   /**
-   * 读取某 provider 在 providers.yaml 中的模型 ID 列表
+   * 读取某 provider 在 added-models.yaml 中的模型 ID 列表
    * 模型条目可以是字符串或 {id, name?, context?, maxOutput?} 对象，统一提取 id
    * @param {string} providerId
    * @returns {string[]}
    */
   getProviderModels(providerId) {
-    const userConfig = this._loadProvidersYaml();
+    const userConfig = this._loadAddedModels();
     const uc = userConfig[providerId];
     if (!uc?.models || !Array.isArray(uc.models)) return [];
     return uc.models.map((m) => (typeof m === "object" ? m.id : m));
   }
 
   /**
-   * 返回 providers.yaml 的原始数据（不经过插件合并）
+   * 返回 added-models.yaml 的原始数据（不经过插件合并）
    * @returns {Record<string, any>}
    */
   getAllProvidersRaw() {
-    return this._loadProvidersYaml();
+    return this._loadAddedModels();
   }
 
   /**
@@ -383,7 +383,7 @@ export class ProviderRegistry {
    * @param {string | { id: string, name?: string, context?: number, maxOutput?: number }} model
    */
   addModel(providerId, model) {
-    const userConfig = this._loadProvidersYaml();
+    const userConfig = this._loadAddedModels();
     if (!userConfig[providerId]) userConfig[providerId] = {};
     if (!Array.isArray(userConfig[providerId].models)) {
       userConfig[providerId].models = [];
@@ -396,7 +396,7 @@ export class ProviderRegistry {
     if (exists) return;
 
     userConfig[providerId].models.push(model);
-    this._saveProvidersYaml(userConfig);
+    this._saveAddedModels(userConfig);
     this._entries.clear();
   }
 
@@ -406,26 +406,26 @@ export class ProviderRegistry {
    * @param {string} modelId
    */
   removeModel(providerId, modelId) {
-    const userConfig = this._loadProvidersYaml();
+    const userConfig = this._loadAddedModels();
     const uc = userConfig[providerId];
     if (!uc?.models || !Array.isArray(uc.models)) return;
 
     uc.models = uc.models.filter(
       (m) => (typeof m === "object" ? m.id : m) !== modelId,
     );
-    this._saveProvidersYaml(userConfig);
+    this._saveAddedModels(userConfig);
     this._entries.clear();
   }
 
   /**
-   * 创建或更新一个 provider 条目（合并写入 providers.yaml）
+   * 创建或更新一个 provider 条目（合并写入 added-models.yaml）
    * @param {string} providerId
    * @param {Record<string, any>} data - 要写入的字段（api_key, base_url, api, models 等）
    */
   saveProvider(providerId, data) {
-    const userConfig = this._loadProvidersYaml();
+    const userConfig = this._loadAddedModels();
     userConfig[providerId] = { ...(userConfig[providerId] || {}), ...data };
-    this._saveProvidersYaml(userConfig);
+    this._saveAddedModels(userConfig);
     this._entries.clear();
   }
 

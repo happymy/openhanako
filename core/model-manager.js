@@ -118,7 +118,7 @@ export class ModelManager {
   }
 
   /**
-   * 同步 providers.yaml → models.json，然后刷新 ModelRegistry
+   * 同步 added-models.yaml → models.json，然后刷新 ModelRegistry
    * @returns {boolean} 是否有变化
    */
   async syncAndRefresh() {

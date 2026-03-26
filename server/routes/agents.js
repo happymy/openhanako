@@ -275,7 +275,7 @@ export function createAgentsRoute(engine) {
         engine[setter](value);
       }
 
-      // providers 块 → 全局 providers.yaml
+      // providers 块 → 全局 added-models.yaml
       let providersChanged = false;
       if (agentPartial.providers) {
         for (const [name, data] of Object.entries(agentPartial.providers)) {
@@ -289,7 +289,7 @@ export function createAgentsRoute(engine) {
         providersChanged = true;
       }
 
-      // 内联 API 凭证 → 全局 providers.yaml 对应条目
+      // 内联 API 凭证 → 全局 added-models.yaml 对应条目
       for (const blockName of ["api", "embedding_api", "utility_api"]) {
         const block = agentPartial[blockName];
         if (block?.api_key || block?.base_url) {

@@ -46,12 +46,12 @@ export function createProvidersRoute(engine) {
   // ── Provider Summary ──
 
   /**
-   * 统一概览：合并 providers.yaml + OAuth status + SDK 模型
+   * 统一概览：合并 added-models.yaml + OAuth status + SDK 模型
    * 前端新 ProvidersTab 的核心数据源
    */
   route.get("/providers/summary", async (c) => {
     const rawProviders = engine.providerRegistry.getAllProvidersRaw();
-    // 补全凭证和模型列表（getAllProvidersRaw 返回的是 providers.yaml 原始数据）
+    // 补全凭证和模型列表（getAllProvidersRaw 返回的是 added-models.yaml 原始数据）
     const providers = {};
     for (const [name, p] of Object.entries(rawProviders)) {
       const entry = engine.providerRegistry.get(name);
@@ -97,7 +97,7 @@ export function createProvidersRoute(engine) {
       return null;
     }
 
-    // 先处理 providers.yaml 中的 provider（保持顺序）
+    // 先处理 added-models.yaml 中的 provider（保持顺序）
     for (const [name, p] of Object.entries(providers)) {
       const isOAuth = provRegistry.isOAuth(name);
       const oauthInfo = getOAuthLoginInfo(name);
@@ -121,7 +121,7 @@ export function createProvidersRoute(engine) {
       };
     }
 
-    // 追加 OAuth-only provider（有 auth.json 但没在 providers.yaml 里）
+    // 追加 OAuth-only provider（有 auth.json 但没在 added-models.yaml 里）
     // 遍历已注册的 OAuth plugin，用 authJsonKey 查 oauthLoginMap
     for (const oauthId of provRegistry.getOAuthProviderIds()) {
       if (result[oauthId]) continue;

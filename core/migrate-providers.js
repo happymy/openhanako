@@ -1,14 +1,15 @@
 /**
- * migrate-providers.js — 一次性迁移旧数据到 providers.yaml
+ * migrate-providers.js — 一次性迁移旧数据到 added-models.yaml
  *
  * 运行时机：engine.init() 启动时，model init 之前
- * 幂等：providers.yaml 中 _migrated: true 存在则跳过
+ * 幂等：added-models.yaml 中 _migrated: true 存在则跳过
  *
  * 迁移源：
  *   1. per-agent config.yaml 的 providers 块
  *   2. per-agent config.yaml 的 api.api_key / api.base_url
  *   3. preferences.json 的 favorites 数组
  *   4. preferences.json 的 oauth_custom_models 对象
+ *   5. providers.yaml 重命名（v0.69+ 文件改名迁移）
  */
 
 import fs from "fs";
@@ -53,15 +54,22 @@ function atomicWriteJSON(filePath, data) {
 // ── 主迁移函数 ────────────────────────────────────────────────────────────────
 
 /**
- * 将旧数据整合到 providers.yaml（幂等，只跑一次）
+ * 将旧数据整合到 added-models.yaml（幂等，只跑一次）
  *
  * @param {string} hanakoHome - 用户数据根目录（~/.hanako-dev）
  * @param {string} agentsDir  - agents 目录
  * @param {(msg: string) => void} log - 日志回调
  */
 export function migrateToProvidersYaml(hanakoHome, agentsDir, log = () => {}) {
-  const providersPath = path.join(hanakoHome, "providers.yaml");
+  const providersPath = path.join(hanakoHome, "added-models.yaml");
   const prefsPath = path.join(hanakoHome, "user", "preferences.json");
+
+  // ── 文件改名迁移：providers.yaml → added-models.yaml ──
+  const oldPath = path.join(hanakoHome, "providers.yaml");
+  if (fs.existsSync(oldPath) && !fs.existsSync(providersPath)) {
+    fs.renameSync(oldPath, providersPath);
+    log("[migrate-providers] providers.yaml → added-models.yaml 重命名完成");
+  }
 
   // ── 快速路径：已迁移则立即返回 ──
   const existingRaw = safeReadYAMLSync(providersPath, null, YAML);
@@ -90,7 +98,7 @@ export function migrateToProvidersYaml(hanakoHome, agentsDir, log = () => {}) {
 
   log("[migrate-providers] 检测到旧配置数据，开始迁移...");
 
-  // ── 读取 providers.yaml 当前内容 ──
+  // ── 读取 added-models.yaml 当前内容 ──
   const raw = existingRaw || {};
   const providers = raw.providers || {};
 
@@ -114,7 +122,7 @@ export function migrateToProvidersYaml(hanakoHome, agentsDir, log = () => {}) {
         providers[name].api = block.api;
       }
 
-      log(`[migrate-providers] agent "${ac.id}": providers.${name} → providers.yaml`);
+      log(`[migrate-providers] agent "${ac.id}": providers.${name} → added-models.yaml`);
     }
   }
 
@@ -135,7 +143,7 @@ export function migrateToProvidersYaml(hanakoHome, agentsDir, log = () => {}) {
       providers[providerName].base_url = api.base_url;
     }
 
-    log(`[migrate-providers] agent "${ac.id}": api.api_key (${providerName}) → providers.yaml`);
+    log(`[migrate-providers] agent "${ac.id}": api.api_key (${providerName}) → added-models.yaml`);
   }
 
   // ── Source 3: preferences.json favorites ──
@@ -146,7 +154,7 @@ export function migrateToProvidersYaml(hanakoHome, agentsDir, log = () => {}) {
 
       if (!modelId) continue;
 
-      // 尝试从 providers.yaml 中已有的模型列表找 provider
+      // 尝试从 added-models.yaml 中已有的模型列表找 provider
       if (!provider) {
         for (const [pName, pConf] of Object.entries(providers)) {
           if (Array.isArray(pConf.models) && pConf.models.some(
@@ -169,7 +177,7 @@ export function migrateToProvidersYaml(hanakoHome, agentsDir, log = () => {}) {
       }
 
       _addModelToProvider(providers, provider, modelId);
-      log(`[migrate-providers] favorites: "${modelId}" → providers.yaml (${provider})`);
+      log(`[migrate-providers] favorites: "${modelId}" → added-models.yaml (${provider})`);
     }
   }
 
@@ -179,19 +187,19 @@ export function migrateToProvidersYaml(hanakoHome, agentsDir, log = () => {}) {
       if (!Array.isArray(modelIds)) continue;
       for (const modelId of modelIds) {
         _addModelToProvider(providers, provider, modelId);
-        log(`[migrate-providers] oauth_custom_models: "${modelId}" → providers.yaml (${provider})`);
+        log(`[migrate-providers] oauth_custom_models: "${modelId}" → added-models.yaml (${provider})`);
       }
     }
   }
 
-  // ── 写入 providers.yaml ──
+  // ── 写入 added-models.yaml ──
   raw.providers = providers;
   raw._migrated = true;
   const header =
     "# Hanako 供应商配置（全局，跨 agent 共享）\n" +
     "# 由设置页面管理\n\n";
   atomicWriteYAML(providersPath, raw, header);
-  log("[migrate-providers] providers.yaml 已更新");
+  log("[migrate-providers] added-models.yaml 已更新");
 
   // ── 清理旧数据 ──
 
@@ -208,7 +216,7 @@ export function migrateToProvidersYaml(hanakoHome, agentsDir, log = () => {}) {
     // 删除 api.api_key（保留 api.provider）
     if (ac.config.api?.api_key) {
       delete ac.config.api.api_key;
-      // 如果同时有 base_url，也清理（已迁移到 providers.yaml）
+      // 如果同时有 base_url，也清理（已迁移到 added-models.yaml）
       if (ac.config.api.base_url) {
         delete ac.config.api.base_url;
       }

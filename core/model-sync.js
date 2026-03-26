@@ -1,5 +1,5 @@
 /**
- * model-sync.js — providers.yaml → models.json 单向投影
+ * model-sync.js — added-models.yaml → models.json 单向投影
  *
  * 系统中唯一写 models.json 的地方。从 providers 配置（snake_case）
  * 投影为 Pi SDK 格式（camelCase），附加 known-models.json 元数据。
@@ -63,7 +63,7 @@ function buildModelEntry(modelEntry, provider) {
 /**
  * 单向投影：providers 配置 → models.json（Pi SDK 格式）
  *
- * @param {Record<string, object>} providers - providers.yaml 中的 providers 块（snake_case）
+ * @param {Record<string, object>} providers - added-models.yaml 中的 providers 块（snake_case）
  * @param {object} [opts]
  * @param {string} opts.modelsJsonPath - models.json 输出路径
  * @param {string} [opts.authJsonPath] - auth.json 路径（OAuth 凭证查找用）
