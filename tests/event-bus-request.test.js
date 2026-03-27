@@ -73,3 +73,25 @@ describe("existing emit/subscribe unchanged", () => {
     expect(events).toHaveLength(1);
   });
 });
+
+describe("clear", () => {
+  it("clear() removes all handlers", () => {
+    bus.handle("a:b", async () => 1);
+    expect(bus.hasHandler("a:b")).toBe(true);
+    bus.clear();
+    expect(bus.hasHandler("a:b")).toBe(false);
+  });
+});
+
+describe("error type identity", () => {
+  it("BusNoHandlerError has correct name and type", async () => {
+    try {
+      await bus.request("missing:type", {});
+    } catch (err) {
+      expect(err.name).toBe("BusNoHandlerError");
+      expect(err.type).toBe("missing:type");
+      return;
+    }
+    throw new Error("should have thrown");
+  });
+});

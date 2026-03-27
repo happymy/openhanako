@@ -110,7 +110,7 @@ export class EventBus {
 
   async _tryHandlers(type, handlers, payload) {
     for (const h of handlers) {
-      const result = await h(payload);
+      const result = await h(payload, undefined);
       if (result !== EventBus.SKIP) return result;
     }
     throw new BusNoHandlerError(type);
