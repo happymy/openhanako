@@ -80,6 +80,7 @@ export class Agent {
     this._memorySessionEnabled = true;  // per-session 开关（WelcomeScreen toggle）
     this._enabledSkills = [];
     this._systemPrompt = "";
+    this._descriptionRefreshHandler = null;
 
     // Desk 系统（与 memory 完全独立）
     this._deskManager = null;
@@ -274,8 +275,33 @@ export class Agent {
               try {
                 const raw = fs.readFileSync(path.join(this.agentsDir, e.name, "config.yaml"), "utf-8");
                 const nameMatch = raw.match(/^\s*name:\s*(.+)$/m);
-                return { id: e.name, name: nameMatch?.[1]?.trim() || e.name };
-              } catch { return { id: e.name, name: e.name }; }
+
+                // models.chat 可能是 string 或 { id, provider } 对象格式
+                let chatModel = "";
+                const chatObjMatch = raw.match(/^\s+chat:\s*\n\s+id:\s*(.+)$/m);
+                if (chatObjMatch) {
+                  chatModel = chatObjMatch[1].trim();
+                } else {
+                  const chatStrMatch = raw.match(/^\s+chat:\s+(\S.+)$/m);
+                  if (chatStrMatch) chatModel = chatStrMatch[1].trim();
+                }
+
+                // 读取 description.md（跳过 hash 注释行）
+                let summary = "";
+                try {
+                  const descRaw = fs.readFileSync(path.join(this.agentsDir, e.name, "description.md"), "utf-8");
+                  summary = descRaw.split("\n")
+                    .filter(l => !l.trim().startsWith("<!--"))
+                    .join("\n").trim();
+                } catch {}
+
+                return {
+                  id: e.name,
+                  name: nameMatch?.[1]?.trim() || e.name,
+                  summary,
+                  model: chatModel,
+                };
+              } catch { return { id: e.name, name: e.name, summary: "", model: "" }; }
             });
         } catch { return []; }
       };
@@ -487,6 +513,11 @@ export class Agent {
 
     // 重建 system prompt
     this._systemPrompt = this.buildSystemPrompt();
+
+    // identity / ishiki / yuan 变化时刷新 description
+    if (partial.agent?.yuan) {
+      this._descriptionRefreshHandler?.();
+    }
   }
 
   // ════════════════════════════

@@ -500,6 +500,9 @@ export class AgentManager {
     ag._notifyHandler = (title, body) => {
       this._d.getHub()?.eventBus?.emit({ type: "notification", title, body }, null);
     };
+    ag._descriptionRefreshHandler = () => {
+      this._refreshDescription(path.basename(ag.agentDir)).catch(() => {});
+    };
     return ag;
   }
 
