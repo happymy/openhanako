@@ -1776,6 +1776,21 @@ wrapIpcHandler("select-skill", async (event) => {
   return result.filePaths[0];
 });
 
+wrapIpcHandler("select-plugin", async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  if (!win) return null;
+  const result = await dialog.showOpenDialog(win, {
+    properties: ["openFile", "openDirectory"],
+    title: mt("dialog.selectPlugin", null, "Select Plugin"),
+    filters: [
+      { name: "Plugin", extensions: ["zip"] },
+      { name: "All Files", extensions: ["*"] },
+    ],
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  return result.filePaths[0];
+});
+
 // ── Skill 预览窗口 IPC ──
 wrapIpcHandler("open-skill-viewer", (_event, data) => {
   if (!data) return;
