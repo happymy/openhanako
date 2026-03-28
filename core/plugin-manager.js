@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { createPluginContext } from "./plugin-context.js";
+import { freshImport } from "./fresh-import.js";
 
 const KNOWN_CONTRIBUTION_DIRS = [
   "tools", "routes", "skills", "agents", "commands", "providers",
@@ -12,12 +13,14 @@ export class PluginManager {
    * pluginsDirs: 多个扫描目录，先内嵌后用户（靠前的优先）
    * 兼容旧签名 { pluginsDir: string } → 自动转为单元素数组
    */
-  constructor({ pluginsDirs, pluginsDir, dataDir, bus }) {
+  constructor({ pluginsDirs, pluginsDir, dataDir, bus, preferencesManager }) {
     this._pluginsDirs = pluginsDirs || (pluginsDir ? [pluginsDir] : []);
     this._dataDir = dataDir;
     this._bus = bus;
+    this._preferencesManager = preferencesManager || null;
     this._plugins = new Map();
     this._scanned = [];
+    this._opQueue = Promise.resolve();
     this.routeRegistry = new Map();
 
     // Contribution registries
@@ -77,13 +80,31 @@ export class PluginManager {
     }
     if (fs.existsSync(path.join(pluginDir, "hooks.json"))) contributions.push("hooks");
     if (fs.existsSync(path.join(pluginDir, "index.js"))) contributions.push("lifecycle");
-    return { id, name, version, description, pluginDir, manifest, contributions };
+    const trust = manifest?.trust === "full-access" ? "full-access" : "restricted";
+    return { id, name, version, description, pluginDir, manifest, contributions, trust };
   }
 
   async loadAll() {
     const descriptors = this._scanned.length > 0 ? this._scanned : this.scan();
+    const disabledList = this._preferencesManager?.getDisabledPlugins() || [];
     for (const desc of descriptors) {
       const entry = { ...desc, status: "loading", instance: null, _disposables: [] };
+
+      if (disabledList.includes(desc.id)) {
+        entry.status = "disabled";
+        this._plugins.set(desc.id, entry);
+        continue;
+      }
+
+      if (desc.source === "community" && desc.trust === "full-access") {
+        const allowed = this._preferencesManager?.getAllowFullAccessPlugins() || false;
+        if (!allowed) {
+          entry.status = "restricted";
+          this._plugins.set(desc.id, entry);
+          continue;
+        }
+      }
+
       this._plugins.set(desc.id, entry);
       try {
         await this._loadPlugin(entry);
@@ -97,40 +118,52 @@ export class PluginManager {
   }
 
   async _loadPlugin(entry) {
-    // Contribution loaders
-    await this._loadTools(entry);
-    await this._loadRoutes(entry);
-    await this._loadCommands(entry);
+    const accessLevel = (entry.source === "builtin" || entry.trust === "full-access")
+      ? "full-access"
+      : "restricted";
+    entry.accessLevel = accessLevel;
+
+    // All plugins: declarative contributions
+    await this._loadTools(entry, accessLevel);
     await this._loadSkillPaths(entry);
-    await this._loadAgentTemplates(entry);
-    await this._loadProviders(entry);
-    this._loadHooks(entry);
+    await this._loadCommands(entry, accessLevel);
+    await this._loadAgentTemplates(entry);  // JSON declaration, no code execution
     this._loadConfiguration(entry);
 
-    // Lifecycle (index.js)
-    const indexPath = path.join(entry.pluginDir, "index.js");
-    if (!fs.existsSync(indexPath)) return;
-    const mod = await import(indexPath);
-    const PluginClass = mod.default;
-    if (!PluginClass || typeof PluginClass !== "function") return;
-    const instance = new PluginClass();
-    entry.instance = instance;
-    instance.ctx = createPluginContext({
-      pluginId: entry.id,
-      pluginDir: entry.pluginDir,
-      dataDir: path.join(this._dataDir, entry.id),
-      bus: this._bus,
-    });
-    instance.register = (disposable) => {
-      if (typeof disposable === "function") entry._disposables.push(disposable);
-    };
-    instance.ctx.registerTool = (toolDef) => this.addTool(entry.id, toolDef);
-    if (typeof instance.onload === "function") await instance.onload();
+    // Full-access only: system-level extension points
+    if (accessLevel === "full-access") {
+      await this._loadRoutes(entry);
+      this._loadHooks(entry);
+      await this._loadProviders(entry);
+
+      // Lifecycle (index.js)
+      const indexPath = path.join(entry.pluginDir, "index.js");
+      if (fs.existsSync(indexPath)) {
+        const mod = await freshImport(indexPath);
+        const PluginClass = mod.default;
+        if (PluginClass && typeof PluginClass === "function") {
+          const instance = new PluginClass();
+          entry.instance = instance;
+          instance.ctx = createPluginContext({
+            pluginId: entry.id,
+            pluginDir: entry.pluginDir,
+            dataDir: path.join(this._dataDir, entry.id),
+            bus: this._bus,
+            accessLevel: "full-access",
+          });
+          instance.register = (disposable) => {
+            if (typeof disposable === "function") entry._disposables.push(disposable);
+          };
+          instance.ctx.registerTool = (toolDef) => this.addTool(entry.id, toolDef);
+          if (typeof instance.onload === "function") await instance.onload();
+        }
+      }
+    }
   }
 
   // ── Task 5: Tool loader ──────────────────────────────────────────────────
 
-  async _loadTools(entry) {
+  async _loadTools(entry, accessLevel) {
     const toolsDir = path.join(entry.pluginDir, "tools");
     if (!fs.existsSync(toolsDir)) return;
     const files = fs.readdirSync(toolsDir).filter((f) => f.endsWith(".js"));
@@ -139,11 +172,12 @@ export class PluginManager {
       pluginDir: entry.pluginDir,
       dataDir: path.join(this._dataDir, entry.id),
       bus: this._bus,
+      accessLevel: accessLevel || "restricted",
     });
     for (const file of files) {
       const filePath = path.join(toolsDir, file);
       try {
-        const mod = await import(filePath);
+        const mod = await freshImport(filePath);
         if (!mod.name || !mod.description || typeof mod.execute !== "function") continue;
         const origExecute = mod.execute;
         this._tools.push({
@@ -200,14 +234,14 @@ export class PluginManager {
     return [...this._skillPaths];
   }
 
-  async _loadCommands(entry) {
+  async _loadCommands(entry, accessLevel) {
     const cmdsDir = path.join(entry.pluginDir, "commands");
     if (!fs.existsSync(cmdsDir)) return;
     const files = fs.readdirSync(cmdsDir).filter((f) => f.endsWith(".js"));
     for (const file of files) {
       const filePath = path.join(cmdsDir, file);
       try {
-        const mod = await import(filePath);
+        const mod = await freshImport(filePath);
         if (!mod.name || typeof mod.execute !== "function") continue;
         this._commands.push({
           name: `${entry.id}.${mod.name}`,
@@ -236,7 +270,7 @@ export class PluginManager {
     for (const file of files) {
       const filePath = path.join(routesDir, file);
       try {
-        const mod = await import(filePath);
+        const mod = await freshImport(filePath);
         if (typeof mod.default === "function") {
           // Default export is a Hono app or a function that returns one
           const sub = mod.default;
@@ -303,7 +337,7 @@ export class PluginManager {
       // Lazy-load and cache the handler function
       if (!hookEntry._cache) {
         try {
-          const mod = await import(hookEntry.handlerPath);
+          const mod = await freshImport(hookEntry.handlerPath);
           hookEntry._cache = mod.default ?? mod;
         } catch (err) {
           console.error(`[plugin-manager] hook handler "${hookEntry.handlerPath}" failed to load:`, err.message);
@@ -375,7 +409,7 @@ export class PluginManager {
     for (const file of files) {
       const filePath = path.join(providersDir, file);
       try {
-        const mod = await import(filePath);
+        const mod = await freshImport(filePath);
         if (!mod.id) continue;
         this._providerPlugins.push({ ...mod, _pluginId: entry.id });
       } catch (err) {
@@ -386,6 +420,160 @@ export class PluginManager {
 
   getProviderPlugins() {
     return [...this._providerPlugins];
+  }
+
+  // ── Operation queue ───────────────────────────────────────────────────────
+
+  _enqueue(fn) {
+    const op = this._opQueue.then(fn);
+    this._opQueue = op.catch(err => {
+      console.error("[plugin-manager] op failed:", err);
+    });
+    return op; // caller gets success/failure
+  }
+
+  // ── Hot operations ───────────────────────────────────────────────────────
+
+  async installPlugin(pluginDir) {
+    return this._enqueue(async () => {
+      const dirName = path.basename(pluginDir);
+      // Check for existing (upgrade scenario)
+      const existing = [...this._plugins.values()].find(
+        p => path.basename(p.pluginDir) === dirName
+      );
+      if (existing) {
+        await this.unloadPlugin(existing.id);
+        this._plugins.delete(existing.id);
+      }
+
+      const desc = this._readPluginDescriptor(pluginDir, dirName);
+      desc.source = "community";
+      const disabledList = this._preferencesManager?.getDisabledPlugins() || [];
+
+      const entry = { ...desc, status: "loading", instance: null, _disposables: [] };
+      this._plugins.set(desc.id, entry);
+
+      if (disabledList.includes(desc.id)) {
+        entry.status = "disabled";
+        return entry;
+      }
+
+      if (desc.trust === "full-access") {
+        const allowed = this._preferencesManager?.getAllowFullAccessPlugins() || false;
+        if (!allowed) {
+          entry.status = "restricted";
+          return entry;
+        }
+      }
+
+      try {
+        await this._loadPlugin(entry);
+        entry.status = "loaded";
+      } catch (err) {
+        entry.status = "failed";
+        entry.error = err.message;
+      }
+      return entry;
+    });
+  }
+
+  async removePlugin(pluginId) {
+    return this._enqueue(async () => {
+      const entry = this._plugins.get(pluginId);
+      if (!entry) throw new Error(`Plugin "${pluginId}" not found`);
+      if (entry.status === "loaded" || entry.status === "failed") {
+        await this.unloadPlugin(pluginId);
+      }
+      this._plugins.delete(pluginId);
+      if (this._preferencesManager) {
+        const disabled = this._preferencesManager.getDisabledPlugins();
+        this._preferencesManager.setDisabledPlugins(
+          disabled.filter(id => id !== pluginId)
+        );
+      }
+      return entry.pluginDir;
+    });
+  }
+
+  async disablePlugin(pluginId) {
+    return this._enqueue(async () => {
+      const entry = this._plugins.get(pluginId);
+      if (!entry) throw new Error(`Plugin "${pluginId}" not found`);
+      if (entry.status === "loaded") {
+        await this.unloadPlugin(pluginId);
+      }
+      entry.status = "disabled";
+      if (this._preferencesManager) {
+        const disabled = this._preferencesManager.getDisabledPlugins();
+        if (!disabled.includes(pluginId)) {
+          this._preferencesManager.setDisabledPlugins([...disabled, pluginId]);
+        }
+      }
+    });
+  }
+
+  async enablePlugin(pluginId) {
+    return this._enqueue(async () => {
+      const entry = this._plugins.get(pluginId);
+      if (!entry) throw new Error(`Plugin "${pluginId}" not found`);
+      if (this._preferencesManager) {
+        const disabled = this._preferencesManager.getDisabledPlugins();
+        this._preferencesManager.setDisabledPlugins(
+          disabled.filter(id => id !== pluginId)
+        );
+      }
+      if (entry.trust === "full-access" && entry.source === "community") {
+        const allowed = this._preferencesManager?.getAllowFullAccessPlugins() || false;
+        if (!allowed) {
+          entry.status = "restricted";
+          return;
+        }
+      }
+      try {
+        await this._loadPlugin(entry);
+        entry.status = "loaded";
+      } catch (err) {
+        entry.status = "failed";
+        entry.error = err.message;
+      }
+    });
+  }
+
+  async setFullAccess(allow) {
+    return this._enqueue(async () => {
+      if (this._preferencesManager) {
+        this._preferencesManager.setAllowFullAccessPlugins(allow);
+      }
+      for (const entry of this._plugins.values()) {
+        if (entry.source !== "community" || entry.trust !== "full-access") continue;
+        const disabledList = this._preferencesManager?.getDisabledPlugins() || [];
+        if (disabledList.includes(entry.id)) continue;
+
+        if (allow && entry.status === "restricted") {
+          try {
+            await this._loadPlugin(entry);
+            entry.status = "loaded";
+          } catch (err) {
+            entry.status = "failed";
+            entry.error = err.message;
+          }
+        } else if (!allow && entry.status === "loaded") {
+          await this.unloadPlugin(entry.id);
+          entry.status = "restricted";
+        }
+      }
+    });
+  }
+
+  _isValidPluginDir(dirPath) {
+    const validMarkers = [
+      ...KNOWN_CONTRIBUTION_DIRS,
+      "manifest.json", "index.js", "hooks.json",
+    ];
+    return validMarkers.some(marker => {
+      const p = path.join(dirPath, marker);
+      return fs.existsSync(p);
+    });
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
