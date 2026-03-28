@@ -130,6 +130,13 @@ async function dirSize(dir) {
 // ── electron-updater 配置 ──
 
 function setupAutoUpdater() {
+  // 显式设置 feed URL，不依赖 app-update.yml（electron-builder --dir 不生成该文件）
+  autoUpdater.setFeedURL({
+    provider: "github",
+    owner: "liliMozi",
+    repo: "openhanako",
+  });
+
   autoUpdater.autoDownload = false;          // 由我们控制（磁盘空间检查后手动触发）
   autoUpdater.autoInstallOnAppQuit = false;  // 等用户手动触发
   autoUpdater.allowPrerelease = false;       // 由频道控制

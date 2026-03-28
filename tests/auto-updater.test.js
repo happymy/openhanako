@@ -9,6 +9,7 @@ const mockAutoUpdater = {
   checkForUpdates: vi.fn().mockResolvedValue({}),
   downloadUpdate: vi.fn().mockResolvedValue(null),
   quitAndInstall: vi.fn(),
+  setFeedURL: vi.fn(),
   on: vi.fn(),
 };
 

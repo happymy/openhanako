@@ -56,6 +56,7 @@ const autoUpdaterPlaceholder = {
   checkForUpdates: () => Promise.resolve({}),
   downloadUpdate: () => Promise.resolve(null),
   quitAndInstall: () => {},
+  setFeedURL: () => {},
   on: () => {},
 };
 
