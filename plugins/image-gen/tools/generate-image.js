@@ -19,25 +19,8 @@ export const parameters = {
   required: ["prompt"],
 };
 
-const PROMPT_GUIDE = `prompt 必须用英文重写后重新调用此工具。规范：
-- 结构：主体 → 环境/背景 → 光线/氛围 → 画风，50-150词，逗号分隔
-- 将模糊请求具体化（品种/颜色/姿态/季节/时间），不写否定句
-- 用户没指定风格时附加：modern Japanese illustration style, soft cel-shaded, clean linework, muted warm color palette with cream and indigo tones, elegant and serene atmosphere
-- 用户指定了风格则不附加默认画风
-- filename 必须填写`;
-
-function looksLikeChinese(text) {
-  const cjk = text.match(/[\u4e00-\u9fff]/g);
-  return cjk && cjk.length > text.length * 0.1;
-}
-
 export async function execute(input, ctx) {
   try {
-    // 0. Prompt must be English
-    if (looksLikeChinese(input.prompt)) {
-      return PROMPT_GUIDE;
-    }
-
     // 1. Resolve model (priority: input → agent config → global default)
     const model = await resolveModel(input, ctx);
     if (!model) {
