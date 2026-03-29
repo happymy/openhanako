@@ -50,14 +50,15 @@ export class SkillManager {
   /** 将 agent 启用的 skill 同步到 agent 的 system prompt */
   syncAgentSkills(agent) {
     const enabled = agent?.config?.skills?.enabled || [];
-    const skills = this._allSkills.filter(s => enabled.includes(s.name));
+    // Plugin skills 跟着插件走，不需要手动启用
+    const skills = this._allSkills.filter(s => s._pluginSkill || enabled.includes(s.name));
     agent.setEnabledSkills(skills);
   }
 
-  /** 返回全量 skill 列表（供 API 使用），附带指定 agent 的 enabled 状态 */
+  /** 返回全量 skill 列表（供 API 使用），附带指定 agent 的 enabled 状态。Plugin skill 不返回（UI 不显示） */
   getAllSkills(agent) {
     const enabled = agent?.config?.skills?.enabled || [];
-    return this._allSkills.map(s => ({
+    return this._allSkills.filter(s => !s._pluginSkill).map(s => ({
       name: s.name,
       description: s.description,
       filePath: s.filePath,
@@ -196,6 +197,7 @@ export class SkillManager {
               _externalLabel: label,
               _externalPath: dirPath,
               _readonly: true,
+              _pluginSkill: label.startsWith("plugin:"),
             });
           } catch {}
         }

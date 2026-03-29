@@ -232,6 +232,7 @@ export class PluginManager {
     this._skillPaths.push({
       dirPath: skillsDir,
       label: `plugin:${entry.id}`,
+      builtin: entry.source === "builtin",
     });
   }
 
