@@ -596,11 +596,12 @@ export class HanaEngine {
     this._pluginManager.scan();
     await this._pluginManager.loadAll();
 
-    // Register plugin skill paths with SkillManager
+    // Register plugin skill paths with SkillManager and re-sync agent skills
     if (this._skills) {
       const existing = this._skills._externalPaths || [];
       const pluginPaths = this._pluginManager.getSkillPaths();
       this._skills.setExternalPaths([...existing, ...pluginPaths]);
+      this._syncAllAgentSkills();
     }
   }
 
