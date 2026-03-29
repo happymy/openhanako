@@ -1,6 +1,6 @@
 # Contributing to Hanako
 
-感谢你对 Hanako 的关注！欢迎提交 issue 和 pull request。
+感谢你对 Hanako 的关注！
 
 ## 开发环境
 
@@ -48,7 +48,7 @@ npx electron-rebuild -f -w better-sqlite3
 
 ## Pull Request
 
-项目目前处于早期阶段，**暂不接受 Pull Request**。如果你有想法或发现了问题，欢迎先开 issue 讨论。
+项目目前处于早期阶段，**不接受 Pull Request**。如果你有想法或发现了问题，欢迎开 issue 讨论。
 
 ## 报告问题
 
