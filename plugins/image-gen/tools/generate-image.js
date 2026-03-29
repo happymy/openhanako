@@ -56,13 +56,10 @@ export async function execute(input, ctx) {
 
     // 6. Save first image
     const img = result.images[0];
-    const { filename } = await saveImage(img.buffer, img.mimeType, ctx.dataDir);
-
-    // 7. Build response
-    const briefDesc = input.prompt.slice(0, 50);
-    let response = `![${briefDesc}](/api/plugins/image-gen/media/${filename})`;
+    const { filePath } = await saveImage(img.buffer, img.mimeType, ctx.dataDir);
+    let response = `图片已生成并保存到 ${filePath}\n请立即调用 stage_files 工具将此文件呈现给用户：stage_files({ filepaths: ["${filePath}"] })`;
     if (result.revisedPrompt) {
-      response += `\n\n修正后的描述：${result.revisedPrompt}`;
+      response += `\n修正后的描述：${result.revisedPrompt}`;
     }
     return response;
 

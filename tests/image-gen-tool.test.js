@@ -55,8 +55,8 @@ describe("generate-image tool", () => {
     };
 
     const result = await execute({ prompt: "a cat" }, ctx);
-    expect(result).toContain("![");
-    expect(result).toContain("/api/plugins/image-gen/media/123-abcd1234.png");
+    expect(result).toContain("stage_files");
+    expect(result).toContain("/tmp/generated/123-abcd1234.png");
     expect(getAdapter).toHaveBeenCalledWith("test-prov");
     expect(saveImage).toHaveBeenCalled();
   });
