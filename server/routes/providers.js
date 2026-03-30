@@ -210,7 +210,10 @@ export function createProvidersRoute(engine) {
 
     const isOAuthProvider = !!name && engine.providerRegistry.isOAuth(name);
 
-    if (isOAuthProvider && !hasExplicitRemoteConfig) {
+    // OAuth provider：除非请求体显式传了 api_key（手动覆盖），否则走 Pi SDK 路径。
+    // 不依赖 hasExplicitRemoteConfig，因为 getCredentials 会返回 OAuth token，
+    // 会让 savedKey 有值从而误判为"有显式远程配置"。
+    if (isOAuthProvider && !api_key) {
       try {
         await engine.refreshAvailableModels();
         // Pi SDK 用 authJsonKey 作为 model.provider，需要两个 ID 都匹配
