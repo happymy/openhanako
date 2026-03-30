@@ -201,7 +201,7 @@ export function createProvidersRoute(engine) {
       return { source: "registry", models: normalized };
     }
 
-    // 回退到 default-models.json（用 authJsonKey 兜底，如 minimax-oauth → minimax）
+    // 回退到 default-models.json（用 authJsonKey 兜底，如 openai-codex-oauth → openai-codex）
     const authKey = engine.providerRegistry.getAuthJsonKey(name);
     const defaults = engine.providerRegistry.getDefaultModels(name)
       || engine.providerRegistry.getDefaultModels(authKey)

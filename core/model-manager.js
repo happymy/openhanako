@@ -9,8 +9,7 @@
  * 都在这个数组上完成，不再经过中间层。
  */
 import path from "path";
-import { AuthStorage, createModelRegistry, registerOAuthProvider } from "../lib/pi-sdk/index.js";
-import { minimaxOAuthProvider } from "../lib/oauth/minimax-portal.js";
+import { AuthStorage, createModelRegistry } from "../lib/pi-sdk/index.js";
 import { t } from "../server/i18n.js";
 import { ProviderRegistry } from "./provider-registry.js";
 import { ExecutionRouter } from "./execution-router.js";
@@ -38,7 +37,6 @@ export class ModelManager {
   /** 初始化 AuthStorage + ModelRegistry + 新架构模块 */
   init() {
     this._authStorage = AuthStorage.create(path.join(this._hanakoHome, "auth.json"));
-    registerOAuthProvider(minimaxOAuthProvider);
     this._modelRegistry = createModelRegistry(
       this._authStorage,
       path.join(this._hanakoHome, "models.json"),
@@ -152,8 +150,6 @@ export class ModelManager {
     });
     if (changed) {
       this._modelRegistry.refresh();
-      // refresh() 内部调 resetOAuthProviders()，需要重新注册
-      registerOAuthProvider(minimaxOAuthProvider);
       await this.refreshAvailable();
     }
     return changed;

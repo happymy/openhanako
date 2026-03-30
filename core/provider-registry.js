@@ -31,7 +31,6 @@ import { geminiPlugin } from "../lib/providers/gemini.js";
 import { openrouterPlugin } from "../lib/providers/openrouter.js";
 import { ollamaPlugin } from "../lib/providers/ollama.js";
 import { minimaxPlugin } from "../lib/providers/minimax.js";
-import { minimaxOAuthPlugin } from "../lib/providers/minimax-oauth.js";
 import { openaiCodexOAuthPlugin } from "../lib/providers/openai-codex-oauth.js";
 // 中国
 import { siliconflowPlugin } from "../lib/providers/siliconflow.js";
@@ -66,7 +65,6 @@ const BUILTIN_PLUGINS = [
   openrouterPlugin,
   ollamaPlugin,
   minimaxPlugin,
-  minimaxOAuthPlugin,
   openaiCodexOAuthPlugin,
   // 中国
   siliconflowPlugin,
@@ -343,7 +341,7 @@ export class ProviderRegistry {
 
   /**
    * 获取 OAuth provider 在 auth.json 中的实际 key
-   * （部分 provider 的 authJsonKey 与 id 不同，如 minimax-oauth → minimax）
+   * （部分 provider 的 authJsonKey 与 id 不同，如 openai-codex-oauth → openai-codex）
    * @param {string} providerId
    * @returns {string}
    */

@@ -205,33 +205,6 @@ describe("syncModels", () => {
     expect(model.maxTokens).toBe(4096);
   });
 
-  it("resolves OAuth credentials from auth.json via oauthKeyMap", async () => {
-    const syncModels = await loadSync();
-
-    // write auth.json with an OAuth token under "minimax" key
-    fs.writeFileSync(authJsonPath, JSON.stringify({
-      minimax: { apiKey: "oauth-token-123" },
-    }), "utf-8");
-
-    const providers = {
-      "minimax-oauth": {
-        base_url: "https://api.minimax.chat/v1",
-        api: "openai-completions",
-        // no api_key — should resolve from auth.json
-        models: ["minimax-model-1"],
-      },
-    };
-
-    const oauthKeyMap = { "minimax-oauth": "minimax" };
-
-    const changed = syncModels(providers, { modelsJsonPath, authJsonPath, oauthKeyMap });
-
-    expect(changed).toBe(true);
-    const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
-    expect(result.providers["minimax-oauth"]).toBeDefined();
-    expect(result.providers["minimax-oauth"].apiKey).toBe("oauth-token-123");
-  });
-
   it("uses atomic write (tmp + rename)", async () => {
     const syncModels = await loadSync();
 

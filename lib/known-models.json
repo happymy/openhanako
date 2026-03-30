@@ -4694,56 +4694,6 @@
       "vision": true
     }
   },
-  "minimax-oauth": {
-    "MiniMax-M2": {
-      "name": "MiniMax M2",
-      "context": 196608,
-      "maxOutput": 128000,
-      "reasoning": true
-    },
-    "MiniMax-M2.1": {
-      "name": "MiniMax M2.1",
-      "context": 204800,
-      "maxOutput": 131072,
-      "reasoning": true
-    },
-    "MiniMax-M2.5": {
-      "name": "MiniMax M2.5",
-      "context": 204800,
-      "maxOutput": 131072,
-      "reasoning": true
-    },
-    "MiniMax-M2.5-highspeed": {
-      "name": "MiniMax M2.5 Highspeed",
-      "context": 204800,
-      "maxOutput": 131072,
-      "reasoning": true
-    },
-    "MiniMax-M2.7": {
-      "name": "MiniMax M2.7",
-      "context": 204800,
-      "maxOutput": 131072,
-      "reasoning": true
-    },
-    "MiniMax-M2.7-highspeed": {
-      "name": "MiniMax M2.7 Highspeed",
-      "context": 204800,
-      "maxOutput": 131072,
-      "reasoning": true
-    },
-    "MiniMax-M2.1-lightning": {
-      "name": "MiniMax M2.1 Lightning",
-      "context": 1000000,
-      "maxOutput": 8192,
-      "reasoning": true
-    },
-    "MiniMax-M2.5-lightning": {
-      "name": "MiniMax M2.5 Lightning",
-      "context": 1000000,
-      "maxOutput": 8192,
-      "reasoning": true
-    }
-  },
   "openai-codex-oauth": {
     "gpt-4o": {
       "name": "GPT-4o",

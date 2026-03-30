@@ -308,11 +308,11 @@ describe("model sync related routes", () => {
 
     const engine = {
       getRegistryModelsForProvider: vi.fn().mockReturnValue([
-        { id: "MiniMax-M2.7", name: "MiniMax M2.7", provider: "minimax", contextWindow: 200000, maxOutputTokens: 131072 },
+        { id: "gpt-5.4", name: "GPT-5.4", provider: "openai-codex", contextWindow: 272000, maxOutputTokens: 128000 },
       ]),
       providerRegistry: {
-        getCredentials: () => ({ apiKey: "oauth-token", baseUrl: "https://api.minimaxi.com/v1", api: "openai-completions" }),
-        getAuthJsonKey: () => "minimax",
+        getCredentials: () => ({ apiKey: "oauth-token", baseUrl: "https://api.openai.com/v1", api: "openai-codex-responses" }),
+        getAuthJsonKey: () => "openai-codex",
         getDefaultModels: () => [],
       },
       hanakoHome: "/tmp",
@@ -323,13 +323,13 @@ describe("model sync related routes", () => {
     const res = await app.request("/api/providers/fetch-models", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "minimax-oauth" }),
+      body: JSON.stringify({ name: "openai-codex-oauth" }),
     });
 
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.source).toBe("registry");
-    expect(data.models[0].id).toBe("MiniMax-M2.7");
+    expect(data.models[0].id).toBe("gpt-5.4");
   });
 
   it("remote 401 returns error without fallback", async () => {
@@ -369,10 +369,10 @@ describe("model sync related routes", () => {
     const engine = {
       getRegistryModelsForProvider: vi.fn().mockReturnValue([]),
       providerRegistry: {
-        getCredentials: () => ({ apiKey: "", baseUrl: "", api: "openai-completions" }),
-        getAuthJsonKey: () => "minimax",
+        getCredentials: () => ({ apiKey: "", baseUrl: "", api: "openai-codex-responses" }),
+        getAuthJsonKey: () => "openai-codex",
         getDefaultModels: (id) => {
-          if (id === "minimax") return ["MiniMax-M2.7", "MiniMax-M2.5"];
+          if (id === "openai-codex") return ["gpt-5.4", "gpt-5.3-codex"];
           return null;
         },
       },
@@ -384,13 +384,13 @@ describe("model sync related routes", () => {
     const res = await app.request("/api/providers/fetch-models", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "minimax-oauth" }),
+      body: JSON.stringify({ name: "openai-codex-oauth" }),
     });
 
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.source).toBe("builtin");
-    expect(data.models.map(m => m.id)).toEqual(["MiniMax-M2.7", "MiniMax-M2.5"]);
+    expect(data.models.map(m => m.id)).toEqual(["gpt-5.4", "gpt-5.3-codex"]);
   });
 
   it("anthropic-messages skips remote and goes to defaults", async () => {

@@ -1,5 +1,5 @@
 {
-  "_comment": "每个 provider 的默认模型列表。从各 provider plugin 的 builtinModels 集中整理而来，并用 known-models.json 补充同系列变体。volcengine / ollama / openrouter / openai-codex-oauth / minimax-oauth 无固定内置模型，不在此列。",
+  "_comment": "每个 provider 的默认模型列表。从各 provider plugin 的 builtinModels 集中整理而来，并用 known-models.json 补充同系列变体。volcengine / ollama / openrouter / openai-codex-oauth 无固定内置模型，不在此列。",
 
   "anthropic": [
     "claude-opus-4-6",
