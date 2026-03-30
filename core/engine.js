@@ -496,6 +496,18 @@ export class HanaEngine {
       noPromptTemplates: true,
       noThemes: true,
       additionalSkillPaths: [skillsDir],
+      extensionFactories: [
+        /** 剥离空 tools 数组 — dashscope / volcengine 不接受 tools: [] */
+        (pi) => {
+          pi.on("before_provider_request", (event) => {
+            const p = event.payload;
+            if (p && Array.isArray(p.tools) && p.tools.length === 0) {
+              delete p.tools;
+            }
+            return p;
+          });
+        },
+      ],
     });
     await this._resourceLoader.reload();
 

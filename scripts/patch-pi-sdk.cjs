@@ -1,9 +1,10 @@
 /**
  * patch-pi-sdk.cjs — postinstall 补丁
  *
- * 两个 patch：
- *   1. createAgentSession() → baseToolsOverride 透传（sdk.js）
- *   2. 空 tools 数组剥离（openai-completions.js）
+ * Patch 1: createAgentSession() → baseToolsOverride 透传（sdk.js）
+ *
+ * 注：空 tools 数组剥离（原 patch 2）已迁移至 engine.js 的
+ *     before_provider_request extension，不再需要源码补丁。
  *
  * 安全机制：
  *   - 版本白名单守卫：未验证版本直接中断 npm install
@@ -17,7 +18,6 @@ const fs = require("fs");
 const path = require("path");
 
 const sdkRoot = path.join(__dirname, "..", "node_modules", "@mariozechner", "pi-coding-agent");
-const piAiRoot = path.join(__dirname, "..", "node_modules", "@mariozechner", "pi-ai");
 
 // ── 版本守卫 ──
 
@@ -68,46 +68,6 @@ if (sdkCode.includes("baseToolsOverride")) {
 const verifiedSdk = fs.readFileSync(sdkTarget, "utf8");
 if (!verifiedSdk.includes("baseToolsOverride")) {
   console.error("[patch-pi-sdk] patch 1 verification failed: baseToolsOverride not found after patching");
-  process.exit(1);
-}
-
-// ── Patch 2: 空 tools 数组剥离 ──
-
-const completionsTarget = path.join(piAiRoot, "dist", "providers", "openai-completions.js");
-
-if (!fs.existsSync(completionsTarget)) {
-  console.error("[patch-pi-sdk] openai-completions.js not found");
-  process.exit(1);
-}
-
-let completionsCode = fs.readFileSync(completionsTarget, "utf8");
-
-if (completionsCode.includes("/* patched: strip empty tools */")) {
-  console.log("[patch-pi-sdk] patch 2 already applied, skipping");
-} else {
-  const toolsNeedle = '        params.tools = [];\n    }\n    if (options?.toolChoice) {';
-  const toolsReplacement =
-    '        params.tools = [];\n    }\n' +
-    '    /* patched: strip empty tools */\n' +
-    '    if (Array.isArray(params.tools) && params.tools.length === 0) {\n' +
-    '        delete params.tools;\n' +
-    '    }\n' +
-    '    if (options?.toolChoice) {';
-
-  if (!completionsCode.includes(toolsNeedle)) {
-    console.error("[patch-pi-sdk] patch 2 needle not found — openai-completions.js structure changed");
-    process.exit(1);
-  }
-
-  completionsCode = completionsCode.replace(toolsNeedle, toolsReplacement);
-  fs.writeFileSync(completionsTarget, completionsCode, "utf8");
-  console.log("[patch-pi-sdk] patch 2 applied: strip empty tools array");
-}
-
-// 验证 patch 2
-const verifiedCompletions = fs.readFileSync(completionsTarget, "utf8");
-if (!verifiedCompletions.includes("/* patched: strip empty tools */")) {
-  console.error("[patch-pi-sdk] patch 2 verification failed");
   process.exit(1);
 }
 
