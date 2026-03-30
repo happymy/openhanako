@@ -44,6 +44,7 @@ function mockEngine(overrides = {}) {
   const routeRegistry = new Map();
   const allowFullAccess = overrides.allowFullAccess ?? false;
   return {
+    syncPluginExtensions: vi.fn(),
     pluginManager: {
       listPlugins: () => overrides.plugins || [],
       routeRegistry,

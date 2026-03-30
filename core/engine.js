@@ -621,13 +621,24 @@ export class HanaEngine {
     }
 
     // Inject plugin extension factories into ResourceLoader (same array reference)
-    const pluginExtFactories = this._pluginManager.getExtensionFactories();
-    if (pluginExtFactories.length > 0) {
-      this._extensionFactories.push(...pluginExtFactories);
-    }
+    this._syncExtensionFactories();
+  }
+
+  /**
+   * 同步插件 extension factories 到 ResourceLoader 共享数组。
+   * 原地 splice 保持数组引用不变（DefaultResourceLoader 持有同一引用）。
+   * 在 initPlugins 以及任何插件热操作后调用。
+   */
+  _syncExtensionFactories() {
+    if (!this._pluginManager || !this._extensionFactories) return;
+    // 保留首个内置 factory（空 tools 剥离），替换后续所有插件 factory
+    this._extensionFactories.splice(1, Infinity, ...this._pluginManager.getExtensionFactories());
   }
 
   get pluginManager() { return this._pluginManager; }
+
+  /** 插件热操作后调用，同步 extension factories 到 ResourceLoader */
+  syncPluginExtensions() { this._syncExtensionFactories(); }
 
   // ════════════════════════════
   //  工具构建
