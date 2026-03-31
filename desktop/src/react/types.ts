@@ -109,6 +109,17 @@ export interface TodoItem {
 export type ActivePanel = 'activity' | 'automation' | 'bridge' | null;
 export type TabType = 'chat' | 'channels' | `plugin:${string}`;
 
+// ── Plugin Card Protocol ──
+
+export interface PluginCardDetails {
+  type?: string;       // "iframe" | future types, defaults to "iframe"
+  pluginId: string;
+  route: string;
+  data?: Record<string, unknown>;
+  height?: number;
+  title?: string;
+}
+
 // ── 插件 UI 信息 ──
 
 export interface PluginPageInfo {

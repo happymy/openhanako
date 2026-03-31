@@ -267,7 +267,7 @@ class StreamBufferManager {
             const toolIdx = tg.tools.findIndex(t => t.name === msg.name && !t.done);
             if (toolIdx >= 0) {
               const tools = [...tg.tools];
-              tools[toolIdx] = { ...tools[toolIdx], done: true, success: !!msg.success };
+              tools[toolIdx] = { ...tools[toolIdx], done: true, success: !!msg.success, details: msg.details };
               const allDone = tools.every(t => t.done);
               blocks[i] = { ...tg, tools, collapsed: allDone && tools.length > 1 };
               return { ...m, blocks };

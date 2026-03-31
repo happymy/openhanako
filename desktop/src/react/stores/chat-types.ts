@@ -14,6 +14,7 @@ export interface ToolCall {
   args?: Record<string, unknown>;
   done: boolean;
   success: boolean;
+  details?: { card?: import('../types').PluginCardDetails; [key: string]: unknown };
 }
 
 // ── 用户附件 ──

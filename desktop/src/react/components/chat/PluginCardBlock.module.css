@@ -1,0 +1,17 @@
+.container {
+  margin: 8px 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--overlay-light);
+}
+.title {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--overlay-light);
+}
+.iframe {
+  width: 100%;
+  border: none;
+  transition: opacity 0.2s ease;
+}
