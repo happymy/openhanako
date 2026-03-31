@@ -232,6 +232,10 @@ export class BridgeSessionManager {
           if (media?.mediaUrls?.length) {
             toolMediaUrls.push(...media.mediaUrls);
           }
+          const card = event.result?.details?.card;
+          if (card?.description) {
+            capturedText += (capturedText ? "\n\n" : "") + card.description;
+          }
         }
       });
 
