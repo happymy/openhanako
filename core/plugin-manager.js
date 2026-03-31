@@ -198,10 +198,6 @@ export class PluginManager {
             } else {
               result = { content: [{ type: "text", text: String(raw ?? "") }] };
             }
-            // Plugin Card: auto-inject pluginId
-            if (result.details?.card && !result.details.card.pluginId) {
-              result.details.card.pluginId = ctx.pluginId;
-            }
             return result;
           },
           _pluginId: entry.id,
