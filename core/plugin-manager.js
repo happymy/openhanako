@@ -32,6 +32,8 @@ export class PluginManager {
     this._configSchemas = [];
     // extensionFactories: Array<{ pluginId: string, factory: Function }>
     this._extensionFactories = [];
+    this._pages = [];
+    this._widgets = [];
   }
 
   scan() {
@@ -143,6 +145,7 @@ export class PluginManager {
       await this._loadRoutes(entry);
       await this._loadExtensions(entry);
       await this._loadProviders(entry);
+      this._loadPageOrWidget(entry);
 
       // Lifecycle (index.js)
       const indexPath = path.join(entry.pluginDir, "index.js");
@@ -364,6 +367,60 @@ export class PluginManager {
     return [...this._configSchemas];
   }
 
+  // ── Page / Widget loader ──────────────────────────────────────────────────
+
+  _loadPage(entry) {
+    const page = entry.manifest?.contributes?.page;
+    if (!page) return;
+    if (entry.accessLevel !== 'full-access') {
+      entry.ctx?.log?.warn('page contribution requires full-access, skipping');
+      return;
+    }
+    const routesDir = path.join(entry.pluginDir, 'routes');
+    if (!fs.existsSync(routesDir)) {
+      entry.ctx?.log?.warn(`page declares route "${page.route}" but routes/ directory not found`);
+      return;
+    }
+    this._pages.push({
+      pluginId: entry.id,
+      title: page.title || entry.id,
+      icon: page.icon || null,
+      route: page.route,
+    });
+  }
+
+  _loadWidget(entry) {
+    const widget = entry.manifest?.contributes?.widget;
+    if (!widget) return;
+    if (entry.accessLevel !== 'full-access') {
+      entry.ctx?.log?.warn('widget contribution requires full-access, skipping');
+      return;
+    }
+    const routesDir = path.join(entry.pluginDir, 'routes');
+    if (!fs.existsSync(routesDir)) {
+      entry.ctx?.log?.warn(`widget declares route "${widget.route}" but routes/ directory not found`);
+      return;
+    }
+    this._widgets.push({
+      pluginId: entry.id,
+      title: widget.title || entry.id,
+      icon: widget.icon || null,
+      route: widget.route,
+    });
+  }
+
+  _loadPageOrWidget(entry) {
+    const c = entry.manifest?.contributes;
+    if (c?.page && c?.widget) {
+      entry.ctx?.log?.warn('plugin declares both page and widget; only page will be loaded');
+    }
+    if (c?.page) {
+      this._loadPage(entry);
+    } else if (c?.widget) {
+      this._loadWidget(entry);
+    }
+  }
+
   // ── Task 10: Agent templates + Provider loader ───────────────────────────
 
   async _loadAgentTemplates(entry) {
@@ -457,6 +514,7 @@ export class PluginManager {
         entry.status = "failed";
         entry.error = err.message;
       }
+      this._bus?.emit({ type: "plugin_ui_changed" });
       return entry;
     });
   }
@@ -477,6 +535,7 @@ export class PluginManager {
       } else {
         console.warn("[plugin-manager] removePlugin: preferencesManager unavailable, disabled list not updated");
       }
+      this._bus?.emit({ type: "plugin_ui_changed" });
       return entry.pluginDir;
     });
   }
@@ -497,6 +556,7 @@ export class PluginManager {
       } else {
         console.warn("[plugin-manager] disablePlugin: preferencesManager unavailable, preference not persisted");
       }
+      this._bus?.emit({ type: "plugin_ui_changed" });
     });
   }
 
@@ -516,6 +576,7 @@ export class PluginManager {
         const allowed = this._preferencesManager?.getAllowFullAccessPlugins() || false;
         if (!allowed) {
           entry.status = "restricted";
+          this._bus?.emit({ type: "plugin_ui_changed" });
           return;
         }
       }
@@ -530,6 +591,7 @@ export class PluginManager {
         entry.status = "failed";
         entry.error = err.message;
       }
+      this._bus?.emit({ type: "plugin_ui_changed" });
     });
   }
 
@@ -558,6 +620,7 @@ export class PluginManager {
           entry.status = "restricted";
         }
       }
+      this._bus?.emit({ type: "plugin_ui_changed" });
     });
   }
 
@@ -590,6 +653,8 @@ export class PluginManager {
     this._providerPlugins = this._providerPlugins.filter(p => p._pluginId !== pluginId);
     this._configSchemas = this._configSchemas.filter(s => s.pluginId !== pluginId);
     this._extensionFactories = this._extensionFactories.filter(e => e.pluginId !== pluginId);
+    this._pages = this._pages.filter(p => p.pluginId !== pluginId);
+    this._widgets = this._widgets.filter(w => w.pluginId !== pluginId);
     this.routeRegistry.delete(pluginId);
 
     entry.status = "unloaded";
@@ -628,6 +693,9 @@ export class PluginManager {
   getExtensionFactories() {
     return this._extensionFactories.map(e => e.factory);
   }
+
+  getPages() { return [...this._pages]; }
+  getWidgets() { return [...this._widgets]; }
 
   getPlugin(id) { return this._plugins.get(id) || null; }
   listPlugins() { return [...this._plugins.values()]; }
