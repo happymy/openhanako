@@ -8,6 +8,7 @@ import { AttachmentChip } from '../shared/AttachmentChip';
 import type { ChatMessage, UserAttachment, DeskContext } from '../../stores/chat-types';
 import { useStore } from '../../stores';
 import styles from './Chat.module.css';
+import badgeStyles from '../input/SkillBadgeView.module.css';
 
 interface Props {
   message: ChatMessage;
@@ -55,6 +56,15 @@ export const UserMessage = memo(function UserMessage({ message, showAvatar }: Pr
         <UserAttachmentsView attachments={message.attachments} deskContext={message.deskContext} />
       )}
       <div className={`${styles.message} ${styles.messageUser}`}>
+        {message.skills && message.skills.length > 0 && message.skills.map(skillName => (
+          <span key={skillName} className={badgeStyles.badge} style={{ cursor: 'default' }}>
+            <svg className={badgeStyles.icon} width="13" height="13" viewBox="0 0 16 16" fill="none"
+              stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round">
+              <path d="M8 1 L9.5 6 L15 8 L9.5 10 L8 15 L6.5 10 L1 8 L6.5 6 Z" />
+            </svg>
+            <span className={badgeStyles.name}>{skillName}</span>
+          </span>
+        ))}
         {message.textHtml && <MarkdownContent html={message.textHtml} />}
       </div>
     </div>

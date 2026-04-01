@@ -59,6 +59,7 @@ export interface ChatMessage {
   quotedText?: string;
   attachments?: UserAttachment[];
   deskContext?: DeskContext | null;
+  skills?: string[];
   // Assistant
   blocks?: ContentBlock[];
   // 通用
