@@ -1,77 +1,70 @@
 ---
 name: image-gen-guide
-description: MUST read before calling image-gen_generate-image — contains prompt writing rules and required post-call workflow
+description: MUST read before calling image-gen_generate-image or image-gen_generate-video — contains prompt rules and non-blocking workflow
 ---
 
-# 图片生成
+# 图片 / 视频生成
 
-你可以使用 `image-gen_generate-image` 工具根据文字描述生成图片。当用户请求创建、绘制、生成图片/插画/照片时，调用此工具。
+使用 `image-gen_generate-image` 和 `image-gen_generate-video` 工具生成媒体内容。
 
-## 流程
+## 非阻塞工作流
 
-1. 按照下方的 Prompt 编写规范，将用户请求转化为英文 prompt
-2. 调用 `image-gen_generate-image`，传入 prompt 和参数
-3. 工具返回图片的本地文件路径
-4. **立即调用 `stage_files` 将图片呈现给用户**：`stage_files({ filepaths: ["返回的路径"] })`
+生成是异步的。提交后工具立即返回一张卡片，你**不需要等待结果**，也**不需要调用 stage_files**。
 
-必须调用 `stage_files`，否则用户看不到图片。
+1. 按下方规范编写 prompt
+2. 调用工具，传入 prompt 和参数
+3. **告诉用户图片/视频正在生成，完成后会自动显示在卡片中**
+4. **继续对话**，不要等待
+5. 当你收到 `<hana-background-result>` 通知时，自然地告知用户结果
 
-## 参数
+## generate-image 参数
 
-- `prompt`（必填）：英文图片描述，按下方规范编写
-- `filename`：保存的文件名（不含扩展名），简短有意义的英文，如 "moonlit-cat"
-- `image`：参考图的文件路径或 URL（用于图生图）
-- `aspect_ratio`：长宽比（"1:1"、"4:3"、"3:4"、"16:9"、"9:16"、"3:2"、"2:3"、"21:9"）
-- `size`：分辨率（"2K"、"4K"）
-- `format`：输出格式（"png"、"jpeg"、"webp"）
-- `quality`：生成质量（"low"、"medium"、"high"）
+- `prompt`（必填）：图片描述（中英文均可，建议英文以获得更好效果）
+- `count`：并发生成张数（1-4），用户说"多来几张"时用
+- `image`：参考图路径（图生图）
+- `ratio`：长宽比（1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 21:9）
+- `resolution`：分辨率（2k, 4k）
+- `quality`：画质（low, medium, high）
+- `provider`：指定 provider（可选，默认自动选择）
+
+## generate-video 参数
+
+- `prompt`（必填）：视频描述
+- `image`：参考图路径（图生视频）
+- `duration`：时长（秒）
+- `ratio`：长宽比
+- `provider`：指定 provider（可选）
 
 ## Prompt 编写规范
 
-**语言**：始终使用英文编写 prompt。
-
-**结构顺序**（图片模型对前面的词权重更高，按重要性排列）：
+**结构顺序**（前面的词权重更高）：
 
 ```
 主体（who/what）→ 动作/状态 → 环境/背景 → 光线/氛围 → 画风/媒介
 ```
 
 **具体化规则**：
-- 用户说"猫" → 补充品种、毛色、姿态、表情（如 "a fluffy gray cat curled up on a windowsill, eyes half-closed"）
-- 用户说"风景" → 补充季节、时间、天气、具体场景（如 "autumn mountain valley at golden hour, mist rising from a river"）
-- 用户没说情绪 → 根据内容推断一个氛围词（serene, dramatic, cozy, melancholic...）
-- 避免抽象词（"美丽的"、"好看的"），用具体视觉描述替代
-- 不在 prompt 里写否定句（"没有XX"），图片模型不理解否定，改成描述你想要的内容
+- 用户说"猫" → 补充品种、毛色、姿态（如 "a fluffy gray cat curled up on a windowsill"）
+- 用户说"风景" → 补充季节、时间、天气（如 "autumn mountain valley at golden hour"）
+- 避免抽象词（"美丽的"），用具体视觉描述替代
+- 不写否定句，图片模型不理解否定
 
-**长度**：50-150 个英文词，用逗号分隔概念，不写长句。
+**长度**：50-150 个英文词，逗号分隔。
 
-**默认画风**：当用户没有指定画风时，在 prompt 末尾附加以下描述：
+**默认画风**：用户没指定画风时，在 prompt 末尾附加：
 
 ```
 modern Japanese illustration style, soft cel-shaded, clean linework, muted warm color palette with cream and indigo tones, elegant and serene atmosphere, anime-influenced but mature aesthetic
 ```
 
-当用户明确指定了风格（如"油画风格"、"赛博朋克"、"水彩"、"写实照片"等），不附加默认画风。
+用户明确指定了风格（如"油画"、"赛博朋克"、"写实"）时不附加。
 
-**示例转换**：
+## 图生图
 
-用户："画一只猫"
-→ prompt: "a fluffy calico cat sitting on a sunlit wooden desk, looking up with gentle curious eyes, a few scattered cherry blossom petals nearby, soft afternoon light streaming through a window, modern Japanese illustration style, soft cel-shaded, clean linework, muted warm color palette with cream and indigo tones, elegant and serene atmosphere, anime-influenced but mature aesthetic"
+当用户消息中包含 `[attached_image: /path/to/file]` 标记，且要求修改/换场景/变风格，传入 `image` 参数。
 
-用户："帮我画一张赛博朋克风格的城市夜景"
-→ prompt: "a sprawling cyberpunk cityscape at night, neon signs reflecting on rain-slicked streets, towering skyscrapers with holographic advertisements, flying vehicles leaving light trails, dense atmospheric fog, vibrant neon pink and electric blue lighting, cinematic wide-angle composition, detailed and immersive"
-（用户指定了赛博朋克，不附加默认画风）
+## 注意
 
-## 图生图（参考图）
-
-当用户消息中包含 `[attached_image: /path/to/file]` 标记时，表示用户上传了图片。如果用户要求基于该图片进行修改、换场景、变风格等操作，**必须**将该路径传入 `image` 参数。
-
-判断规则：
-- 用户发了图片 + 要求修改/换场景/变风格/加元素 → 传 `image` 参数（图生图）
-- 用户发了图片 + 只是问图片内容/聊天 → 不需要调用生图工具
-- 用户没发图片 + 描述想要的画面 → 不传 `image`（纯文生图）
-
-## 其他
-
-- 如果生成失败，工具会返回错误信息，请告知用户具体原因
-- 每次生成都要为 `filename` 起名，反映图片内容
+- 生成消耗 provider 额度，大批量前建议提醒用户
+- 不同 provider 支持的参数不同，工具会自动处理
+- 视频生成通常比图片慢（可能几十秒到几分钟），但同样不阻塞
