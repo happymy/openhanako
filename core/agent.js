@@ -306,6 +306,8 @@ export class Agent {
         } catch { return []; }
       };
 
+      this._listAgents = listAgents;
+
       this._channelTool = createChannelTool({
         channelsDir: this.channelsDir,
         agentsDir: this.agentsDir,
@@ -710,6 +712,31 @@ export class Agent {
           "- If installation fails, attempt the task yourself\n" +
           "- If nothing found, complete normally — don't retry"
       );
+    }
+
+    // 团队协作（仅当存在其他 agent 时注入）
+    if (this._listAgents) {
+      const myId = path.basename(this.agentDir);
+      const allAgents = this._listAgents();
+      const others = allAgents.filter(a => a.id !== myId);
+      if (others.length > 0) {
+        const roster = allAgents.map(a => {
+          const tag = a.id === myId ? "（你）" : "";
+          const model = a.model ? ` [${a.model}]` : "";
+          const desc = a.summary ? ` — ${a.summary}` : "";
+          return `- **${a.name}** (id: ${a.id})${tag}${model}${desc}`;
+        }).join("\n");
+        parts.push(isZh
+          ? `\n## 团队\n\n` +
+            `你不是独自工作。当前环境中有多个 agent，各有不同的专长和模型：\n\n${roster}\n\n` +
+            `遇到明显更适合其他 agent 专长的任务，或需要不同视角审核重要结论时，用 ask_agent 请求协助。` +
+            `先判断这件事自己做合不合适，再决定是否交出去。不确定找谁时传 \`agent="?"\` 查看详情。`
+          : `\n## Team\n\n` +
+            `You are not working alone. Multiple agents are available, each with different strengths and models:\n\n${roster}\n\n` +
+            `When a task clearly falls within another agent's expertise, or when an important conclusion would benefit from a different perspective, use ask_agent to request help. ` +
+            `Judge whether you're the best fit for the job before deciding to delegate. Pass \`agent="?"\` if unsure who to ask.`
+        );
+      }
     }
 
     // 书桌 = 当前工作目录（注入实际路径）
