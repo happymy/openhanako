@@ -6,6 +6,7 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import { MarkdownContent } from './MarkdownContent';
 import { AttachmentChip } from '../shared/AttachmentChip';
 import { MessageActions } from './MessageActions';
+import { takeScreenshot } from '../../utils/screenshot';
 import type { ChatMessage, UserAttachment, DeskContext, ContentBlock } from '../../stores/chat-types';
 import { useStore } from '../../stores';
 import styles from './Chat.module.css';
@@ -74,8 +75,8 @@ export const UserMessage = memo(function UserMessage({ message, showAvatar }: Pr
   }, [message.text]);
 
   const handleScreenshot = useCallback(() => {
-    // Will be wired to takeScreenshot in Task 8
-  }, []);
+    takeScreenshot(message.id);
+  }, [message.id]);
 
   return (
     <div className={`${styles.messageGroup} ${styles.messageGroupUser}${isSelected ? ` ${styles.messageGroupSelected}` : ''}`}

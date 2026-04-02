@@ -11,6 +11,7 @@ import { PluginCardBlock } from './PluginCardBlock';
 import { XingCard } from './XingCard';
 import { SettingsConfirmCard } from './SettingsConfirmCard';
 import { MessageActions } from './MessageActions';
+import { takeScreenshot } from '../../utils/screenshot';
 import type { ChatMessage, ContentBlock } from '../../stores/chat-types';
 import { useStore } from '../../stores';
 import { hanaFetch, hanaUrl } from '../../hooks/use-hana-fetch';
@@ -106,8 +107,8 @@ export const AssistantMessage = memo(function AssistantMessage({ message, showAv
   }, [blocks]);
 
   const handleScreenshot = useCallback(() => {
-    // Will be wired to takeScreenshot in Task 8
-  }, []);
+    takeScreenshot(message.id);
+  }, [message.id]);
 
   return (
     <div className={`${styles.messageGroup} ${styles.messageGroupAssistant}${isSelected ? ` ${styles.messageGroupSelected}` : ''}`}
