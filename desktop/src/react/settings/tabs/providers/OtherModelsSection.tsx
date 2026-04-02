@@ -106,14 +106,6 @@ export function OtherModelsSection({ providers }: { providers: Record<string, { 
     return String(raw);
   };
 
-  // 根据 model ID 反查所属 provider
-  const resolveProvider = (modelId: string): string | null => {
-    for (const [name, p] of Object.entries(providers)) {
-      if ((p.models || []).some((m: any) => (typeof m === 'object' ? m.id : m) === modelId)) return name;
-    }
-    return null;
-  };
-
   const utilityVal = toModelId(globalModelsConfig?.models?.utility);
   const utilityLargeVal = toModelId(globalModelsConfig?.models?.utility_large);
 
@@ -126,9 +118,8 @@ export function OtherModelsSection({ providers }: { providers: Record<string, { 
             <ModelWidget
               providers={providers}
               value={utilityVal}
-              onSelect={(mid) => {
-                const provider = resolveProvider(mid);
-                autoSaveGlobalModels({ models: { utility: provider ? { id: mid, provider } : mid } });
+              onSelect={(ref) => {
+                autoSaveGlobalModels({ models: { utility: ref } });
               }}
               lookupModelMeta={lookupModelMeta}
               formatContext={formatContext}
@@ -143,9 +134,8 @@ export function OtherModelsSection({ providers }: { providers: Record<string, { 
             <ModelWidget
               providers={providers}
               value={utilityLargeVal}
-              onSelect={(mid) => {
-                const provider = resolveProvider(mid);
-                autoSaveGlobalModels({ models: { utility_large: provider ? { id: mid, provider } : mid } });
+              onSelect={(ref) => {
+                autoSaveGlobalModels({ models: { utility_large: ref } });
               }}
               lookupModelMeta={lookupModelMeta}
               formatContext={formatContext}

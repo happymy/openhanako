@@ -172,11 +172,10 @@ export function AgentTab() {
               options={modelOptions}
               value={currentModel}
               onChange={async (modelId) => {
-                const partial: Record<string, unknown> = { models: { chat: modelId } };
                 const match = availableModels.find(m => m.id === modelId);
-                if (match?.provider) {
-                  partial.api = { provider: match.provider };
-                }
+                const partial: Record<string, unknown> = {
+                  models: { chat: { id: modelId, provider: match?.provider || '' } },
+                };
                 await autoSaveConfig(partial, { refreshModels: true });
               }}
               placeholder={t('settings.api.selectModel')}

@@ -17,7 +17,7 @@ interface ModelWidgetProps {
   /** @deprecated 不再使用，保留兼容签名 */
   providers?: Record<string, { models?: string[]; base_url?: string }>;
   value: string;
-  onSelect: (modelId: string) => void;
+  onSelect: (ref: { id: string; provider: string }) => void;
   placeholder?: string;
   lookupModelMeta?: (id: string) => any;
   formatContext?: (n: number) => string;
@@ -75,7 +75,7 @@ export function ModelWidget({
   const handleCustomSubmit = () => {
     const val = customInput.trim();
     if (!val) return;
-    onSelect(val);
+    onSelect({ id: val, provider: '' });
     setCustomInput('');
     setOpen(false);
   };
@@ -110,7 +110,7 @@ export function ModelWidget({
                   key={`${m.provider}/${m.id}`}
                   className={`${styles['mdw-option']}${m.id === value ? ' ' + styles['selected'] : ''}`}
                   type="button"
-                  onClick={() => { onSelect(m.id); setOpen(false); }}
+                  onClick={() => { onSelect({ id: m.id, provider: m.provider }); setOpen(false); }}
                 >
                   <span className={styles['mdw-option-name']}>{m.name || m.id}</span>
                   {m.contextWindow && formatContext && (

@@ -113,7 +113,7 @@ export async function saveModel({ hanaFetch, selectedModel, fetchedModels, provi
   await hanaFetch(`/api/agents/${AGENT_ID}/config`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ models: { chat: selectedModel } }),
+    body: JSON.stringify({ models: { chat: { id: selectedModel, provider: providerName } } }),
   });
 
   // Save model list to provider
@@ -128,9 +128,9 @@ export async function saveModel({ hanaFetch, selectedModel, fetchedModels, provi
 
   // Save utility models to global preferences
   if (selectedUtility || selectedUtilityLarge) {
-    const utilityModels: Record<string, string> = {};
-    if (selectedUtility) utilityModels.utility = selectedUtility;
-    if (selectedUtilityLarge) utilityModels.utility_large = selectedUtilityLarge;
+    const utilityModels: Record<string, { id: string; provider: string }> = {};
+    if (selectedUtility) utilityModels.utility = { id: selectedUtility, provider: providerName };
+    if (selectedUtilityLarge) utilityModels.utility_large = { id: selectedUtilityLarge, provider: providerName };
     await hanaFetch('/api/preferences/models', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
