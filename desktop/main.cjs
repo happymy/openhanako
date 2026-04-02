@@ -246,13 +246,14 @@ function hasExistingConfig() {
  */
 function migrateSetupComplete() {
   if (isSetupComplete()) return;
-  const agentsDir = path.join(hanakoHome, "agents");
+  // 判断依据：added-models.yaml 存在且含有真实 api_key → 老用户配置过 provider。
+  // 不能只看 agents/*/config.yaml 是否存在，因为 ensureFirstRun 会为全新用户
+  // 播种默认 agent（含 config.yaml），导致新用户被误判为老用户而跳过 onboarding。
   try {
-    const entries = fs.readdirSync(agentsDir, { withFileTypes: true });
-    const hasAgent = entries.some(
-      (e) => e.isDirectory() && fs.existsSync(path.join(agentsDir, e.name, "config.yaml"))
-    );
-    if (!hasAgent) return;
+    const modelsPath = path.join(hanakoHome, "added-models.yaml");
+    if (!fs.existsSync(modelsPath)) return;
+    const content = fs.readFileSync(modelsPath, "utf-8");
+    if (!/api_key:\s*["']?[^"'\s]+/.test(content)) return;
   } catch {
     return;
   }
