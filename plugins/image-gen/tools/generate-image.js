@@ -1,5 +1,12 @@
-import { getAdapter } from "../adapters/registry.js";
-import { saveImage } from "../lib/download.js";
+import path from "path";
+import { volcengineImageAdapter } from "../adapters/volcengine.js";
+import { openaiImageAdapter } from "../adapters/openai.js";
+
+const ADAPTERS = {
+  volcengine: volcengineImageAdapter,
+  "volcengine-coding": volcengineImageAdapter,
+  openai: openaiImageAdapter,
+};
 
 export const name = "generate-image";
 export const description = "根据文字描述生成图片。prompt 必须用英文。生成后调用 stage_files 呈现给用户。";
@@ -30,44 +37,30 @@ export async function execute(input, ctx) {
 
     const { id: modelId, provider: providerId } = model;
 
-    // 2. Get credentials
-    const creds = await ctx.bus.request("provider:credentials", { providerId });
-    if (creds.error) {
-      return `Provider "${providerId}" 未配置 API Key。请在设置 → Providers 中配置。`;
-    }
-
-    // 3. Get adapter
-    const adapter = getAdapter(providerId);
+    // 2. Get adapter
+    const adapter = ADAPTERS[providerId];
     if (!adapter) {
       return `不支持的图片生成 provider：${providerId}`;
     }
 
-    // 4. Get provider defaults
-    const allDefaults = ctx.config.get("providerDefaults") || {};
-    const providerDefaults = allDefaults[providerId] || {};
-
-    // 5. Call adapter
-    const result = await adapter.generate({
+    // 3. Build params and call adapter.submit() — credentials fetched inside adapter
+    const params = {
       prompt: input.prompt,
-      modelId,
-      apiKey: creds.apiKey,
-      baseUrl: creds.baseUrl,
+      model: modelId,
+      filename: input.filename,
       size: input.size,
       format: input.format,
       quality: input.quality,
-      aspectRatio: input.aspect_ratio,
+      aspect_ratio: input.aspect_ratio,
       image: input.image,
-      providerDefaults,
-    });
+    };
 
-    // 6. Save first image
-    const img = result.images[0];
-    const { filePath } = await saveImage(img.buffer, img.mimeType, ctx.dataDir, input.filename);
-    let response = `图片已生成并保存到 ${filePath}\n请立即调用 stage_files 工具将此文件呈现给用户：stage_files({ filepaths: ["${filePath}"] })`;
-    if (result.revisedPrompt) {
-      response += `\n修正后的描述：${result.revisedPrompt}`;
-    }
-    return response;
+    const result = await adapter.submit(params, ctx);
+
+    // 4. Build file path from first file — saveImage saves to ctx.dataDir/generated/
+    const firstFilename = result.files[0];
+    const filePath = path.join(ctx.dataDir, "generated", firstFilename);
+    return `图片已生成并保存到 ${filePath}\n请立即调用 stage_files 工具将此文件呈现给用户：stage_files({ filepaths: ["${filePath}"] })`;
 
   } catch (err) {
     const msg = err.message || String(err);
