@@ -37,8 +37,16 @@ export class Hub {
     this._scheduler = new Scheduler({ hub: this });
     this._dmRouter = new DmRouter({ hub: this });
 
-    // 双向引用：engine 也能拿到 hub
-    engine._hub = this;
+    // 注入 Hub 回调到 Engine（单向：Hub → Engine，不再双向引用）
+    engine.setHubCallbacks({
+      scheduler: this._scheduler,
+      dmRouter: this._dmRouter,
+      channelRouter: this._channelRouter,
+      eventBus: this._eventBus,
+      pauseForAgentSwitch: () => this.pauseForAgentSwitch(),
+      resumeAfterAgentSwitch: () => this.resumeAfterAgentSwitch(),
+      triggerChannelTriage: (name, opts) => this._channelRouter.triggerImmediate(name, opts),
+    });
 
     // 注入 EventBus（替代旧的 proxy hack）
     engine.setEventBus(this._eventBus);

@@ -78,7 +78,7 @@ export class HanaEngine {
       channelsDir: this.channelsDir,
       agentsDir: this.agentsDir,
       userDir: this.userDir,
-      getHub: () => this._hub,
+      getHub: () => this._hubCallbacks,
     });
 
     // ── Agent Manager ──
@@ -89,7 +89,7 @@ export class HanaEngine {
       channelsDir: this.channelsDir,
       getPrefs: () => this._prefs,
       getModels: () => this._models,
-      getHub: () => this._hub,
+      getHub: () => this._hubCallbacks,
       getSkills: () => this._skills,
       getSearchConfig: () => this.getSearchConfig(),
       resolveUtilityConfig: () => this.resolveUtilityConfig(),
@@ -137,7 +137,7 @@ export class HanaEngine {
       getSkills: () => this._skills,
       getSession: () => this._sessionCoord.session,
       getSessionCoordinator: () => this._sessionCoord,
-      getHub: () => this._hub,
+      getHub: () => this._hubCallbacks,
       emitEvent: (e, sp) => this._emitEvent(e, sp),
       emitDevLog: (t, l) => this.emitDevLog(t, l),
       getCurrentModel: () => this.currentModel?.name,
@@ -159,6 +159,9 @@ export class HanaEngine {
 
     // Pi SDK resources（init 时填充）
     this._resourceLoader = null;
+
+    // Hub 回调（由 Hub 构造后通过 setHubCallbacks 注入，替代旧的 engine._hub 双向引用）
+    this._hubCallbacks = null;
 
     // 事件系统
     this._listeners = new Set();
@@ -733,6 +736,14 @@ export class HanaEngine {
   // ════════════════════════════
   //  事件系统
   // ════════════════════════════
+
+  /**
+   * Hub 构造后注入回调，替代旧的 engine._hub = this 双向引用。
+   * Manager 通过 getHub() lazy getter 拿到这个对象。
+   */
+  setHubCallbacks(callbacks) {
+    this._hubCallbacks = callbacks;
+  }
 
   setEventBus(bus) {
     for (const fn of this._listeners) bus.subscribe(fn);
