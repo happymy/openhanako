@@ -55,6 +55,7 @@ describe("SessionCoordinator", () => {
       setMemoryEnabled: vi.fn((enabled) => {
         sessionMemoryEnabled = !!enabled;
       }),
+      buildSystemPrompt: () => sessionMemoryEnabled ? "MEMORY ON" : "MEMORY OFF",
     };
 
     const resourceLoader = {

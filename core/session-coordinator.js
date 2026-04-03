@@ -97,8 +97,7 @@ export class SessionCoordinator {
       sessionMgr = SessionManager.create(effectiveCwd, agent.sessionDir);
     }
 
-    // 必须在 createAgentSession 前切换 session 级记忆状态，
-    // 否则首轮 prompt 会沿用上一个 session 的 system prompt。
+    // 切换 session 级记忆状态后立即快照 prompt（下方 promptSnapshot）。
     const creatingAgent = agent;
     creatingAgent.setMemoryEnabled(memoryEnabled);
 
@@ -107,8 +106,15 @@ export class SessionCoordinator {
     this._pendingPlanMode = false;
     const sessionEntry = { planMode: initialPlanMode }; // pre-populated for resourceLoader proxy
 
-    // Wrap resourceLoader to dynamically inject plan mode context into system prompt
+    // 快照当前 system prompt，per-session 隔离。
+    // 后续记忆编译、技能变更只影响新对话，已有对话的 prompt 不变（保护 prefix cache）。
+    const promptSnapshot = agent.buildSystemPrompt();
+
+    // Wrap resourceLoader: per-session prompt snapshot + plan mode injection
     const resourceLoader = Object.create(baseResourceLoader, {
+      getSystemPrompt: {
+        value: () => promptSnapshot,
+      },
       getAppendSystemPrompt: {
         value: () => {
           const base = baseResourceLoader.getAppendSystemPrompt();
@@ -727,10 +733,14 @@ export class SessionCoordinator {
       const agent = this._d.getAgent();
       const skills = this._d.getSkills();
       const resourceLoader = this._d.getResourceLoader();
+      // 快照 prompt，隔离于其他 session 的 prompt 变更
+      const isolatedPrompt = targetAgent.systemPrompt;
       const execResourceLoader = (targetAgent === agent)
-        ? resourceLoader
+        ? Object.create(resourceLoader, {
+            getSystemPrompt: { value: () => isolatedPrompt },
+          })
         : Object.create(resourceLoader, {
-            getSystemPrompt: { value: () => targetAgent.systemPrompt },
+            getSystemPrompt: { value: () => isolatedPrompt },
             getSkills: { value: () => skills.getSkillsForAgent(targetAgent) },
           });
 
