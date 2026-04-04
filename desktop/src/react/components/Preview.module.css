@@ -287,6 +287,19 @@
     background: var(--overlay-subtle);
 }
 
+:global(.cm-codeblock-line) {
+    background: var(--overlay-light);
+}
+
+:global(.cm-codeblock-lang) {
+    float: right;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    pointer-events: none;
+    user-select: none;
+}
+
 /* 拖拽中禁 transition */
 :global(body.resizing) .previewPanel,
 :global(body.resizing) .previewPanelInner {
