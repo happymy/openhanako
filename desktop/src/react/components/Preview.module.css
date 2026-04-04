@@ -300,6 +300,23 @@
     user-select: none;
 }
 
+:global(.cm-image-widget) {
+    display: block;
+    max-width: 100%;
+    margin: var(--space-xs) 0;
+}
+
+:global(.cm-image-widget img) {
+    max-width: 100%;
+    border-radius: var(--radius-sm);
+}
+
+:global(.cm-image-fallback) {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.85em;
+}
+
 /* 拖拽中禁 transition */
 :global(body.resizing) .previewPanel,
 :global(body.resizing) .previewPanelInner {

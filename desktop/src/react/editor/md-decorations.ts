@@ -8,6 +8,7 @@ import { hrDecoration } from './widgets/hr';
 import { handleCheckbox } from './widgets/checkbox';
 import { handleBlockquote } from './widgets/blockquote';
 import { handleCodeBlock } from './widgets/code-block';
+import { handleImage } from './widgets/image';
 
 export type DecoRange = { from: number; to: number; deco: Decoration };
 
@@ -67,6 +68,9 @@ export function buildMarkdownDecorations(view: EditorView): DecorationSet {
 
         // ── 非活跃行：按节点类型处理 ──
         switch (node.name) {
+          case 'Image':
+            handleImage({ view, node, activeLines, ranges });
+            break;
           // conceal marks
           case 'HeaderMark': case 'EmphasisMark': case 'CodeMark':
           case 'StrikethroughMark': case 'LinkMark': case 'URL': case 'QuoteMark': {
