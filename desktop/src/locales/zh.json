@@ -1164,7 +1164,7 @@
     "empty": "暂无消息记录",
     "notConfigured": "尚未配置 {platform}",
     "goToSettings": "前往设置",
-    "resetContext": "清除上下文",
+    "resetContext": "重启上下文",
     "resetContextTip": "下次消息将开启新对话"
   },
   "error": {

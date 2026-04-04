@@ -1121,7 +1121,7 @@
     "empty": "メッセージなし",
     "notConfigured": "{platform} は設定されていません",
     "goToSettings": "設定へ",
-    "resetContext": "コンテキストをクリア",
+    "resetContext": "コンテキストをリセット",
     "resetContextTip": "次のメッセージから新しい会話が始まります"
   },
   "error": {

@@ -1121,7 +1121,7 @@
     "empty": "暫無訊息記錄",
     "notConfigured": "尚未設定 {platform}",
     "goToSettings": "前往設定",
-    "resetContext": "清除上下文",
+    "resetContext": "重啟上下文",
     "resetContextTip": "下次訊息將開啟新對話"
   },
   "error": {

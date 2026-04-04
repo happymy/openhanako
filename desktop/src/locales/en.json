@@ -1164,7 +1164,7 @@
     "empty": "No messages",
     "notConfigured": "{platform} not configured",
     "goToSettings": "Go to Settings",
-    "resetContext": "Clear context",
+    "resetContext": "Reset context",
     "resetContextTip": "Next message will start a new conversation"
   },
   "error": {
