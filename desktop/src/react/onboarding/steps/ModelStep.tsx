@@ -75,7 +75,7 @@ export function ModelStep({
   // ── Next ──
   const onNext = useCallback(async () => {
     if (preview) { goToStep(4); return; }
-    if (!selectedModel) return;
+    if (!selectedModel || !selectedUtility || !selectedUtilityLarge) return;
     try {
       await saveModelAction({
         hanaFetch, selectedModel, fetchedModels, providerName,
@@ -154,7 +154,7 @@ export function ModelStep({
         </button>
         <button
           className="ob-btn ob-btn-primary"
-          disabled={!preview && !selectedModel}
+          disabled={!preview && (!selectedModel || !selectedUtility || !selectedUtilityLarge)}
           onClick={onNext}
         >
           {t('onboarding.model.next')}

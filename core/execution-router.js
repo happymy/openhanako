@@ -109,8 +109,15 @@ export class ExecutionRouter {
    */
   resolveUtilityConfig(agentConfig, sharedModels, utilApiOverride) {
     const cfg = agentConfig || {};
-    const utilityModelRef = sharedModels?.utility || cfg.models?.utility;
-    const largeModelRef = sharedModels?.utility_large || cfg.models?.utility_large;
+    const chatModelRef = cfg.models?.chat || null;
+
+    // 用户明确配置的 utility 模型
+    const userSetUtility = sharedModels?.utility || cfg.models?.utility || null;
+    const userSetUtilityLarge = sharedModels?.utility_large || cfg.models?.utility_large || null;
+
+    // 未配置时 fallback 到聊天模型
+    const utilityModelRef = userSetUtility || chatModelRef;
+    const largeModelRef = userSetUtilityLarge || chatModelRef;
 
     if (!utilityModelRef) throw new Error(t("error.noUtilityModel"));
     if (!largeModelRef) throw new Error(t("error.noUtilityLargeModel"));

@@ -112,7 +112,7 @@ export class AgentManager {
       const results = await Promise.allSettled(others.map(id => initOne(id)));
       for (let i = 0; i < results.length; i++) {
         if (results[i].status === "rejected") {
-          log.error(`agent "${others[i]}" init 失败: ${results[i].reason?.message}`);
+          console.error(`[agent-manager] agent "${others[i]}" init 失败: ${results[i].reason?.message}`);
         }
       }
     }

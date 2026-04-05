@@ -175,25 +175,42 @@ export class Agent {
 
     log(`  [agent] 4. FactStore + SummaryManager 完成`);
 
-    // utility 模型（允许为空，首次安装时用户尚未配置）
-    this._utilityModel = sharedModels.utility || null;
-    this._memoryModel = sharedModels.utility_large || null;
+    // utility 模型：用户未配置时 fallback 到聊天模型
+    const chatModelRef = this._config.models?.chat || null;
+    const userSetUtility = sharedModels.utility || null;
+    const userSetUtilityLarge = sharedModels.utility_large || null;
+
+    this._utilityModel = userSetUtility || chatModelRef;
+    this._memoryModel = userSetUtilityLarge || chatModelRef;
+
+    if (!userSetUtility && chatModelRef) {
+      console.log(`[agent] utility 模型未配置，使用聊天模型作为工具模型`);
+    }
+    if (!userSetUtilityLarge && chatModelRef) {
+      console.log(`[agent] utility_large 模型未配置，使用聊天模型作为记忆模型`);
+    }
 
     // 预解析记忆模型凭证（统一解析层）
     this._resolvedMemoryModel = null;
     this._memoryModelUnavailableReason = null;
     if (this._memoryModel && resolveModel) {
-      try {
+      if (userSetUtilityLarge) {
+        // 用户明确配置了 utility_large：解析失败直接抛错，不兜底
         this._resolvedMemoryModel = resolveModel(this._memoryModel, this._config);
-      } catch (err) {
-        this._memoryModelUnavailableReason = err.message;
-        console.warn(`[memory] 记忆系统未启动：大工具模型（utility_large）解析失败 — ${err.message}`);
-        this._cb?.emitDevLog?.(`记忆系统未启动：大工具模型解析失败 — ${err.message}`, "error");
+      } else {
+        // fallback 到聊天模型：解析失败则降级，不阻塞启动
+        try {
+          this._resolvedMemoryModel = resolveModel(this._memoryModel, this._config);
+        } catch (err) {
+          this._memoryModelUnavailableReason = err.message;
+          console.warn(`[memory] 聊天模型 fallback 解析失败，记忆系统暂不可用 — ${err.message}`);
+          this._cb?.emitDevLog?.(`记忆系统未启动：聊天模型 fallback 解析失败 — ${err.message}`, "warn");
+        }
       }
     } else if (!this._memoryModel) {
-      this._memoryModelUnavailableReason = "utility_large 未配置";
-      console.warn("[memory] 记忆系统未启动：大工具模型（utility_large）未配置。请在设置中配置 utility_large 模型以启用记忆功能。");
-      this._cb?.emitDevLog?.("记忆系统未启动：大工具模型（utility_large）未配置", "warn");
+      this._memoryModelUnavailableReason = "utility_large 未配置且无聊天模型可 fallback";
+      console.warn("[memory] 记忆系统未启动：utility_large 未配置且无聊天模型可 fallback");
+      this._cb?.emitDevLog?.("记忆系统未启动：未配置工具模型且无聊天模型可 fallback", "warn");
     }
 
     if (this._resolvedMemoryModel) {
