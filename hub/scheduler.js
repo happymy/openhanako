@@ -315,6 +315,7 @@ export class Scheduler {
     if (existing) {
       // 后续轮次：update
       const updated = store.update(dailyId, {
+        startedAt,
         finishedAt,
         summary: failed
           ? `${hbLabel} ${failSuffix}`
