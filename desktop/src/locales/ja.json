@@ -123,6 +123,7 @@
     "deskContext": "デスクのコンテキスト付き",
     "pastedImage": "貼り付け画像",
     "attachFiles": "ファイルを追加",
+    "commandMenu": "コマンドメニュー",
     "docContext": "ドキュメント付き",
     "thinkingLevel": {
       "off": "オフ",
@@ -144,7 +145,7 @@
     "diaryBusy": "日記を書いています...",
     "diaryDone": "日記を diary フォルダに保存しました",
     "diaryFailed": "日記の作成に失敗しました",
-    "xing": "この会話を振り返る",
+    "xing": "会話からスキルを作成",
     "compact": "コンテキストを圧縮",
     "compactBusy": "圧縮中..."
   },

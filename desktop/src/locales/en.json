@@ -124,6 +124,7 @@
     "deskContext": "With desk context",
     "pastedImage": "Pasted image",
     "attachFiles": "Add files",
+    "commandMenu": "Command menu",
     "docContext": "With document",
     "thinkingLevel": {
       "off": "off",
@@ -145,7 +146,7 @@
     "diaryBusy": "Writing diary...",
     "diaryDone": "Diary saved to diary folder",
     "diaryFailed": "Failed to write diary",
-    "xing": "Reflect on this conversation",
+    "xing": "Create skill from conversation",
     "compact": "Compact context",
     "compactBusy": "Compacting..."
   },

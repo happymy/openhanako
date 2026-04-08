@@ -522,6 +522,15 @@ function InputAreaInner() {
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </button>
+            <button
+              className={styles['attach-btn']}
+              title={t('input.commandMenu')}
+              onClick={() => setSlashMenuOpen(true)}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L14 10L22 12L14 14L12 22L10 14L2 12L10 10Z" />
+              </svg>
+            </button>
             <PlanModeButton enabled={planMode} onToggle={setPlanMode} />
             <DocContextButton active={docContextAttached} disabled={!hasDoc} onToggle={toggleDocContext} />
             <ContextRing />

@@ -55,7 +55,7 @@ search:
 
 # Skills（per-agent 技能开关）
 skills:
-  enabled: []                        # 启用的 skill 名称，如 ["pdf", "literary-craft"]
+  enabled: ["skill-creator"]         # 启用的 skill 名称，如 ["pdf", "literary-craft"]
 
 # 频道系统（agent 间协作通信）
 channels:

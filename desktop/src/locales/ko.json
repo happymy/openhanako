@@ -123,6 +123,7 @@
     "deskContext": "책상 컨텍스트 포함",
     "pastedImage": "붙여넣은 이미지",
     "attachFiles": "파일 추가",
+    "commandMenu": "명령 메뉴",
     "docContext": "문서 포함",
     "thinkingLevel": {
       "off": "끔",
@@ -144,7 +145,7 @@
     "diaryBusy": "일기 작성 중...",
     "diaryDone": "일기가 diary 폴더에 저장되었습니다",
     "diaryFailed": "일기 작성 실패",
-    "xing": "이 대화를 돌아보기",
+    "xing": "대화에서 스킬 만들기",
     "compact": "컨텍스트 압축",
     "compactBusy": "압축 중..."
   },
