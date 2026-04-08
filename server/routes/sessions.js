@@ -6,6 +6,7 @@ import path from "path";
 import { Hono } from "hono";
 import { safeJson } from "../hono-helpers.js";
 import { t } from "../i18n.js";
+import { extractBlocks } from "../block-extractors.js";
 import { BrowserManager } from "../../lib/browser/browser-manager.js";
 import {
   extractTextContent,
@@ -52,9 +53,7 @@ export function createSessionsRoute(engine) {
       // 提取可显示的消息（user/assistant 文本 + 文件/artifact 工具结果）
       // 每条消息带稳定 id（原始 sourceMessages 索引）
       const allMessages = [];
-      const fileOutputs = [];
-      const artifacts = [];
-      const cards = [];
+      const blocks = [];
       let globalIdx = 0;
 
       for (const m of sourceMessages) {
@@ -73,22 +72,9 @@ export function createSessionsRoute(engine) {
             });
           }
         } else if (m.role === "toolResult") {
-          const d = m.details || {};
-          // COMPAT(v0.78): present_files → stage_files, remove after v0.90
-          if ((m.toolName === "stage_files" || m.toolName === "present_files") && d.files?.length) {
-            fileOutputs.push({ afterIndex: allMessages.length - 1, files: d.files });
-          } else if (m.toolName === "create_artifact" && d.content) {
-            artifacts.push({
-              afterIndex: allMessages.length - 1,
-              artifactId: d.artifactId,
-              artifactType: d.type,
-              title: d.title,
-              content: d.content,
-              language: d.language,
-            });
-          }
-          if (d.card && d.card.pluginId) {
-            cards.push({ afterIndex: allMessages.length - 1, card: d.card });
+          const extracted = extractBlocks(m.toolName, m.details, m);
+          for (const b of extracted) {
+            blocks.push({ ...b, afterIndex: allMessages.length - 1 });
           }
         }
       }
@@ -96,9 +82,7 @@ export function createSessionsRoute(engine) {
       // 分页：before 参数指定游标，否则默认返回最后 limit 条
       let messages;
       let hasMore = false;
-      let slicedFileOutputs = fileOutputs;
-      let slicedArtifacts = artifacts;
-      let slicedCards = cards;
+      let slicedBlocks = blocks;
 
       const total = allMessages.length;
       // all=1 强制全量返回（流式恢复等特殊场景）
@@ -114,15 +98,9 @@ export function createSessionsRoute(engine) {
         messages = allMessages.slice(startIdx, endIdx);
         hasMore = startIdx > 0;
         // 重映射 afterIndex 到切片内偏移，过滤超出范围的
-        slicedFileOutputs = fileOutputs
-          .filter(fo => fo.afterIndex >= startIdx && fo.afterIndex < endIdx)
-          .map(fo => ({ ...fo, afterIndex: fo.afterIndex - startIdx }));
-        slicedArtifacts = artifacts
-          .filter(a => a.afterIndex >= startIdx && a.afterIndex < endIdx)
-          .map(a => ({ ...a, afterIndex: a.afterIndex - startIdx }));
-        slicedCards = cards
-          .filter(cd => cd.afterIndex >= startIdx && cd.afterIndex < endIdx)
-          .map(cd => ({ ...cd, afterIndex: cd.afterIndex - startIdx }));
+        slicedBlocks = blocks
+          .filter(b => b.afterIndex >= startIdx && b.afterIndex < endIdx)
+          .map(b => ({ ...b, afterIndex: b.afterIndex - startIdx }));
       }
 
       // 从历史中提取最新 todo 状态
@@ -135,7 +113,7 @@ export function createSessionsRoute(engine) {
         }
       }
 
-      return c.json({ messages, todos, fileOutputs: slicedFileOutputs, artifacts: slicedArtifacts, cards: slicedCards, hasMore });
+      return c.json({ messages, blocks: slicedBlocks, todos, hasMore });
     } catch (err) {
       return c.json({ error: err.message }, 500);
     }
