@@ -19,8 +19,11 @@ function isTextInput(el: EventTarget | null): el is HTMLElement {
   if (!el || !(el instanceof HTMLElement)) return false;
   if (el instanceof HTMLTextAreaElement) return true;
   if (el instanceof HTMLInputElement) return TEXT_INPUT_TYPES.has(el.type);
-  // contentEditable 元素（TipTap 等富文本编辑器）
+  // contentEditable 元素（TipTap、CodeMirror 等富文本/代码编辑器）
   if (el.isContentEditable) return true;
+  // CodeMirror: 事件目标可能是 .cm-line 等非 contentEditable 子元素，
+  // 但它们的祖先 .cm-content 是 contentEditable
+  if (el.closest('.cm-content')) return true;
   return false;
 }
 
@@ -38,9 +41,19 @@ function getContent(el: HTMLElement): string {
   return el.textContent || '';
 }
 
+function findEditableRoot(el: HTMLElement): HTMLElement {
+  // 对于 CM 子元素，找到 .cm-content 作为可编辑根
+  if (!el.isContentEditable) {
+    const cmContent = el.closest('.cm-content') as HTMLElement | null;
+    if (cmContent) return cmContent;
+  }
+  return el;
+}
+
 function isEditable(el: HTMLElement): boolean {
   if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return !el.readOnly && !el.disabled;
-  return el.isContentEditable;
+  const root = findEditableRoot(el);
+  return root.isContentEditable;
 }
 
 function selectAll(el: HTMLElement): void {
@@ -49,10 +62,11 @@ function selectAll(el: HTMLElement): void {
     el.select();
     return;
   }
-  // contentEditable
-  el.focus();
+  // contentEditable / CodeMirror
+  const root = findEditableRoot(el);
+  root.focus();
   const range = document.createRange();
-  range.selectNodeContents(el);
+  range.selectNodeContents(root);
   const sel = window.getSelection();
   sel?.removeAllRanges();
   sel?.addRange(range);
