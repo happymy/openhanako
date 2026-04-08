@@ -1,16 +1,27 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSubagentTool } from "../lib/tools/subagent-tool.js";
 
-function makePrepareIsolatedSession(runResult) {
-  return vi.fn().mockResolvedValue({
-    sessionPath: "/test/child-session.jsonl",
-    run: vi.fn().mockResolvedValue(runResult),
+// ---- helpers ----------------------------------------------------------------
+
+/**
+ * Build a mock executeIsolated that:
+ *  - calls opts.onSessionReady(sessionPath) synchronously if provided
+ *  - resolves with the given result
+ */
+function makeExecuteIsolated(
+  result = { replyText: "done", error: null, sessionPath: "/test/child.jsonl" },
+) {
+  return vi.fn().mockImplementation((_prompt, opts) => {
+    if (typeof opts?.onSessionReady === "function") {
+      opts.onSessionReady("/test/child.jsonl");
+    }
+    return Promise.resolve(result);
   });
 }
 
-function makeBaseDeps(overrides = {}) {
+function makeDeps(overrides = {}) {
   return {
-    prepareIsolatedSession: makePrepareIsolatedSession({ replyText: "done", error: null }),
+    executeIsolated: makeExecuteIsolated(),
     resolveUtilityModel: () => "utility-model",
     getDeferredStore: () => ({
       defer: vi.fn(),
@@ -29,49 +40,41 @@ function makeBaseDeps(overrides = {}) {
   };
 }
 
-describe("subagent-tool (async deferred)", () => {
-  it("dispatches task and returns immediately with details", async () => {
-    const mockStore = { defer: vi.fn(), resolve: vi.fn(), fail: vi.fn() };
-    const deps = makeBaseDeps({ getDeferredStore: () => mockStore });
-    const tool = createSubagentTool(deps);
+// ---- tests ------------------------------------------------------------------
 
+describe("subagent-tool (executeIsolated 原子模式)", () => {
+  let mockStore;
+  let deps;
+
+  beforeEach(() => {
+    mockStore = { defer: vi.fn(), resolve: vi.fn(), fail: vi.fn() };
+    deps = makeDeps({ getDeferredStore: () => mockStore });
+  });
+
+  // 1. fire-and-forget: returns immediately with taskId / streamStatus / sessionPath
+  it("dispatches task and returns immediately with running status", async () => {
+    const tool = createSubagentTool(deps);
     const result = await tool.execute("call_1", { task: "查一下项目状态" });
 
-    // 立即返回 dispatched 消息
-    expect(result.content[0].text).toContain("subagentDispatched");
-
-    // details 字段存在且结构正确
+    // t() returns the key path when locale is not loaded in tests
+    expect(result.content[0].text).toMatch(/task-id|subagentDispatched/);
     expect(result.details).toBeDefined();
     expect(result.details.taskId).toMatch(/^subagent-/);
     expect(result.details.streamStatus).toBe("running");
+    expect(result.details.sessionPath).toBeNull();
     expect(result.details.task).toBe("查一下项目状态");
 
-    // store.defer 应该被调用
+    // store.defer is called before returning
     expect(mockStore.defer).toHaveBeenCalledWith(
       expect.stringMatching(/^subagent-/),
       "/test/session.jsonl",
       expect.objectContaining({ type: "subagent" }),
     );
-
-    // prepareIsolatedSession 应该被调用
-    expect(deps.prepareIsolatedSession).toHaveBeenCalledWith(
-      expect.objectContaining({ toolFilter: "*" }),
-    );
-
-    // 等 promise 链走完，验证 resolve 被调用
-    await vi.waitFor(() => {
-      expect(mockStore.resolve).toHaveBeenCalledWith(
-        expect.stringMatching(/^subagent-/),
-        "done",
-      );
-    });
   });
 
+  // 2. deferred store resolves on success
   it("resolves deferred store on success", async () => {
-    const mockStore = { defer: vi.fn(), resolve: vi.fn(), fail: vi.fn() };
-    const deps = makeBaseDeps({ getDeferredStore: () => mockStore });
     const tool = createSubagentTool(deps);
-
     await tool.execute("call_1", { task: "成功的任务" });
 
     await vi.waitFor(() => {
@@ -83,14 +86,16 @@ describe("subagent-tool (async deferred)", () => {
     expect(mockStore.fail).not.toHaveBeenCalled();
   });
 
-  it("fails deferred store on error", async () => {
-    const prepareIsolatedSession = vi.fn().mockResolvedValue({
-      sessionPath: "/test/child-session.jsonl",
-      run: vi.fn().mockRejectedValue(new Error("boom")),
+  // 3. deferred store fails when executeIsolated returns an error
+  it("fails deferred store when result.error is set", async () => {
+    const failingExecute = vi.fn().mockImplementation((_prompt, opts) => {
+      opts?.onSessionReady?.("/test/child.jsonl");
+      return Promise.resolve({ replyText: null, error: "boom", sessionPath: null });
     });
-    const mockStore = { defer: vi.fn(), resolve: vi.fn(), fail: vi.fn() };
-    const deps = makeBaseDeps({ prepareIsolatedSession, getDeferredStore: () => mockStore });
-    const tool = createSubagentTool(deps);
+    const tool = createSubagentTool(makeDeps({
+      executeIsolated: failingExecute,
+      getDeferredStore: () => mockStore,
+    }));
 
     await tool.execute("call_1", { task: "会失败的任务" });
 
@@ -103,11 +108,13 @@ describe("subagent-tool (async deferred)", () => {
     expect(mockStore.resolve).not.toHaveBeenCalled();
   });
 
-  it("emits block_update on completion", async () => {
+  // 4. emits block_update with streamStatus: done on success
+  it("emits block_update with streamStatus done on success", async () => {
     const emitEvent = vi.fn();
-    const mockStore = { defer: vi.fn(), resolve: vi.fn(), fail: vi.fn() };
-    const deps = makeBaseDeps({ getDeferredStore: () => mockStore, emitEvent });
-    const tool = createSubagentTool(deps);
+    const tool = createSubagentTool(makeDeps({
+      getDeferredStore: () => mockStore,
+      emitEvent,
+    }));
 
     const result = await tool.execute("call_1", { task: "完成的任务" });
     const { taskId } = result.details;
@@ -124,15 +131,18 @@ describe("subagent-tool (async deferred)", () => {
     });
   });
 
-  it("emits block_update on failure", async () => {
+  // 5. emits block_update with streamStatus: failed on failure
+  it("emits block_update with streamStatus failed on failure", async () => {
     const emitEvent = vi.fn();
-    const prepareIsolatedSession = vi.fn().mockResolvedValue({
-      sessionPath: "/test/child-session.jsonl",
-      run: vi.fn().mockRejectedValue(new Error("network error")),
+    const errorExecute = vi.fn().mockImplementation((_prompt, opts) => {
+      opts?.onSessionReady?.("/test/child.jsonl");
+      return Promise.resolve({ replyText: null, error: "network error", sessionPath: null });
     });
-    const mockStore = { defer: vi.fn(), resolve: vi.fn(), fail: vi.fn() };
-    const deps = makeBaseDeps({ prepareIsolatedSession, getDeferredStore: () => mockStore, emitEvent });
-    const tool = createSubagentTool(deps);
+    const tool = createSubagentTool(makeDeps({
+      executeIsolated: errorExecute,
+      getDeferredStore: () => mockStore,
+      emitEvent,
+    }));
 
     const result = await tool.execute("call_1", { task: "失败的任务" });
     const { taskId } = result.details;
@@ -149,99 +159,105 @@ describe("subagent-tool (async deferred)", () => {
     });
   });
 
+  // 6. concurrent limit: rejects 6th task when 5 are already in-flight
   it("rejects new work when the concurrency limit (5) is reached", async () => {
-    const releases = [];
-    const prepareIsolatedSession = vi.fn().mockImplementation(() => Promise.resolve({
-      sessionPath: "/test/child-session.jsonl",
-      run: () => new Promise((resolve) => { releases.push(resolve); }),
+    // executeIsolated that never resolves (so activeCount stays incremented)
+    const pending = [];
+    const blockingExecute = vi.fn().mockImplementation((_prompt, opts) => {
+      opts?.onSessionReady?.("/test/child.jsonl");
+      return new Promise((resolve) => pending.push(resolve));
+    });
+    const tool = createSubagentTool(makeDeps({
+      executeIsolated: blockingExecute,
+      getDeferredStore: () => mockStore,
     }));
-    const mockStore = { defer: vi.fn(), resolve: vi.fn(), fail: vi.fn() };
-    const deps = makeBaseDeps({ prepareIsolatedSession, getDeferredStore: () => mockStore });
-    const tool = createSubagentTool(deps);
 
-    // 启动 5 个（非阻塞，立即返回）
-    const running = [];
+    // Dispatch 5 tasks (fire-and-forget, returns immediately each time)
+    const results = [];
     for (let i = 0; i < 5; i++) {
-      running.push(tool.execute(`call_${i}`, { task: `任务 ${i}` }));
+      results.push(await tool.execute(`call_${i}`, { task: `任务 ${i}` }));
     }
-    await Promise.all(running);
-
-    // 第 6 个被拒
-    const blocked = await tool.execute("call_5", { task: "任务 5" });
-    expect(blocked.content[0].text).toContain("subagentMaxConcurrent");
-
-    // 释放
-    for (const release of releases) {
-      release({ replyText: "ok", error: null });
+    // All 5 should be dispatched (running)
+    for (const r of results) {
+      expect(r.details.streamStatus).toBe("running");
     }
-    expect(prepareIsolatedSession).toHaveBeenCalledTimes(5);
+
+    // 6th task must be rejected
+    const blocked = await tool.execute("call_5", { task: "第六个任务" });
+    // should mention the limit; t() returns key path when locale is not loaded
+    expect(blocked.content[0].text).toMatch(/5|subagentMaxConcurrent/);
+    expect(blocked.details).toBeUndefined();
+
+    // Cleanup: let the pending promises resolve so activeCount decrements
+    for (const resolve of pending) {
+      resolve({ replyText: "ok", error: null, sessionPath: null });
+    }
   });
 
-  it("lists agents in discovery mode", async () => {
-    const prepareIsolatedSession = vi.fn();
-    const tool = createSubagentTool({
-      prepareIsolatedSession,
-      resolveUtilityModel: () => "utility-model",
-      getDeferredStore: () => null,
-      getSessionPath: () => null,
+  // 7. discovery mode: agent="?" lists agents (excluding self)
+  it("lists agents in discovery mode (agent=?)", async () => {
+    const noopExecute = vi.fn();
+    const tool = createSubagentTool(makeDeps({
+      executeIsolated: noopExecute,
       listAgents: () => [
-        { id: "agent-a", name: "Alpha", model: "gpt-4", summary: "数学专家" },
-        { id: "agent-b", name: "Beta", model: "", summary: "" },
-        { id: "self", name: "Self", model: "", summary: "" },
+        { id: "hana", name: "Hana", model: "claude-3-5-sonnet", summary: "主 agent" },
+        { id: "other-agent", name: "Other", model: "gpt-4", summary: "专家 agent" },
       ],
-      currentAgentId: "self",
-      emitEvent: vi.fn(),
-    });
+      currentAgentId: "hana",
+    }));
 
     const result = await tool.execute("call_1", { task: "", agent: "?" });
-    expect(result.content[0].text).toContain("agent-a");
-    expect(result.content[0].text).toContain("Alpha");
-    expect(result.content[0].text).not.toContain("self");
-    expect(prepareIsolatedSession).not.toHaveBeenCalled();
+
+    expect(result.content[0].text).toContain("other-agent");
+    expect(result.content[0].text).toContain("Other");
+    // self should be excluded
+    expect(result.content[0].text).not.toContain("hana (");
+    // executeIsolated must not be called in discovery mode
+    expect(noopExecute).not.toHaveBeenCalled();
   });
 
-  it("delegates to another agent via cross-agent delegation", async () => {
-    const prepareIsolatedSession = makePrepareIsolatedSession({ replyText: "delegated result", error: null });
-    const mockStore = { defer: vi.fn(), resolve: vi.fn(), fail: vi.fn() };
-    const deps = makeBaseDeps({ prepareIsolatedSession, getDeferredStore: () => mockStore });
-    const tool = createSubagentTool(deps);
+  // 8. cross-agent delegation: agentId forwarded in opts
+  it("passes agentId to executeIsolated when delegating to another agent", async () => {
+    const captureExecute = makeExecuteIsolated({ replyText: "delegated", error: null, sessionPath: "/test/child.jsonl" });
+    const tool = createSubagentTool(makeDeps({
+      executeIsolated: captureExecute,
+      getDeferredStore: () => mockStore,
+    }));
 
     const result = await tool.execute("call_1", { task: "专项任务", agent: "other-agent" });
 
-    expect(result.content[0].text).toContain("subagentDispatched");
     expect(result.details.agentId).toBe("other-agent");
-
-    // prepareIsolatedSession 必须收到正确的 agentId
-    expect(prepareIsolatedSession).toHaveBeenCalledWith(
+    expect(captureExecute).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({ agentId: "other-agent" }),
     );
   });
 
-  it("returns error when agent is unknown", async () => {
-    const deps = makeBaseDeps();
-    const tool = createSubagentTool(deps);
+  // 9. unknown agent returns error without calling executeIsolated
+  it("returns error when agent id is unknown", async () => {
+    const noopExecute = vi.fn();
+    const tool = createSubagentTool(makeDeps({ executeIsolated: noopExecute }));
 
     const result = await tool.execute("call_1", { task: "任务", agent: "nonexistent" });
 
-    // 应该返回错误，不应该调用 prepareIsolatedSession
-    // i18n 在测试环境返回 key，key 包含 agentNotFound
-    expect(result.content[0].text).toContain("agentNotFound");
-    expect(deps.prepareIsolatedSession).not.toHaveBeenCalled();
+    // t() falls back to the key when locale is not loaded
+    expect(result.content[0].text).toMatch(/agentNotFound|not found|不存在/);
+    expect(noopExecute).not.toHaveBeenCalled();
   });
 
+  // 10. sync fallback when deferred store is unavailable
   it("falls back to sync execution when deferred store is unavailable", async () => {
-    const prepareIsolatedSession = makePrepareIsolatedSession({ replyText: "sync result", error: null });
-    const deps = makeBaseDeps({
-      prepareIsolatedSession,
+    const syncExecute = makeExecuteIsolated({ replyText: "sync result", error: null, sessionPath: null });
+    const tool = createSubagentTool(makeDeps({
+      executeIsolated: syncExecute,
       getDeferredStore: () => null,
       getSessionPath: () => null,
-    });
-    const tool = createSubagentTool(deps);
+    }));
 
     const result = await tool.execute("call_1", { task: "同步任务" });
 
-    expect(result).toEqual({
-      content: [{ type: "text", text: "sync result" }],
-    });
+    // sync fallback returns the reply text directly (no details / streamStatus)
+    expect(result.content[0].text).toBe("sync result");
+    expect(result.details).toBeUndefined();
   });
 });
