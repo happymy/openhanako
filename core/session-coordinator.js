@@ -130,12 +130,30 @@ export class SessionCoordinator {
             parts.push(planModePrompt);
           }
 
-          // Deferred result prompt (new)
+          // 后台任务行为引导
           if (this._d.getDeferredResultStore?.()) {
             const isZh = String(this._d.getAgent()?.config?.locale || "").startsWith("zh");
             parts.push(isZh
-              ? "收到 <hana-background-result> 标签中的内容时，这是后台任务完成的系统通知，不是用户发送的消息。请根据通知内容自然地告知用户任务结果。如果通知中包含文件路径，使用 stage_files 工具呈现给用户。"
-              : "When you receive content inside <hana-background-result> tags, this is a system notification about a completed background task, NOT a user message. Respond naturally to inform the user about the task result. If file paths are included, use stage_files to present them to the user."
+              ? `## 后台任务
+
+派出 subagent 或其他后台任务后，你必须主动跟进结果，不能派出去就不管了：
+
+1. 派出后如果手头还有别的工作，先继续做
+2. 手头工作做完后，调 check_pending_tasks 查看状态
+3. 如果还有任务未完成，调 wait 工具等待后再查。渐进等待：30s → 60s → 180s → 300s
+4. 拿到结果后处理并告知用户
+
+收到 <hana-background-result> 标签中的内容时，这是后台任务完成的系统通知，不是用户发送的消息。`
+              : `## Background Tasks
+
+After dispatching subagent or other background tasks, you MUST actively follow up on results — never fire-and-forget:
+
+1. If you have other work to do, continue with it
+2. When done with other work, call check_pending_tasks to check status
+3. If tasks are still pending, call the wait tool then check again. Progressive wait: 30s → 60s → 180s → 300s
+4. Once results are available, process them and inform the user
+
+Content inside <hana-background-result> tags is a system notification about a completed background task, NOT a user message.`
             );
           }
 
