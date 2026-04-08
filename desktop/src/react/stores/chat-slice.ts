@@ -12,6 +12,7 @@ export interface ChatSlice {
   prependItems: (path: string, items: ChatListItem[], hasMore: boolean) => void;
   appendItem: (path: string, item: ChatListItem) => void;
   updateLastMessage: (path: string, updater: (msg: ChatMessage) => ChatMessage) => void;
+  patchBlockByTaskId: (sessionPath: string, taskId: string, patch: Record<string, any>) => void;
 
   setLoadingMore: (path: string, loading: boolean) => void;
   clearSession: (path: string) => void;
@@ -84,6 +85,30 @@ export const createChatSlice = (
     };
   }),
 
+  patchBlockByTaskId: (sessionPath, taskId, patch) => {
+    const session = get().chatSessions[sessionPath];
+    if (!session) return;
+    const items = [...session.items];
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.type !== 'message' || item.data.role !== 'assistant') continue;
+      const blocks = item.data.blocks;
+      if (!blocks) continue;
+      const blockIdx = blocks.findIndex((b: any) => b.type === 'subagent' && b.taskId === taskId);
+      if (blockIdx === -1) continue;
+      const newBlocks = [...blocks];
+      newBlocks[blockIdx] = { ...newBlocks[blockIdx], ...patch };
+      const newItems = [...items];
+      newItems[i] = { ...item, data: { ...item.data, blocks: newBlocks } };
+      set((s) => ({
+        chatSessions: {
+          ...s.chatSessions,
+          [sessionPath]: { ...s.chatSessions[sessionPath], items: newItems },
+        },
+      }));
+      return;
+    }
+  },
 
   setLoadingMore: (path, loading) => set((s) => {
     const session = s.chatSessions[path];

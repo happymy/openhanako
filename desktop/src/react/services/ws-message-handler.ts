@@ -211,6 +211,17 @@ export function handleServerMessage(msg: any): void {
       break;
     }
 
+    case 'block_update': {
+      const { taskId, patch, sessionPath: sp } = msg;
+      if (!taskId || !patch) break;
+      // Find the session that contains this block and patch it
+      const targetSp = sp || state.currentSessionPath;
+      if (targetSp) {
+        useStore.getState().patchBlockByTaskId(targetSp, taskId, patch);
+      }
+      break;
+    }
+
     case 'activity_update':
       if (msg.activity) {
         useStore.setState({ activities: [msg.activity, ...state.activities.slice(0, 499)] });

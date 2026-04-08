@@ -344,6 +344,13 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
         key: event.key,
         value: event.value,
       });
+    } else if (event.type === "block_update") {
+      broadcast({
+        type: "block_update",
+        taskId: event.taskId,
+        patch: event.patch,
+        sessionPath,
+      });
     } else if (event.type === "activity_update") {
       broadcast({ type: "activity_update", activity: event.activity });
     } else if (event.type === "bridge_message") {
