@@ -395,9 +395,9 @@
       "failed": "🌐 {name} 浏览器不听使唤"
     },
     "subagent": {
-      "running": "🧭 {name} 分身查探中",
-      "done": "🧭 分身出发了",
-      "failed": "🧭 分身出了岔子"
+      "running": "🧭 子代理执行中",
+      "done": "🧭 子代理已完成",
+      "failed": "🧭 子代理执行失败"
     },
     "check_pending_tasks": {
       "running": "📋 {name} 正在找找没做完的事儿",
@@ -1312,7 +1312,7 @@
     "subagentFailed": "子 agent 执行失败: {msg}",
     "subagentTimeout": "子 agent 执行超时（{minutes} 分钟）",
     "subagentNoOutput": "(子 agent 未产生输出)",
-    "subagentDispatched": "子任务已派出 (task-id: {taskId})。完成后结果会自动送达。",
+    "subagentDispatched": "子代理已出发 (task-id: {taskId})。完成后结果会自动送达。",
     "installSkillDisabled": "自学技能能力未启用。请在设置中开启「允许 Agent 自行创建/安装技能」。",
     "installSkillGithubDisabled": "GitHub 技能获取未启用。请在设置中开启「允许从 GitHub 获取技能」。",
     "installSkillInvalidGithubUrl": "无效的 GitHub URL：{url}",
