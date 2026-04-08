@@ -264,11 +264,12 @@ export function createChannelsRoute(engine, hub) {
     }
   });
 
-  // ── 频道开关（启停 channelTicker）──
+  // ── 频道开关（启停 channelTicker + 持久化到 config.yaml）──
   route.post("/channels/toggle", async (c) => {
     const body = await safeJson(c);
     const { enabled } = body;
     await hub.toggleChannels(!!enabled);
+    await engine.updateConfig({ channels: { enabled: !!enabled } });
     debugLog()?.log("api", `POST /channels/toggle enabled=${!!enabled}`);
     return c.json({ ok: true, enabled: !!enabled });
   });
