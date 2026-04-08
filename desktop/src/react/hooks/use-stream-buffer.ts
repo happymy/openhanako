@@ -282,9 +282,19 @@ class StreamBufferManager {
       case 'content_block': {
         this.ensureMessage(buf);
         this.flush(buf);
+        let block = msg.block;
+        // Apply cached patches (block_update 可能先于 content_block 到达)
+        if (block.taskId) {
+          const pending = (useStore.getState() as any)._pendingBlockPatches;
+          const cached = pending?.[block.taskId];
+          if (cached) {
+            block = { ...block, ...cached };
+            delete pending[block.taskId];
+          }
+        }
         useStore.getState().updateLastMessage(sessionPath, (m) => ({
           ...m,
-          blocks: [...(m.blocks || []), msg.block],
+          blocks: [...(m.blocks || []), block],
         }));
         break;
       }

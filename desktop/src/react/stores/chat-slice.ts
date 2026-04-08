@@ -13,6 +13,7 @@ export interface ChatSlice {
   appendItem: (path: string, item: ChatListItem) => void;
   updateLastMessage: (path: string, updater: (msg: ChatMessage) => ChatMessage) => void;
   patchBlockByTaskId: (sessionPath: string, taskId: string, patch: Record<string, any>) => void;
+  _pendingBlockPatches: Record<string, Record<string, any>>;
 
   setLoadingMore: (path: string, loading: boolean) => void;
   clearSession: (path: string) => void;
@@ -85,10 +86,19 @@ export const createChatSlice = (
     };
   }),
 
+  // 缓存：block_update 到达时 block 可能还没添加到 store（时序竞争）
+  _pendingBlockPatches: {} as Record<string, Record<string, any>>,
+
   patchBlockByTaskId: (sessionPath, taskId, patch) => {
     const session = get().chatSessions[sessionPath];
-    if (!session) return;
+    if (!session) {
+      // session 还没初始化，缓存 patch
+      const pending = (get() as any)._pendingBlockPatches;
+      pending[taskId] = { ...(pending[taskId] || {}), ...patch };
+      return;
+    }
     const items = [...session.items];
+    let found = false;
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i];
       if (item.type !== 'message' || item.data.role !== 'assistant') continue;
@@ -106,7 +116,13 @@ export const createChatSlice = (
           [sessionPath]: { ...s.chatSessions[sessionPath], items: newItems },
         },
       }));
-      return;
+      found = true;
+      break;
+    }
+    if (!found) {
+      // block 还没被添加到 store，缓存 patch 等 content_block 到达后 apply
+      const pending = (get() as any)._pendingBlockPatches;
+      pending[taskId] = { ...(pending[taskId] || {}), ...patch };
     }
   },
 
