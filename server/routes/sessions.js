@@ -103,6 +103,25 @@ export function createSessionsRoute(engine) {
           .map(b => ({ ...b, afterIndex: b.afterIndex - startIdx }));
       }
 
+      // 用 deferred store 修正 subagent blocks 的状态
+      // （工具返回时写入 running，子代理完成后状态在 deferred store 里但没回写 JSONL）
+      const deferredStore = engine.deferredResults;
+      if (deferredStore) {
+        for (const b of slicedBlocks) {
+          if (b.type !== "subagent" || !b.taskId) continue;
+          if (b.streamStatus !== "running") continue;
+          const task = deferredStore.query(b.taskId);
+          if (!task) continue;
+          if (task.status === "resolved") {
+            b.streamStatus = "done";
+            b.summary = typeof task.result === "string" ? task.result.slice(0, 200) : "";
+          } else if (task.status === "failed") {
+            b.streamStatus = "failed";
+            b.summary = task.reason || "";
+          }
+        }
+      }
+
       // 从历史中提取最新 todo 状态
       let todos = null;
       for (let i = sourceMessages.length - 1; i >= 0; i--) {
