@@ -13,6 +13,7 @@ interface PlatformStatusBase {
   status?: string;
   error?: string;
   enabled?: boolean;
+  agentId?: string | null;
 }
 
 export interface TelegramStatus extends PlatformStatusBase { token?: string }
@@ -39,7 +40,18 @@ export function useBridgeState() {
   const [status, setStatus] = useState<BridgeStatus | null>(null);
   const [testingPlatform, setTestingPlatform] = useState<BridgePlatform | null>(null);
 
-  // Public Ishiki
+  // Selected agent for bridge config (independent of Agent tab selection)
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(
+    store.currentAgentId
+  );
+
+  // Sync initial value when store becomes ready (only if null)
+  useEffect(() => {
+    if (selectedAgentId) return;
+    if (store.currentAgentId) setSelectedAgentId(store.currentAgentId);
+  }, [store.currentAgentId]);
+
+  // Public Ishiki — keyed to selectedAgentId
   const [publicIshiki, setPublicIshiki] = useState('');
   const [publicIshikiOriginal, setPublicIshikiOriginal] = useState('');
 
@@ -50,17 +62,17 @@ export function useBridgeState() {
   const [qqAppId, setQqAppId] = useState('');
   const [qqAppSecret, setQqAppSecret] = useState('');
 
+  // Fetch public ishiki for selected agent
   useEffect(() => {
-    const agentId = store.getSettingsAgentId();
-    if (!agentId) return;
-    hanaFetch(`/api/agents/${agentId}/public-ishiki`)
+    if (!selectedAgentId) return;
+    hanaFetch(`/api/agents/${selectedAgentId}/public-ishiki`)
       .then(r => r.json())
       .then(data => { setPublicIshiki(data.content || ''); setPublicIshikiOriginal(data.content || ''); })
       .catch(err => console.warn('[bridge] fetch public-ishiki failed:', err));
-  }, [store.settingsConfig]);
+  }, [selectedAgentId]);
 
   const savePublicIshiki = async () => {
-    const agentId = store.getSettingsAgentId();
+    const agentId = selectedAgentId;
     if (!agentId || publicIshiki === publicIshikiOriginal) return;
     try {
       await hanaFetch(`/api/agents/${agentId}/public-ishiki`, {
@@ -77,33 +89,41 @@ export function useBridgeState() {
 
   const loadStatus = async () => {
     try {
-      const res = await hanaFetch('/api/bridge/status');
+      const query = selectedAgentId ? `?agentId=${selectedAgentId}` : '';
+      const res = await hanaFetch(`/api/bridge/status${query}`);
       const data = await res.json();
       setStatus(data);
-      setTgToken(data.telegram?.token || '');
-      setFsAppId(data.feishu?.appId || '');
-      setFsAppSecret(data.feishu?.appSecret || '');
-      setQqAppId(data.qq?.appID || '');
-      setQqAppSecret(data.qq?.appSecret || '');
+      // Only populate credential fields if platform is configured for this agent
+      setTgToken(data.telegram?.status !== 'unconfigured' ? (data.telegram?.token || '') : '');
+      setFsAppId(data.feishu?.status !== 'unconfigured' ? (data.feishu?.appId || '') : '');
+      setFsAppSecret(data.feishu?.status !== 'unconfigured' ? (data.feishu?.appSecret || '') : '');
+      setQqAppId(data.qq?.status !== 'unconfigured' ? (data.qq?.appID || '') : '');
+      setQqAppSecret(data.qq?.status !== 'unconfigured' ? (data.qq?.appSecret || '') : '');
     } catch (err) {
       console.error('[bridge] load status failed:', err);
     }
   };
 
-  useEffect(() => { loadStatus(); }, []);
+  // Auto-fetch when selectedAgentId changes
+  useEffect(() => {
+    if (!selectedAgentId) return;
+    loadStatus();
+  }, [selectedAgentId]);
 
   useEffect(() => {
     const handler = () => loadStatus();
     window.addEventListener('hana-bridge-reload', handler);
     return () => window.removeEventListener('hana-bridge-reload', handler);
-  }, []);
+  }, [selectedAgentId]);
 
   const saveBridgeConfig = async (plat: string, credentials: Record<string, string> | null, enabled?: boolean) => {
+    // Snapshot agentId at call time to avoid stale closure
+    const agentId = selectedAgentId;
     try {
       await hanaFetch('/api/bridge/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform: plat, credentials, enabled }),
+        body: JSON.stringify({ platform: plat, credentials, enabled, agentId }),
       });
       showToast(t('settings.saved'), 'success');
       await loadStatus();
@@ -149,6 +169,7 @@ export function useBridgeState() {
 
   return {
     status, testingPlatform, showToast, loadStatus,
+    selectedAgentId, setSelectedAgentId,
     publicIshiki, setPublicIshiki, savePublicIshiki,
     tgToken, setTgToken,
     fsAppId, setFsAppId, fsAppSecret, setFsAppSecret,
