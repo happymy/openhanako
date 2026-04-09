@@ -159,7 +159,7 @@ export function createSessionsRoute(engine) {
   route.post("/sessions/new", async (c) => {
     try {
       const body = await safeJson(c);
-      const { cwd, memoryEnabled, agentId } = body;
+      const { cwd, memoryEnabled, agentId, currentSessionPath: oldSessionPath } = body;
       const memFlag = memoryEnabled !== false; // 默认 true
       console.log("[sessions] 新建 session", {
         hasCwd: !!cwd,
@@ -169,7 +169,9 @@ export function createSessionsRoute(engine) {
 
       // 新建前挂起浏览器（保存当前 session 的浏览器状态）
       const bm = BrowserManager.instance();
-      if (bm.isRunning) await bm.suspendForSession(engine.currentSessionPath);
+      if (oldSessionPath && bm.isRunning(oldSessionPath)) {
+        await bm.suspendForSession(oldSessionPath);
+      }
 
       if (agentId && agentId !== engine.currentAgentId) {
         await engine.createSessionForAgent(agentId, cwd || undefined, memFlag);
@@ -177,6 +179,10 @@ export function createSessionsRoute(engine) {
         await engine.createSession(null, cwd || undefined, memFlag);
       }
       engine.persistSessionMeta();
+
+      // 从刚设置的焦点读取（此时焦点就是新创建的 session）
+      const newSessionPath = engine.currentSessionPath;
+      const newAgentId = engine.currentAgentId;
 
       // 记住工作目录 + 更新历史
       if (cwd) {
@@ -191,10 +197,10 @@ export function createSessionsRoute(engine) {
       console.log("[sessions] session 创建完成");
       return c.json({
         ok: true,
-        path: engine.currentSessionPath,
+        path: newSessionPath,
         cwd: engine.cwd,
-        agentId: engine.currentAgentId,
-        agentName: engine.agentName,
+        agentId: newAgentId,
+        agentName: engine.getAgent(newAgentId)?.agentName || engine.agentName,
         planMode: engine.planMode,
         memoryModelUnavailableReason: engine.memoryModelUnavailableReason || null,
       });
@@ -207,7 +213,7 @@ export function createSessionsRoute(engine) {
   route.post("/sessions/switch", async (c) => {
     try {
       const body = await safeJson(c);
-      const { path: sessionPath } = body;
+      const { path: sessionPath, currentSessionPath: oldSessionPath } = body;
       if (!sessionPath) {
         return c.json({ error: t("error.missingParam", { param: "path" }) }, 400);
       }
@@ -217,26 +223,30 @@ export function createSessionsRoute(engine) {
       }
       // 切换前挂起浏览器（保存当前 session 的浏览器状态）
       const bm = BrowserManager.instance();
-      const oldSessionPath = engine.currentSessionPath;
-      if (bm.isRunning) await bm.suspendForSession(oldSessionPath);
+      const suspendPath = oldSessionPath || engine.currentSessionPath;
+      if (suspendPath && bm.isRunning(suspendPath)) {
+        await bm.suspendForSession(suspendPath);
+      }
 
       await engine.switchSession(sessionPath);
 
       // 恢复目标 session 的浏览器（若有）
       await bm.resumeForSession(sessionPath);
 
+      const session = engine.getSessionByPath(sessionPath);
+
       return c.json({
         ok: true,
-        messageCount: engine.messages.length,
+        messageCount: session?.messages?.length || 0,
         memoryEnabled: engine.memoryEnabled,
         planMode: engine.planMode,
         memoryModelUnavailableReason: engine.memoryModelUnavailableReason || null,
         cwd: engine.cwd,
         agentId: engine.currentAgentId,
         agentName: engine.agentName,
-        browserRunning: bm.isRunning,
-        browserUrl: bm.currentUrl || null,
-        isStreaming: engine.isSessionStreaming(engine.currentSessionPath),
+        browserRunning: bm.isRunning(sessionPath),
+        browserUrl: bm.currentUrl(sessionPath) || null,
+        isStreaming: engine.isSessionStreaming(sessionPath),
         currentModelId: (engine.activeSessionModel ?? engine.currentModel)?.id || null,
         currentModelProvider: (engine.activeSessionModel ?? engine.currentModel)?.provider || null,
       });

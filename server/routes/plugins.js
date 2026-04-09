@@ -262,7 +262,7 @@ export function createPluginsRoute(engine) {
     const pluginApp = engine.pluginManager?.getRouteApp(pluginId);
     if (!pluginApp) return c.json({ error: `Plugin "${pluginId}" not found` }, 404);
     const agent = resolveAgent(engine, c);
-    const agentId = agent?.id || engine.currentAgentId || null;
+    const agentId = agent?.id || null;
     return proxyToPlugin(c, pluginApp, pluginId, agentId);
   });
 

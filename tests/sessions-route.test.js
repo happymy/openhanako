@@ -2,15 +2,16 @@ import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const browserManagerMock = {
-  isRunning: true,
-  currentUrl: "https://before.example.com",
-  suspendForSession: vi.fn(async () => {
-    browserManagerMock.isRunning = false;
-    browserManagerMock.currentUrl = null;
+  _sessions: new Map(), // sessionPath → { running, url }
+  isRunning(sp) { return this._sessions.get(sp)?.running ?? false; },
+  currentUrl(sp) { return this._sessions.get(sp)?.url ?? null; },
+  get hasAnyRunning() { for (const s of this._sessions.values()) if (s.running) return true; return false; },
+  suspendForSession: vi.fn(async (sp) => {
+    const s = browserManagerMock._sessions.get(sp);
+    if (s) s.running = false;
   }),
-  resumeForSession: vi.fn(async () => {
-    browserManagerMock.isRunning = true;
-    browserManagerMock.currentUrl = "https://after.example.com";
+  resumeForSession: vi.fn(async (sp) => {
+    browserManagerMock._sessions.set(sp, { running: true, url: "https://after.example.com" });
   }),
   closeBrowserForSession: vi.fn(),
   getBrowserSessions: vi.fn(() => ({})),
@@ -30,8 +31,8 @@ vi.mock("../core/message-utils.js", () => ({
 
 describe("sessions route", () => {
   beforeEach(() => {
-    browserManagerMock.isRunning = true;
-    browserManagerMock.currentUrl = "https://before.example.com";
+    browserManagerMock._sessions.clear();
+    browserManagerMock._sessions.set("/tmp/agents/a/sessions/old.jsonl", { running: true, url: "https://before.example.com" });
     browserManagerMock.suspendForSession.mockClear();
     browserManagerMock.resumeForSession.mockClear();
     browserManagerMock.closeBrowserForSession.mockClear();
@@ -56,6 +57,10 @@ describe("sessions route", () => {
       switchSession: vi.fn(async (sessionPath) => {
         engine.currentSessionPath = sessionPath;
       }),
+      getSessionByPath: vi.fn((sp) => ({
+        messages: [{ role: "assistant", content: "ok" }],
+      })),
+      getAgent: vi.fn(() => ({ agentName: "Hana" })),
     };
 
     app.route("/api", createSessionsRoute(engine));
@@ -70,7 +75,7 @@ describe("sessions route", () => {
     expect(res.status).toBe(200);
     expect(browserManagerMock.suspendForSession).toHaveBeenCalledWith("/tmp/agents/a/sessions/old.jsonl");
     expect(browserManagerMock.resumeForSession).toHaveBeenCalledWith("/tmp/agents/a/sessions/new.jsonl");
-    expect(data.browserRunning).toBe(true);
-    expect(data.browserUrl).toBe("https://after.example.com");
+    expect(data.browserRunning).toBe(true); // resumeForSession sets it running
+    expect(data.browserUrl).toBe("https://after.example.com"); // per-session URL
   });
 });

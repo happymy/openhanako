@@ -38,6 +38,15 @@ export function createAuthRoute(engine) {
   /** 进行中的 OAuth 流程 */
   const pendingFlows = new Map();
 
+  // 定时清理超时的 pending flow（10 分钟未完成视为超时）
+  const _flowCleanupTimer = setInterval(() => {
+    const cutoff = Date.now() - 10 * 60 * 1000;
+    for (const [k, v] of pendingFlows) {
+      if (v.createdAt < cutoff) pendingFlows.delete(k);
+    }
+  }, 60_000);
+  _flowCleanupTimer.unref();
+
   /**
    * 启动 OAuth 登录
    * body: { provider }
@@ -96,7 +105,7 @@ export function createAuthRoute(engine) {
     });
 
     // 追踪 loginPromise 的结果（供 poll 端点使用）
-    const flow = { resolveCode, rejectCode, loginPromise, result: null };
+    const flow = { resolveCode, rejectCode, loginPromise, result: null, createdAt: Date.now() };
     loginPromise.then(() => {
       flow.result = { ok: true };
     }).catch(err => {

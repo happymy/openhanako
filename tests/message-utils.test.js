@@ -144,15 +144,15 @@ describe("isValidSessionPath", () => {
 });
 
 describe("loadSessionHistoryMessages", () => {
-  it("无 sessionPath 时回退到 engine.messages", async () => {
-    const engine = { currentSessionPath: null, messages: [{ role: "user", content: "hi" }] };
+  it("无 sessionPath 时返回空数组", async () => {
+    const engine = { messages: [{ role: "user", content: "hi" }] };
     const result = await loadSessionHistoryMessages(engine, null);
-    expect(result).toEqual([{ role: "user", content: "hi" }]);
+    expect(result).toEqual([]);
   });
 
-  it("engine.messages 非数组时返回空数组", async () => {
-    const engine = { currentSessionPath: null, messages: null };
-    const result = await loadSessionHistoryMessages(engine, null);
+  it("explicitPath 为 undefined 时返回空数组", async () => {
+    const engine = { messages: [{ role: "user", content: "hi" }] };
+    const result = await loadSessionHistoryMessages(engine, undefined);
     expect(result).toEqual([]);
   });
 });

@@ -84,8 +84,8 @@ export function createAgentsRoute(engine) {
       return c.json({
         ok: true,
         agent: {
-          id: engine.currentAgentId,
-          name: engine.agentName,
+          id,
+          name: engine.getAgent(id)?.agentName || id,
         },
       });
     } catch (err) {

@@ -683,7 +683,7 @@ After dispatching subagent or other background tasks, you MUST actively follow u
     }
 
     const bm = BrowserManager.instance();
-    const wasBrowserRunning = bm.isRunning;
+    const wasBrowserRunning = bm.hasAnyRunning;
     const opId = `iso_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     this._headlessOps.add(opId);
     if (this._headlessOps.size === 1) bm.setHeadless(true);
@@ -824,9 +824,9 @@ After dispatching subagent or other background tasks, you MUST actively follow u
     } finally {
       this._headlessOps.delete(opId);
       if (this._headlessOps.size === 0) bm.setHeadless(false);
-      const browserNowRunning = bm.isRunning;
+      const browserNowRunning = bm.hasAnyRunning;
       if (browserNowRunning !== wasBrowserRunning) {
-        this._d.emitEvent({ type: "browser_bg_status", running: browserNowRunning, url: bm.currentUrl }, null);
+        this._d.emitEvent({ type: "browser_bg_status", running: browserNowRunning }, null);
       }
     }
   }

@@ -24,9 +24,9 @@ describe("resolveAgentStrict", () => {
     expect(() => resolveAgentStrict(engine, mockCtx("ghost"))).toThrow("not found");
   });
 
-  it("无显式 agentId 时返回焦点 agent", () => {
+  it("无显式 agentId 时抛 AgentNotFoundError", () => {
     const engine = mockEngine({ _focus: { id: "_focus" } });
-    expect(resolveAgentStrict(engine, mockCtx(null))).toEqual({ id: "_focus" });
+    expect(() => resolveAgentStrict(engine, mockCtx(null))).toThrow("not found");
   });
 });
 

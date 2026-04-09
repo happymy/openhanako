@@ -75,31 +75,31 @@ export function extractTextContent(content, { stripThink = false } = {}) {
  * 读文件失败时再退回内存态，避免历史接口直接空白。
  */
 export async function loadSessionHistoryMessages(engine, explicitPath) {
-  const sessionPath = explicitPath || engine.currentSessionPath;
-  if (sessionPath) {
-    try {
-      const raw = await fs.readFile(sessionPath, "utf-8");
-      const messages = [];
+  const sessionPath = explicitPath;
+  if (!sessionPath) return [];
 
-      for (const line of raw.split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          const entry = JSON.parse(line);
-          if (entry.type === "message" && entry.message) {
-            messages.push(entry.message);
-          }
-        } catch {
-          // 跳过损坏行
+  try {
+    const raw = await fs.readFile(sessionPath, "utf-8");
+    const messages = [];
+
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const entry = JSON.parse(line);
+        if (entry.type === "message" && entry.message) {
+          messages.push(entry.message);
         }
+      } catch {
+        // 跳过损坏行
       }
-
-      if (messages.length > 0) return messages;
-    } catch {
-      // 回退到内存态
     }
+
+    if (messages.length > 0) return messages;
+  } catch {
+    // 文件读取失败
   }
 
-  return Array.isArray(engine.messages) ? engine.messages : [];
+  return [];
 }
 
 /**

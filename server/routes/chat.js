@@ -69,19 +69,28 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
     }, DISCONNECT_ABORT_GRACE_MS);
   }
 
-  const MAX_SESSION_STATES = 20;
+  const MAX_SESSION_STATES = 100;
+
+  function requireSessionPath(msg, ws) {
+    if (msg.sessionPath) return msg.sessionPath;
+    wsSend(ws, { type: "error", message: "sessionPath is required" });
+    return null;
+  }
 
   function getState(sessionPath) {
     if (!sessionPath) return null;
     if (!sessionState.has(sessionPath)) {
-      // 超过上限时，淘汰非流式的旧 entry
+      // 超过上限时，淘汰非流式的最久未访问 entry
       if (sessionState.size >= MAX_SESSION_STATES) {
+        let oldest = null;
+        let oldestTime = Infinity;
         for (const [sp, ss] of sessionState) {
-          if (!ss.isStreaming && sp !== sessionPath) {
-            sessionState.delete(sp);
-            if (sessionState.size < MAX_SESSION_STATES) break;
+          if (!ss.isStreaming && sp !== sessionPath && ss.lastAccessed < oldestTime) {
+            oldest = sp;
+            oldestTime = ss.lastAccessed;
           }
         }
+        if (oldest) sessionState.delete(oldest);
       }
       sessionState.set(sessionPath, {
         thinkTagParser: new ThinkTagParser(),
@@ -97,10 +106,13 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
         isAborted: false,
         titleRequested: false,
         titlePreview: "",
+        lastAccessed: Date.now(),
         ...createSessionStreamState(),
       });
     }
-    return sessionState.get(sessionPath);
+    const ss = sessionState.get(sessionPath);
+    ss.lastAccessed = Date.now();
+    return ss;
   }
 
   const clients = new Set();
@@ -117,10 +129,12 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
     if (_browserThumbTimer) return;
     _browserThumbTimer = setInterval(async () => {
       const browser = BrowserManager.instance();
-      if (!browser.isRunning) { stopBrowserThumbPoll(); return; }
-      const thumbnail = await browser.thumbnail();
-      if (thumbnail) {
-        broadcast({ type: "browser_status", running: true, url: browser.currentUrl, thumbnail });
+      if (!browser.hasAnyRunning) { stopBrowserThumbPoll(); return; }
+      for (const sp of browser.runningSessions) {
+        const thumbnail = await browser.thumbnail(sp);
+        if (thumbnail) {
+          broadcast({ type: "browser_status", running: true, url: browser.currentUrl(sp), thumbnail, sessionPath: sp });
+        }
       }
     }, 30_000);
   }
@@ -508,7 +522,7 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
           // Wrap the async handler with error handling (replaces wrapWsHandler)
           (async () => {
             if (msg.type === "abort") {
-              const abortPath = msg.sessionPath || engine.currentSessionPath;
+              const abortPath = requireSessionPath(msg, ws); if (!abortPath) return;
               const abortSs = getState(abortPath);
               if (abortSs) abortSs.isAborted = true;
               if (engine.isSessionStreaming(abortPath)) {
@@ -519,7 +533,7 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
 
             if (msg.type === "steer" && msg.text) {
               debugLog()?.log("ws", `steer (${msg.text.length} chars)`);
-              const steerPath = msg.sessionPath || engine.currentSessionPath;
+              const steerPath = requireSessionPath(msg, ws); if (!steerPath) return;
               if (engine.steerSession(steerPath, msg.text)) {
                 wsSend(ws, { type: "steered" });
                 return;
@@ -531,7 +545,7 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
 
             // session 切回时，前端请求补发离屏期间的流式内容
             if (msg.type === "resume_stream") {
-              const currentPath = msg.sessionPath || engine.currentSessionPath;
+              const currentPath = requireSessionPath(msg, ws); if (!currentPath) return;
               const ss = sessionState.get(currentPath);
               if (ss) {
                 const resumed = resumeSessionStream(ss, {
@@ -566,7 +580,7 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
             }
 
             if (msg.type === "context_usage") {
-              const usagePath = msg.sessionPath || engine.currentSessionPath;
+              const usagePath = requireSessionPath(msg, ws); if (!usagePath) return;
               const usageSession = engine.getSessionByPath(usagePath);
               const usage = usageSession?.getContextUsage?.();
               wsSend(ws, {
@@ -580,7 +594,7 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
             }
 
             if (msg.type === "compact") {
-              const compactPath = msg.sessionPath || engine.currentSessionPath;
+              const compactPath = requireSessionPath(msg, ws); if (!compactPath) return;
               const session = engine.getSessionByPath(compactPath);
               if (!session) {
                 wsSend(ws, { type: "error", message: t("error.noActiveSession"), sessionPath: compactPath });
@@ -675,7 +689,7 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
               }
               debugLog()?.log("ws", `user message (${promptText.length} chars, ${msg.images?.length || 0} images)`);
               // Phase 2: 客户端可指定 sessionPath，否则用焦点 session
-              const promptSessionPath = msg.sessionPath || engine.currentSessionPath;
+              const promptSessionPath = requireSessionPath(msg, ws); if (!promptSessionPath) return;
               if (engine.isSessionStreaming(promptSessionPath)) {
                 wsSend(ws, { type: "error", message: t("error.stillStreaming", { name: engine.agentName }), sessionPath: promptSessionPath });
                 return;
@@ -741,7 +755,7 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
  */
 async function generateSessionTitle(engine, notify, opts = {}) {
   try {
-    const sessionPath = opts.sessionPath || engine.currentSessionPath;
+    const sessionPath = opts.sessionPath;
     if (!sessionPath) return false;
 
     // 检查是否已有标题（避免重复生成）

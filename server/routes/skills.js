@@ -74,9 +74,8 @@ export function createSkillsRoute(engine) {
       saveConfig(configPath, partial);
 
       // active agent 需要额外触发 skill 同步
-      if (id === engine.currentAgentId) {
-        await engine.updateConfig(partial);
-      }
+      const agent = engine.getAgent(id);
+      if (agent) await agent.updateConfig(partial);
 
       return c.json({ ok: true });
     } catch (err) {
@@ -183,18 +182,17 @@ export function createSkillsRoute(engine) {
       await engine.reloadSkills();
 
       // 将新技能加入当前 agent 的 enabled 列表
-      const agentId = c.req.query("agentId") || engine.currentAgentId;
-      if (agentId) {
-        const configPath = path.join(engine.agentsDir, agentId, "config.yaml");
-        if (fs.existsSync(configPath)) {
-          const { loadConfig } = await import("../../lib/memory/config-loader.js");
-          const cfg = loadConfig(configPath);
-          const enabled = new Set(cfg?.skills?.enabled || []);
-          enabled.add(safeName);
-          saveConfig(configPath, { skills: { enabled: [...enabled] } });
-          // 同步 engine 内存状态
-          await engine.updateConfig({ skills: { enabled: [...enabled] } });
-        }
+      const agentId = c.req.query("agentId");
+      if (!agentId) return c.json({ error: "agentId query param is required" }, 400);
+      const configPath = path.join(engine.agentsDir, agentId, "config.yaml");
+      if (fs.existsSync(configPath)) {
+        const { loadConfig } = await import("../../lib/memory/config-loader.js");
+        const cfg = loadConfig(configPath);
+        const enabled = new Set(cfg?.skills?.enabled || []);
+        enabled.add(safeName);
+        saveConfig(configPath, { skills: { enabled: [...enabled] } });
+        // 同步 engine 内存状态
+        await engine.updateConfig({ skills: { enabled: [...enabled] } });
       }
 
       const skill = engine.getAllSkills().find(s => s.name === safeName);

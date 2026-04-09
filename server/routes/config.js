@@ -309,7 +309,8 @@ export function createConfigRoute(engine) {
    * 返回 { store, isTemp }，调用方用完 isTemp===true 的 store 需要 close。
    */
   function getStoreForAgent(agentId) {
-    const resolvedId = agentId || engine.currentAgentId;
+    if (!agentId) throw new Error("agentId is required");
+    const resolvedId = agentId;
     const agent = engine.getAgent(resolvedId);
     if (agent?.factStore) {
       return { store: agent.factStore, isTemp: false };
@@ -362,7 +363,9 @@ export function createConfigRoute(engine) {
         await fs.unlink(p + ".fingerprint").catch(() => {});
       }
       debugLog()?.log("api", `DELETE /api/memories/compiled agent=${path.basename(agent.agentDir)}`);
-      if (agent === engine.agent) await engine.updateConfig({});
+      const agentId = path.basename(agent.agentDir);
+      const resolvedAgent = engine.getAgent(agentId);
+      if (resolvedAgent) await resolvedAgent.updateConfig({});
       return c.json({ ok: true });
     } catch (err) {
       return c.json({ error: err.message }, 500);
@@ -380,7 +383,9 @@ export function createConfigRoute(engine) {
       const mdPath = agent.memoryMdPath;
       await fs.writeFile(mdPath, "", "utf-8");
       debugLog()?.log("api", `DELETE /api/memories agent=${path.basename(agent.agentDir)}`);
-      if (agent === engine.agent) await engine.updateConfig({});
+      const agentId = path.basename(agent.agentDir);
+      const resolvedAgent = engine.getAgent(agentId);
+      if (resolvedAgent) await resolvedAgent.updateConfig({});
       return c.json({ ok: true });
     } catch (err) {
       return c.json({ error: err.message }, 500);

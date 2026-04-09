@@ -30,7 +30,7 @@ export class DmRouter {
   constructor({ hub }) {
     this._hub = hub;
     this._cooldowns = new Map();
-    this._processing = new Set();
+    this._processing = new Map(); // key → startTimestamp
   }
 
   get _engine() { return this._hub.engine; }
@@ -43,11 +43,17 @@ export class DmRouter {
   async handleNewDm(fromId, toId) {
     const key = `${fromId}→${toId}`;
 
+    // 清理卡住的 entry（超过 5 分钟视为异常）
+    const PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
+    const now = Date.now();
+    for (const [k, ts] of this._processing) {
+      if (now - ts > PROCESSING_TIMEOUT_MS) this._processing.delete(k);
+    }
+
     // 防重入
     if (this._processing.has(key)) return;
 
     // 冷却期
-    const now = Date.now();
     for (const [k, t] of this._cooldowns) {
       if (now - t >= COOLDOWN_MS) this._cooldowns.delete(k);
     }
@@ -56,7 +62,7 @@ export class DmRouter {
       return;
     }
 
-    this._processing.add(key);
+    this._processing.set(key, Date.now());
     this._cooldowns.set(key, now);
 
     try {

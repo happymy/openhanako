@@ -25,7 +25,7 @@ export function createDmRoute(engine) {
         return c.json({ dms: [] });
       }
 
-      const currentAgentId = agent.agentDir ? path.basename(agent.agentDir) : engine.currentAgentId;
+      const currentAgentId = path.basename(agent.agentDir);
       const dmDir = path.join(agent.agentDir, "dm");
 
       // 已有 DM 文件 → 读取消息摘要

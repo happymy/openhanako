@@ -106,7 +106,7 @@ if (engine.currentModel) {
 dlog.header(appVersion, {
   model: engine.currentModel?.name || "(none)",
   agent: engine.agentName,
-  agentId: engine.currentAgentId,
+  agentId: engine.currentAgentId, // @ui-focus-ok: startup log
   utilityModel: (() => { try { return engine.resolveUtilityConfig?.()?.utility; } catch { return "(none)"; } })(),
   channelsDir: engine.channelsDir,
 });
@@ -429,10 +429,9 @@ async function gracefulShutdown() {
     try {
       const { BrowserManager } = await import("../lib/browser/browser-manager.js");
       const bm = BrowserManager.instance();
-      if (bm.isRunning) {
-        const sessionPath = engine.currentSessionPath;
-        await bm.suspendForSession(sessionPath);
-        console.log("[server] 浏览器已挂起（冷保存保留）");
+      for (const sp of bm.runningSessions) {
+        await bm.suspendForSession(sp);
+        console.log(`[server] 浏览器已挂起: ${sp}`);
       }
     } catch (e) {
       console.error("[server] 浏览器挂起失败:", e.message);
