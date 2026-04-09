@@ -242,7 +242,10 @@ export async function execute(args, cmdCtx) {
 export default function (app, ctx) {
   app.post("/send", async (c) => {
     const { text } = await c.req.json();
-    const result = await ctx.bus.request("session:send", { text });
+    const result = await ctx.bus.request("session:send", {
+      text,
+      sessionPath: "/path/to/session.jsonl",  // required
+    });
     return c.json(result);
   });
 }
@@ -270,7 +273,7 @@ export function register(app, ctx) {
 }
 ```
 
-All three patterns are backward-compatible: plugins that don't use ctx need no changes. `ctx.bus` can directly call built-in session operations: `session:send`, `session:abort`, `session:history`, `session:list`, `agent:list`. See the Route Context and Session Bus Handlers sections below for the full API.
+All three patterns are backward-compatible: plugins that don't use ctx need no changes. `ctx.bus` can directly call built-in session operations: `session:send`, `session:abort`, `session:history`, `session:list`, `agent:list`. All session-related operations must include a `sessionPath` parameter. See the Route Context and Session Bus Handlers sections below for the full API.
 
 ### Extensions (Pi SDK Event Interception) ⚡ full-access
 
@@ -522,3 +525,26 @@ The system ignores unrecognized directories and manifest fields. Old plugins alw
 - A single plugin's `onload()` failure does not block other plugins or system startup
 - A syntax error in a single tool/route/command file only affects that file
 - Failed plugins are marked `status: "failed"` and show error info on the plugins page
+
+## Concurrency
+
+Hana supports multiple sessions and multiple agents running in parallel. Keep the following in mind when developing plugins:
+
+- All session-related EventBus events (`session:send`, `session:abort`, etc.) must include a `sessionPath` parameter to identify the target session
+- Tools can obtain the current session path via `ctx.sessionManager.getSessionFile()`
+- Do not use `engine.currentSessionPath` or `engine.currentAgentId` (these are UI focus pointers and do not represent the currently executing session)
+
+```js
+// Correct: explicitly specify sessionPath
+await bus.request("session:send", {
+  text: "Hello",
+  sessionPath: "/path/to/session.jsonl",
+});
+
+await bus.request("session:abort", {
+  sessionPath: "/path/to/session.jsonl",
+});
+
+// Wrong: omitting sessionPath may target the wrong session under concurrency
+await bus.request("session:send", { text: "Hello" });
+```

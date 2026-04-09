@@ -226,7 +226,7 @@ After dispatching subagent or other background tasks, you MUST actively follow u
       }
     }
 
-    return session;
+    return { session, sessionPath: sessionPath || mapKey, agentId: creatingAgentId };
   }
 
   async switchSession(sessionPath) {
@@ -283,7 +283,8 @@ After dispatching subagent or other background tasks, you MUST actively follow u
     // 冷启动恢复：model 由 PI SDK 从 session JSONL 恢复（单一数据源），不从 session-meta.json 读
     const sessionMgr = SessionManager.open(sessionPath, this._d.getAgent().sessionDir);
     const cwd = sessionMgr.getCwd?.() || undefined;
-    return this.createSession(sessionMgr, cwd, memoryEnabled, null, { restore: true });
+    const result = await this.createSession(sessionMgr, cwd, memoryEnabled, null, { restore: true });
+    return result.session;
   }
 
   async prompt(text, opts) {

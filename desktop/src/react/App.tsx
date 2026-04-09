@@ -38,11 +38,13 @@ import { WindowControls } from './components/WindowControls';
 import { ToastContainer } from './components/ToastContainer';
 import { InputContextMenu } from './components/InputContextMenu';
 import { StatusBar } from './components/StatusBar';
+import { PaperTextureOverlay } from './components/PaperTextureOverlay';
 import { initTheme, initDragPrevention } from './bootstrap';
 import { initApp } from './app-init';
 import { MainContent } from './MainContent';
 import { hanaUrl } from './hooks/use-hana-fetch';
 import { yuanFallbackAvatar } from './utils/agent-helpers';
+import { useAnyBrowserRunning } from './stores/browser-slice';
 
 declare function t(key: string, vars?: Record<string, string | number>): string;
 
@@ -172,7 +174,7 @@ function App() {
   const sidebarOpen = useStore(s => s.sidebarOpen);
   const jianOpen = useStore(s => s.jianOpen);
   const currentTab = useStore(s => s.currentTab);
-  const browserRunning = useStore(s => s.browserRunning);
+  const browserRunning = useAnyBrowserRunning();
   const welcomeVisible = useStore(s => s.welcomeVisible);
   const currentSessionPath = useStore(s => s.currentSessionPath);
   const currentAgentId = useStore(s => s.currentAgentId);
@@ -407,6 +409,9 @@ function App() {
           onAction={hideFloat}
         />
       )}
+
+      {/* Paper texture overlay */}
+      <PaperTextureOverlay />
 
       {/* Connection status bar */}
       <StatusBar />

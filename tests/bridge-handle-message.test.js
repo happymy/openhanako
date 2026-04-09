@@ -57,7 +57,7 @@ function createMocks() {
 
   const bm = new BridgeManager({ engine, hub });
   // Inject mock adapter directly (bypass startPlatform)
-  bm._platforms.set("telegram", { adapter, status: "connected", agentId: null, platform: "telegram" });
+  bm._platforms.set("telegram", { adapter, status: "connected", agentId: "hana", platform: "telegram" });
   // Disable block streaming for simpler assertions
   bm.blockStreaming = false;
 
@@ -89,6 +89,7 @@ describe("BridgeManager._handleMessage", () => {
         userId: "user1",
         isGroup: true,
         chatId: "g1",
+        agentId: "hana",
       });
       await promise;
       // flush the unresolved group message promise
@@ -112,6 +113,7 @@ describe("BridgeManager._handleMessage", () => {
         userId: "user2",
         isGroup: true,
         chatId: "g1",
+        agentId: "hana",
       });
 
       expect(hub.send).toHaveBeenCalledWith(tagged("Bob: hi there"), expect.any(Object));
@@ -129,12 +131,14 @@ describe("BridgeManager._handleMessage", () => {
         text: "hello",
         userId: "owner123",
         chatId: "owner123",
+        agentId: "hana",
       });
       bm._handleMessage("telegram", {
         sessionKey: "tg_dm_owner123@hana",
         text: "world",
         userId: "owner123",
         chatId: "owner123",
+        agentId: "hana",
       });
 
       expect(hub.send).not.toHaveBeenCalled();
@@ -157,6 +161,7 @@ describe("BridgeManager._handleMessage", () => {
         text: "first",
         userId: "owner123",
         chatId: "owner123",
+        agentId: "hana",
       });
 
       await vi.advanceTimersByTimeAsync(1500);
@@ -167,6 +172,7 @@ describe("BridgeManager._handleMessage", () => {
         text: "second",
         userId: "owner123",
         chatId: "owner123",
+        agentId: "hana",
       });
 
       await vi.advanceTimersByTimeAsync(1500);
@@ -188,6 +194,7 @@ describe("BridgeManager._handleMessage", () => {
         text: "hi",
         userId: "owner123",
         chatId: "owner123",
+        agentId: "hana",
       });
 
       await vi.advanceTimersByTimeAsync(2100);
@@ -207,6 +214,7 @@ describe("BridgeManager._handleMessage", () => {
         senderName: "Stranger",
         userId: "stranger",
         chatId: "stranger",
+        agentId: "hana",
       });
 
       await vi.advanceTimersByTimeAsync(2100);
@@ -230,6 +238,7 @@ describe("BridgeManager._handleMessage", () => {
         text: "new msg",
         userId: "owner123",
         chatId: "owner123",
+        agentId: "hana",
       });
 
       // streaming 时 debounce 缩短到 1s（steer 路径），不 abort
@@ -245,6 +254,7 @@ describe("BridgeManager._handleMessage", () => {
         text: "new msg",
         userId: "owner123",
         chatId: "owner123",
+        agentId: "hana",
       });
 
       expect(engine.abortBridgeSession).not.toHaveBeenCalled();
@@ -263,6 +273,7 @@ describe("BridgeManager._handleMessage", () => {
         text: "hello",
         userId: "owner123",
         chatId: "owner123",
+        agentId: "hana",
       });
 
       await bm._handleMessage("telegram", {
@@ -270,6 +281,7 @@ describe("BridgeManager._handleMessage", () => {
         text: "/stop",
         userId: "owner123",
         chatId: "owner123",
+        agentId: "hana",
       });
 
       expect(engine.abortBridgeSession).toHaveBeenCalledWith("tg_dm_owner123@hana");
@@ -288,6 +300,7 @@ describe("BridgeManager._handleMessage", () => {
         senderName: "Stranger",
         userId: "stranger",
         chatId: "stranger",
+        agentId: "hana",
       });
 
       // non-owner: /stop 不触发 abort，走普通消息路径
@@ -387,6 +400,7 @@ describe("BridgeManager._handleMessage", () => {
         text: "msg1",
         userId: "owner123",
         chatId: "owner123",
+        agentId: "hana",
       });
       await vi.advanceTimersByTimeAsync(2100);
 
@@ -395,6 +409,7 @@ describe("BridgeManager._handleMessage", () => {
         text: "msg2",
         userId: "owner123",
         chatId: "owner123",
+        agentId: "hana",
       });
       await vi.advanceTimersByTimeAsync(2100);
 

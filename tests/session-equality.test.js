@@ -34,8 +34,11 @@ describe("session-equality: tool sessionPath 归属", () => {
 
 describe("session-equality: resolveAgent 不静默 fallback", () => {
   const mockEngine = {
-    getAgent: (id) => id === "valid" ? { id: "valid", name: "Valid" } : undefined,
-    agent: { id: "focus", name: "Focus" },
+    getAgent: (id) => {
+      if (id === "valid") return { id: "valid", name: "Valid" };
+      if (id === "focus") return { id: "focus", name: "Focus" };
+      return undefined;
+    },
     currentAgentId: "focus",
   };
 

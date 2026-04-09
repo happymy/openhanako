@@ -180,12 +180,11 @@ export function handleServerMessage(msg: any): void {
       const bsp = msg.sessionPath || state.currentSessionPath;
       const bRunning = !!msg.running;
       const bUrl = msg.url || null;
-      const bThumbnail = bRunning ? (msg.thumbnail || state.browserThumbnail) : null;
-      // 写入 keyed store（含 compat 同步）
+      const prevThumbnail = bsp ? (state.browserBySession[bsp]?.thumbnail ?? null) : null;
+      const bThumbnail = bRunning ? (msg.thumbnail || prevThumbnail) : null;
       if (bsp) {
         updateKeyed('browserBySession', bsp,
           { running: bRunning, url: bUrl, thumbnail: bThumbnail },
-          (_s, d) => ({ browserRunning: d.running, browserUrl: d.url, browserThumbnail: d.thumbnail }),
         );
       }
       // renderBrowserCard — no-op (browser card rendering handled by React)
@@ -205,7 +204,6 @@ export function handleServerMessage(msg: any): void {
         const prev = useStore.getState().browserBySession[bgSp] || { running: false, url: null, thumbnail: null };
         updateKeyed('browserBySession', bgSp,
           { ...prev, running: !!msg.running },
-          (_s, d) => ({ browserRunning: d.running }),
         );
       }
       break;

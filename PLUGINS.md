@@ -242,7 +242,10 @@ export async function execute(args, cmdCtx) {
 export default function (app, ctx) {
   app.post("/send", async (c) => {
     const { text } = await c.req.json();
-    const result = await ctx.bus.request("session:send", { text });
+    const result = await ctx.bus.request("session:send", {
+      text,
+      sessionPath: "/path/to/session.jsonl",  // 必须提供
+    });
     return c.json(result);
   });
 }
@@ -270,7 +273,7 @@ export function register(app, ctx) {
 }
 ```
 
-三种写法向后兼容：不使用 ctx 的老插件无需改动。`ctx.bus` 可直接调用内置 session 操作：`session:send`、`session:abort`、`session:history`、`session:list`、`agent:list`。详见下方 Route Context 和 Session Bus Handlers 章节。
+三种写法向后兼容：不使用 ctx 的老插件无需改动。`ctx.bus` 可直接调用内置 session 操作：`session:send`、`session:abort`、`session:history`、`session:list`、`agent:list`。所有 session 相关操作必须携带 `sessionPath` 参数。详见下方 Route Context 和 Session Bus Handlers 章节。
 
 ### Extensions（Pi SDK 事件拦截）⚡ full-access
 
@@ -522,3 +525,26 @@ this.register(this.ctx.registerTool({
 - 单个 plugin 的 `onload()` 失败不阻塞其他 plugin 和系统启动
 - 单个 tool/route/command 文件的语法错误只影响该文件
 - 失败的 plugin 标记为 `status: "failed"`，在插件页面显示错误信息
+
+## 并发设计
+
+Hana 支持多 session / 多 agent 并行运行。插件开发时需注意：
+
+- 所有 EventBus 的 session 相关事件（`session:send`、`session:abort` 等）必须携带 `sessionPath` 参数，用于标识目标 session
+- 工具（tool）通过 `ctx.sessionManager.getSessionFile()` 获取当前 session 路径
+- 不要使用 `engine.currentSessionPath` 或 `engine.currentAgentId`（这些是 UI 焦点指针，不代表当前执行的 session）
+
+```js
+// 正确：显式指定 sessionPath
+await bus.request("session:send", {
+  text: "你好",
+  sessionPath: "/path/to/session.jsonl",
+});
+
+await bus.request("session:abort", {
+  sessionPath: "/path/to/session.jsonl",
+});
+
+// 错误：省略 sessionPath，在并发场景下会定位到错误的 session
+await bus.request("session:send", { text: "你好" });
+```

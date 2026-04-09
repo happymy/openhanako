@@ -132,7 +132,7 @@ engine.subscribe((event) => {
 });
 
 // ── 启动 session ──
-let session = await engine.createSession();
+let { session } = await engine.createSession();
 console.log("✿ 记忆系统已激活\n");
 
 // ── CLI 交互 ──
@@ -258,7 +258,7 @@ const ask = () => {
     if (trimmed === "/new") {
       console.log("\n✿ 开始新的对话...");
       moodParser.reset();
-      session = await engine.createSession();
+      ({ session } = await engine.createSession());
       console.log("✿ 新 session 已创建");
       ask();
       return;

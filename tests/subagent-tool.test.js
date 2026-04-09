@@ -4,9 +4,9 @@ import { createSubagentTool } from "../lib/tools/subagent-tool.js";
 // ---- helpers ----------------------------------------------------------------
 
 /** Mock Pi SDK ctx with sessionManager */
-const mockCtx = {
-  sessionManager: { getSessionFile: () => "/test/session.jsonl" },
-};
+const mockCtx = (sp = "/test/session.jsonl") => ({
+  sessionManager: { getSessionFile: () => sp },
+});
 
 /**
  * Build a mock executeIsolated that:
@@ -61,7 +61,7 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
   // 1. fire-and-forget: returns immediately with taskId / streamStatus / sessionPath
   it("dispatches task and returns immediately with running status", async () => {
     const tool = createSubagentTool(deps);
-    const result = await tool.execute("call_1", { task: "查一下项目状态" }, null, null, mockCtx);
+    const result = await tool.execute("call_1", { task: "查一下项目状态" }, null, null, mockCtx());
 
     // t() returns the key path when locale is not loaded in tests
     expect(result.content[0].text).toMatch(/task-id|subagentDispatched/);
@@ -82,7 +82,7 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
   // 2. deferred store resolves on success
   it("resolves deferred store on success", async () => {
     const tool = createSubagentTool(deps);
-    await tool.execute("call_1", { task: "成功的任务" }, null, null, mockCtx);
+    await tool.execute("call_1", { task: "成功的任务" }, null, null, mockCtx());
 
     await vi.waitFor(() => {
       expect(mockStore.resolve).toHaveBeenCalledWith(
@@ -104,7 +104,7 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
       getDeferredStore: () => mockStore,
     }));
 
-    await tool.execute("call_1", { task: "会失败的任务" }, null, null, mockCtx);
+    await tool.execute("call_1", { task: "会失败的任务" }, null, null, mockCtx());
 
     await vi.waitFor(() => {
       expect(mockStore.fail).toHaveBeenCalledWith(
@@ -123,7 +123,7 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
       emitEvent,
     }));
 
-    const result = await tool.execute("call_1", { task: "完成的任务" }, null, null, mockCtx);
+    const result = await tool.execute("call_1", { task: "完成的任务" }, null, null, mockCtx());
     const { taskId } = result.details;
 
     await vi.waitFor(() => {
@@ -151,7 +151,7 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
       emitEvent,
     }));
 
-    const result = await tool.execute("call_1", { task: "失败的任务" }, null, null, mockCtx);
+    const result = await tool.execute("call_1", { task: "失败的任务" }, null, null, mockCtx());
     const { taskId } = result.details;
 
     await vi.waitFor(() => {
@@ -166,9 +166,8 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
     });
   });
 
-  // 6. concurrent limit: rejects 6th task when 5 are already in-flight
-  it("rejects new work when the concurrency limit (5) is reached", async () => {
-    // executeIsolated that never resolves (so activeCount stays incremented)
+  // 6. per-session concurrent limit: rejects 4th task on the same session
+  it("rejects new work when the per-session limit (3) is reached", async () => {
     const pending = [];
     const blockingExecute = vi.fn().mockImplementation((_prompt, opts) => {
       opts?.onSessionReady?.("/test/child.jsonl");
@@ -179,23 +178,95 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
       getDeferredStore: () => mockStore,
     }));
 
-    // Dispatch 5 tasks (fire-and-forget, returns immediately each time)
+    // Dispatch 3 tasks on the same session (fire-and-forget)
     const results = [];
-    for (let i = 0; i < 5; i++) {
-      results.push(await tool.execute(`call_${i}`, { task: `任务 ${i}` }, null, null, mockCtx));
+    for (let i = 0; i < 3; i++) {
+      results.push(await tool.execute(`call_${i}`, { task: `任务 ${i}` }, null, null, mockCtx()));
     }
-    // All 5 should be dispatched (running)
     for (const r of results) {
       expect(r.details.streamStatus).toBe("running");
     }
 
-    // 6th task must be rejected
-    const blocked = await tool.execute("call_5", { task: "第六个任务" }, null, null, mockCtx);
-    // should mention the limit; t() returns key path when locale is not loaded
-    expect(blocked.content[0].text).toMatch(/5|subagentMaxConcurrent/);
+    // 4th task on the same session must be rejected
+    const blocked = await tool.execute("call_3", { task: "第四个任务" }, null, null, mockCtx());
+    expect(blocked.content[0].text).toMatch(/3|subagentMaxConcurrent/);
     expect(blocked.details).toBeUndefined();
 
-    // Cleanup: let the pending promises resolve so activeCount decrements
+    // Cleanup
+    for (const resolve of pending) {
+      resolve({ replyText: "ok", error: null, sessionPath: null });
+    }
+  });
+
+  // 6b. different sessions each get their own per-session quota
+  it("allows different sessions to each run up to per-session limit", async () => {
+    const pending = [];
+    const blockingExecute = vi.fn().mockImplementation((_prompt, opts) => {
+      opts?.onSessionReady?.("/test/child.jsonl");
+      return new Promise((resolve) => pending.push(resolve));
+    });
+    const tool = createSubagentTool(makeDeps({
+      executeIsolated: blockingExecute,
+      getDeferredStore: () => mockStore,
+    }));
+
+    // Session A: dispatch 3 tasks
+    for (let i = 0; i < 3; i++) {
+      const r = await tool.execute(`call_a${i}`, { task: `任务 A${i}` }, null, null, mockCtx("/session/a.jsonl"));
+      expect(r.details.streamStatus).toBe("running");
+    }
+
+    // Session B: should still be able to dispatch 3 tasks (independent quota)
+    for (let i = 0; i < 3; i++) {
+      const r = await tool.execute(`call_b${i}`, { task: `任务 B${i}` }, null, null, mockCtx("/session/b.jsonl"));
+      expect(r.details.streamStatus).toBe("running");
+    }
+
+    // Session A: 4th task should be rejected
+    const blockedA = await tool.execute("call_a3", { task: "第四个 A" }, null, null, mockCtx("/session/a.jsonl"));
+    expect(blockedA.content[0].text).toMatch(/3|subagentMaxConcurrent/);
+    expect(blockedA.details).toBeUndefined();
+
+    // Session B: 4th task should also be rejected
+    const blockedB = await tool.execute("call_b3", { task: "第四个 B" }, null, null, mockCtx("/session/b.jsonl"));
+    expect(blockedB.content[0].text).toMatch(/3|subagentMaxConcurrent/);
+    expect(blockedB.details).toBeUndefined();
+
+    // Cleanup
+    for (const resolve of pending) {
+      resolve({ replyText: "ok", error: null, sessionPath: null });
+    }
+  });
+
+  // 6c. global limit (10) rejects when total across all sessions exceeds it
+  it("rejects when global limit (10) is reached across sessions", async () => {
+    const pending = [];
+    const blockingExecute = vi.fn().mockImplementation((_prompt, opts) => {
+      opts?.onSessionReady?.("/test/child.jsonl");
+      return new Promise((resolve) => pending.push(resolve));
+    });
+    const tool = createSubagentTool(makeDeps({
+      executeIsolated: blockingExecute,
+      getDeferredStore: () => mockStore,
+    }));
+
+    // Fill up 10 tasks across 4 sessions (3 + 3 + 3 + 1)
+    for (let s = 0; s < 3; s++) {
+      for (let i = 0; i < 3; i++) {
+        const r = await tool.execute(`call_${s}_${i}`, { task: `任务` }, null, null, mockCtx(`/session/${s}.jsonl`));
+        expect(r.details.streamStatus).toBe("running");
+      }
+    }
+    // Session 3: 1 more to reach global limit of 10
+    const r10 = await tool.execute("call_3_0", { task: "第10个" }, null, null, mockCtx("/session/3.jsonl"));
+    expect(r10.details.streamStatus).toBe("running");
+
+    // 11th task from a new session (per-session is fine, but global is full)
+    const blocked = await tool.execute("call_4_0", { task: "第11个" }, null, null, mockCtx("/session/4.jsonl"));
+    expect(blocked.content[0].text).toMatch(/10|subagentMaxConcurrent/);
+    expect(blocked.details).toBeUndefined();
+
+    // Cleanup
     for (const resolve of pending) {
       resolve({ replyText: "ok", error: null, sessionPath: null });
     }
@@ -231,7 +302,7 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
       getDeferredStore: () => mockStore,
     }));
 
-    const result = await tool.execute("call_1", { task: "专项任务", agent: "other-agent" }, null, null, mockCtx);
+    const result = await tool.execute("call_1", { task: "专项任务", agent: "other-agent" }, null, null, mockCtx());
 
     expect(result.details.agentId).toBe("other-agent");
     expect(captureExecute).toHaveBeenCalledWith(

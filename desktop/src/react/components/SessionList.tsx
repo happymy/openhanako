@@ -67,18 +67,18 @@ function SessionListInner() {
   const pendingNewSession = useStore(s => s.pendingNewSession);
   const agents = useStore(s => s.agents);
   const streamingSessions = useStore(s => s.streamingSessions);
-  const browserRunning = useStore(s => s.browserRunning);
+  const browserBySession = useStore(s => s.browserBySession);
 
   const [browserSessions, setBrowserSessions] = useState<Record<string, string>>({});
 
-  // Fetch browser sessions (re-fetch when browser starts/stops)
+  // Fetch browser sessions (re-fetch when browser state changes)
   useEffect(() => {
     if (sessions.length === 0) return;
     hanaFetch('/api/browser/sessions')
       .then(r => r.json())
       .then(data => setBrowserSessions(data || {}))
       .catch(err => console.warn('[sessions] fetch browser sessions failed:', err));
-  }, [sessions, browserRunning]);
+  }, [sessions, browserBySession]);
 
   if (sessions.length === 0) {
     return <div className={styles.sessionEmpty}>{t('sidebar.empty')}</div>;

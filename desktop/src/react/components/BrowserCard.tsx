@@ -1,8 +1,7 @@
 /**
  * BrowserCard — 浏览器浮动卡片
  *
- * 替代旧 artifacts.js 的 renderBrowserCard 逻辑。
- * 当 browserRunning 为 true 时，在聊天区顶部显示浮动卡片。
+ * 当前 session 浏览器运行时，在聊天区顶部显示浮动卡片。
  * 由 App.tsx 在 .main-content 内直接渲染。
  */
 
@@ -10,17 +9,10 @@ import { useCallback } from 'react';
 import { useStore } from '../stores';
 import { updateKeyed } from '../stores/create-keyed-slice';
 import { hanaFetch } from '../hooks/use-hana-fetch';
+import { useBrowserState } from '../stores/browser-slice';
 
 export function BrowserCard() {
-  const browserEntry = useStore(s => s.browserBySession[s.currentSessionPath || '']);
-  const globalRunning = useStore(s => s.browserRunning);
-  const globalUrl = useStore(s => s.browserUrl);
-  const globalThumbnail = useStore(s => s.browserThumbnail);
-  const browserRunning = browserEntry?.running ?? globalRunning;
-  const browserUrl = browserEntry?.url ?? globalUrl;
-  const browserThumbnail = browserEntry?.thumbnail ?? globalThumbnail;
-  const setBrowserRunning = useStore(s => s.setBrowserRunning);
-  const setBrowserThumbnail = useStore(s => s.setBrowserThumbnail);
+  const { running: browserRunning, url: browserUrl, thumbnail: browserThumbnail } = useBrowserState();
 
   const handleClick = useCallback(() => {
     window.platform?.openBrowserViewer?.();
@@ -29,15 +21,10 @@ export function BrowserCard() {
   const handleClose = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     const sessionPath = useStore.getState().currentSessionPath;
-    // 同时清除 keyed 状态和全局 compat 状态，确保卡片立即隐藏
     if (sessionPath) {
       updateKeyed('browserBySession', sessionPath,
         { running: false, url: null, thumbnail: null },
-        (_s, d) => ({ browserRunning: d.running, browserUrl: d.url, browserThumbnail: d.thumbnail }),
       );
-    } else {
-      setBrowserRunning(false);
-      setBrowserThumbnail(null);
     }
     window.platform?.browserEmergencyStop?.();
     if (sessionPath) {
@@ -47,7 +34,7 @@ export function BrowserCard() {
         body: JSON.stringify({ sessionPath }),
       }).catch(err => console.warn('[browser] close session failed:', err));
     }
-  }, [setBrowserRunning, setBrowserThumbnail]);
+  }, []);
 
   if (!browserRunning) return null;
 

@@ -173,16 +173,13 @@ export function createSessionsRoute(engine) {
         await bm.suspendForSession(oldSessionPath);
       }
 
-      if (agentId && agentId !== engine.currentAgentId) {
-        await engine.createSessionForAgent(agentId, cwd || undefined, memFlag);
+      let newSessionPath, newAgentId;
+      if (agentId && agentId !== (body.currentAgentId || engine.currentAgentId)) {
+        ({ sessionPath: newSessionPath, agentId: newAgentId } = await engine.createSessionForAgent(agentId, cwd || undefined, memFlag));
       } else {
-        await engine.createSession(null, cwd || undefined, memFlag);
+        ({ sessionPath: newSessionPath, agentId: newAgentId } = await engine.createSession(null, cwd || undefined, memFlag));
       }
       engine.persistSessionMeta();
-
-      // 刚由 createSession / createSessionForAgent 同步设置，非竞争读取
-      const newSessionPath = engine.currentSessionPath;
-      const newAgentId = engine.currentAgentId;
 
       // 记住工作目录 + 更新历史
       if (cwd) {
@@ -235,6 +232,10 @@ export function createSessionsRoute(engine) {
 
       const session = engine.getSessionByPath(sessionPath);
 
+      // 从 sessionPath 解析 agentId，避免依赖 engine 焦点指针的时序
+      const switchedAgentId = engine.agentIdFromSessionPath(sessionPath) || engine.currentAgentId;
+      const switchedAgent = engine.getAgent(switchedAgentId);
+
       return c.json({
         ok: true,
         messageCount: session?.messages?.length || 0,
@@ -242,9 +243,8 @@ export function createSessionsRoute(engine) {
         planMode: engine.planMode,
         memoryModelUnavailableReason: engine.memoryModelUnavailableReason || null,
         cwd: engine.cwd,
-        // 刚由 switchSession 同步设置，非竞争读取
-        agentId: engine.currentAgentId,
-        agentName: engine.agentName,
+        agentId: switchedAgentId,
+        agentName: switchedAgent?.agentName || switchedAgentId,
         browserRunning: bm.isRunning(sessionPath),
         browserUrl: bm.currentUrl(sessionPath) || null,
         isStreaming: engine.isSessionStreaming(sessionPath),

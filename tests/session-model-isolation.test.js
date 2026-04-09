@@ -57,7 +57,7 @@ function makeMockSessionCoordinator(models) {
         modelProvider: effectiveModel?.provider || null,
       });
       currentSession = session;
-      return session;
+      return { session, sessionPath: path, agentId: null };
     },
     switchSession(path) {
       const entry = sessions.get(path);
@@ -101,10 +101,10 @@ describe("Session model isolation", () => {
     const models = makeMockModels();
     const coord = makeMockSessionCoordinator(models);
 
-    const sessionA = coord.createSession(null, null, true, MODEL_A);
+    const { session: sessionA } = coord.createSession(null, null, true, MODEL_A);
     const pathA = coord.currentSessionPath;
 
-    const sessionB = coord.createSession(null, null, true, MODEL_B);
+    const { session: sessionB } = coord.createSession(null, null, true, MODEL_B);
     const pathB = coord.currentSessionPath;
 
     expect(sessionB.model).toBe(MODEL_B);
@@ -121,7 +121,7 @@ describe("Session model isolation", () => {
     models.setDefaultModel = vi.fn(models.setDefaultModel);
     const coord = makeMockSessionCoordinator(models);
 
-    const sessionA = coord.createSession(null, null, true, MODEL_A);
+    const { session: sessionA } = coord.createSession(null, null, true, MODEL_A);
     const pathA = coord.currentSessionPath;
     coord.createSession(null, null, true, MODEL_B);
 
@@ -183,8 +183,8 @@ describe("Session model isolation", () => {
     const models = makeMockModels();
     const coord = makeMockSessionCoordinator(models);
 
-    const sessionA = coord.createSession(null, null, true, MODEL_A);
-    const sessionB = coord.createSession(null, null, true, MODEL_B);
+    const { session: sessionA } = coord.createSession(null, null, true, MODEL_A);
+    const { session: sessionB } = coord.createSession(null, null, true, MODEL_B);
 
     // 两个 session 对象各自持有自己的 model
     expect(sessionA.model).toBe(MODEL_A);

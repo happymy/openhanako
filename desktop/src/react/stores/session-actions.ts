@@ -14,6 +14,7 @@ import { loadAvatars as loadAvatarsAction, clearChat as clearChatAction } from '
 import { loadDeskFiles } from './desk-actions';
 import { saveTabState, restoreTabState } from './artifact-actions';
 import { loadModels } from '../utils/ui-helpers';
+import { updateKeyed } from './create-keyed-slice';
 
 // ── 防竞争计数器 ──
 
@@ -161,14 +162,20 @@ export async function switchSession(path: string): Promise<void> {
       welcomeVisible: false,
       memoryEnabled: data.memoryEnabled !== false,
       streamingSessions,
-      browserRunning: !!data.browserRunning,
-      browserUrl: data.browserUrl || null,
-      browserThumbnail: data.browserRunning ? state.browserThumbnail : null,
       attachedFiles: state.attachedFilesBySession[path] || [],
       deskContextAttached: false,
       docContextAttached: false,
       ...agentPatch,
     });
+
+    // 同步浏览器状态到 keyed store（服务端返回当前 session 的 browser 状态）
+    if (path) {
+      updateKeyed('browserBySession', path, {
+        running: !!data.browserRunning,
+        url: data.browserUrl || null,
+        thumbnail: data.browserRunning ? (state.browserBySession[path]?.thumbnail ?? null) : null,
+      });
+    }
 
     // 恢复目标 session 的 tab 状态 + 清除 quotedSelection
     restoreTabState(path);
@@ -220,9 +227,6 @@ export async function createNewSession(): Promise<void> {
     selectedFolder: s.homeFolder || null,
     selectedAgentId: null,
     pendingNewSession: true,
-    browserRunning: false,
-    browserUrl: null,
-    browserThumbnail: null,
     attachedFiles: [],
     deskContextAttached: false,
     docContextAttached: false,
