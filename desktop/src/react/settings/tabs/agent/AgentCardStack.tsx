@@ -26,6 +26,36 @@ export function AgentCardStack({ agents, selectedId, currentAgentId, onSelect, o
   agentsRef.current = agents;
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
+  // Horizontal scroll on wheel (only when overflowing)
+  useEffect(() => {
+    const el = cardsRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const el = cardsRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    const card = el.querySelector(`[data-agent-id="${selectedId}"]`) as HTMLElement;
+    if (!card) return;
+    const containerRect = el.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const cardVisLeft = cardRect.left - containerRect.left + el.scrollLeft;
+    const cardVisRight = cardVisLeft + cardRect.width;
+    const visLeft = el.scrollLeft;
+    const visRight = visLeft + el.clientWidth;
+    if (cardVisLeft < visLeft || cardVisRight > visRight) {
+      el.scrollLeft = cardVisLeft - (el.clientWidth - cardRect.width) / 2;
+    }
+  }, [selectedId]);
+
   // 总卡片数 = agents + 1 (add 按钮)
   const total = agents.length + 1;
   const n = total;
@@ -81,6 +111,8 @@ export function AgentCardStack({ agents, selectedId, currentAgentId, onSelect, o
             moved = true;
             card.classList.add(styles['dragging']);
             card.dataset.wasDragged = '1';
+            // Lock scroll during drag
+            container.classList.add(styles['dragging-active']);
           }
 
           card.style.transform = `rotate(0deg) translateX(${origTx + dx}px) translateY(-4px)`;
@@ -114,6 +146,7 @@ export function AgentCardStack({ agents, selectedId, currentAgentId, onSelect, o
           card.classList.remove(styles['dragging']);
 
           allCards.forEach(c => { c.style.transform = ''; c.style.transition = ''; });
+          container.classList.remove(styles['dragging-active']);
 
           if (!moved) return;
 
