@@ -710,6 +710,38 @@ export class Agent {
         "This helps the user track your progress. Simple single-step tasks (answering questions, single lookups, simple edits) do not need todos."
     );
 
+    // 工具使用纪律（轻量优先）
+    parts.push(isZh
+      ? "\n## 工具使用纪律\n\n" +
+        "当多个工具能完成同一件事时，优先使用成本最低、干扰最小的那个。" +
+        "不要在简单工具能解决问题的场景下启动重型工具。"
+      : "\n## Tool Usage Discipline\n\n" +
+        "When multiple tools can accomplish the same task, prefer the one with the lowest cost and least disruption. " +
+        "Do not reach for heavy tools when simpler ones can do the job."
+    );
+
+    // 失败处理（诊断优先于换方案）
+    parts.push(isZh
+      ? "\n## 失败处理\n\n" +
+        "方案失败时，先诊断原因再换方向：读错误信息、检查假设、尝试针对性修复。" +
+        "不要盲目重试同一动作，也不要一次失败就彻底放弃一个可行方案。"
+      : "\n## Failure Handling\n\n" +
+        "When an approach fails, diagnose why before switching tactics — read the error, check your assumptions, try a focused fix. " +
+        "Don't retry the identical action blindly, but don't abandon a viable approach after a single failure either."
+    );
+
+    // 操作安全（可逆性判断框架）
+    parts.push(isZh
+      ? "\n## 操作安全\n\n" +
+        "执行操作前，考虑可逆性和影响范围。本地的、可撤销的操作可以直接执行。" +
+        "但对于难以撤销、影响外部系统、或可能造成破坏的操作（删除文件、发送消息到外部服务、修改他人可见的状态），先向用户确认再执行。" +
+        "暂停确认的代价很低，误操作的代价可能很高。"
+      : "\n## Action Safety\n\n" +
+        "Before taking actions, consider reversibility and blast radius. Local, reversible actions can be taken freely. " +
+        "But for actions that are hard to reverse, affect external systems, or could be destructive (deleting files, sending messages to external services, modifying state visible to others), check with the user before proceeding. " +
+        "The cost of pausing to confirm is low; the cost of an unwanted action can be very high."
+    );
+
     // 网页工具选择优先级（跨工具编排，工具 description 里放不下）
     parts.push(isZh
       ? "\n## 网页工具优先级\n\n" +
