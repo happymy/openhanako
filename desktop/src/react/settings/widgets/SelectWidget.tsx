@@ -19,9 +19,11 @@ interface SelectWidgetProps {
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  renderTrigger?: (option: SelectOption | undefined, isOpen: boolean) => React.ReactNode;
+  renderOption?: (option: SelectOption, isSelected: boolean) => React.ReactNode;
 }
 
-export function SelectWidget({ options, value, onChange, placeholder, disabled }: SelectWidgetProps) {
+export function SelectWidget({ options, value, onChange, placeholder, disabled, renderTrigger, renderOption }: SelectWidgetProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -78,9 +80,14 @@ export function SelectWidget({ options, value, onChange, placeholder, disabled }
 
   return (
     <div className={`${styles['sdw']}${open  ? ' ' + styles['open'] : ''}`}>
-      <button type="button" className={styles['sdw-trigger']} ref={triggerRef} onClick={() => !disabled && setOpen(!open)} disabled={disabled}>
-        <span className={`${styles['sdw-value']}${isPlaceholder  ? ' ' + styles['sdw-placeholder'] : ''}`}>{displayText}</span>
-        <span className={styles['sdw-arrow']}>▾</span>
+      <button type="button" className={styles['sdw-trigger']} ref={triggerRef}
+        onClick={() => !disabled && setOpen(!open)} disabled={disabled}>
+        {renderTrigger ? renderTrigger(current, open) : (
+          <>
+            <span className={`${styles['sdw-value']}${isPlaceholder ? ' ' + styles['sdw-placeholder'] : ''}`}>{displayText}</span>
+            <span className={styles['sdw-arrow']}>▾</span>
+          </>
+        )}
       </button>
       {open && createPortal(
         <div className={`${styles['sdw-popup']} ${styles['sdw-popup-fixed']}`} ref={panelRef} style={panelStyle} data-sdw-popup>
@@ -91,7 +98,7 @@ export function SelectWidget({ options, value, onChange, placeholder, disabled }
                 <button type="button" key={item.value}
                   className={`${styles['sdw-option']}${item.value === value ? ' ' + styles['selected'] : ''}${item.disabled ? ' ' + styles['disabled'] : ''}`}
                   onClick={() => { if (!item.disabled) { onChange(item.value); close(); } }}>
-                  {item.label}
+                  {renderOption ? renderOption(item, item.value === value) : item.label}
                 </button>
               ));
             }
@@ -108,7 +115,7 @@ export function SelectWidget({ options, value, onChange, placeholder, disabled }
                   <button type="button" key={`${group}/${item.value}`}
                     className={`${styles['sdw-option']}${item.value === value ? ' ' + styles['selected'] : ''}${item.disabled ? ' ' + styles['disabled'] : ''}`}
                     onClick={() => { if (!item.disabled) { onChange(item.value); close(); } }}>
-                    {item.label}
+                    {renderOption ? renderOption(item, item.value === value) : item.label}
                   </button>
                 ))}
               </div>
