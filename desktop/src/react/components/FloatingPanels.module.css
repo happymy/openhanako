@@ -622,6 +622,92 @@
     height: 85%;
 }
 
+/* ── Bridge Agent Selector (compact) ── */
+
+.bridgeAgentRow {
+    position: relative;
+    padding: 0 var(--space-lg) var(--space-sm);
+}
+
+.bridgeAgentBtn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background: none;
+    border: 1px solid var(--overlay-light);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.78rem;
+    color: var(--text);
+    transition: border-color 0.15s;
+}
+
+.bridgeAgentBtn:hover {
+    border-color: var(--text-muted);
+}
+
+.bridgeAgentAvatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.bridgeAgentName {
+    font-weight: 500;
+}
+
+.bridgeAgentArrow {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-left: 2px;
+}
+
+.bridgeAgentMenu {
+    position: absolute;
+    top: 100%;
+    left: var(--space-lg);
+    z-index: 100;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--overlay-light);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    min-width: 180px;
+    padding: 4px 0;
+}
+
+.bridgeAgentMenuItem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.78rem;
+    color: var(--text);
+    text-align: left;
+    transition: background 0.1s;
+}
+
+.bridgeAgentMenuItem:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.bridgeAgentMenuItemActive {
+    background: rgba(180, 132, 108, 0.08);
+    font-weight: 600;
+}
+
+.bridgeTabsRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
 .bridgeTabs {
     display: flex;
     gap: 2px;

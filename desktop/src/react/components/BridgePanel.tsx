@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../stores';
 import { usePanel } from '../hooks/use-panel';
-import { hanaFetch } from '../hooks/use-hana-fetch';
+import { hanaFetch, hanaUrl } from '../hooks/use-hana-fetch';
 import { formatSessionDate, parseMoodFromContent } from '../utils/format';
 import { renderMarkdown } from '../utils/markdown';
+import { yuanFallbackAvatar } from '../utils/agent-helpers';
 import fp from './FloatingPanels.module.css';
 
 interface BridgeSession {
@@ -36,8 +37,11 @@ export function BridgePanel() {
   const [chatOpen, setChatOpen] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const [statusData, setStatusData] = useState<StatusData>({});
+  const [bridgeAgentId, setBridgeAgentId] = useState<string | null>(null);
+  const [agentMenuOpen, setAgentMenuOpen] = useState(false);
 
   const messagesRef = useRef<HTMLDivElement>(null);
+  const agentMenuRef = useRef<HTMLDivElement>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentKeyRef = useRef(currentKey);
   currentKeyRef.current = currentKey;
@@ -77,6 +81,24 @@ export function BridgePanel() {
   }, [loadPlatformData, platform]);
 
   const currentAgentId = useStore(s => s.currentAgentId);
+  const agents = useStore(s => s.agents);
+
+  // Init bridgeAgentId from store
+  useEffect(() => {
+    if (!bridgeAgentId && currentAgentId) setBridgeAgentId(currentAgentId);
+  }, [currentAgentId]);
+
+  // Close agent menu on click outside
+  useEffect(() => {
+    if (!agentMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (agentMenuRef.current?.contains(e.target as Node)) return;
+      setAgentMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [agentMenuOpen]);
+
   const { visible, close } = usePanel('bridge', loadData, [currentAgentId]);
 
   // 订阅 bridge status 变化（代替 window.__hanaBridgeLoadStatus）
@@ -170,7 +192,50 @@ export function BridgePanel() {
   return (
     <div className={`${fp.floatingPanel} ${fp.bridgePanelWide}`} id="bridgePanel">
       <div className={fp.floatingPanelInner}>
-        <div className={fp.floatingPanelHeader}>
+        <div className={fp.floatingPanelHeader} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
+          {agents.length > 1 && (
+            <div className={fp.bridgeAgentRow} ref={agentMenuRef}>
+              <button
+                className={fp.bridgeAgentBtn}
+                onClick={() => setAgentMenuOpen(!agentMenuOpen)}
+              >
+                {(() => {
+                  const agent = agents.find(a => a.id === bridgeAgentId);
+                  const ts = Date.now();
+                  return (
+                    <>
+                      <img
+                        className={fp.bridgeAgentAvatar}
+                        src={agent?.hasAvatar ? hanaUrl(`/api/agents/${agent.id}/avatar?t=${ts}`) : yuanFallbackAvatar(agent?.yuan)}
+                        onError={(e) => { (e.target as HTMLImageElement).src = yuanFallbackAvatar(agent?.yuan); }}
+                      />
+                      <span className={fp.bridgeAgentName}>{agent?.name || '—'}</span>
+                      <span className={fp.bridgeAgentArrow}>▾</span>
+                    </>
+                  );
+                })()}
+              </button>
+              {agentMenuOpen && (
+                <div className={fp.bridgeAgentMenu}>
+                  {agents.map(agent => (
+                    <button
+                      key={agent.id}
+                      className={`${fp.bridgeAgentMenuItem}${agent.id === bridgeAgentId ? ` ${fp.bridgeAgentMenuItemActive}` : ''}`}
+                      onClick={() => { setBridgeAgentId(agent.id); setAgentMenuOpen(false); }}
+                    >
+                      <img
+                        className={fp.bridgeAgentAvatar}
+                        src={agent.hasAvatar ? hanaUrl(`/api/agents/${agent.id}/avatar?t=${Date.now()}`) : yuanFallbackAvatar(agent.yuan)}
+                        onError={(e) => { (e.target as HTMLImageElement).src = yuanFallbackAvatar(agent.yuan); }}
+                      />
+                      <span>{agent.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <div className={fp.bridgeTabsRow}>
           <div className={fp.bridgeTabs} id="bridgeTabs">
             <button
               className={`${fp.bridgeTab}${platform === 'feishu' ? ` ${fp.bridgeTabActive}` : ''}`}
@@ -214,6 +279,7 @@ export function BridgePanel() {
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
+          </div>
         </div>
         <div className={fp.bridgeBody}>
           {showOverlay && (
