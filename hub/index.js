@@ -53,7 +53,6 @@ export class Hub {
 
     this._sessionHandlerCleanups = [];
     this._setupSessionHandlers();
-    this._setupNotifyHandler();
     this._setupDmHandler();
   }
 
@@ -172,10 +171,7 @@ export class Hub {
     this._scheduler.start();
 
     // ChannelRouter
-    const channelEnabled = engine.agent.config?.channels?.enabled !== false;
-    if (channelEnabled) {
-      this._channelRouter.start();
-    }
+    this._channelRouter.start();
 
     // 注入频道 post 回调
     this._channelRouter.setupPostHandler();
@@ -193,7 +189,6 @@ export class Hub {
    */
   resumeAfterAgentSwitch() {
     this._scheduler.startHeartbeat();
-    this._setupNotifyHandler();
     this._setupDmHandler();
     this._channelRouter.setupPostHandler();
   }
@@ -348,14 +343,6 @@ export class Hub {
       agent.setDmSentHandler((fromId, toId) =>
         this._dmRouter.handleNewDm(fromId, toId));
     }
-  }
-
-  _setupNotifyHandler() {
-    const agent = this._engine.agent;
-    if (!agent) return;
-    agent.setNotifyHandler((title, body) => {
-      this._eventBus.emit({ type: "notification", title, body }, null);
-    });
   }
 
 }

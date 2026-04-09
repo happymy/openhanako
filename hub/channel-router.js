@@ -85,12 +85,14 @@ export class ChannelRouter {
    * agent 用 channel tool 发消息后，触发其他 agent 的 triage
    */
   setupPostHandler() {
-    this._engine.agent.setChannelPostHandler((channelName, senderId) => {
-      debugLog()?.log("channel", `agent ${senderId} posted to #${channelName}, triggering triage`);
-      this.triggerImmediate(channelName)?.catch(err =>
-        console.error(`[channel] agent post triage 失败: ${err.message}`)
-      );
-    });
+    for (const [, agent] of this._engine.agents || []) {
+      agent.setChannelPostHandler((channelName, senderId) => {
+        debugLog()?.log("channel", `agent ${senderId} posted to #${channelName}, triggering triage`);
+        this.triggerImmediate(channelName)?.catch(err =>
+          console.error(`[channel] agent post triage 失败: ${err.message}`)
+        );
+      });
+    }
   }
 
   // ──────────── 频道 Agent 顺序 ────────────
@@ -314,12 +316,12 @@ export class ChannelRouter {
       });
 
       // 写入 agent 的 fact store
-      const isCurrentAgent = (agentId === engine.currentAgentId);
+      const agentInstance = engine.getAgent(agentId);
       let factStore = null;
       let needClose = false;
 
-      if (isCurrentAgent && engine.agent?.factStore) {
-        factStore = engine.agent.factStore;
+      if (agentInstance?.factStore) {
+        factStore = agentInstance.factStore;
       } else {
         const { FactStore } = await import("../lib/memory/fact-store.js");
         const dbPath = path.join(engine.agentsDir, agentId, "memory", "facts.db");
