@@ -59,12 +59,6 @@ export class SessionCoordinator {
     this._pendingPlanMode = false;
   }
 
-  _onPromoteHeartbeat = null;
-
-  setOnPromoteHeartbeat(fn) {
-    this._onPromoteHeartbeat = typeof fn === "function" ? fn : null;
-  }
-
   static _TITLES_TTL = 60_000; // 60 秒
 
   get session() { return this._session; }
@@ -655,9 +649,6 @@ After dispatching subagent or other background tasks, you MUST actively follow u
     const oldPath = path.join(agent.agentDir, "activity", activitySessionFile);
     if (!fs.existsSync(oldPath)) return null;
 
-    // 通知 scheduler：如果这是活跃心跳 session，清除缓存
-    this._onPromoteHeartbeat?.(oldPath, agentId || agent.id);
-
     const newPath = path.join(agent.sessionDir, activitySessionFile);
     try {
       fs.mkdirSync(agent.sessionDir, { recursive: true });
@@ -677,7 +668,7 @@ After dispatching subagent or other background tasks, you MUST actively follow u
    * 隔离执行：在独立 session 中执行 prompt（原子操作）。
    *
    * opts:
-   *   agentId, cwd, model, persist (string 目录路径 | falsy), resumeSessionPath,
+   *   agentId, cwd, model, persist (string 目录路径 | falsy),
    *   toolFilter, builtinFilter, withMemory, signal,
    *   emitEvents (true 时将 session 事件转发到 EventBus),
    *   onSessionReady (sessionPath => void) 回调，session 创建后、prompt 执行前触发
@@ -697,9 +688,7 @@ After dispatching subagent or other background tasks, you MUST actively follow u
     this._headlessOps.add(opId);
     if (this._headlessOps.size === 1) bm.setHeadless(true);
     let tempSessionMgr;
-    let isResumed = false;
     const cleanupTempSession = () => {
-      if (isResumed) return;
       const sp = tempSessionMgr?.getSessionFile?.();
       if (sp) {
         try { fs.unlinkSync(sp); } catch {}
@@ -733,17 +722,7 @@ After dispatching subagent or other background tasks, you MUST actively follow u
         }
       }
       const execModel = models.resolveExecutionModel(resolvedModel);
-      if (opts.resumeSessionPath && fs.existsSync(opts.resumeSessionPath)) {
-        try {
-          tempSessionMgr = SessionManager.open(opts.resumeSessionPath, sessionDir);
-          isResumed = true;
-        } catch (err) {
-          log.warn(`[executeIsolated] resume session failed, creating new: ${err.message}`);
-          tempSessionMgr = SessionManager.create(execCwd, sessionDir);
-        }
-      } else {
-        tempSessionMgr = SessionManager.create(execCwd, sessionDir);
-      }
+      tempSessionMgr = SessionManager.create(execCwd, sessionDir);
       const { tools: allBuiltinTools, customTools: allCustomTools } = this._d.buildTools(
         execCwd, targetAgent.tools, { agentDir: targetAgent.agentDir, workspace: this._d.getHomeCwd() }
       );

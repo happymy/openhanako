@@ -279,7 +279,6 @@ export class HanaEngine {
   async saveSessionTitle(p, t) { return this._sessionCoord.saveSessionTitle(p, t); }
   createSessionContext() { return this._sessionCoord.createSessionContext(); }
   promoteActivitySession(f, agentId) { return this._sessionCoord.promoteActivitySession(f, agentId); }
-  setOnPromoteHeartbeat(fn) { this._sessionCoord.setOnPromoteHeartbeat(fn); }
   async executeIsolated(prompt, opts) { return this._sessionCoord.executeIsolated(prompt, opts); }
 
   // ════════════════════════════
