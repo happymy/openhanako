@@ -20,12 +20,9 @@ export function createBridgeRoute(engine, bridgeManager) {
 
   /** 获取所有平台连接状态（从 agent.config.bridge 读取） */
   route.get("/bridge/status", async (c) => {
-    const filterAgentId = c.req.query("agentId") || null;
-    const live = bridgeManager.getStatus(filterAgentId);
-
-    // Resolve bridge config from agent
-    const agent = filterAgentId ? engine.getAgent(filterAgentId) : null;
-    const bridge = agent?.config?.bridge || {};
+    const agent = resolveAgent(engine, c);
+    const live = bridgeManager.getStatus(agent.id);
+    const bridge = agent.config?.bridge || {};
 
     const platformStatus = (plat, cfg, extraFields) => {
       return {
@@ -33,7 +30,7 @@ export function createBridgeRoute(engine, bridgeManager) {
         enabled: !!cfg?.enabled,
         status: live[plat]?.status || "disconnected",
         error: live[plat]?.error || null,
-        agentId: filterAgentId || null,
+        agentId: agent.id,
       };
     };
 
@@ -65,7 +62,7 @@ export function createBridgeRoute(engine, bridgeManager) {
         token: bridge.wechat?.botToken || "",
       }),
       readOnly: !!bridge.readOnly,
-      knownUsers: collectKnownUsers(engine.getBridgeIndex(filterAgentId)),
+      knownUsers: collectKnownUsers(engine.getBridgeIndex(agent.id)),
       owner: ownerDict,
     });
   });
@@ -73,53 +70,33 @@ export function createBridgeRoute(engine, bridgeManager) {
   /** 设置 owner（哪个账号是你）— 写入 agent.config.bridge */
   route.post("/bridge/owner", async (c) => {
     const body = await safeJson(c);
-    const { platform, userId, agentId } = body;
+    const { platform, userId } = body;
     if (!platform || !KNOWN_PLATFORMS.includes(platform)) {
       return c.json({ ok: false, error: "invalid platform" });
     }
-    if (!agentId) {
-      return c.json({ ok: false, error: "agentId is required" });
-    }
-    const agent = engine.getAgent(agentId);
-    if (!agent) {
-      return c.json({ ok: false, error: "agent not found" });
-    }
-    const patch = { [platform]: { owner: userId || null } };
-    agent.updateConfig({ bridge: patch });
-    debugLog()?.log("api", `POST /api/bridge/owner platform=${platform} agentId=${agentId} owner=${userId ? "[set]" : "[cleared]"}`);
+    const agent = resolveAgent(engine, c);
+    agent.updateConfig({ bridge: { [platform]: { owner: userId || null } } });
+    debugLog()?.log("api", `POST /api/bridge/owner agent=${agent.id} platform=${platform} owner=${userId ? "[set]" : "[cleared]"}`);
     return c.json({ ok: true });
   });
 
   /** 保存凭证 + 启停平台（写入 agent.config.bridge） */
   route.post("/bridge/config", async (c) => {
     const body = await safeJson(c);
-    const { platform, credentials, enabled, agentId } = body;
+    const { platform, credentials, enabled } = body;
     if (!platform || !KNOWN_PLATFORMS.includes(platform)) {
       return c.json({ error: "invalid platform" }, 400);
     }
-    if (!agentId) {
-      return c.json({ error: "agentId is required" }, 400);
-    }
 
-    const agent = engine.getAgent(agentId);
-    if (!agent) {
-      return c.json({ error: "agent not found" }, 400);
-    }
+    const agent = resolveAgent(engine, c);
+    const agentId = agent.id;
 
     const bridgeCfg = agent.config?.bridge?.[platform] || {};
     const patch = { ...bridgeCfg };
 
-    // Update credentials
-    if (credentials) {
-      Object.assign(patch, credentials);
-    }
+    if (credentials) Object.assign(patch, credentials);
+    if (typeof enabled === "boolean") patch.enabled = enabled;
 
-    // Update enabled
-    if (typeof enabled === "boolean") {
-      patch.enabled = enabled;
-    }
-
-    // Write to agent config
     agent.updateConfig({ bridge: { [platform]: patch } });
 
     // Start/stop
@@ -129,7 +106,7 @@ export function createBridgeRoute(engine, bridgeManager) {
       bridgeManager.stopPlatform(platform, agentId);
     }
 
-    debugLog()?.log("api", `POST /api/bridge/config platform=${platform} enabled=${!!patch.enabled} agentId=${agentId}`);
+    debugLog()?.log("api", `POST /api/bridge/config agent=${agentId} platform=${platform} enabled=${!!patch.enabled}`);
     return c.json({ ok: true });
   });
 
@@ -148,23 +125,16 @@ export function createBridgeRoute(engine, bridgeManager) {
   /** 停止指定平台 */
   route.post("/bridge/stop", async (c) => {
     const body = await safeJson(c);
-    const { platform, agentId } = body;
+    const { platform } = body;
     if (!platform) {
       return c.json({ error: "platform required" }, 400);
     }
-    if (!agentId) {
-      return c.json({ error: "agentId is required" }, 400);
-    }
 
-    bridgeManager.stopPlatform(platform, agentId);
+    const agent = resolveAgent(engine, c);
+    bridgeManager.stopPlatform(platform, agent.id);
+    agent.updateConfig({ bridge: { [platform]: { enabled: false } } });
 
-    // Sync agent config
-    const agent = engine.getAgent(agentId);
-    if (agent?.config?.bridge?.[platform]) {
-      agent.updateConfig({ bridge: { [platform]: { enabled: false } } });
-    }
-
-    debugLog()?.log("api", `POST /api/bridge/stop platform=${platform} agentId=${agentId}`);
+    debugLog()?.log("api", `POST /api/bridge/stop agent=${agent.id} platform=${platform}`);
     return c.json({ ok: true });
   });
 

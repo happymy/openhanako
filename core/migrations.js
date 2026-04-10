@@ -185,12 +185,25 @@ function migrateBridgeToPerAgent(ctx) {
   const PLATFORMS = ["telegram", "feishu", "qq", "wechat", "whatsapp"];
   const agentConfigs = new Map(); // agentId → { platform: config }
 
-  // Find first available agent as ultimate fallback
-  let fallbackAgentId = primaryAgentId;
+  // Find fallback agent: primary if it exists, otherwise first available
+  let fallbackAgentId = null;
+  if (primaryAgentId) {
+    const primaryDir = path.join(agentsDir, primaryAgentId);
+    if (fs.existsSync(path.join(primaryDir, "config.yaml"))) {
+      fallbackAgentId = primaryAgentId;
+    } else {
+      log(`[migrations] primaryAgent "${primaryAgentId}" dir/config.yaml not found, scanning for fallback`);
+    }
+  }
   if (!fallbackAgentId) {
     try {
       const dirs = fs.readdirSync(agentsDir, { withFileTypes: true }).filter(d => d.isDirectory());
-      if (dirs.length > 0) fallbackAgentId = dirs[0].name;
+      for (const d of dirs) {
+        if (fs.existsSync(path.join(agentsDir, d.name, "config.yaml"))) {
+          fallbackAgentId = d.name;
+          break;
+        }
+      }
     } catch {}
   }
 

@@ -669,7 +669,9 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
 
               // 非 vision 模型：静默剥离图片，只发文字。不拦截、不报错。
               // vision 未知（undefined）的模型：放行，让 API 决定。
-              const curModel = engine.activeSessionModel ?? engine.currentModel;
+              // 从目标 session 读取 model（不从 focus session 读，避免跨 session 误判）
+              const targetSession = msg.sessionPath ? engine.getSessionByPath(msg.sessionPath) : null;
+              const curModel = targetSession?.model ?? engine.activeSessionModel ?? engine.currentModel;
               if (msg.images?.length && curModel?.vision === false) {
                 msg.images = undefined;
               }
