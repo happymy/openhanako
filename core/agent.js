@@ -849,12 +849,15 @@ export class Agent {
         `\nFiles and directories mentioned by the user should be searched in the current working directory first. Only look in the home directory or other common locations if not found.`
     );
 
-    // 日期时间
+    // 日期时间（尊重用户时区偏好，fallback 到系统时区）
+    const tz = this._cb?.getTimezone?.() || Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = new Date();
-    const dateTime = now.toLocaleString("en-US", {
+    const fmtOpts = {
       weekday: "long", year: "numeric", month: "long", day: "numeric",
       hour: "2-digit", minute: "2-digit", timeZoneName: "short",
-    });
+      ...(tz ? { timeZone: tz } : {}),
+    };
+    const dateTime = now.toLocaleString("en-US", fmtOpts);
     parts.push(`\nCurrent date and time: ${dateTime}`);
     parts.push(isZh
       ? "你的一天从凌晨 4:00 开始。4:00 之前的对话属于前一天。"

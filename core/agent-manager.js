@@ -563,6 +563,7 @@ export class AgentManager {
       getLearnSkills:       () => getEngine()?.getLearnSkills?.() ?? {},
       resolveUtilityConfig: () => getEngine()?.resolveUtilityConfig?.(),
       getCwd:               () => getEngine()?.cwd ?? "",
+      getTimezone:          () => getEngine()?.getTimezone?.() ?? "",
       getEngine,  // update-settings-tool 仍需要完整 engine
     });
     ag.setOnInstallCallback(async (skillName) => {
