@@ -15,12 +15,7 @@ import { safeJson } from "../hono-helpers.js";
 import { parseSkillMetadata } from "../../lib/skills/skill-metadata.js";
 import { t } from "../i18n.js";
 import { resolveAgent } from "../utils/resolve-agent.js";
-
-/** 解析真实路径（跟踪 symlink），失败返回 null */
-function realPath(p) {
-  try { return fs.realpathSync(path.resolve(p)); }
-  catch { return null; }
-}
+import { realPath, isSensitivePath } from "../utils/path-security.js";
 
 /** 安全路径校验：target 必须在 baseDir 内部（解析 symlink 后比较） */
 function isInsidePath(target, baseDir) {
@@ -49,24 +44,6 @@ function isApprovedDir(dir, engine) {
     if (!r) return false;
     return resolved === r || resolved.startsWith(r + path.sep);
   });
-}
-
-/** 敏感 dot 目录（不允许 upload 从这些目录复制文件） */
-const SENSITIVE_DIRS = [".ssh", ".gnupg", ".aws", ".config/gcloud", ".kube"];
-
-function isSensitivePath(srcPath, hanakoHome) {
-  const resolved = realPath(srcPath);
-  if (!resolved) return true; // fail-closed
-  const home = os.homedir();
-  for (const d of SENSITIVE_DIRS) {
-    const sensitive = path.join(home, d);
-    if (resolved === sensitive || resolved.startsWith(sensitive + path.sep)) return true;
-  }
-  if (hanakoHome) {
-    const realHome = realPath(hanakoHome);
-    if (realHome && (resolved === realHome || resolved.startsWith(realHome + path.sep))) return true;
-  }
-  return false;
 }
 
 /** 列出工作空间目录下的文件 */
