@@ -516,6 +516,50 @@ this.register(this.ctx.registerTool({
 
 工具名自动加 `pluginId_` 前缀，通过 `register()` 在卸载时自动移除。
 
+### 后台任务（Background Tasks） ⚡ full-access
+
+插件可以注册后台任务，让 Agent 能够追踪和终止它们。系统通过 `TaskRegistry` 管理所有后台任务的运行时生命周期。
+
+**注册任务类型处理器**（在 `onload()` 中调用一次）：
+
+```js
+// 告诉系统如何终止你的任务
+await this.ctx.bus.request("task:register-handler", {
+  type: "my-task-type",
+  abort: (taskId) => {
+    // 终止逻辑：取消轮询、中断请求等
+  },
+});
+
+// 卸载时清理
+this.register(() => {
+  this.ctx.bus.request("task:unregister-handler", { type: "my-task-type" }).catch(() => {});
+});
+```
+
+**注册任务实例**（每次启动后台任务时）：
+
+```js
+await this.ctx.bus.request("task:register", {
+  taskId: "my-task-123",
+  type: "my-task-type",
+  parentSessionPath: sessionPath,
+  meta: { type: "my-task", prompt: "..." },
+});
+```
+
+**任务完成后移除**：
+
+```js
+await this.ctx.bus.request("task:remove", { taskId: "my-task-123" });
+```
+
+**结果通知**（搭配 `deferred:*` 使用）：
+
+`task:*` 管理运行时生命周期（注册、终止），`deferred:*` 管理结果送达。后台任务通常同时使用两套协议：`deferred:register` 注册结果占位，`task:register` 注册运行时实例；完成时 `deferred:resolve` 送达结果，`task:remove` 清理运行时状态。
+
+**重启恢复**：`TaskRegistry` 是运行时临时状态，不做持久化。插件需要在 `onload()` 时从自己的持久化存储中恢复 pending 任务，重新调用 `task:register`。
+
 ## 前向兼容
 
 系统忽略不认识的目录和 manifest 字段。老 plugin 永远能跑在新系统上，新 plugin 在老系统上只是新贡献类型不生效。不需要 `manifestVersion`，不需要版本迁移。
