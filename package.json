@@ -108,7 +108,7 @@
       "desktop/main.bundle.cjs",
       "desktop/preload.cjs",
       "desktop/dist-renderer/**",
-      "desktop/src/**/*.{html,icns,png,svg,json}",
+      "desktop/src/**/*.{html,icns,ico,png,svg,json}",
       "desktop/src/assets/**",
       "package.json",
       "!**/node_modules/**",
@@ -162,7 +162,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "desktop/src/icon.png",
+      "icon": "desktop/src/icon.ico",
       "artifactName": "${productName}-${version}-Windows-${arch}.${ext}",
       "requestedExecutionLevel": "asInvoker",
       "extraResources": [
@@ -175,7 +175,9 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "include": "build/installer.nsh"
+      "include": "build/installer.nsh",
+      "installerIcon": "desktop/src/icon.ico",
+      "uninstallerIcon": "desktop/src/icon.ico"
     }
   }
 }
