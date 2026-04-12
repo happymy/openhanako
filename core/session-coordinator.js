@@ -8,7 +8,7 @@
 import fs from "fs";
 import fsp from "fs/promises";
 import path from "path";
-import { createAgentSession, SessionManager, estimateTokens, findCutPoint, generateSummary } from "../lib/pi-sdk/index.js";
+import { createAgentSession, SessionManager, estimateTokens, findCutPoint, generateSummary, emitSessionShutdown } from "../lib/pi-sdk/index.js";
 import { createDefaultSettings } from "./session-defaults.js";
 import { createModuleLogger } from "../lib/debug-log.js";
 import { BrowserManager } from "../lib/browser/browser-manager.js";
@@ -645,6 +645,55 @@ After dispatching subagent or other background tasks:
     }
     await Promise.all(tasks);
     return tasks.length;
+  }
+
+  // ── Lifecycle teardown (统一入口) ──
+
+  /**
+   * 释放一个 sessionEntry 的所有资源。
+   *
+   * 三步契约:
+   *   1. emit session_shutdown — 让 SDK 扩展清理 setInterval / store 订阅
+   *   2. unsub — 取消 Hanako 层的 session 事件转发
+   *   3. session.dispose — 让 SDK 释放 agent 订阅和 event listeners
+   *
+   * 任何一步失败都 log.warn 并继续下一步, 保证下游资源一定被释放。
+   *
+   * 契约背景: SDK 的 AgentSession.dispose() 本身不 emit session_shutdown,
+   * 消费方必须显式 emit, 否则 deferred-result-ext 的 30 秒 setInterval
+   * 永远不会被清理。
+   *
+   * @param {object} entry - sessionEntry (session, unsub, agentId, ...)
+   * @param {string} sessionPath - 用于日志识别
+   * @param {string} reason - teardown 原因 (lru / close / close_all / isolated)
+   * @private
+   */
+  async _teardownSessionEntry(entry, sessionPath, reason) {
+    if (!entry) return;
+    const spShort = sessionPath ? path.basename(sessionPath) : "(anon)";
+
+    // 1. emit session_shutdown
+    try {
+      if (entry.session) {
+        await emitSessionShutdown(entry.session);
+      }
+    } catch (err) {
+      log.warn(`teardown[${reason}] ${spShort}: emitSessionShutdown failed: ${err.message}`);
+    }
+
+    // 2. unsub
+    try {
+      entry.unsub?.();
+    } catch (err) {
+      log.warn(`teardown[${reason}] ${spShort}: unsub failed: ${err.message}`);
+    }
+
+    // 3. session.dispose
+    try {
+      entry.session?.dispose?.();
+    } catch (err) {
+      log.warn(`teardown[${reason}] ${spShort}: session.dispose failed: ${err.message}`);
+    }
   }
 
   // ── Session 关闭 ──
