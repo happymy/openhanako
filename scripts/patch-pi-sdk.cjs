@@ -21,7 +21,7 @@ const sdkRoot = path.join(__dirname, "..", "node_modules", "@mariozechner", "pi-
 
 // ── 版本守卫 ──
 
-const VERIFIED_VERSIONS = ["0.64.0"];
+const VERIFIED_VERSIONS = ["0.64.0", "0.66.1"];
 
 if (!fs.existsSync(sdkRoot)) {
   console.log("[patch-pi-sdk] SDK not installed, skipping");
