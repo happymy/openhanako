@@ -563,7 +563,18 @@
       "setActive": "設為主助手",
       "lastAgent": "至少保留一個助手",
       "yuan": "元",
-      "yuanHint": "「元」是助手的先天思維方式，以此為基礎搭建你獨一無二的夥伴"
+      "yuanHint": "「元」是助手的先天思維方式，以此為基礎搭建你獨一無二的夥伴",
+      "tools": {
+        "title": "工具",
+        "description": "修改將在新會話時生效。目前進行中的會話使用的是建立時的工具集。",
+        "items": {
+          "browser": { "label": "瀏覽器", "summary": "控制無頭瀏覽器瀏覽網頁" },
+          "cron": { "label": "定時任務", "summary": "在指定時間自動執行任務" },
+          "dm": { "label": "私訊", "summary": "向其他 Agent 傳送一對一訊息" },
+          "install_skill": { "label": "安裝技能", "summary": "從 GitHub 或技能庫安裝新技能" },
+          "update_settings": { "label": "修改設定", "summary": "讓 Agent 修改應用設定項" }
+        }
+      }
     },
     "about": {
       "title": "關於 Ta",

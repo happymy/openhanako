@@ -567,7 +567,18 @@
       "setActive": "Set as active",
       "lastAgent": "Must keep at least one agent",
       "yuan": "Yuan",
-      "yuanHint": "\"Yuan\" is the agent's innate thinking style. Build your unique companion from this foundation."
+      "yuanHint": "\"Yuan\" is the agent's innate thinking style. Build your unique companion from this foundation.",
+      "tools": {
+        "title": "Tools",
+        "description": "Changes apply to new conversations only. Active conversations continue using the tool set they started with.",
+        "items": {
+          "browser": { "label": "Browser", "summary": "Control a headless browser to navigate web pages" },
+          "cron": { "label": "Scheduled Tasks", "summary": "Run tasks automatically at specified times" },
+          "dm": { "label": "Direct Message", "summary": "Send a one-on-one message to another agent" },
+          "install_skill": { "label": "Install Skill", "summary": "Install new skills from GitHub or the skill library" },
+          "update_settings": { "label": "Update Settings", "summary": "Allow the agent to modify application configuration" }
+        }
+      }
     },
     "about": {
       "title": "About Them",
