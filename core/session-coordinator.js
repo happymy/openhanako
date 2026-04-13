@@ -898,14 +898,16 @@ After dispatching subagent or other background tasks:
 
   /**
    * Single entry point for all session-meta.json writes. Both the memory-toggle
-   * path (persistSessionMeta) and the upcoming tool-snapshot path (Task 5) go
+   * path (persistSessionMeta) and the tool-snapshot path (createSession) go
    * through this method. Writes are serialized via a promise chain to prevent
    * RMW races where two concurrent writers would each read stale meta and
    * clobber the other's fields on write-back.
    *
    * @param {string} sessionPath - absolute path to the session .jsonl file
    * @param {object} partial - fields to merge into meta[basename(sessionPath)]
-   * @returns {Promise<void>}
+   * @returns {Promise<void>} Resolves after this write (and any writes queued
+   *   before it) has been attempted. I/O failures are logged and swallowed
+   *   internally — the returned promise never rejects.
    */
   writeSessionMeta(sessionPath, partial) {
     const next = () => this._doWriteSessionMeta(sessionPath, partial);
@@ -916,8 +918,11 @@ After dispatching subagent or other background tasks:
   }
 
   async _doWriteSessionMeta(sessionPath, partial) {
-    const agent = this._d.getAgent();
-    const metaPath = path.join(agent.sessionDir, "session-meta.json");
+    const agentId = this._d.agentIdFromSessionPath(sessionPath);
+    const sessionDir = agentId
+      ? path.join(this._d.agentsDir, agentId, "sessions")
+      : this._d.getAgent().sessionDir;
+    const metaPath = path.join(sessionDir, "session-meta.json");
     const sessKey = path.basename(sessionPath);
 
     for (let attempt = 0; attempt < 2; attempt++) {

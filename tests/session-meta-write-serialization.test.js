@@ -121,21 +121,39 @@ describe("SessionCoordinator.writeSessionMeta serialization", () => {
     expect(entry.toolNames).toEqual(["a"]);
   });
 
-  it("a failed write does not block subsequent writes from the queue", async () => {
-    // Write to a non-existent directory that won't be auto-created (two levels deep)
-    // to force a failure, then immediately enqueue a valid write
-    const badPath = path.join(tmpDir, "nonexistent", "deep", "nope.jsonl");
+  it("a failed write does not block subsequent writes from the same queue", async () => {
+    // Force _doWriteSessionMeta to actually REJECT (not just log internally) by
+    // making getAgent() throw on the first call. getAgent() is invoked before the
+    // try-catch loop, so an exception there causes the async function to reject,
+    // which would poison the queue if the guard were `.then(next)` only.
+    let getAgentCalls = 0;
+    const realSessionDir = sessionDir;
+    sessionCoord._d.getAgent = () => {
+      getAgentCalls += 1;
+      if (getAgentCalls === 1) {
+        throw new Error("injected getAgent failure");
+      }
+      return { sessionDir: realSessionDir };
+    };
 
-    const p1 = sessionCoord.writeSessionMeta(badPath, { memoryEnabled: true });
-    const p2 = sessionCoord.writeSessionMeta(fakeSessionPath, { toolNames: ["grep"] });
+    let secondWriteRan = false;
+    const p1 = sessionCoord.writeSessionMeta(fakeSessionPath, { memoryEnabled: true });
+    const p2 = sessionCoord.writeSessionMeta(fakeSessionPath, { toolNames: ["x"] }).then((v) => {
+      secondWriteRan = true;
+      return v;
+    });
+    // Use allSettled: p1 is expected to reject (or resolve after swallowing);
+    // what matters is that p2 still ran regardless.
+    await Promise.allSettled([p1, p2]);
 
-    // Both settle (p1 fails silently via the queue chain, p2 should succeed)
-    await Promise.all([p1, p2]);
-
-    const metaPath = path.join(sessionDir, "session-meta.json");
+    // p2 should have landed in the real meta file
+    const metaPath = path.join(realSessionDir, "session-meta.json");
     const meta = JSON.parse(await fsp.readFile(metaPath, "utf-8"));
     const entry = meta[path.basename(fakeSessionPath)];
-    expect(entry.toolNames).toEqual(["grep"]);
+    expect(entry.toolNames).toEqual(["x"]);
+    // p1's failure did NOT prevent p2 from running
+    expect(secondWriteRan).toBe(true);
+    expect(getAgentCalls).toBeGreaterThanOrEqual(2);
   });
 
   it("model and modelId fields are stripped from written meta", async () => {
