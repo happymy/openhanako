@@ -44,6 +44,8 @@ export const OPTIONAL_TOOL_NAMES = [
   "update_settings",
 ];
 
+const OPTIONAL_TOOL_NAMES_SET = new Set(OPTIONAL_TOOL_NAMES);
+
 /**
  * Startup-time invariant: every built-in tool the engine composes MUST be
  * explicitly categorized. Throwing here always means a developer added a tool
@@ -82,9 +84,8 @@ export function assertAllToolsCategorized(actualToolNames) {
  * @returns {string[]} filtered tool names, order preserved from allNames
  */
 export function computeToolSnapshot(allNames, disabled) {
-  const optional = new Set(OPTIONAL_TOOL_NAMES);
   const effectivelyDisabled = new Set(
-    (disabled || []).filter((n) => optional.has(n))
+    (disabled || []).filter((n) => OPTIONAL_TOOL_NAMES_SET.has(n))
   );
   return allNames.filter((n) => !effectivelyDisabled.has(n));
 }

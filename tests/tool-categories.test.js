@@ -38,13 +38,17 @@ describe("assertAllToolsCategorized", () => {
   });
 
   it("throws with the uncategorized name and fix instructions", () => {
-    try {
-      assertAllToolsCategorized(["read", "some_new_unknown_tool"]);
-      throw new Error("expected to throw");
-    } catch (e) {
-      expect(e.message).toContain("some_new_unknown_tool");
-      expect(e.message).toContain("shared/tool-categories.js");
-    }
+    expect(() => assertAllToolsCategorized(["read", "some_new_unknown_tool"]))
+      .toThrow(/some_new_unknown_tool/);
+    expect(() => assertAllToolsCategorized(["read", "some_new_unknown_tool"]))
+      .toThrow(/shared\/tool-categories\.js/);
+  });
+
+  it("throws listing all uncategorized names when multiple are missing", () => {
+    expect(() => assertAllToolsCategorized(["tool_a", "tool_b"]))
+      .toThrow(/tool_a/);
+    expect(() => assertAllToolsCategorized(["tool_a", "tool_b"]))
+      .toThrow(/tool_b/);
   });
 });
 
@@ -75,5 +79,13 @@ describe("computeToolSnapshot", () => {
   it("is order-preserving (follows allNames order)", () => {
     const result = computeToolSnapshot(["a", "b", "browser", "c"], ["browser"]);
     expect(result).toEqual(["a", "b", "c"]);
+  });
+
+  it("treats null disabled as empty (no tools removed)", () => {
+    expect(computeToolSnapshot(["read", "browser"], null)).toEqual(["read", "browser"]);
+  });
+
+  it("treats undefined disabled as empty (no tools removed)", () => {
+    expect(computeToolSnapshot(["read", "browser"], undefined)).toEqual(["read", "browser"]);
   });
 });
