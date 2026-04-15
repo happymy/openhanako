@@ -345,10 +345,17 @@ export class AgentManager {
       try { fs.rmSync(agentDir, { recursive: true, force: true }); } catch {}
       throw err;
     }
+    // #419: 新建 agent 继承当前已装 user/SDK skill 快照;空快照时保留 template 默认
     const defaultEnabled = this._d.getSkills().computeDefaultEnabledForNewAgent();
     if (defaultEnabled.length > 0) {
-      ag.updateConfig({ skills: { enabled: defaultEnabled } });
-      this._d.getSkills().syncAgentSkills(ag);
+      try {
+        ag.updateConfig({ skills: { enabled: defaultEnabled } });
+        this._d.getSkills().syncAgentSkills(ag);
+      } catch (err) {
+        try { fs.rmSync(agentDir, { recursive: true, force: true }); } catch {}
+        try { this._d.getChannelManager().cleanupAgentFromChannels(agentId); } catch {}
+        throw err;
+      }
     }
     this._agents.set(agentId, ag);
 
