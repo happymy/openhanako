@@ -119,10 +119,18 @@ export function SkillsTab() {
   };
 
   const deleteSkill = async (name: string) => {
+    const agentId = skillsViewAgentIdRef.current;
+    if (!agentId) {
+      showToast(t('settings.saveFailed') + ': no agent selected', 'error');
+      return;
+    }
     const msg = t('settings.skills.deleteConfirm', { name });
     if (!confirm(msg)) return;
     try {
-      const res = await hanaFetch(`/api/skills/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      const res = await hanaFetch(
+        `/api/skills/${encodeURIComponent(name)}?agentId=${encodeURIComponent(agentId)}`,
+        { method: 'DELETE' },
+      );
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       showToast(t('settings.autoSaved'), 'success');
