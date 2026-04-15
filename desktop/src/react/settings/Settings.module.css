@@ -1216,6 +1216,60 @@
     margin-right: 6px;
 }
 
+/* ========================================
+   Agent Skill 配置大块（Section 2）
+   ======================================== */
+.agent-skill-config-block {
+    background: var(--bg-hover, color-mix(in srgb, var(--bg-card) 94%, transparent));
+    border-radius: var(--radius-md);
+    padding: var(--space-md) var(--space-lg) var(--space-lg);
+}
+
+.agent-skill-config-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: calc(var(--space-sm) * -1);
+    margin-bottom: var(--space-sm);
+}
+
+.agent-skill-config-label {
+    font-size: 0.78rem;
+    color: var(--text-light);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.agent-skill-config-divider {
+    height: 1px;
+    background: var(--border);
+    margin: var(--space-md) 0 var(--space-lg);
+}
+
+.agent-skill-sub-block {
+    margin-top: var(--space-lg);
+}
+
+.agent-skill-sub-block:first-of-type {
+    margin-top: 0;
+}
+
+.agent-skill-sub-title {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    margin: 0 0 var(--space-sm);
+}
+
+.agent-skill-empty {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: var(--space-sm) 0;
+    margin: 0;
+}
+
 /* 兼容技能路径管理 */
 .compat-paths-group {
     border: 1px solid var(--border);
