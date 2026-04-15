@@ -71,9 +71,6 @@ export interface SettingsState {
   providersSummary: Record<string, ProviderSummary>;
   selectedProviderId: string | null;
 
-  // skills
-  skillsList: SkillInfo[];
-
   // plugins
   pluginAllowFullAccess: boolean;
   pluginUserDir: string;
@@ -124,9 +121,6 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   // providers (unified)
   providersSummary: {},
   selectedProviderId: null,
-
-  // skills
-  skillsList: [],
 
   // plugins
   pluginAllowFullAccess: false,
