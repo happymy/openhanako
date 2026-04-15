@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useSettingsStore } from '../store';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSettingsStore, type SkillInfo } from '../store';
 import { hanaFetch } from '../api';
 import { t } from '../helpers';
 import { SkillRow } from './skills/SkillRow';
@@ -15,7 +15,20 @@ interface ExternalPathsData {
 }
 
 export function SkillsTab() {
-  const { skillsList, settingsConfig, showToast, settingsAgentId } = useSettingsStore();
+  const { settingsConfig, showToast } = useSettingsStore();
+  const currentAgentId = useSettingsStore(s => s.currentAgentId);
+
+  const [skillsViewAgentId, setSkillsViewAgentId] =
+    useState<string | null>(currentAgentId);
+  const skillsViewAgentIdRef = useRef(skillsViewAgentId);
+  skillsViewAgentIdRef.current = skillsViewAgentId;
+
+  const [skillsList, setSkillsList] = useState<SkillInfo[]>([]);
+
+  useEffect(() => {
+    if (skillsViewAgentId) return;
+    if (currentAgentId) setSkillsViewAgentId(currentAgentId);
+  }, [currentAgentId]);
 
   const [reloading, setReloading] = useState(false);
   const [externalPathsData, setExternalPathsData] = useState<ExternalPathsData>({
@@ -24,11 +37,14 @@ export function SkillsTab() {
   });
 
   const loadSkills = useCallback(async () => {
+    const agentId = skillsViewAgentIdRef.current;
+    if (!agentId) return;
     try {
-      const agentId = useSettingsStore.getState().getSettingsAgentId();
-      const res = await hanaFetch(`/api/skills${agentId ? `?agentId=${agentId}` : ''}`);
+      const snapshotAgentId = agentId;
+      const res = await hanaFetch(`/api/skills?agentId=${encodeURIComponent(agentId)}`);
       const data = await res.json();
-      useSettingsStore.setState({ skillsList: data.skills || [] });
+      if (skillsViewAgentIdRef.current !== snapshotAgentId) return;
+      setSkillsList(data.skills || []);
     } catch (err) {
       console.error('[skills] load failed:', err);
     }
@@ -53,7 +69,7 @@ export function SkillsTab() {
       const res = await hanaFetch('/api/skills/reload', { method: 'POST' });
       const data = await res.json();
       if (data.skills) {
-        useSettingsStore.setState({ skillsList: data.skills });
+        setSkillsList(data.skills);
       } else {
         await loadSkills();
       }
@@ -68,7 +84,7 @@ export function SkillsTab() {
   useEffect(() => {
     loadSkills();
     loadExternalPaths();
-  }, [loadSkills, loadExternalPaths, settingsAgentId]);
+  }, [loadSkills, loadExternalPaths, skillsViewAgentId]);
 
   const visible = skillsList.filter(s => !s.hidden);
   const userSkills = visible.filter(s => s.source !== 'learned' && s.source !== 'external');
@@ -93,10 +109,13 @@ export function SkillsTab() {
   }, [visible.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const installSkillFromPath = async (filePath: string) => {
+    const agentId = skillsViewAgentIdRef.current;
+    if (!agentId) {
+      showToast(t('settings.skills.installError') + ': no agent selected', 'error');
+      return;
+    }
     try {
-      const agentId = useSettingsStore.getState().getSettingsAgentId();
-      const qs = agentId ? `?agentId=${agentId}` : '';
-      const res = await hanaFetch(`/api/skills/install${qs}`, {
+      const res = await hanaFetch(`/api/skills/install?agentId=${encodeURIComponent(agentId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: filePath }),
@@ -131,19 +150,18 @@ export function SkillsTab() {
   };
 
   const toggleSkill = async (name: string, enable: boolean) => {
-    const agentId = useSettingsStore.getState().getSettingsAgentId();
+    const agentId = skillsViewAgentIdRef.current;
     if (!agentId) return;
+    const snapshotAgentId = agentId;
 
-    // 乐观更新本地 UI
     const updated = skillsList.map(s => s.name === name ? { ...s, enabled: enable } : s);
-    useSettingsStore.setState({ skillsList: updated });
+    setSkillsList(updated);
 
     try {
-      // 关键：重新拉取当前 settingsAgentId 的最新 skill 列表，再在 fresh list 上派生 enabledList
-      // 避免本地 store 是错位 agent 的状态导致把别人的列表写到当前 agent (#397)
       const freshRes = await hanaFetch(`/api/skills?agentId=${encodeURIComponent(agentId)}`);
       const freshData = await freshRes.json();
       if (freshData.error) throw new Error(freshData.error);
+      if (skillsViewAgentIdRef.current !== snapshotAgentId) return;
       const freshSkills = (freshData.skills || []) as Array<{ name: string; enabled: boolean }>;
       const enabledList = freshSkills
         .map(s => s.name === name ? { ...s, enabled: enable } : s)
@@ -157,12 +175,16 @@ export function SkillsTab() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      showToast(t('settings.autoSaved'), 'success');
+      if (skillsViewAgentIdRef.current === snapshotAgentId) {
+        showToast(t('settings.autoSaved'), 'success');
+      }
       platform?.notifyMainWindow?.('skills-changed', {});
     } catch (err: unknown) {
-      const reverted = skillsList.map(s => s.name === name ? { ...s, enabled: !enable } : s);
-      useSettingsStore.setState({ skillsList: reverted });
-      showToast(t('settings.saveFailed') + ': ' + (err instanceof Error ? err.message : String(err)), 'error');
+      if (skillsViewAgentIdRef.current === snapshotAgentId) {
+        const reverted = skillsList.map(s => s.name === name ? { ...s, enabled: !enable } : s);
+        setSkillsList(reverted);
+        showToast(t('settings.saveFailed') + ': ' + (err instanceof Error ? err.message : String(err)), 'error');
+      }
     }
   };
 
