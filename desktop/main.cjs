@@ -1255,6 +1255,9 @@ async function handleBrowserCommand(cmd, params) {
         },
       });
 
+      // 默认静音
+      view.webContents.setAudioMuted(true);
+
       // 监听导航事件，实时更新 URL 栏（只在该 view 是活跃 view 时通知）
       view.webContents.on("did-navigate", (_e, url) => {
         if (view === _browserWebView) _notifyViewerUrl(url);
