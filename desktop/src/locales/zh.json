@@ -84,7 +84,7 @@
     "edit": "编辑",
     "screenshot": "截图",
     "selectMessage": "选择消息",
-    "screenshotSaved": "截图已保存",
+    "screenshotSaved": "截图已保存到工作目录下的「截图」文件夹",
     "screenshotFailed": "截图保存失败",
     "selectedCount": "已选 {count} 条",
     "allDone": "全部完成"

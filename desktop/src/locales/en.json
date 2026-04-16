@@ -84,7 +84,7 @@
     "edit": "Edit",
     "screenshot": "Screenshot",
     "selectMessage": "Select message",
-    "screenshotSaved": "Screenshot saved",
+    "screenshotSaved": "Screenshot saved to the \"截图\" folder in your working directory",
     "screenshotFailed": "Screenshot save failed",
     "selectedCount": "{count} selected",
     "allDone": "All done"

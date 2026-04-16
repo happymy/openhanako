@@ -15,6 +15,7 @@ import { isImageFile } from '../utils/format';
 import { fetchConfig } from '../hooks/use-config';
 import { useI18n } from '../hooks/use-i18n';
 import { ensureSession, loadSessions } from '../stores/session-actions';
+import { loadDeskFiles, toggleJianSidebar } from '../stores/desk-actions';
 import { getWebSocket } from '../services/websocket';
 import type { ThinkingLevel } from '../stores/model-slice';
 import { TodoDisplay } from './input/TodoDisplay';
@@ -84,7 +85,7 @@ function InputAreaInner() {
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashSelected, setSlashSelected] = useState(0);
   const [slashBusy, setSlashBusy] = useState<string | null>(null);
-  const [slashResult, setSlashResult] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [slashResult, setSlashResult] = useState<{ text: string; type: 'success' | 'error'; deskDir?: string } | null>(null);
 
   const isComposing = useRef(false);
   const slashMenuRef = useRef<HTMLDivElement>(null);
@@ -95,8 +96,8 @@ function InputAreaInner() {
   // ── 全局 inline notice（截图等非斜杠命令的轻提示）──
   useEffect(() => {
     const handler = (e: Event) => {
-      const { text, type } = (e as CustomEvent).detail;
-      setSlashResult({ text, type });
+      const { text, type, deskDir } = (e as CustomEvent).detail;
+      setSlashResult({ text, type, deskDir });
       setTimeout(() => setSlashResult(null), 3000);
     };
     window.addEventListener('hana-inline-notice', handler);
@@ -562,7 +563,14 @@ function InputAreaInner() {
         </div>
       )}
       {!slashBusy && !compacting && !inlineError && slashResult && (
-        <div className={styles['slash-busy-bar']}>
+        <div
+          className={`${styles['slash-busy-bar']}${slashResult.deskDir ? ` ${styles['slash-busy-bar-clickable']}` : ''}`}
+          onClick={slashResult.deskDir ? () => {
+            toggleJianSidebar(true);
+            loadDeskFiles('', slashResult.deskDir);
+          } : undefined}
+          role={slashResult.deskDir ? 'button' : undefined}
+        >
           <span className={styles[slashResult.type === 'success' ? 'slash-result-dot-ok' : 'slash-result-dot-err']} />
           <span>{slashResult.text}</span>
         </div>

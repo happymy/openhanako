@@ -83,7 +83,7 @@
     "edit": "編輯",
     "screenshot": "截圖",
     "selectMessage": "選擇訊息",
-    "screenshotSaved": "截圖已儲存",
+    "screenshotSaved": "截圖已儲存到工作目錄下的「截圖」資料夾",
     "screenshotFailed": "截圖儲存失敗",
     "selectedCount": "已選 {count} 則",
     "allDone": "全部完成"

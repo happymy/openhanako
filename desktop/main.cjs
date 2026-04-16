@@ -2382,7 +2382,7 @@ wrapIpcHandler("screenshot-render", (_event, payload) => {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(filePath, pngBuffer);
 
-      return { success: true, filePath };
+      return { success: true, filePath, dir };
     } catch (err) {
       console.error("[screenshot-render]", err);
       return { success: false, error: err.message || String(err) };
