@@ -149,7 +149,7 @@ export function DeskFileItem({
     const full = deskFullPath(file.name);
     if (!full) return;
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    openFilePreview(full, file.name, ext);
+    openFilePreview(full, file.name, ext, { origin: 'desk' });
   }, [file]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {

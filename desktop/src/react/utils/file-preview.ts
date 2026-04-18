@@ -6,9 +6,12 @@
 
 import type { Artifact } from '../types';
 import { openPreview } from '../stores/artifact-actions';
+import { inferKindByExt, isMediaKind } from './file-kind';
+import { openMediaViewerFromContext } from './open-media-viewer';
 
 
 // ── 可在 Artifacts 面板中预览的文件类型 ──
+// 注意：image / svg 类型由 MediaViewer 处理，不再进入 Artifacts 面板。
 
 export const PREVIEWABLE_EXTS: Record<string, string> = {
   html: 'html', htm: 'html',
@@ -16,15 +19,14 @@ export const PREVIEWABLE_EXTS: Record<string, string> = {
   js: 'code', ts: 'code', jsx: 'code', tsx: 'code',
   py: 'code', css: 'code', json: 'code', yaml: 'code', yml: 'code',
   xml: 'code', sql: 'code', sh: 'code', bash: 'code',
-  txt: 'code', svg: 'svg',
+  txt: 'code',
   c: 'code', cpp: 'code', h: 'code', java: 'code',
   rs: 'code', go: 'code', rb: 'code', php: 'code',
   csv: 'csv', pdf: 'pdf',
-  png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', bmp: 'image',
   docx: 'docx', xlsx: 'xlsx', xls: 'xlsx',
 };
 
-export const BINARY_PREVIEW_TYPES = new Set(['image', 'pdf']);
+export const BINARY_PREVIEW_TYPES = new Set(['pdf']);
 
 export async function readFileForPreview(filePath: string, ext: string): Promise<string | null> {
   const previewType = PREVIEWABLE_EXTS[ext];
@@ -39,8 +41,21 @@ export async function readFileForPreview(filePath: string, ext: string): Promise
 
 /**
  * 打开文件预览：读取文件内容 → 创建 Artifact → 打开预览面板
+ *
+ * @param context 调用上下文。media 类型（image/svg/video）会按 context 分流到 MediaViewer；
+ *   其它类型走 Artifacts 面板。context 必须由调用方显式提供，不从 store 推导。
  */
-export async function openFilePreview(filePath: string, label: string, ext: string): Promise<void> {
+export async function openFilePreview(
+  filePath: string,
+  label: string,
+  ext: string,
+  context?: {
+    origin?: 'desk' | 'session';
+    sessionPath?: string;
+    messageId?: string;
+    blockIdx?: number;
+  },
+): Promise<void> {
   const fileName = label || filePath.split('/').pop() || filePath;
 
   if (ext === 'skill') {
@@ -60,6 +75,22 @@ export async function openFilePreview(filePath: string, label: string, ext: stri
     }
     // 读取失败（可能是 zip 格式），尝试 skill viewer
     window.platform?.openSkillViewer?.({ skillPath: filePath });
+    return;
+  }
+
+  // Media 类型（image / svg / video）分流到 MediaViewer，不经过 Artifacts 面板。
+  const mediaKind = inferKindByExt(ext);
+  if (isMediaKind(mediaKind)) {
+    openMediaViewerFromContext({
+      filePath,
+      label: fileName,
+      ext,
+      kind: mediaKind,
+      origin: context?.origin,
+      sessionPath: context?.sessionPath,
+      messageId: context?.messageId,
+      blockIdx: context?.blockIdx,
+    });
     return;
   }
 
