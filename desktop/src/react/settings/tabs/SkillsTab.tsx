@@ -267,10 +267,11 @@ export function SkillsTab() {
       {/* Section 2: 全局能力（子组件，保持原样） */}
       <SkillCapabilities learnCfg={learnCfg} />
 
-      {/* Section 3: Agent 配置（per-Agent 开关）
-       * AgentSelect 作为 section context（title 右上角，和 WorkTab "Agent 工作书桌设置" 同构） */}
+      {/* Section 3A: Agent Skills 开关（per-Agent 开关）
+       * AgentSelect 作为 section context；skill list 直接作为 section body children，
+       * 由 SettingsSection 白卡承担卡片视觉，避免卡中卡 */}
       <SettingsSection
-        title={t('settings.skills.agentConfigTitle')}
+        title={t('settings.skills.userSkillsTitle')}
         context={
           <AgentSelect
             value={skillsViewAgentId}
@@ -278,80 +279,76 @@ export function SkillsTab() {
           />
         }
       >
-        <div style={{ padding: 'var(--space-sm) var(--space-md)' }}>
-          {/* 子块 1: 用户级 Skill — 只开关，不能删（删去 Section 1） */}
-          <SettingsSection.SubBlock title={t('settings.skills.userSkillsTitle')}>
-            {userSkills.length === 0 ? (
-              <p className={styles['agent-skill-empty']}>{t('settings.skills.noUser')}</p>
-            ) : (
-              <div className={styles['skills-list-block']}>
-                {userSkills.map(skill => (
-                  <SkillRow
-                    key={skill.name}
-                    skill={skill}
-                    nameHint={nameHints[skill.name]}
-                    onToggle={toggleSkill}
-                  />
-                ))}
-              </div>
-            )}
-          </SettingsSection.SubBlock>
-
-          {/* 子块 2: 自学 Skill — per-Agent 资产，保持 toggle + delete */}
-          <LearnedSkillsBlock
-            learnedSkills={learnedSkills}
-            nameHints={nameHints}
-            onDelete={deleteSkill}
-            onToggle={toggleSkill}
-          />
-        </div>
+        {userSkills.length === 0 ? (
+          <p className={styles['agent-skill-empty']} style={{ padding: 'var(--space-md)', margin: 0 }}>
+            {t('settings.skills.noUser')}
+          </p>
+        ) : (
+          userSkills.map(skill => (
+            <SkillRow
+              key={skill.name}
+              skill={skill}
+              nameHint={nameHints[skill.name]}
+              onToggle={toggleSkill}
+            />
+          ))
+        )}
       </SettingsSection>
 
-      {/* Section 4: 外部兼容 */}
-      <SettingsSection title={t('settings.skills.compatTitle')}>
-        <div style={{ padding: 'var(--space-sm) var(--space-md)' }}>
-          <p style={{
-            fontSize: '0.7rem',
-            color: 'var(--text-muted)',
-            lineHeight: 1.4,
-            margin: '0 0 var(--space-md)',
-          }}>
-            {t('settings.skills.compatDesc')}
-          </p>
-          <div className={styles['compat-paths-group']}>
-            {discoveredPaths.map(d => (
-              <CompatPathDrawer
-                key={d.dirPath}
-                dirPath={d.dirPath}
-                label={d.label}
-                exists={d.exists}
-                isCustom={false}
-                skills={externalSkills.filter(s => s.externalPath === d.dirPath)}
-                nameHints={nameHints}
-                onToggle={toggleSkill}
-                onRemove={removeExternalPath}
-              />
-            ))}
-            {configuredOnlyPaths.map(p => (
-              <CompatPathDrawer
-                key={p}
-                dirPath={p}
-                label={null}
-                exists={true}
-                isCustom={true}
-                skills={externalSkills.filter(s => s.externalPath === p)}
-                nameHints={nameHints}
-                onToggle={toggleSkill}
-                onRemove={removeExternalPath}
-              />
-            ))}
-            <button className={styles['compat-add-path']} onClick={addExternalPath}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              <span>{t('settings.skills.compatAddPath')}</span>
-            </button>
-          </div>
+      {/* Section 3B: 自学 Skill（per-Agent 资产，同受 AgentSelect 影响） */}
+      <SettingsSection title={t('settings.skills.learnedSkillsTitle')}>
+        <LearnedSkillsBlock
+          learnedSkills={learnedSkills}
+          nameHints={nameHints}
+          onDelete={deleteSkill}
+          onToggle={toggleSkill}
+        />
+      </SettingsSection>
+
+      {/* Section 4: 外部兼容
+       * flush：CompatPathDrawer 自带卡片视觉，外壳不再套白卡 */}
+      <SettingsSection title={t('settings.skills.compatTitle')} variant="flush">
+        <p style={{
+          fontSize: '0.7rem',
+          color: 'var(--text-muted)',
+          lineHeight: 1.4,
+          margin: '0 0 var(--space-md)',
+        }}>
+          {t('settings.skills.compatDesc')}
+        </p>
+        <div className={styles['compat-paths-group']}>
+          {discoveredPaths.map(d => (
+            <CompatPathDrawer
+              key={d.dirPath}
+              dirPath={d.dirPath}
+              label={d.label}
+              exists={d.exists}
+              isCustom={false}
+              skills={externalSkills.filter(s => s.externalPath === d.dirPath)}
+              nameHints={nameHints}
+              onToggle={toggleSkill}
+              onRemove={removeExternalPath}
+            />
+          ))}
+          {configuredOnlyPaths.map(p => (
+            <CompatPathDrawer
+              key={p}
+              dirPath={p}
+              label={null}
+              exists={true}
+              isCustom={true}
+              skills={externalSkills.filter(s => s.externalPath === p)}
+              nameHints={nameHints}
+              onToggle={toggleSkill}
+              onRemove={removeExternalPath}
+            />
+          ))}
+          <button className={styles['compat-add-path']} onClick={addExternalPath}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>{t('settings.skills.compatAddPath')}</span>
+          </button>
         </div>
       </SettingsSection>
 

@@ -834,7 +834,7 @@
       "homeFolderBrowse": "選擇資料夾"
     },
     "toolCaps": {
-      "title": "自學 Skills"
+      "title": "技能安全設定"
     },
     "skills": {
       "title": "技能管理",
@@ -842,8 +842,8 @@
       "manageTitle": "已裝技能",
       "agentConfigTitle": "Agent Skill 設定",
       "configureFor": "正在設定:",
-      "userSkillsTitle": "Agent Skills 開關",
-      "learnedSkillsTitle": "自學 Skill",
+      "userSkillsTitle": "助手技能配置",
+      "learnedSkillsTitle": "自學技能",
       "learnedEmpty": "此助手還沒有自學過技能",
       "user": "使用者技能",
       "system": "系統技能",

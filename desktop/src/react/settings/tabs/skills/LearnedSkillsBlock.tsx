@@ -11,32 +11,32 @@ interface LearnedSkillsBlockProps {
   onToggle: (name: string, enabled: boolean) => void;
 }
 
+/**
+ * 返回"list 或 empty"的裸内容，外层 section 外壳由调用方承担。
+ * 调用方通常是 SkillsTab 的 <SettingsSection title="自学 Skill">。
+ */
 export function LearnedSkillsBlock({
   learnedSkills, nameHints, onDelete, onToggle,
 }: LearnedSkillsBlockProps) {
   if (learnedSkills.length === 0) {
     return (
-      <div className={styles['agent-skill-sub-block']}>
-        <h3 className={styles['agent-skill-sub-title']}>{t('settings.skills.learnedSkillsTitle')}</h3>
-        <p className={styles['agent-skill-empty']}>{t('settings.skills.learnedEmpty')}</p>
-      </div>
+      <p className={styles['agent-skill-empty']} style={{ padding: 'var(--space-md)', margin: 0 }}>
+        {t('settings.skills.learnedEmpty')}
+      </p>
     );
   }
 
   return (
-    <div className={styles['agent-skill-sub-block']}>
-      <h3 className={styles['agent-skill-sub-title']}>{t('settings.skills.learnedSkillsTitle')}</h3>
-      <div className={styles['skills-list-block']}>
-        {learnedSkills.map(skill => (
-          <SkillRow
-            key={skill.name}
-            skill={skill}
-            nameHint={nameHints[skill.name]}
-            onDelete={onDelete}
-            onToggle={onToggle}
-          />
-        ))}
-      </div>
-    </div>
+    <>
+      {learnedSkills.map(skill => (
+        <SkillRow
+          key={skill.name}
+          skill={skill}
+          nameHint={nameHints[skill.name]}
+          onDelete={onDelete}
+          onToggle={onToggle}
+        />
+      ))}
+    </>
   );
 }

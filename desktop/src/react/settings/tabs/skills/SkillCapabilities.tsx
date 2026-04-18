@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { t, autoSaveConfig } from '../../helpers';
 import { Toggle } from '../../widgets/Toggle';
 import { loadSettingsConfig } from '../../actions';
+import { SettingsSection } from '../../components/SettingsSection';
 import styles from '../../Settings.module.css';
 
 interface LearnConfig {
@@ -45,70 +46,66 @@ export function SkillCapabilities({ learnCfg }: SkillCapabilitiesProps) {
 
   return (
     <>
-      <section className={styles['settings-section']}>
-        <h2 className={styles['settings-section-title']}>{t('settings.toolCaps.title')}</h2>
-
-        <div className={styles['tool-caps-group']}>
-          <div className={styles['tool-caps-item']}>
+      <SettingsSection title={t('settings.toolCaps.title')}>
+        <div className={styles['tool-caps-item']}>
+          <div className={styles['tool-caps-label']}>
+            <span className={styles['tool-caps-name']}>{t('settings.skills.learnCreate')}</span>
+            <span className={styles['tool-caps-desc']}>{t('settings.skills.learnCreateDesc')}</span>
+          </div>
+          <Toggle
+            on={learnEnabled}
+            onChange={async (on) => {
+              if (!on && githubEnabled) {
+                await autoSaveConfig(
+                  { capabilities: { learn_skills: { enabled: false, allow_github_fetch: false } } },
+                  { silent: true },
+                );
+              } else {
+                await autoSaveConfig(
+                  { capabilities: { learn_skills: { enabled: on } } },
+                  { silent: true },
+                );
+              }
+              await loadSettingsConfig();
+            }}
+          />
+        </div>
+        {learnEnabled && (
+          <div className={`${styles['tool-caps-item']} ${styles['tool-caps-sub']}`}>
             <div className={styles['tool-caps-label']}>
-              <span className={styles['tool-caps-name']}>{t('settings.skills.learnCreate')}</span>
-              <span className={styles['tool-caps-desc']}>{t('settings.skills.learnCreateDesc')}</span>
+              <span className={styles['tool-caps-name']}>{t('settings.skills.fetchRemote')}</span>
+              <span className={`${styles['tool-caps-desc']} ${styles['warn']}`}>{t('settings.skills.fetchRemoteDesc')}</span>
             </div>
             <Toggle
-              on={learnEnabled}
+              on={githubEnabled}
+              onChange={handleGithubToggle}
+            />
+          </div>
+        )}
+        {learnEnabled && (
+          <div className={`${styles['tool-caps-item']} ${styles['tool-caps-sub']}`}>
+            <div className={styles['tool-caps-label']}>
+              <span className={styles['tool-caps-name']}>{t('settings.skills.safetyReview')}</span>
+              <span className={styles['tool-caps-desc']}>{t('settings.skills.safetyReviewDesc')}</span>
+            </div>
+            <Toggle
+              on={safetyReviewEnabled}
               onChange={async (on) => {
-                if (!on && githubEnabled) {
-                  await autoSaveConfig(
-                    { capabilities: { learn_skills: { enabled: false, allow_github_fetch: false } } },
-                    { silent: true },
-                  );
+                if (!on) {
+                  setShowSafetyWarning(true);
                 } else {
                   await autoSaveConfig(
-                    { capabilities: { learn_skills: { enabled: on } } },
+                    { capabilities: { learn_skills: { safety_review: true } } },
                     { silent: true },
                   );
+                  await loadSettingsConfig();
                 }
-                await loadSettingsConfig();
               }}
             />
           </div>
-          {learnEnabled && (
-            <div className={`${styles['tool-caps-item']} ${styles['tool-caps-sub']}`}>
-              <div className={styles['tool-caps-label']}>
-                <span className={styles['tool-caps-name']}>{t('settings.skills.fetchRemote')}</span>
-                <span className={`${styles['tool-caps-desc']} ${styles['warn']}`}>{t('settings.skills.fetchRemoteDesc')}</span>
-              </div>
-              <Toggle
-                on={githubEnabled}
-                onChange={handleGithubToggle}
-              />
-            </div>
-          )}
-          {learnEnabled && (
-            <div className={`${styles['tool-caps-item']} ${styles['tool-caps-sub']}`}>
-              <div className={styles['tool-caps-label']}>
-                <span className={styles['tool-caps-name']}>{t('settings.skills.safetyReview')}</span>
-                <span className={styles['tool-caps-desc']}>{t('settings.skills.safetyReviewDesc')}</span>
-              </div>
-              <Toggle
-                on={safetyReviewEnabled}
-                onChange={async (on) => {
-                  if (!on) {
-                    setShowSafetyWarning(true);
-                  } else {
-                    await autoSaveConfig(
-                      { capabilities: { learn_skills: { safety_review: true } } },
-                      { silent: true },
-                    );
-                    await loadSettingsConfig();
-                  }
-                }}
-              />
-            </div>
-          )}
-        </div>
-        <p className={styles['settings-hint']}>{t('settings.skills.learnHint')}</p>
-      </section>
+        )}
+        <p className={styles['settings-hint']} style={{ padding: 'var(--space-sm) var(--space-md)', margin: 0 }}>{t('settings.skills.learnHint')}</p>
+      </SettingsSection>
 
       {showGithubWarning && (
         <div className="hana-warning-overlay" onClick={() => setShowGithubWarning(false)}>

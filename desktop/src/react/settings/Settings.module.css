@@ -1084,6 +1084,17 @@
     border-top: 1px solid var(--border);
 }
 
+/* 首尾 item 作为 SettingsSection body 直接子元素时，需要自带圆角贴合白卡 border-radius */
+.tool-caps-item:first-child {
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+.tool-caps-item:last-child {
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
 /* 缩进子项（如 allow_github_fetch） */
 .tool-caps-sub {
     padding-left: calc(var(--space-md) + 1rem);
@@ -1139,6 +1150,18 @@
 
 .skills-list-item + .skills-list-item {
     border-top: 1px solid var(--border);
+}
+
+/* 作为 SettingsSection body 直接子元素时，首尾 item 需要自带圆角对齐白卡 border-radius。
+ * 在 .skills-list-block 里有 overflow:hidden 裁掉，不影响视觉 */
+.skills-list-item:first-child {
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+.skills-list-item:last-child {
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 .skills-list-item:hover {
