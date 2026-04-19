@@ -49,7 +49,8 @@ export function SplashApp() {
         ]);
 
         if (avatarPath) {
-          setAvatarSrc(`file://${avatarPath}?t=${Date.now()}`);
+          const base = window.platform?.getFileUrl?.(avatarPath) ?? '';
+          setAvatarSrc(base ? `${base}?t=${Date.now()}` : '');
         } else if (splashInfo?.yuan) {
           setAvatarSrc(`assets/${YUAN_AVATARS[splashInfo.yuan] || 'Hanako.png'}`);
         }

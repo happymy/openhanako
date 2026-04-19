@@ -78,7 +78,7 @@ export function OnboardingApp({ preview, skipToTutorial }: OnboardingAppProps) {
         setI18nReady(true);
         try {
           const localPath = await window.hana.getAvatarPath?.('agent');
-          if (localPath) setAvatarSrc(`file://${encodeURI(localPath)}`);
+          if (localPath) setAvatarSrc(window.platform?.getFileUrl?.(localPath) ?? '');
         } catch { /* ignore */ }
       } catch (err) {
         console.error('[onboarding] init failed:', err);

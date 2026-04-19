@@ -125,9 +125,7 @@ export async function takeArticleScreenshot(markdown: string): Promise<void> {
 // ── 辅助：fetch 图片转 data URL ──
 
 async function fetchImageAsDataUrl(filePath: string): Promise<string> {
-  const url = filePath.match(/^[A-Za-z]:/)
-    ? `file:///${filePath.replace(/\\/g, '/')}`
-    : `file://${filePath}`;
+  const url = window.platform?.getFileUrl?.(filePath) ?? '';
   const resp = await fetch(url);
   const blob = await resp.blob();
   return new Promise((resolve, reject) => {

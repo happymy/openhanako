@@ -252,7 +252,7 @@ const ImageOutputCard = memo(function ImageOutputCard({ filePath, label, ext, ct
       style={{ cursor: 'pointer' }}
     >
       <img
-        src={filePath.match(/^[A-Za-z]:/) ? `file:///${filePath.replace(/\\/g, '/')}` : `file://${filePath}`}
+        src={window.platform?.getFileUrl?.(filePath) ?? ''}
         alt={displayName}
         className={styles.imageOutputPreview}
         onError={() => setFailed(true)}
