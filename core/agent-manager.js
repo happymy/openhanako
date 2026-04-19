@@ -425,18 +425,22 @@ export class AgentManager {
       clearConfigCache();
       this._activeAgentId = agentId;
 
+      // migration #5 之后 models.chat 是 {id, provider}；
+      // 若仍是字符串或缺 provider，说明 migration 未能推断（provider 被删除等），
+      // 当作未配置处理，保留上一个 defaultModel 的状态。
       const chatRef = this.agent.config.models?.chat;
-      const preferredId = typeof chatRef === "object" ? chatRef?.id : chatRef;
-      const preferredProvider = typeof chatRef === "object" ? chatRef?.provider : undefined;
+      const ref = (typeof chatRef === "object" && chatRef?.id && chatRef?.provider) ? chatRef : null;
       const models = this._d.getModels();
-      if (preferredId) {
-        const model = findModel(models.availableModels, preferredId, preferredProvider);
+      if (ref) {
+        const model = findModel(models.availableModels, ref.id, ref.provider);
         if (!model) {
-          throw new Error(t("error.agentModelNotAvailable", { id: agentId, model: preferredId }));
+          throw new Error(t("error.agentModelNotAvailable", { id: agentId, model: `${ref.provider}/${ref.id}` }));
         }
         models.defaultModel = model;
+      } else if (chatRef) {
+        log.warn(`switchAgent(${agentId}): models.chat 缺 provider (${JSON.stringify(chatRef)})，跳过默认模型设置`);
       }
-      const effectiveModel = preferredId || models.defaultModel?.id || "inherited";
+      const effectiveModel = ref?.id || models.defaultModel?.id || "inherited";
       log.log(`agent switched to ${this.agent.agentName} (${agentId}), model=${effectiveModel}`);
     } catch (err) {
       this._activeAgentId = prevAgentId;

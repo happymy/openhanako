@@ -50,28 +50,40 @@ describe("updateConfig with agentId", () => {
   });
 
   it("agentId 等于焦点 agent 时，模型切换逻辑正常执行", async () => {
-    const models = { availableModels: [{ id: "gpt-4", name: "GPT-4" }], defaultModel: null };
+    const models = {
+      availableModels: [{ id: "gpt-4", provider: "openai", name: "GPT-4" }],
+      defaultModel: null,
+    };
     const { focusAgent, deps } = makeDeps({
       getModels: () => models,
       getActiveAgentId: () => "focus",
     });
     const coord = new ConfigCoordinator(deps);
 
-    await coord.updateConfig({ models: { chat: "gpt-4" } }, { agentId: "focus" });
+    await coord.updateConfig(
+      { models: { chat: { id: "gpt-4", provider: "openai" } } },
+      { agentId: "focus" },
+    );
 
     expect(focusAgent.updateConfig).toHaveBeenCalled();
     // defaultModel 应被设置（findModel 会找到 gpt-4）
-    expect(models.defaultModel).toEqual({ id: "gpt-4", name: "GPT-4" });
+    expect(models.defaultModel).toEqual({ id: "gpt-4", provider: "openai", name: "GPT-4" });
   });
 
   it("agentId 为非焦点 agent 时，不执行模型切换", async () => {
-    const models = { availableModels: [{ id: "gpt-4", name: "GPT-4" }], defaultModel: null };
+    const models = {
+      availableModels: [{ id: "gpt-4", provider: "openai", name: "GPT-4" }],
+      defaultModel: null,
+    };
     const { targetAgent, deps } = makeDeps({
       getModels: () => models,
     });
     const coord = new ConfigCoordinator(deps);
 
-    await coord.updateConfig({ models: { chat: "gpt-4" } }, { agentId: "target" });
+    await coord.updateConfig(
+      { models: { chat: { id: "gpt-4", provider: "openai" } } },
+      { agentId: "target" },
+    );
 
     expect(targetAgent.updateConfig).toHaveBeenCalled();
     // defaultModel 不应被设置（非焦点 agent 不做模型切换）

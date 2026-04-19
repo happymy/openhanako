@@ -117,11 +117,11 @@ describe("模型选择无 fallback", () => {
         { id: "gpt-5", provider: "openai" },
       ]);
       const coord = makeCoordinator(tempDir, {
-        agentConfig: { models: { chat: "qwen3.5-plus" } },
+        agentConfig: { models: { chat: { id: "qwen3.5-plus", provider: "dashscope" } } },
         models,
       });
       const ctx = coord.createSessionContext();
-      const result = ctx.resolveModel({ models: { chat: "qwen3.5-plus" } });
+      const result = ctx.resolveModel({ models: { chat: { id: "qwen3.5-plus", provider: "dashscope" } } });
       expect(result).toEqual({ id: "qwen3.5-plus", provider: "dashscope" });
     });
 
@@ -152,7 +152,7 @@ describe("模型选择无 fallback", () => {
       const coord = makeCoordinator(tempDir, { models });
       const ctx = coord.createSessionContext();
       // 有 defaultModel，回退而非抛错
-      expect(ctx.resolveModel({ models: { chat: "qwen3.5-plus" } }))
+      expect(ctx.resolveModel({ models: { chat: { id: "qwen3.5-plus", provider: "dashscope" } } }))
         .toEqual({ id: "gpt-5", provider: "openai" });
     });
 
@@ -160,14 +160,14 @@ describe("模型选择无 fallback", () => {
       const models = { ...makeModels([]), defaultModel: null };
       const coord = makeCoordinator(tempDir, { models });
       const ctx = coord.createSessionContext();
-      expect(() => ctx.resolveModel({ models: { chat: "qwen3.5-plus" } }))
+      expect(() => ctx.resolveModel({ models: { chat: { id: "qwen3.5-plus", provider: "dashscope" } } }))
         .toThrow('error.resolveModelNotAvailable');
     });
 
     it("availableModels 为空时抛错", () => {
       const coord = makeCoordinator(tempDir, { models: makeModels([]) });
       const ctx = coord.createSessionContext();
-      expect(() => ctx.resolveModel({ models: { chat: "qwen3.5-plus" } }))
+      expect(() => ctx.resolveModel({ models: { chat: { id: "qwen3.5-plus", provider: "dashscope" } } }))
         .toThrow('error.resolveModelNotAvailable');
     });
   });
@@ -186,7 +186,7 @@ describe("模型选择无 fallback", () => {
 
     it("配置的模型不在可用列表中、无 defaultModel 时抛错", async () => {
       const coord = makeCoordinator(tempDir, {
-        agentConfig: { models: { chat: "nonexistent-model" } },
+        agentConfig: { models: { chat: { id: "nonexistent-model", provider: "dashscope" } } },
         models: { ...makeModels([]), defaultModel: null },
       });
       const result = await coord.executeIsolated("hello");
@@ -195,7 +195,7 @@ describe("模型选择无 fallback", () => {
 
     it("模型匹配成功时正常执行", async () => {
       const coord = makeCoordinator(tempDir, {
-        agentConfig: { models: { chat: "qwen3.5-plus" } },
+        agentConfig: { models: { chat: { id: "qwen3.5-plus", provider: "dashscope" } } },
         models: makeModels([{ id: "qwen3.5-plus", provider: "dashscope" }]),
       });
 
@@ -252,9 +252,15 @@ describe("模型选择无 fallback", () => {
     /** 给 ModelManager 注入 executionRouter（跳过 init） */
     function setupRouter(mm) {
       mm.executionRouter = new ExecutionRouter(
-        (ref) => mm._availableModels.find((m) => m.id === ref),
+        (ref) => {
+          // 测试 mock：支持 {id, provider} 对象（新契约）或 "provider/id" 字符串
+          if (!ref) return null;
+          if (typeof ref === "object" && ref.id && ref.provider) {
+            return mm._availableModels.find((m) => m.id === ref.id && m.provider === ref.provider);
+          }
+          return null;
+        },
         { getCredentials: (provider) => {
-          // 从 _availableModels 的 provider 对应的凭证中查找
           const model = mm._availableModels.find((m) => m.provider === provider);
           if (!model?._cred) return null;
           return model._cred;
@@ -273,7 +279,7 @@ describe("模型选择无 fallback", () => {
       const mm = new ModelManager({ hanakoHome: tempDir });
       setupRouter(mm);
       mm._availableModels = [{ id: "some-model", provider: "x" }];
-      expect(() => mm.resolveUtilityConfig({}, { utility: "some-model" }, {}))
+      expect(() => mm.resolveUtilityConfig({}, { utility: { id: "some-model", provider: "x" } }, {}))
         .toThrow("error.noUtilityLargeModel");
     });
 
@@ -286,7 +292,10 @@ describe("模型选择无 fallback", () => {
       setupRouter(mm);
       const result = mm.resolveUtilityConfig(
         {},
-        { utility: "util-model", utility_large: "large-model" },
+        {
+          utility: { id: "util-model", provider: "test-provider" },
+          utility_large: { id: "large-model", provider: "test-provider" },
+        },
         {},
       );
       expect(result.utility).toBe("util-model");
@@ -304,7 +313,10 @@ describe("模型选择无 fallback", () => {
       setupRouter(mm);
       expect(() => mm.resolveUtilityConfig(
         {},
-        { utility: "util-model", utility_large: "large-model" },
+        {
+          utility: { id: "util-model", provider: "test-provider" },
+          utility_large: { id: "large-model", provider: "test-provider" },
+        },
         { provider: "openai", api_key: "sk-test", base_url: "https://api.openai.com/v1" },
       )).toThrow('error.utilityApiProviderMismatch');
     });

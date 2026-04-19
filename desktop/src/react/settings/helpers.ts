@@ -29,44 +29,55 @@ export function formatContext(n: number): string {
   return Math.round(n / 1000) + 'K';
 }
 
-export function resolveProviderForModel(modelId: string): string | null {
-  const config = useSettingsStore.getState().settingsConfig;
-  if (!modelId || !config) return null;
-  const providers = config.providers || {};
-  for (const [name, p] of Object.entries(providers) as [string, any][]) {
-    if ((p.models || []).some((m: any) => (typeof m === 'object' ? m.id : m) === modelId)) return name;
-  }
-  return null;
-}
-
-function lookupReferenceModelMeta(modelId: string): any {
+/**
+ * 从 known-models 词典查模型参考元数据（contextWindow / vision 等）。
+ * provider 提供时严格在该 provider 下查；缺省时回退到遍历（仅用于展示降级，
+ * 多 provider 同 id 时结果不确定）。
+ */
+function lookupReferenceModelMeta(modelId: string, provider?: string): any {
   if (!modelId) return null;
   const dict = knownModels as Record<string, any>;
-  const bare = modelId.includes('/') ? modelId.split('/').pop()! : null;
 
-  // 二级查找：遍历所有 provider，精确匹配 modelId 或 bare name
+  if (provider && dict[provider]?.[modelId]) {
+    return { ...dict[provider][modelId], _source: 'reference' };
+  }
+
+  // provider 缺省时的展示降级：扫描所有 provider，返第一个命中
   for (const [key, val] of Object.entries(dict)) {
     if (key === '_comment' || typeof val !== 'object' || val === null) continue;
     if (val[modelId]) return { ...val[modelId], _source: 'reference' };
-    if (bare && val[bare]) return { ...val[bare], _source: 'reference' };
   }
-
   return null;
 }
 
-export function lookupModelMeta(modelId: string): any {
+/**
+ * 查模型元数据（合并 known-models / user-yaml / legacy overrides）。
+ *
+ * 契约：调用方尽可能传 provider，消除多 provider 同名歧义。
+ * UI 展示场景仅有 id 可不传，接受展示层降级（取第一个命中）。
+ * 运行时查找/比较**必须**用 shared/model-ref.js 的 findModel。
+ */
+export function lookupModelMeta(modelId: string, provider?: string): any {
   if (!modelId) return null;
-  const reference = lookupReferenceModelMeta(modelId);
+  const reference = lookupReferenceModelMeta(modelId, provider);
 
   // 从 provider summaries 提取用户在 added-models.yaml 中设置的模型元数据
   const { providersSummary, settingsConfig } = useSettingsStore.getState();
   let userEntry: Record<string, any> | null = null;
   if (providersSummary) {
-    for (const summary of Object.values(providersSummary)) {
-      const found = (summary.models || []).find(
+    if (provider && providersSummary[provider]) {
+      const found = (providersSummary[provider].models || []).find(
         (m: any) => typeof m === 'object' && m?.id === modelId,
       );
-      if (found) { userEntry = found as unknown as Record<string, any>; break; }
+      if (found) userEntry = found as unknown as Record<string, any>;
+    } else {
+      // 展示降级
+      for (const summary of Object.values(providersSummary)) {
+        const found = (summary.models || []).find(
+          (m: any) => typeof m === 'object' && m?.id === modelId,
+        );
+        if (found) { userEntry = found as unknown as Record<string, any>; break; }
+      }
     }
   }
 

@@ -35,11 +35,11 @@ export function ModelSelector({ models, sessionModel }: {
       const sessionHasMessages = !!(currentSessionPath && chatSessions[currentSessionPath]?.items?.length);
 
       if (sessionHasMessages && currentSessionPath) {
-        // Same-model guard
+        // Same-model guard：严格复合键比较。sm 缺 provider 时视为不可比，走 global 当前。
         const sm = sessionModelsByPath[currentSessionPath];
-        const curId = sm?.id || models.find(m => m.isCurrent)?.id;
-        const curProvider = sm?.provider || models.find(m => m.isCurrent)?.provider;
-        if (modelId === curId && (provider || '') === (curProvider || '')) { setOpen(false); return; }
+        const useSession = !!(sm?.id && sm?.provider);
+        const cur = useSession ? sm : models.find(m => m.isCurrent);
+        if (cur && modelId === cur.id && provider === cur.provider) { setOpen(false); return; }
 
         // Per-session switch
         setLoading(true);

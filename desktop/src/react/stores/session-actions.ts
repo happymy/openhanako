@@ -241,12 +241,14 @@ export async function switchSession(path: string): Promise<void> {
     // 刷新模型列表（当前 session 的模型可能不同）
     loadModels();
 
-    // Hydrate per-session model snapshot from switch response
-    if (data.currentModelId) {
+    // Hydrate per-session model snapshot from switch response。
+    // provider 缺失不写入——空 provider 会让 ModelSelector 的复合键匹配全错
+    // （老 session 的 meta 可能没带 provider，走 migration 或下一次显式选择修复）。
+    if (data.currentModelId && data.currentModelProvider) {
       useStore.getState().updateSessionModel(path, {
         id: data.currentModelId,
         name: data.currentModelName || data.currentModelId,
-        provider: data.currentModelProvider || '',
+        provider: data.currentModelProvider,
         vision: data.currentModelVision ?? undefined,
         reasoning: data.currentModelReasoning ?? undefined,
         contextWindow: data.currentModelContextWindow ?? undefined,

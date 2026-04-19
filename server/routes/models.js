@@ -4,7 +4,7 @@
 import { Hono } from "hono";
 import { safeJson } from "../hono-helpers.js";
 import { t } from "../i18n.js";
-import { modelRefEquals, parseModelRef } from "../../shared/model-ref.js";
+import { modelRefEquals } from "../../shared/model-ref.js";
 import { lookupKnown } from "../../shared/known-models.js";
 
 /** 查询模型显示名：overrides > SDK name > known-models > id */
@@ -45,19 +45,18 @@ export function createModelsRoute(engine) {
     }
   });
 
-  // 健康检测：向 completion 端点发最小请求，验证模型存在且凭证有效
+  // 健康检测：向 completion 端点发最小请求，验证模型存在且凭证有效。
+  // 契约：body 必须同时传 modelId 和 provider（复合键），无按 id 兜底。
   route.post("/models/health", async (c) => {
     try {
       const body = await safeJson(c);
-      const raw = body.modelId;
-      if (!raw) return c.json({ error: "modelId required" }, 400);
-
-      const ref = parseModelRef(raw);
-      if (body.provider) ref.provider = body.provider;
-      if (!ref.id) return c.json({ error: "modelId required" }, 400);
+      const modelId = body.modelId;
+      const provider = body.provider;
+      if (!modelId) return c.json({ error: "modelId required" }, 400);
+      if (!provider) return c.json({ error: "provider required" }, 400);
 
       // 统一凭证解析（找模型 + 拿凭证一步到位）
-      const resolved = engine.resolveModelWithCredentials(ref);
+      const resolved = engine.resolveModelWithCredentials({ id: modelId, provider });
 
       // Codex Responses API 无法简单探测
       if (resolved.api === "openai-codex-responses") {
@@ -95,13 +94,16 @@ export function createModelsRoute(engine) {
     }
   });
 
-  // 切换模型
+  // 切换模型（下次 createSession 生效，不改活跃 session）
   route.post("/models/set", async (c) => {
     try {
       const body = await safeJson(c);
       const { modelId, provider } = body;
       if (!modelId) {
         return c.json({ error: t("error.missingParam", { param: "modelId" }) }, 400);
+      }
+      if (!provider) {
+        return c.json({ error: t("error.missingParam", { param: "provider" }) }, 400);
       }
       engine.setPendingModel(modelId, provider);
       return c.json({ ok: true, model: engine.currentModel?.name, pendingModel: true });
@@ -117,6 +119,7 @@ export function createModelsRoute(engine) {
       const { sessionPath, modelId, provider } = body;
       if (!sessionPath) return c.json({ error: t("error.missingParam", { param: "sessionPath" }) }, 400);
       if (!modelId) return c.json({ error: t("error.missingParam", { param: "modelId" }) }, 400);
+      if (!provider) return c.json({ error: t("error.missingParam", { param: "provider" }) }, 400);
 
       if (engine.isSessionStreaming(sessionPath)) {
         return c.json({ error: "cannot switch model while streaming" }, 409);

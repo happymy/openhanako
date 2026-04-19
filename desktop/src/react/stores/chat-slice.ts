@@ -153,11 +153,20 @@ export const createChatSlice = (
     }
   },
 
-  updateSessionModel: (path, model) => set((s) => ({
+  updateSessionModel: (path, model) => {
+    // 纪律：SessionModel 的 provider 必须非空。缺 provider 的 model 会让
+    // ModelSelector 的复合键匹配退化，导致多 provider 同 id 场景全亮（见 bug #model-ref）。
+    // 此处直接拒绝，让上游调用方暴露问题。
+    if (!model?.id || !model?.provider) {
+      console.warn('[chat-slice] updateSessionModel 拒绝：model 缺 id 或 provider', path, model);
+      return;
+    }
     // 只写 sessionModelsByPath，不碰 chatSessions。
     // chatSessions[path] 的存在性仍然是"消息状态已初始化"的单一语义。
-    sessionModelsByPath: { ...s.sessionModelsByPath, [path]: model },
-  })),
+    set((s) => ({
+      sessionModelsByPath: { ...s.sessionModelsByPath, [path]: model },
+    }));
+  },
 
   bumpLoadMessagesVersion: (path) => {
     const next = ((get() as any)._loadMessagesVersion?.[path] ?? 0) + 1;

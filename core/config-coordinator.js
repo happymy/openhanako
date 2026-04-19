@@ -10,7 +10,7 @@ import path from "path";
 import os from "os";
 import { createModuleLogger } from "../lib/debug-log.js";
 import { saveConfig } from "../lib/memory/config-loader.js";
-import { findModel } from "../shared/model-ref.js";
+import { findModel, parseModelRef } from "../shared/model-ref.js";
 import { t } from "../server/i18n.js";
 
 const log = createModuleLogger("config");
@@ -221,9 +221,12 @@ export class ConfigCoordinator {
    * 不修改当前活跃 session 的模型，不持久化到 config.yaml。
    */
   setPendingModel(modelId, provider) {
+    if (!modelId || !provider) {
+      throw new Error(`setPendingModel: modelId and provider both required (got ${modelId}, ${provider})`);
+    }
     const models = this._d.getModels();
     const model = findModel(models.availableModels, modelId, provider);
-    if (!model) throw new Error(t("error.modelNotFound", { id: modelId }));
+    if (!model) throw new Error(t("error.modelNotFound", { id: `${provider}/${modelId}` }));
     const sessionCoord = this._d.getSessionCoordinator();
     sessionCoord?.setPendingModel(model);
     return model;
@@ -233,17 +236,22 @@ export class ConfigCoordinator {
    * 设置 agent 默认模型（设置页面操作）。
    * 更新 ModelManager._defaultModel + 持久化到 config.yaml。
    * 不修改任何已有 session 的模型。
+   *
+   * provider 必填——setDefaultModel 不做按 id 猜 provider 的兜底。
    */
   setDefaultModel(modelId, provider) {
+    if (!modelId || !provider) {
+      throw new Error(`setDefaultModel: modelId and provider both required (got ${modelId}, ${provider})`);
+    }
     const models = this._d.getModels();
     const model = models.setDefaultModel(modelId, provider);
     const agent = this._d.getAgent();
     if (agent?.configPath) {
       saveConfig(agent.configPath, {
-        models: { chat: provider ? { id: modelId, provider } : modelId },
+        models: { chat: { id: modelId, provider } },
       });
     }
-    log.log(`default model set to: ${model.name || model.id}`);
+    log.log(`default model set to: ${model.provider}/${model.id}`);
     return model;
   }
 
@@ -298,17 +306,19 @@ export class ConfigCoordinator {
     // agent 负责：写磁盘、刷新身份、刷新模块、重建 prompt
     agent.updateConfig(partial);
 
-    // 模型切换只在焦点 agent 时生效
+    // 模型切换只在焦点 agent 时生效。migration #5 之后 models.chat 必为
+    // {id, provider} 对象；缺 provider 直接忽略并告警（调用方应传完整复合键）。
     if (isFocusAgent && partial.models?.chat) {
-      const chatRaw = partial.models.chat;
-      const chatId = typeof chatRaw === "object" ? chatRaw.id : chatRaw;
-      const chatProvider = (typeof chatRaw === "object" ? chatRaw.provider : null)
-        || partial.api?.provider || undefined;
-      const newModel = findModel(models.availableModels, chatId, chatProvider);
-      if (newModel) {
-        // 只更新 agent 默认模型，不改活跃 session
-        models.defaultModel = newModel;
-        log.log(`default model updated to: ${newModel.name || newModel.id}`);
+      const parsed = parseModelRef(partial.models.chat);
+      if (!parsed?.id || !parsed?.provider) {
+        log.warn(`updateConfig: models.chat 缺少 provider，已忽略 (got ${JSON.stringify(partial.models.chat)})`);
+      } else {
+        const newModel = findModel(models.availableModels, parsed.id, parsed.provider);
+        if (newModel) {
+          // 只更新 agent 默认模型，不改活跃 session
+          models.defaultModel = newModel;
+          log.log(`default model updated to: ${newModel.provider}/${newModel.id}`);
+        }
       }
     }
 
@@ -348,9 +358,10 @@ export class ConfigCoordinator {
     if (!hasOverride) return false;
 
     const shared = this.getSharedModels();
-    const utilityModelId = shared.utility || this._d.getAgent()?.config?.models?.utility || "";
-    const utilityEntry = utilityModelId
-      ? findModel(this._d.getModels().availableModels, utilityModelId)
+    const utilityRef = shared.utility || this._d.getAgent()?.config?.models?.utility || null;
+    const parsed = parseModelRef(utilityRef);
+    const utilityEntry = (parsed?.id && parsed?.provider)
+      ? findModel(this._d.getModels().availableModels, parsed.id, parsed.provider)
       : null;
 
     let reason = "";

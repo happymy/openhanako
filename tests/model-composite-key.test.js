@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseModelRef, findModel, modelRefEquals } from "../shared/model-ref.js";
+import { parseModelRef, findModel, modelRefEquals, modelRefKey, requireModelRef } from "../shared/model-ref.js";
 
 describe("Model composite key", () => {
   const models = [
@@ -22,24 +22,20 @@ describe("Model composite key", () => {
       expect(m.provider).toBe("minimax");
     });
 
-    it("无 provider 时 fallback 到第一个匹配（兼容旧数据）", () => {
-      const m = findModel(models, "gpt-4o");
-      expect(m.provider).toBe("openai");
+    it("缺 provider 时抛错（严格契约，不按 id 降级）", () => {
+      expect(() => findModel(models, "gpt-4o")).toThrow(/provider/);
+      expect(() => findModel(models, "gpt-4o", "")).toThrow(/provider/);
+      expect(() => findModel(models, { id: "gpt-4o" })).toThrow(/provider/);
     });
 
-    it("找不到返回 null", () => {
+    it("找不到返回 null（带 provider）", () => {
       expect(findModel(models, "nonexistent", "openai")).toBeNull();
     });
 
-    it("DashScope Vendor/model 格式 ID 正常匹配", () => {
-      const m = findModel(models, "MiniMax/MiniMax-M2.7", "dashscope");
-      expect(m.provider).toBe("dashscope");
-    });
-
-    it("null/empty 输入返回 null", () => {
-      expect(findModel(models, null)).toBeNull();
-      expect(findModel(models, "")).toBeNull();
-      expect(findModel(null, "gpt-4o")).toBeNull();
+    it("null/empty 输入：id 缺失抛错，available 为 null 返 null", () => {
+      expect(findModel(null, "gpt-4o", "openai")).toBeNull();
+      expect(() => findModel(models, null)).toThrow(/id/);
+      expect(() => findModel(models, "")).toThrow(/id/);
     });
 
     it("{id, provider} 对象作为第二个参数", () => {
@@ -47,18 +43,8 @@ describe("Model composite key", () => {
       expect(m.provider).toBe("dashscope");
     });
 
-    it("{id} 对象无 provider 时 fallback 到第一个匹配", () => {
-      const m = findModel(models, { id: "gpt-4o" });
-      expect(m.provider).toBe("openai");
-    });
-
-    it("{id, provider} 对象 + 第三个参数 provider 时，对象的 provider 优先", () => {
-      const m = findModel(models, { id: "minimax-2.5", provider: "minimax" }, "dashscope");
-      expect(m.provider).toBe("minimax");
-    });
-
-    it("{id} 对象无 provider 时，第三个参数补充 provider", () => {
-      const m = findModel(models, { id: "minimax-2.5" }, "dashscope");
+    it("id 带 / 的复合 ID 正常匹配（Vendor/model 格式也视作 id 一部分）", () => {
+      const m = findModel(models, "MiniMax/MiniMax-M2.7", "dashscope");
       expect(m.provider).toBe("dashscope");
     });
   });
@@ -69,19 +55,45 @@ describe("Model composite key", () => {
       expect(r).toEqual({ id: "gpt-4o", provider: "openai" });
     });
 
-    it("裸字符串", () => {
+    it("'provider/id' 复合字符串", () => {
+      const r = parseModelRef("openai/gpt-4o");
+      expect(r).toEqual({ id: "gpt-4o", provider: "openai" });
+    });
+
+    it("裸字符串 → {id, provider: ''}（UI 展示降级，运行期必须走 requireModelRef）", () => {
       const r = parseModelRef("gpt-4o");
       expect(r).toEqual({ id: "gpt-4o", provider: "" });
     });
 
-    it("null/undefined", () => {
-      expect(parseModelRef(null)).toEqual({ id: "", provider: "" });
-      expect(parseModelRef(undefined)).toEqual({ id: "", provider: "" });
+    it("null/undefined → null", () => {
+      expect(parseModelRef(null)).toBeNull();
+      expect(parseModelRef(undefined)).toBeNull();
+      expect(parseModelRef("")).toBeNull();
     });
 
-    it("对象缺 provider", () => {
+    it("对象缺 provider → provider:''", () => {
       const r = parseModelRef({ id: "gpt-4o" });
       expect(r).toEqual({ id: "gpt-4o", provider: "" });
+    });
+  });
+
+  describe("requireModelRef", () => {
+    it("完整对象通过", () => {
+      expect(requireModelRef({ id: "gpt-4o", provider: "openai" }))
+        .toEqual({ id: "gpt-4o", provider: "openai" });
+    });
+
+    it("'provider/id' 通过", () => {
+      expect(requireModelRef("openai/gpt-4o"))
+        .toEqual({ id: "gpt-4o", provider: "openai" });
+    });
+
+    it("裸 id 抛错", () => {
+      expect(() => requireModelRef("gpt-4o")).toThrow(/provider/);
+    });
+
+    it("对象缺 provider 抛错", () => {
+      expect(() => requireModelRef({ id: "gpt-4o" })).toThrow(/provider/);
     });
   });
 
@@ -100,16 +112,28 @@ describe("Model composite key", () => {
       )).toBe(false);
     });
 
-    it("一方无 provider 时退化为 ID 比较（兼容旧数据）", () => {
+    it("一方无 provider 不等（严格契约，不降级）", () => {
       expect(modelRefEquals(
         { id: "gpt-4o", provider: "" },
         { id: "gpt-4o", provider: "openai" }
-      )).toBe(true);
+      )).toBe(false);
     });
 
     it("null 输入返回 false", () => {
       expect(modelRefEquals(null, { id: "gpt-4o", provider: "openai" })).toBe(false);
       expect(modelRefEquals({ id: "gpt-4o", provider: "openai" }, null)).toBe(false);
+    });
+  });
+
+  describe("modelRefKey", () => {
+    it("生成 'provider/id' 字符串", () => {
+      expect(modelRefKey({ id: "gpt-4o", provider: "openai" })).toBe("openai/gpt-4o");
+    });
+
+    it("缺 provider 或 id 抛错", () => {
+      expect(() => modelRefKey({ id: "gpt-4o" })).toThrow(/provider/);
+      expect(() => modelRefKey({ provider: "openai" })).toThrow(/id/);
+      expect(() => modelRefKey(null)).toThrow();
     });
   });
 });

@@ -46,8 +46,19 @@ export function AgentTab() {
   const isViewingOther = settingsAgentId !== currentAgentId;
   const currentYuan = settingsConfig?.agent?.yuan || 'hanako';
 
+  // 用 "provider/id" 复合键作为 SelectWidget 的 value，区分多 provider 下同名模型。
+  // 展示层可仍用 id/name；value/onChange payload 必须带 provider。
   const chatRaw = settingsConfig?.models?.chat;
-  const currentModel = typeof chatRaw === 'object' && chatRaw?.id ? chatRaw.id : (chatRaw || '');
+  const currentModel = (() => {
+    if (!chatRaw) return '';
+    if (typeof chatRaw === 'object' && chatRaw?.id && chatRaw?.provider) {
+      return `${chatRaw.provider}/${chatRaw.id}`;
+    }
+    // 半成品对象或裸字符串：migration #5 之后不应出现，这里仅作渡期兜底展示
+    if (typeof chatRaw === 'object' && chatRaw?.id) return chatRaw.id;
+    if (typeof chatRaw === 'string') return chatRaw;
+    return '';
+  })();
 
   // 从唯一信源 /api/models 获取模型列表（和聊天页一致）
   const [availableModels, setAvailableModels] = useState<Array<{ id: string; name: string; provider: string }>>([]);
@@ -58,8 +69,12 @@ export function AgentTab() {
   }, [settingsConfig]); // settingsConfig 变化时刷新
 
   const modelOptions = useMemo(() => {
-    const opts = availableModels.map(m => ({ value: m.id, label: m.name || m.id, group: m.provider }));
-    if (currentModel && !availableModels.some(m => m.id === currentModel)) {
+    const opts = availableModels.map(m => ({
+      value: `${m.provider}/${m.id}`,
+      label: m.name || m.id,
+      group: m.provider,
+    }));
+    if (currentModel && !opts.some(o => o.value === currentModel)) {
       opts.unshift({ value: currentModel, label: currentModel, group: '' });
     }
     return opts;
@@ -174,12 +189,20 @@ export function AgentTab() {
             <SelectWidget
               options={modelOptions}
               value={currentModel}
-              onChange={async (modelId) => {
-                const match = availableModels.find(m => m.id === modelId);
-                const partial: Record<string, unknown> = {
-                  models: { chat: { id: modelId, provider: match?.provider || '' } },
-                };
-                await autoSaveConfig(partial, { refreshModels: true });
+              onChange={async (refKey) => {
+                // refKey 是 SelectWidget 传回的 value，格式 "provider/id"
+                const slashIdx = refKey.indexOf('/');
+                if (slashIdx <= 0 || slashIdx === refKey.length - 1) {
+                  // 兜底：没有 / 的字符串是残留的老数据，此路径不应触发
+                  console.warn('[AgentTab] 模型 value 缺少 provider 前缀，已忽略', refKey);
+                  return;
+                }
+                const provider = refKey.slice(0, slashIdx);
+                const id = refKey.slice(slashIdx + 1);
+                await autoSaveConfig(
+                  { models: { chat: { id, provider } } },
+                  { refreshModels: true },
+                );
               }}
               placeholder={t('settings.api.selectModel')}
             />

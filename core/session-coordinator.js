@@ -710,25 +710,19 @@ After dispatching subagent or other background tasks:
     this._d.emitDevLog(`Plan Mode: ${entry.planMode ? "ON (只读)" : "OFF (正常)"}`, "info");
   }
 
-  /** 获取当前焦点 session 的 modelId 快照 */
-  getCurrentSessionModelId() {
-    const sp = this.currentSessionPath;
-    if (!sp) return null;
-    return this._sessions.get(sp)?.modelId || null;
-  }
-
-  /** 获取当前焦点 session 的完整模型引用 {id, provider} */
+  /**
+   * 获取当前焦点 session 的完整模型引用 {id, provider}。
+   *
+   * 数据源：entry 的 modelId + modelProvider 字段（session 创建和 switchSessionModel
+   * 时成对写入）。找不到 provider（意味着 session 未完整初始化）返回 null——
+   * 禁止按单 id 降级。
+   */
   getCurrentSessionModelRef() {
     const sp = this.currentSessionPath;
     if (!sp) return null;
     const entry = this._sessions.get(sp);
-    if (!entry) return null;
-    // 从活跃 session 的实际模型对象获取
-    if (this._session?.model) {
-      return { id: this._session.model.id, provider: this._session.model.provider };
-    }
-    // fallback: 从 entry 的 modelId 字段（旧格式，无 provider）
-    return entry.modelId ? { id: entry.modelId, provider: "" } : null;
+    if (!entry?.modelId || !entry?.modelProvider) return null;
+    return { id: entry.modelId, provider: entry.modelProvider };
   }
 
   /** 中断所有正在 streaming 的 session */
@@ -898,11 +892,14 @@ After dispatching subagent or other background tasks:
           s.agentName = agent.name;
           const sessKey = path.basename(s.path);
           const metaEntry = meta[sessKey];
-          // 读取新格式 model:{id,provider} 或旧格式 modelId
+          // 读取新格式 model:{id,provider}；老格式（只有 modelId）视为无 provider，
+          // 调用方必须接受 modelProvider 可能为 null。
           if (metaEntry?.model && typeof metaEntry.model === "object") {
             s.modelId = metaEntry.model.id || null;
+            s.modelProvider = metaEntry.model.provider || null;
           } else {
             s.modelId = metaEntry?.modelId || null;
+            s.modelProvider = null;
           }
         }
         return sessions;
@@ -928,6 +925,7 @@ After dispatching subagent or other background tasks:
         agentId: activeAgentId,
         agentName: this._d.getAgent().agentName,
         modelId: currentEntry?.modelId || null,
+        modelProvider: currentEntry?.modelProvider || null,
       });
     }
 
@@ -1078,31 +1076,27 @@ After dispatching subagent or other background tasks:
       getSkillsForAgent: (ag) => skills.getSkillsForAgent(ag),
       buildTools:     (cwd, customTools, opts) => this._d.buildTools(cwd, customTools, opts),
       resolveModel:   (agentConfig) => {
+        // migration #5 后 models.chat 必为 {id, provider}；半成品或字符串视为未配置
         const chatRef = agentConfig?.models?.chat;
-        const id = typeof chatRef === "object" ? chatRef?.id : chatRef;
-        const provider = typeof chatRef === "object" ? chatRef?.provider : undefined;
-        // 非 active agent 可能没有配 models.chat（模板默认为空），回退到全局默认模型
-        if (!id) {
+        const ref = (typeof chatRef === "object" && chatRef?.id && chatRef?.provider) ? chatRef : null;
+        if (!ref) {
           if (models.defaultModel) {
-            log.log(`[resolveModel] agentConfig 未指定 models.chat，回退到默认模型 ${models.defaultModel.id}`);
+            log.log(`[resolveModel] agentConfig 未指定完整 models.chat，回退到默认模型 ${models.defaultModel.provider}/${models.defaultModel.id}`);
             return models.defaultModel;
           }
           log.error(`[resolveModel] agentConfig 未指定 models.chat，也没有默认模型`);
           throw new Error(t("error.resolveModelNoChatModel"));
         }
-        const found = findModel(models.availableModels, id, provider);
+        const found = findModel(models.availableModels, ref.id, ref.provider);
         if (!found) {
-          // 模型 ID 在可用列表中找不到，尝试回退到默认模型
+          // 模型在可用列表中找不到，尝试回退到默认模型
           if (models.defaultModel) {
-            log.log(`[resolveModel] 模型 "${id}" 不在可用列表中，回退到默认模型 ${models.defaultModel.id}`);
+            log.log(`[resolveModel] 模型 "${ref.provider}/${ref.id}" 不在可用列表中，回退到默认模型 ${models.defaultModel.provider}/${models.defaultModel.id}`);
             return models.defaultModel;
           }
           const available = models.availableModels.map(m => `${m.provider}/${m.id}`).join(", ");
-          const hasAuth = models.modelRegistry
-            ? `hasAuth("${models.inferModelProvider?.(id) || "?"}")=unknown`
-            : "no registry";
-          log.error(`[resolveModel] 找不到模型 "${id}"。availableModels=[${available}]。${hasAuth}`);
-          throw new Error(t("error.resolveModelNotAvailable", { id }));
+          log.error(`[resolveModel] 找不到模型 "${ref.provider}/${ref.id}"。availableModels=[${available}]`);
+          throw new Error(t("error.resolveModelNotAvailable", { id: `${ref.provider}/${ref.id}` }));
         }
         return found;
       },
@@ -1166,25 +1160,25 @@ After dispatching subagent or other background tasks:
 
       const execCwd = opts.cwd || this._d.getHomeCwd(targetAgent.id) || process.cwd();
       const models = this._d.getModels();
+      // migration #5 之后 models.chat 必为 {id, provider}；旧裸字符串/缺 provider 对象视为未配置
       const agentPreferredRef = targetAgent.config?.models?.chat;
-      const modelId = opts.model ? null
-        : (typeof agentPreferredRef === "object" ? agentPreferredRef?.id : agentPreferredRef);
-      const modelProvider = opts.model ? undefined
-        : (typeof agentPreferredRef === "object" ? agentPreferredRef?.provider : undefined);
+      const preferredRef = opts.model ? null
+        : ((typeof agentPreferredRef === "object" && agentPreferredRef?.id && agentPreferredRef?.provider)
+            ? agentPreferredRef : null);
       let resolvedModel = opts.model;
       if (!resolvedModel) {
-        if (modelId) {
-          resolvedModel = findModel(models.availableModels, modelId, modelProvider);
+        if (preferredRef) {
+          resolvedModel = findModel(models.availableModels, preferredRef.id, preferredRef.provider);
         }
         if (!resolvedModel) {
           resolvedModel = models.defaultModel;
         }
         if (!resolvedModel) {
-          log.error(`[executeIsolated] agent "${targetAgent.agentName}" 未指定 models.chat，也没有可用的默认模型`);
+          log.error(`[executeIsolated] agent "${targetAgent.agentName}" 未指定完整 models.chat，也没有可用的默认模型`);
           throw new Error(t("error.executeIsolatedNoModel", { name: targetAgent.agentName }));
         }
-        if (modelId && resolvedModel.id !== modelId) {
-          log.log(`[executeIsolated] 模型 "${modelId}" 不可用，fallback → ${resolvedModel.id}`);
+        if (preferredRef && resolvedModel.id !== preferredRef.id) {
+          log.log(`[executeIsolated] 模型 "${preferredRef.provider}/${preferredRef.id}" 不可用，fallback → ${resolvedModel.provider}/${resolvedModel.id}`);
         }
       }
       const execModel = models.resolveExecutionModel(resolvedModel);

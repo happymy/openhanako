@@ -13,7 +13,7 @@ import { AuthStorage, createModelRegistry } from "../lib/pi-sdk/index.js";
 import { t } from "../server/i18n.js";
 import { ProviderRegistry } from "./provider-registry.js";
 import { ExecutionRouter } from "./execution-router.js";
-import { findModel } from "../shared/model-ref.js";
+import { findModel, parseModelRef } from "../shared/model-ref.js";
 import { isLocalBaseUrl } from "../shared/net-utils.js";
 import { syncModels } from "./model-sync.js";
 
@@ -63,42 +63,22 @@ export class ModelManager {
   // ── 模型解析：_availableModels 唯一真理源 ──
 
   /**
-   * 从 _availableModels 解析模型引用
-   * 支持两种输入：
-   *   1. "provider/model" 格式（精确匹配 provider + id）
-   *   2. 裸 model ID（匹配 id 或 name）
-   * 不做模糊 fallback，避免静默绑到错误 provider。
-   * @param {string} ref - 模型引用字符串
+   * 从 _availableModels 解析模型引用。
+   *
+   * 合法输入（通过 parseModelRef 规整后必须带 provider）：
+   *   - {id, provider} 对象
+   *   - "provider/id" 字符串
+   *
+   * 裸 id 字符串**不合法**——历史数据走 migrations #5，运行期调用方必须显式带 provider。
+   * ref 无法解析出 provider 时返 null（不按 id 降级猜）。
+   *
+   * @param {string|object} ref - 模型引用
    * @returns {object|null} SDK 模型对象
    */
   _resolveFromAvailable(ref) {
-    if (!ref) return null;
-
-    // 新格式：{id, provider} 对象 — 用复合键精确查找
-    if (typeof ref === "object" && ref.id) {
-      return findModel(this._availableModels, ref.id, ref.provider) || null;
-    }
-
-    if (typeof ref !== "string") return null;
-    const str = ref.trim();
-    if (!str) return null;
-
-    // 层级 1：尝试 "provider/model" 分割匹配（首个 / 做切分）
-    if (str.includes("/")) {
-      const slashIdx = str.indexOf("/");
-      const providerPart = str.slice(0, slashIdx);
-      const modelPart = str.slice(slashIdx + 1);
-      const match = this._availableModels.find(
-        m => m.provider === providerPart && m.id === modelPart,
-      );
-      if (match) return match;
-    }
-
-    // 层级 2：完整字符串作为裸 model ID 匹配
-    // 覆盖两种情况：
-    //   a) 纯裸 ID（如 "qwen3.5-flash"）
-    //   b) OpenRouter 风格 ID（如 "anthropic/claude-opus-4-6" 是 id 本身）
-    return findModel(this._availableModels, str) || this._availableModels.find(m => m.name === str) || null;
+    const parsed = parseModelRef(ref);
+    if (!parsed?.id || !parsed.provider) return null;
+    return findModel(this._availableModels, parsed.id, parsed.provider) || null;
   }
 
   // ── 刷新 ──
@@ -128,7 +108,13 @@ export class ModelManager {
   }
 
   /**
-   * 同步 added-models.yaml → models.json，然后刷新 ModelRegistry
+   * 同步 added-models.yaml → models.json，然后刷新 ModelRegistry。
+   *
+   * ⚠ 刷新后 _availableModels 是全新数组，旧的 model 对象引用（含烤在字段里的
+   * 过期 baseUrl）会失效。本方法负责把 _defaultModel 指针也重新定位到新数组里
+   * 的对应对象——否则新建 session 会继续用旧 baseUrl 发请求（provider 改端点后
+   * 出现 429 的根因）。
+   *
    * @returns {boolean} 是否有变化
    */
   async syncAndRefresh() {
@@ -151,8 +137,24 @@ export class ModelManager {
     if (changed) {
       this._modelRegistry.refresh();
       await this.refreshAvailable();
+      this._rebindDefaultModel();
     }
     return changed;
+  }
+
+  /**
+   * _availableModels 重建后，把 _defaultModel 重新绑到新数组里的对应对象。
+   * 找不到则置 null（provider 被删、模型消失等）。
+   * @private
+   */
+  _rebindDefaultModel() {
+    if (!this._defaultModel) return;
+    const { id, provider } = this._defaultModel;
+    if (!id || !provider) {
+      this._defaultModel = null;
+      return;
+    }
+    this._defaultModel = findModel(this._availableModels, id, provider) || null;
   }
 
   /**
@@ -198,13 +200,6 @@ export class ModelManager {
     if (model) return model;
 
     throw new Error(t("error.modelNotFound", { id: ref }));
-  }
-
-  /** 根据模型 ID 推断其所属 provider */
-  inferModelProvider(modelId) {
-    if (!modelId) return null;
-    const model = this._resolveFromAvailable(modelId);
-    return model?.provider || null;
   }
 
   /**

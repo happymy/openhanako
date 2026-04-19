@@ -155,16 +155,16 @@ export class BridgeSessionManager {
         tempResourceLoader.getSystemPrompt = () => guestPrompt;
         tempResourceLoader.getSkills = () => ({ skills: [], diagnostics: [] });
 
-        // 使用 agent 配置的模型，而非 defaultModel
+        // 使用 agent 配置的模型，而非 defaultModel。
+        // migration #5 之后 models.chat 必为 {id, provider} 对象；缺 provider 视为未配置。
         const chatRef = agent.config?.models?.chat;
-        const chatModelId = typeof chatRef === "object" ? chatRef?.id : chatRef;
-        const chatProvider = typeof chatRef === "object" ? chatRef?.provider : undefined;
-        if (!chatModelId) {
+        const ref = (typeof chatRef === "object" && chatRef?.id && chatRef?.provider) ? chatRef : null;
+        if (!ref) {
           throw new Error(t("error.bridgeAgentNoChatModel", { name: agent.agentName }));
         }
-        const chatModel = findModel(mm.availableModels, chatModelId, chatProvider);
+        const chatModel = findModel(mm.availableModels, ref.id, ref.provider);
         if (!chatModel) {
-          throw new Error(t("error.bridgeAgentModelNotAvailable", { name: agent.agentName, model: chatModelId }));
+          throw new Error(t("error.bridgeAgentModelNotAvailable", { name: agent.agentName, model: `${ref.provider}/${ref.id}` }));
         }
 
         sessionOpts = {
@@ -190,16 +190,15 @@ export class BridgeSessionManager {
           ? (baseCustomTools || []).filter(t => safeCustomNames.includes(t.name))
           : baseCustomTools;
 
-        // 使用 agent 配置的模型
+        // 使用 agent 配置的模型（同上：必须是带 provider 的复合键对象）
         const ownerRef = agent.config?.models?.chat;
-        const ownerModelId = typeof ownerRef === "object" ? ownerRef?.id : ownerRef;
-        const ownerProvider = typeof ownerRef === "object" ? ownerRef?.provider : undefined;
-        if (!ownerModelId) {
+        const ref = (typeof ownerRef === "object" && ownerRef?.id && ownerRef?.provider) ? ownerRef : null;
+        if (!ref) {
           throw new Error(t("error.bridgeAgentNoChatModel", { name: agent.agentName }));
         }
-        const ownerModel = findModel(mm.availableModels, ownerModelId, ownerProvider);
+        const ownerModel = findModel(mm.availableModels, ref.id, ref.provider);
         if (!ownerModel) {
-          throw new Error(t("error.bridgeAgentModelNotAvailable", { name: agent.agentName, model: ownerModelId }));
+          throw new Error(t("error.bridgeAgentModelNotAvailable", { name: agent.agentName, model: `${ref.provider}/${ref.id}` }));
         }
 
         // 快照 prompt，隔离于其他 session 的 prompt 变更（与 SessionCoordinator.createSession 一致）

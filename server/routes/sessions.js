@@ -106,6 +106,7 @@ export function createSessionsRoute(engine) {
         agentId: s.agentId || null,
         agentName: s.agentName || null,
         modelId: s.modelId || null,
+        modelProvider: s.modelProvider || null,
       })));
     } catch (err) {
       return c.json({ error: err.message }, 500);

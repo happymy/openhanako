@@ -367,8 +367,11 @@ export class HanaEngine {
   async syncModelsAndRefresh() { return this._configCoord.syncAndRefresh(); }
   setPendingModel(id, provider) { return this._configCoord.setPendingModel(id, provider); }
   async switchSessionModel(sessionPath, modelId, provider) {
+    if (!provider) {
+      throw new Error(`switchSessionModel: provider required (modelId=${modelId})`);
+    }
     const model = findModel(this._models.availableModels, modelId, provider);
-    if (!model) throw new Error(t("error.modelNotFound", { id: modelId }));
+    if (!model) throw new Error(t("error.modelNotFound", { id: `${provider}/${modelId}` }));
     return this._sessionCoord.switchSessionModel(sessionPath, model);
   }
   setDefaultModel(id, provider) { return this._configCoord.setDefaultModel(id, provider); }
@@ -558,7 +561,6 @@ export class HanaEngine {
   _resolveProviderCredentials(p) { return this._models.resolveProviderCredentials(p); }
   resolveProviderCredentials(p) { return this._resolveProviderCredentials(p); }
   resolveModelWithCredentials(ref) { return this._models.resolveModelWithCredentials(ref); }
-  _inferModelProvider(id) { return this._models.inferModelProvider(id); }
   async refreshAvailableModels() { return this._models.refreshAvailable(); }
   /**
    * Provider 配置变更后的统一操作序列。
@@ -658,10 +660,14 @@ export class HanaEngine {
             if (Array.isArray(p.tools) && p.tools.length === 0) {
               delete p.tools;
             }
-            // 剥离 thinking — minimax / kimi-coding 等 anthropic 兼容层不支持
+            // 剥离 thinking — minimax / kimi-coding 等 anthropic 兼容层不支持。
+            // payload.model 是裸 id 字符串，无 provider 信息；保守判断：
+            // 只要 _availableModels 里同 id 的所有 provider 都不是 "anthropic"，就剥。
+            // 任一匹配到 anthropic（多 provider 同 id 的少见场景）则保留，避免误删。
             if (p.thinking) {
-              const m = findModel(this._models.availableModels, p.model);
-              if (m && m.provider !== "anthropic") delete p.thinking;
+              const matches = this._models.availableModels.filter(m => m.id === p.model);
+              const hasAnthropic = matches.some(m => m.provider === "anthropic");
+              if (matches.length > 0 && !hasAnthropic) delete p.thinking;
             }
             return p;
           });
@@ -689,16 +695,18 @@ export class HanaEngine {
       console.warn("[engine] ⚠ 未找到可用模型，请在设置中配置 API key");
       this._models.defaultModel = null;
     } else {
+      // migrations #5 之后 models.chat 必为 {id, provider} 对象；
+      // 非对象说明 agent 从未配置过或 migration 未识别（added-models.yaml 里
+      // 没对应 provider），保守视为未配置。
       const chatRef = this.agent.config.models?.chat;
-      const preferredId = typeof chatRef === "object" ? chatRef?.id : chatRef;
-      const preferredProvider = typeof chatRef === "object" ? chatRef?.provider : undefined;
-      if (!preferredId) {
-        console.warn("[engine] ⚠ 未配置 models.chat，defaultModel 为 null");
+      const ref = (typeof chatRef === "object" && chatRef?.id && chatRef?.provider) ? chatRef : null;
+      if (!ref) {
+        console.warn("[engine] ⚠ 未配置 models.chat（或配置缺 provider），defaultModel 为 null");
         this._models.defaultModel = null;
       } else {
-        const model = findModel(availableModels, preferredId, preferredProvider);
+        const model = findModel(availableModels, ref.id, ref.provider);
         if (!model) {
-          console.error(`[engine] ⚠ 配置的模型 "${preferredId}" 不在可用列表中，defaultModel 为 null`);
+          console.error(`[engine] ⚠ 配置的模型 "${ref.provider}/${ref.id}" 不在可用列表中，defaultModel 为 null`);
           this._models.defaultModel = null;
         } else {
           this._models.defaultModel = model;
