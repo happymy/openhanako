@@ -11,12 +11,18 @@ import styles from '../Settings.module.css';
 
 const platform = window.platform;
 
+type AgentDeskConfig = {
+  home_folder: string;
+  heartbeat_enabled: boolean;
+  heartbeat_interval: number;
+};
+
 export function WorkTab() {
   const { settingsConfig, showToast, currentAgentId } = useSettingsStore();
 
-  // ── Global state (from settingsConfig, saved via autoSaveConfig) ──
-  const [heartbeatMaster, setHeartbeatMaster] = useState(true);
-  const [cronAutoApprove, setCronAutoApprove] = useState(true);
+  // ── Global toggles：直接从 store 派生，单一数据源，避免挂载时 flicker ──
+  const heartbeatMaster = settingsConfig?.desk?.heartbeat_master !== false;
+  const cronAutoApprove = settingsConfig?.desk?.cron_auto_approve !== false;
 
   // ── Agent selector (作为 section context，表达"当前配置哪个 agent") ──
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(currentAgentId);
@@ -28,28 +34,27 @@ export function WorkTab() {
     if (currentAgentId) setSelectedAgentId(currentAgentId);
   }, [currentAgentId]);
 
-  // ── Per-agent state (fetched from /api/agents/:id/config) ──
-  const [homeFolder, setHomeFolder] = useState('');
-  const [hbEnabled, setHbEnabled] = useState(true);
-  const [hbInterval, setHbInterval] = useState(17);
-
-  useEffect(() => {
-    if (settingsConfig) {
-      setHeartbeatMaster(settingsConfig.desk?.heartbeat_master !== false);
-      setCronAutoApprove(settingsConfig.desk?.cron_auto_approve !== false);
-    }
-  }, [settingsConfig]);
+  // ── Per-agent 远程快照：null = 未加载。切 agent 时重置，避免残留上一个 agent 的值 ──
+  const [agentDesk, setAgentDesk] = useState<AgentDeskConfig | null>(null);
+  // hbInterval 是 draft：用户编辑后点"保存"才落盘，必须独立于 agentDesk
+  const [hbIntervalDraft, setHbIntervalDraft] = useState<number | null>(null);
 
   useEffect(() => {
     if (!selectedAgentId) return;
+    setAgentDesk(null);
+    setHbIntervalDraft(null);
     const ac = new AbortController();
     hanaFetch(`/api/agents/${selectedAgentId}/config`, { signal: ac.signal })
       .then(r => r.json())
       .then(data => {
         if (ac.signal.aborted) return;
-        setHomeFolder(data.desk?.home_folder || '');
-        setHbEnabled(data.desk?.heartbeat_enabled !== false);
-        setHbInterval(data.desk?.heartbeat_interval ?? 17);
+        const desk: AgentDeskConfig = {
+          home_folder: data.desk?.home_folder || '',
+          heartbeat_enabled: data.desk?.heartbeat_enabled !== false,
+          heartbeat_interval: data.desk?.heartbeat_interval ?? 17,
+        };
+        setAgentDesk(desk);
+        setHbIntervalDraft(desk.heartbeat_interval);
       })
       .catch(err => {
         if (err?.name !== 'AbortError') console.warn('[work] fetch agent config failed:', err);
@@ -58,12 +63,10 @@ export function WorkTab() {
   }, [selectedAgentId]);
 
   const toggleHeartbeatMaster = async (on: boolean) => {
-    setHeartbeatMaster(on);
     await autoSaveConfig({ desk: { heartbeat_master: on } });
   };
 
   const toggleCronAutoApprove = async (on: boolean) => {
-    setCronAutoApprove(on);
     await autoSaveConfig({ desk: { cron_auto_approve: on } });
   };
 
@@ -87,24 +90,30 @@ export function WorkTab() {
   };
 
   const togglePerAgentHeartbeat = async (on: boolean) => {
-    setHbEnabled(on);
+    if (!agentDesk) return;
+    setAgentDesk({ ...agentDesk, heartbeat_enabled: on });
     await saveAgentConfig({ desk: { heartbeat_enabled: on } });
   };
 
   const pickHomeFolder = async () => {
+    if (!agentDesk) return;
     const folder = await platform?.selectFolder?.();
     if (!folder) return;
-    setHomeFolder(folder);
+    setAgentDesk({ ...agentDesk, home_folder: folder });
     await saveAgentConfig({ desk: { home_folder: folder } });
   };
 
   const clearHomeFolder = async () => {
-    setHomeFolder('');
+    if (!agentDesk) return;
+    setAgentDesk({ ...agentDesk, home_folder: '' });
     await saveAgentConfig({ desk: { home_folder: '' } });
   };
 
   const saveInterval = async () => {
-    const interval = Math.max(1, Math.min(120, hbInterval));
+    if (hbIntervalDraft == null || !agentDesk) return;
+    const interval = Math.max(1, Math.min(120, hbIntervalDraft));
+    setAgentDesk({ ...agentDesk, heartbeat_interval: interval });
+    setHbIntervalDraft(interval);
     await saveAgentConfig({ desk: { heartbeat_interval: interval } });
   };
 
@@ -129,62 +138,66 @@ export function WorkTab() {
         title="Agent 工作书桌设置"
         context={<AgentSelect value={selectedAgentId} onChange={setSelectedAgentId} />}
       >
-        <SettingsRow
-          label={t('settings.work.heartbeatEnabled')}
-          control={<Toggle on={hbEnabled} onChange={togglePerAgentHeartbeat} />}
-        />
-        <SettingsRow
-          label={t('settings.work.homeFolder')}
-          hint={t('settings.work.homeFolderDesc')}
-          layout="stacked"
-          control={
-            <div className={styles['settings-folder-picker']}>
-              <input
-                type="text"
-                className={`${styles['settings-input']} ${styles['settings-folder-input']}`}
-                readOnly
-                value={homeFolder}
-                placeholder={t('settings.work.homeFolderPlaceholder')}
-                onClick={pickHomeFolder}
-              />
-              <button className={styles['settings-folder-browse']} onClick={pickHomeFolder}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                </svg>
-              </button>
-              {homeFolder && (
-                <button
-                  className={styles['settings-folder-clear']}
-                  onClick={clearHomeFolder}
-                  title={t('settings.work.homeFolderClear')}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          }
-        />
-        <SettingsRow
-          label={t('settings.work.heartbeatInterval')}
-          control={
-            <>
-              <NumberInput
-                value={hbInterval}
-                onChange={setHbInterval}
-                unit={t('settings.work.heartbeatUnit')}
-                min={1}
-                max={120}
-                disabled={!hbEnabled}
-              />
-              <button className={styles['settings-save-btn-ghost']} onClick={saveInterval}>
-                {t('settings.save')}
-              </button>
-            </>
-          }
-        />
+        {agentDesk && (
+          <>
+            <SettingsRow
+              label={t('settings.work.heartbeatEnabled')}
+              control={<Toggle on={agentDesk.heartbeat_enabled} onChange={togglePerAgentHeartbeat} />}
+            />
+            <SettingsRow
+              label={t('settings.work.homeFolder')}
+              hint={t('settings.work.homeFolderDesc')}
+              layout="stacked"
+              control={
+                <div className={styles['settings-folder-picker']}>
+                  <input
+                    type="text"
+                    className={`${styles['settings-input']} ${styles['settings-folder-input']}`}
+                    readOnly
+                    value={agentDesk.home_folder}
+                    placeholder={t('settings.work.homeFolderPlaceholder')}
+                    onClick={pickHomeFolder}
+                  />
+                  <button className={styles['settings-folder-browse']} onClick={pickHomeFolder}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </button>
+                  {agentDesk.home_folder && (
+                    <button
+                      className={styles['settings-folder-clear']}
+                      onClick={clearHomeFolder}
+                      title={t('settings.work.homeFolderClear')}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              }
+            />
+            <SettingsRow
+              label={t('settings.work.heartbeatInterval')}
+              control={
+                <>
+                  <NumberInput
+                    value={hbIntervalDraft ?? agentDesk.heartbeat_interval}
+                    onChange={setHbIntervalDraft}
+                    unit={t('settings.work.heartbeatUnit')}
+                    min={1}
+                    max={120}
+                    disabled={!agentDesk.heartbeat_enabled}
+                  />
+                  <button className={styles['settings-save-btn-ghost']} onClick={saveInterval}>
+                    {t('settings.save')}
+                  </button>
+                </>
+              }
+            />
+          </>
+        )}
       </SettingsSection>
     </div>
   );
