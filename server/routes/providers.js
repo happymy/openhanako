@@ -204,7 +204,12 @@ export function createProvidersRoute(engine) {
 
   /**
    * 从供应商拉取模型列表
-   * 统一瀑布流：凭证解析 → 远程 GET /models → registry fallback → defaults fallback
+   * 统一瀑布流：凭证解析 → 远程 list models → registry fallback → defaults fallback
+   *
+   * 远程端点按协议分岔：
+   *   - anthropic-messages → GET {base}/v1/models?limit=1000（Anthropic Messages API）
+   *   - 其他（openai-completions 等）→ GET {base}/models
+   *
    * body: { name, base_url?, api?, api_key? }
    */
   route.post("/providers/fetch-models", async (c) => {
@@ -221,15 +226,13 @@ export function createProvidersRoute(engine) {
     const effectiveBaseUrl = base_url || saved.base_url || "";
     const effectiveApi = explicitApi || saved.api || "";
 
-    // ── 2. Anthropic 快速路径（没有 /models 端点）──
-    if (effectiveApi === "anthropic-messages") {
-      return c.json(registryOrDefaultsFallback(name));
-    }
-
-    // ── 3. 远程 GET /models（baseUrl 为空时跳过）──
+    // ── 2. 远程 list models（baseUrl 为空时跳过）──
     if (effectiveBaseUrl) {
       try {
-        const url = effectiveBaseUrl.replace(/\/+$/, "") + "/models";
+        const isAnthropic = effectiveApi === "anthropic-messages";
+        const base = effectiveBaseUrl.replace(/\/+$/, "");
+        const url = isAnthropic ? `${base}/v1/models?limit=1000` : `${base}/models`;
+
         let headers = { "Content-Type": "application/json" };
         if (effectiveKey) {
           if (!effectiveApi) {
@@ -249,7 +252,13 @@ export function createProvidersRoute(engine) {
 
         if (res.ok) {
           const data = await res.json();
-          const models = (data.data || []).map(m => ({
+          // 两种协议的响应字段名不同，分别归一化
+          const models = (data.data || []).map(m => isAnthropic ? ({
+            id: m.id,
+            name: m.display_name || m.id,
+            context: m.max_input_tokens ?? null,
+            maxOutput: m.max_tokens ?? null,
+          }) : ({
             id: m.id,
             name: m.id,
             context: m.context_length || m.context_window || m.max_context_length || null,
@@ -259,13 +268,13 @@ export function createProvidersRoute(engine) {
           return c.json({ models });
         }
 
-        // 404 / 其他 → 进入 step 4
+        // 404 / 其他 → 进入 step 3
       } catch {
-        // 网络错误 → 进入 step 4
+        // 网络错误 → 进入 step 3
       }
     }
 
-    // ── 4. Registry + defaults fallback ──
+    // ── 3. Registry + defaults fallback ──
     return c.json(registryOrDefaultsFallback(name));
   });
 

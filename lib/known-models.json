@@ -1306,6 +1306,13 @@
     }
   },
   "kimi-coding": {
+    "kimi-k2.6": {
+      "name": "Kimi K2.6",
+      "context": 262144,
+      "maxOutput": 98304,
+      "vision": true,
+      "reasoning": true
+    },
     "kimi-k2.5": {
       "name": "Kimi K2.5",
       "context": 262144,
@@ -1321,6 +1328,13 @@
     }
   },
   "moonshot": {
+    "kimi-k2.6": {
+      "name": "Kimi K2.6",
+      "context": 262144,
+      "maxOutput": 98304,
+      "vision": true,
+      "reasoning": true
+    },
     "kimi-k2.5": {
       "name": "Kimi K2.5",
       "context": 262144,

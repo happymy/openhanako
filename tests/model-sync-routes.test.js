@@ -444,16 +444,32 @@ describe("model sync related routes", () => {
     expect(data.models.map(m => m.id)).toEqual(["gpt-5.4", "gpt-5.3-codex"]);
   });
 
-  it("anthropic-messages skips remote and goes to defaults", async () => {
+  it("anthropic-messages hits /v1/models and normalizes Anthropic fields", async () => {
     const { createProvidersRoute } = await import("../server/routes/providers.js");
     const app = new Hono();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: "claude-opus-4-7",
+            display_name: "Claude Opus 4.7",
+            max_input_tokens: 200000,
+            max_tokens: 64000,
+          },
+          { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6", max_input_tokens: 200000, max_tokens: 64000 },
+        ],
+        has_more: false,
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     const engine = withResolveCreds({
       getRegistryModelsForProvider: vi.fn().mockReturnValue([]),
       providerRegistry: {
         getCredentials: () => ({ apiKey: "sk-test", baseUrl: "https://api.anthropic.com", api: "anthropic-messages" }),
         getAuthJsonKey: (id) => id,
-        getDefaultModels: (id) => id === "anthropic" ? ["claude-sonnet-4-6", "claude-haiku-4-5-20251001"] : [],
+        getDefaultModels: () => [],
       },
       hanakoHome: "/tmp",
     });
@@ -467,9 +483,46 @@ describe("model sync related routes", () => {
     });
 
     expect(res.status).toBe(200);
+    const url = fetchMock.mock.calls[0][0];
+    expect(url).toBe("https://api.anthropic.com/v1/models?limit=1000");
+    const headers = fetchMock.mock.calls[0][1].headers;
+    expect(headers["x-api-key"]).toBe("sk-test");
+    expect(headers["anthropic-version"]).toBe("2023-06-01");
+
+    const data = await res.json();
+    expect(data.models).toEqual([
+      { id: "claude-opus-4-7", name: "Claude Opus 4.7", context: 200000, maxOutput: 64000 },
+      { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", context: 200000, maxOutput: 64000 },
+    ]);
+  });
+
+  it("anthropic-messages falls back to defaults when remote 404s", async () => {
+    const { createProvidersRoute } = await import("../server/routes/providers.js");
+    const app = new Hono();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404, statusText: "Not Found" }));
+
+    const engine = withResolveCreds({
+      getRegistryModelsForProvider: vi.fn().mockReturnValue([]),
+      providerRegistry: {
+        getCredentials: () => ({ apiKey: "sk-test", baseUrl: "https://api.kimi.com/coding", api: "anthropic-messages" }),
+        getAuthJsonKey: (id) => id,
+        getDefaultModels: (id) => id === "kimi-coding" ? ["kimi-k2.6", "kimi-k2.5"] : [],
+      },
+      hanakoHome: "/tmp",
+    });
+
+    app.route("/api", createProvidersRoute(engine));
+
+    const res = await app.request("/api/providers/fetch-models", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "kimi-coding" }),
+    });
+
+    expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.source).toBe("builtin");
-    expect(data.models.map(m => m.id)).toContain("claude-sonnet-4-6");
+    expect(data.models.map(m => m.id)).toEqual(["kimi-k2.6", "kimi-k2.5"]);
   });
 
   it("request body api_key overrides saved credentials", async () => {
