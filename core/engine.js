@@ -131,6 +131,7 @@ export class HanaEngine {
       getConfirmStore: () => this._confirmStore,
       getDeferredResultStore: () => this._deferredResultStore,
       getTaskRegistry: () => this._taskRegistry,
+      getEngine: () => this,
       onBeforeSessionCreate: async (cwd) => {
         await this.syncWorkspaceSkillPaths(cwd, { reload: true, emitEvent: false });
       },
@@ -204,6 +205,13 @@ export class HanaEngine {
     // 避免每一轮对话都重复广播 image_stripped_notice 事件。
     this._imageStripNotified = new Set();
 
+    // UI context 注入（用户当前视野）：sessionPath → { currentViewed, activeFile,
+    // activeArtifact, pinnedFiles }。由前端每次发 prompt 时带过来，经 server/routes/chat.js
+    // 写入；session-coordinator 注册的 `context` extension hook 每轮读取并拼 reminder
+    // 到 last user message 开头（不写进 session.entries，不累积）。
+    // 详见 core/ui-context-reminder.js 和 docs/superpowers/specs/2026-04-22-viewer-spawn-and-context-injection-design.md
+    this._uiContextBySession = new Map();
+
     // DevTools 日志
     this._devLogs = [];
     this._devLogsMax = 200;
@@ -251,6 +259,29 @@ export class HanaEngine {
 
   setSubagentController(taskId, controller) { this._subagentControllers.set(taskId, controller); }
   removeSubagentController(taskId) { this._subagentControllers.delete(taskId); }
+
+  /**
+   * 写入某 session 当前的 UI context（用户视野）。
+   * 前端在发每条 prompt 时带上；context extension hook 每轮读取拼 reminder。
+   * 传 null / undefined 等价于删除（显式清空）。
+   *
+   * @param {string} sessionPath
+   * @param {import("./ui-context-reminder.js").UiContext|null|undefined} ctx
+   */
+  setUiContext(sessionPath, ctx) {
+    if (!sessionPath) return;
+    if (ctx == null) {
+      this._uiContextBySession.delete(sessionPath);
+    } else {
+      this._uiContextBySession.set(sessionPath, ctx);
+    }
+  }
+
+  /** 读取某 session 当前的 UI context。无则返回 null。 */
+  getUiContext(sessionPath) {
+    if (!sessionPath) return null;
+    return this._uiContextBySession.get(sessionPath) || null;
+  }
 
   // 向后兼容 getter
   get agentDir() { return this.agent?.agentDir || path.join(this.agentsDir, this.currentAgentId); }

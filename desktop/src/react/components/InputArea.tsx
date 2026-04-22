@@ -17,6 +17,7 @@ import { useI18n } from '../hooks/use-i18n';
 import { ensureSession, loadSessions } from '../stores/session-actions';
 import { loadDeskFiles, toggleJianSidebar } from '../stores/desk-actions';
 import { getWebSocket } from '../services/websocket';
+import { collectUiContext } from '../utils/ui-context';
 import type { ThinkingLevel } from '../stores/model-slice';
 import { SlashCommandMenu } from './input/SlashCommandMenu';
 import { InputStatusBars } from './input/InputStatusBars';
@@ -182,7 +183,12 @@ function InputAreaInner() {
       });
       useStore.setState({ welcomeVisible: false });
     }
-    ws.send(JSON.stringify({ type: 'prompt', text, sessionPath: useStore.getState().currentSessionPath }));
+    ws.send(JSON.stringify({
+      type: 'prompt',
+      text,
+      sessionPath: useStore.getState().currentSessionPath,
+      uiContext: collectUiContext(useStore.getState()),
+    }));
     return true;
   }, [pendingNewSession]);
 
@@ -495,6 +501,7 @@ function InputAreaInner() {
         type: 'prompt',
         text: finalText,
         sessionPath: useStore.getState().currentSessionPath,
+        uiContext: collectUiContext(useStore.getState()),
       };
       if (images.length > 0) wsMsg.images = images;
       if (skills.length > 0) wsMsg.skills = skills;

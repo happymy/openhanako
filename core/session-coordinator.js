@@ -17,6 +17,7 @@ import { t, getLocale } from "../server/i18n.js";
 import { READ_ONLY_BUILTIN_TOOLS } from "./config-coordinator.js";
 import { findModel } from "../shared/model-ref.js";
 import { computeToolSnapshot, DEFAULT_DISABLED_TOOL_NAMES } from "../shared/tool-categories.js";
+import { buildUiContextReminder, injectReminderIntoLastUserMessage } from "./ui-context-reminder.js";
 
 const log = createModuleLogger("session");
 
@@ -111,10 +112,55 @@ export class SessionCoordinator {
     // 后续记忆编译、技能变更只影响新对话，已有对话的 prompt 不变（保护 prefix cache）。
     const promptSnapshot = agent.buildSystemPrompt();
 
-    // Wrap resourceLoader: per-session prompt snapshot + plan mode injection
+    // UI context 注入扩展：在每次 LLM 调用前把用户视野拼成 <user-context>…</user-context>
+    // 前置到 last user message，只影响这一次请求（Pi SDK deep copy messages），
+    // 不写进 session.entries。handler 错误兜底不抛，避免阻塞对话。
+    const getEngine = this._d.getEngine;
+    const uiContextExtension = {
+      path: "hana-ui-context-injection",
+      tools: new Map(),
+      handlers: new Map([
+        [
+          "context",
+          [
+            async (event, ctx) => {
+              try {
+                const engine = getEngine?.();
+                if (!engine) return undefined;
+                const sp = ctx.sessionManager?.getSessionFile?.();
+                if (!sp) return undefined;
+                const uiCtx = engine.getUiContext?.(sp);
+                if (!uiCtx) return undefined;
+                const reminder = buildUiContextReminder(uiCtx, ctx.cwd);
+                if (!reminder) return undefined;
+                return injectReminderIntoLastUserMessage(event.messages, reminder);
+              } catch (err) {
+                log.warn(`ui-context injection failed: ${err?.message || err}`);
+                return undefined;
+              }
+            },
+          ],
+        ],
+      ]),
+      flags: new Map(),
+      shortcuts: new Map(),
+      commands: new Map(),
+      messageRenderers: new Map(),
+    };
+
+    // Wrap resourceLoader: per-session prompt snapshot + plan mode injection + ui context extension
     const resourceLoader = Object.create(baseResourceLoader, {
       getSystemPrompt: {
         value: () => promptSnapshot,
+      },
+      getExtensions: {
+        value: () => {
+          const base = baseResourceLoader.getExtensions?.() ?? { extensions: [], errors: [] };
+          return {
+            ...base,
+            extensions: [...(base.extensions || []), uiContextExtension],
+          };
+        },
       },
       getAppendSystemPrompt: {
         value: () => {

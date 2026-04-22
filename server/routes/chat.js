@@ -711,6 +711,10 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
                 wsSend(ws, { type: "error", message: t("error.stillStreaming", { name: engine.agentName }), sessionPath: promptSessionPath });
                 return;
               }
+              // UI context（用户视野：current_folder / active_file / pinned_files）
+              // 写入 engine session-keyed Map，context extension handler 每轮读取拼 reminder。
+              // msg.uiContext 为 null/undefined → 清空旧值（避免 stale 信息持续注入）。
+              engine.setUiContext?.(promptSessionPath, msg.uiContext ?? null);
               // Reject prompt while model switch is in progress
               const switchingEntry = engine._sessionCoord?.sessions?.get(promptSessionPath);
               if (switchingEntry?._switching) {
