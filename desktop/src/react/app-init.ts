@@ -15,7 +15,6 @@ import { connectWebSocket, getWebSocket } from './services/websocket';
 import { setStatus, loadModels } from './utils/ui-helpers';
 import { initJian, loadDeskFiles } from './stores/desk-actions';
 import { loadChannels } from './stores/channel-actions';
-import { initEditorEvents } from './stores/artifact-actions';
 import { updateLayout } from './components/SidebarLayout';
 import { initErrorBusBridge } from './errors/error-bus-bridge';
 import { refreshPluginUI } from './stores/plugin-ui-actions';
@@ -125,10 +124,7 @@ export async function initApp(): Promise<void> {
   // 11. 初始化书桌
   initJian();
 
-  // 12. 初始化编辑器事件
-  initEditorEvents();
-
-  // 13b. 初始 layout 计算
+  // 12. 初始 layout 计算
   updateLayout();
 
   // 14. 任务计划 badge 初始值

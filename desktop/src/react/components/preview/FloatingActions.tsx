@@ -3,11 +3,9 @@ import styles from './FloatingActions.module.css';
 
 interface Props {
   content: string;
-  editable: boolean;
-  onDetach: () => void;
 }
 
-export function FloatingActions({ content, editable, onDetach }: Props) {
+export function FloatingActions({ content }: Props) {
   const [copyLabel, setCopyLabel] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -38,14 +36,6 @@ export function FloatingActions({ content, editable, onDetach }: Props) {
         </svg>
         <span>{copyLabel ?? t('attach.copy')}</span>
       </button>
-      {editable && (
-        <button className={styles.actionBtn} title="Open in window" onClick={onDetach}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="7" width="15" height="15" rx="2" ry="2" />
-            <path d="M7 2h15v15" />
-          </svg>
-        </button>
-      )}
       <button className={styles.actionBtn} onClick={handleScreenshot} title={t('common.screenshot')}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

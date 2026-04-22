@@ -75,13 +75,6 @@ contextBridge.exposeInMainWorld("hana", {
   browserReload: () => ipcRenderer.invoke("browser-reload"),
   closeBrowserViewer: () => ipcRenderer.invoke("close-browser-viewer"),
   browserEmergencyStop: () => ipcRenderer.invoke("browser-emergency-stop"),
-  // 编辑器独立窗口
-  openEditorWindow: (data) => ipcRenderer.invoke("open-editor-window", data),
-  onEditorLoad: (cb) => ipcRenderer.on("editor-load", (_, data) => cb(data)),
-  editorDock: () => ipcRenderer.invoke("editor-dock"),
-  editorClose: () => ipcRenderer.invoke("editor-close"),
-  onEditorDockFile: (cb) => ipcRenderer.on("editor-dock-file", (_, data) => cb(data)),
-  onEditorDetached: (cb) => ipcRenderer.on("editor-detached", (_, detached) => cb(detached)),
   // Skill 预览窗口
   openSkillViewer: (data) => ipcRenderer.invoke("open-skill-viewer", data),
   listSkillFiles: (baseDir) => ipcRenderer.invoke("skill-viewer-list-files", baseDir),

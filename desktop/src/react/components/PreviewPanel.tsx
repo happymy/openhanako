@@ -7,7 +7,7 @@
  * 架构原则：
  * - 文件系统是 source of truth，编辑器直接对接文件
  * - 文件型 artifact 的 content 不回写 store（避免双源）
- * - ArtifactEditor 不依赖 PreviewPanel，可脱离到独立窗口
+ * - 独立窗口由下阶段的 viewer spawn 机制负责（单向只读副本），本面板不做 detach/dock
  */
 
 import { useCallback, useEffect } from 'react';
@@ -38,25 +38,9 @@ export function PreviewPanel() {
   const previewOpen = useStore(s => s.previewOpen);
   const activeTabId = useStore(selectActiveTabId);
   const artifacts = useStore(selectArtifacts);
-  const setPreviewOpen = useStore(s => s.setPreviewOpen);
-  const setEditorDetached = useStore(s => s.setEditorDetached);
 
   const artifact = artifacts.find(a => a.id === activeTabId) ?? null;
   const editable = isEditable(artifact);
-
-  // 拆分到独立窗口
-  const handleDetach = useCallback(() => {
-    if (!artifact?.filePath) return;
-    setEditorDetached(true);
-    setPreviewOpen(false);
-    // 通过 IPC 打开编辑器窗口
-    window.platform?.openEditorWindow?.({
-      filePath: artifact.filePath,
-      title: artifact.title,
-      type: artifact.type,
-      language: artifact.language,
-    });
-  }, [artifact, setEditorDetached, setPreviewOpen]);
 
   // DOM 模式选区捕获（非编辑模式下 mouseup 时检测选中文本）
   const handleMouseUp = useCallback(() => {
@@ -78,8 +62,6 @@ export function PreviewPanel() {
           {previewOpen && artifact && (
             <FloatingActions
               content={artifact.content}
-              editable={editable}
-              onDetach={handleDetach}
             />
           )}
           {previewOpen && artifact && !editable && (

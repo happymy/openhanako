@@ -855,7 +855,6 @@ function createMainWindow() {
       // 同时隐藏子窗口
       if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.hide();
       if (browserViewerWindow && !browserViewerWindow.isDestroyed()) browserViewerWindow.hide();
-      if (editorWindow && !editorWindow.isDestroyed()) editorWindow.hide();
     }
   });
 
@@ -868,10 +867,6 @@ function createMainWindow() {
     if (browserViewerWindow && !browserViewerWindow.isDestroyed()) {
       browserViewerWindow.destroy();
       browserViewerWindow = null;
-    }
-    if (editorWindow && !editorWindow.isDestroyed()) {
-      editorWindow.destroy();
-      editorWindow = null;
     }
     if (_screenshotWin && !_screenshotWin.isDestroyed()) {
       _screenshotWin.destroy();
@@ -2046,88 +2041,7 @@ wrapIpcHandler("browser-emergency-stop", () => {
 });
 
 // ── 编辑器独立窗口 ──
-let editorWindow = null;
-let _editorFileData = null; // { filePath, title, type, language }
-
-wrapIpcHandler("open-editor-window", (_event, data) => {
-  _editorFileData = data;
-  if (editorWindow && !editorWindow.isDestroyed()) {
-    editorWindow.show();
-    editorWindow.focus();
-    editorWindow.webContents.send("editor-load", data);
-    return;
-  }
-
-  const isDark = nativeTheme.shouldUseDarkColors;
-  const theme = isDark ? "midnight" : "warm-paper";
-
-  editorWindow = new BrowserWindow({
-    width: 720,
-    height: 800,
-    minWidth: 400,
-    minHeight: 300,
-    title: data.title || "Editor",
-    frame: false,
-    backgroundColor: THEME_BG[theme] || THEME_BG["warm-paper"],
-    hasShadow: true,
-    show: true,
-    acceptFirstMouse: true,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.bundle.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
-
-  loadWindowURL(editorWindow, "editor-window");
-
-  editorWindow.webContents.on("did-finish-load", () => {
-    if (_editorFileData && editorWindow && !editorWindow.isDestroyed()) {
-      editorWindow.webContents.send("editor-load", _editorFileData);
-    }
-  });
-
-  editorWindow.on("close", (e) => {
-    if (!isQuitting) {
-      e.preventDefault();
-      editorWindow.hide();
-      // 通知主窗口 editor 已关闭
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("editor-detached", false);
-      }
-    }
-  });
-
-  editorWindow.on("closed", () => {
-    editorWindow = null;
-    _editorFileData = null;
-    // 清理编辑器窗口关联的文件监听
-    for (const [, watcher] of _fileWatchers) watcher.close();
-    _fileWatchers.clear();
-  });
-});
-
-wrapIpcHandler("editor-dock", () => {
-  // 放回主面板：通知主窗口重新打开 preview，然后隐藏编辑器窗口
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("editor-detached", false);
-    if (_editorFileData) {
-      mainWindow.webContents.send("editor-dock-file", _editorFileData);
-    }
-  }
-  if (editorWindow && !editorWindow.isDestroyed()) {
-    editorWindow.hide();
-  }
-});
-
-wrapIpcHandler("editor-close", () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("editor-detached", false);
-  }
-  if (editorWindow && !editorWindow.isDestroyed()) {
-    editorWindow.hide();
-  }
-});
+// 旧 detach/dock 编辑器窗口机制已拆除。下阶段由 viewer spawn（只读副本）取代。
 
 // 设置窗口 → 主窗口的消息转发
 wrapIpcOn("settings-changed", (_event, type, data) => {
