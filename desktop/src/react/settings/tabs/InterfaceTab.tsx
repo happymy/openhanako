@@ -6,39 +6,24 @@ import { Toggle } from '../widgets/Toggle';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
 import styles from '../Settings.module.css';
+import registry from '../../../shared/theme-registry.cjs';
 
 const platform = window.platform;
 const i18n = window.i18n;
 
-const THEME_NAME_KEYS: Record<string, string> = {
-  'warm-paper': 'settings.appearance.warmPaper',
-  'midnight': 'settings.appearance.midnight',
-  'high-contrast': 'settings.appearance.highContrast',
-  'grass-aroma': 'settings.appearance.grassAroma',
-  'contemplation': 'settings.appearance.contemplation',
-  'absolutely': 'settings.appearance.absolutely',
-  'delve': 'settings.appearance.delve',
-  'deep-think': 'settings.appearance.deepThink',
-  'claude-design': 'settings.appearance.claudeDesign',
-  'auto': 'settings.appearance.auto',
-};
+const THEME_NAME_KEYS: Record<string, string> = Object.fromEntries([
+  ...Object.entries(registry.THEMES).map(([id, t]: [string, any]) => [id, t.i18nName]),
+  [registry.AUTO_OPTION.id, registry.AUTO_OPTION.i18nName],
+]);
 
-const THEME_MODE_KEYS: Record<string, string> = {
-  'warm-paper': 'settings.appearance.warmPaperMode',
-  'midnight': 'settings.appearance.midnightMode',
-  'high-contrast': 'settings.appearance.highContrastMode',
-  'grass-aroma': 'settings.appearance.grassAromaMode',
-  'contemplation': 'settings.appearance.contemplationMode',
-  'absolutely': 'settings.appearance.absolutelyMode',
-  'delve': 'settings.appearance.delveMode',
-  'deep-think': 'settings.appearance.deepThinkMode',
-  'claude-design': 'settings.appearance.claudeDesignMode',
-  'auto': 'settings.appearance.autoMode',
-};
+const THEME_MODE_KEYS: Record<string, string> = Object.fromEntries([
+  ...Object.entries(registry.THEMES).map(([id, t]: [string, any]) => [id, t.i18nMode]),
+  [registry.AUTO_OPTION.id, registry.AUTO_OPTION.i18nMode],
+]);
 
 export function InterfaceTab() {
   const { settingsConfig } = useSettingsStore();
-  const currentTheme = localStorage.getItem('hana-theme') || 'auto';
+  const currentTheme = registry.migrateSavedTheme(localStorage.getItem(registry.STORAGE_KEY));
   const serifEnabled = localStorage.getItem('hana-font-serif') !== '0';
   const paperTextureEnabled = localStorage.getItem('hana-paper-texture') === '1';
   const leavesOverlayEnabled = localStorage.getItem('hana-leaves-overlay') === '1';
@@ -82,7 +67,7 @@ export function InterfaceTab() {
               data-theme={theme}
               onClick={() => {
                 setTheme?.(theme);
-                localStorage.setItem('hana-theme', theme);
+                localStorage.setItem(registry.STORAGE_KEY, theme);
                 platform?.settingsChanged?.('theme-changed', { theme });
                 useSettingsStore.setState({});
               }}
