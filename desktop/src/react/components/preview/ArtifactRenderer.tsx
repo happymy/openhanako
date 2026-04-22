@@ -10,13 +10,11 @@ import { renderMarkdown } from '../../utils/markdown';
 import { parseCSV, injectCopyButtons } from '../../utils/format';
 import { fileIconSvg } from '../../utils/icons';
 import { openFilePreview } from '../../utils/file-preview';
-import { DESK_OWNER } from '../../stores/artifact-slice';
+import { useStore } from '../../stores';
 import type { Artifact } from '../../types';
 
 interface ArtifactRendererProps {
   artifact: Artifact;
-  /** 该 artifact 所属的 owner（session path 或 DESK_OWNER），用于 fallback 路由 */
-  owner: string;
 }
 
 // ── MarkdownPreview ──
@@ -122,7 +120,8 @@ function FileInfoPreview({ artifact }: { artifact: Artifact }) {
 
 // ── ArtifactRenderer ──
 
-export function ArtifactRenderer({ artifact, owner }: ArtifactRendererProps) {
+export function ArtifactRenderer({ artifact }: ArtifactRendererProps) {
+  const currentSessionPath = useStore(s => s.currentSessionPath);
   switch (artifact.type) {
     case 'html':
       return (
@@ -156,9 +155,9 @@ export function ArtifactRenderer({ artifact, owner }: ArtifactRendererProps) {
       }
       const onOpen = () => {
         if (!artifact.filePath || !artifact.ext) return;
-        const context = owner === DESK_OWNER
-          ? { origin: 'desk' as const }
-          : { origin: 'session' as const, sessionPath: owner };
+        const context = currentSessionPath
+          ? { origin: 'session' as const, sessionPath: currentSessionPath }
+          : { origin: 'desk' as const };
         openFilePreview(artifact.filePath, artifact.title, artifact.ext, context);
       };
       return (

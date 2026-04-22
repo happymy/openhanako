@@ -9,8 +9,7 @@
 
 import { useStore } from './index';
 import { hanaFetch, hanaUrl } from '../hooks/use-hana-fetch';
-import { closePreview, clearOwnerPreview } from './artifact-actions';
-import { getPreviewOwner } from './artifact-slice';
+import { closePreview } from './artifact-actions';
 
 declare function t(key: string, vars?: Record<string, string>): any;
 declare const i18n: { defaultName: string };
@@ -25,8 +24,8 @@ export function clearChat(): void {
     s.clearSession?.(sessionPath);
   }
 
-  // 清除当前 owner 的预览状态
-  clearOwnerPreview(getPreviewOwner(s));
+  // 注：预览面板是 user-level flat state，不随 clearChat 清空
+  // （清对话不应连带清全局预览；只收起面板即可）
 
   useStore.setState({
     welcomeVisible: true,

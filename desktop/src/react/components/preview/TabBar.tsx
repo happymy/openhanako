@@ -1,6 +1,6 @@
 import { useStore } from '../../stores';
-import { selectArtifacts, selectOpenTabs, selectActiveTabId, getPreviewOwner } from '../../stores/artifact-slice';
-import { closeTabForOwner, closePreview, setActiveTabForOwner } from '../../stores/artifact-actions';
+import { selectArtifacts, selectOpenTabs, selectActiveTabId } from '../../stores/artifact-slice';
+import { closeTab, closePreview, setActiveTab } from '../../stores/artifact-actions';
 import type { Artifact } from '../../types';
 import styles from './TabBar.module.css';
 
@@ -16,16 +16,13 @@ export function TabBar() {
 
   const handleCloseTab = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    const owner = getPreviewOwner(useStore.getState());
-    closeTabForOwner(owner, id);
-    const { previewByOwner } = useStore.getState();
-    const after = previewByOwner[owner];
-    if (!after || after.openTabs.length === 0) closePreview();
+    closeTab(id);
+    const { openTabs: after } = useStore.getState();
+    if (after.length === 0) closePreview();
   };
 
   const handleSetActive = (id: string) => {
-    const owner = getPreviewOwner(useStore.getState());
-    setActiveTabForOwner(owner, id);
+    setActiveTab(id);
   };
 
   return (

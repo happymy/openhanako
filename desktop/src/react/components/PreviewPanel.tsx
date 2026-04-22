@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect } from 'react';
 import { useStore } from '../stores';
-import { selectArtifacts, selectActiveTabId, getPreviewOwner } from '../stores/artifact-slice';
+import { selectArtifacts, selectActiveTabId } from '../stores/artifact-slice';
 import { ArtifactEditor } from './ArtifactEditor';
 import { ArtifactRenderer } from './preview/ArtifactRenderer';
 import { TabBar } from './preview/TabBar';
@@ -38,7 +38,6 @@ export function PreviewPanel() {
   const previewOpen = useStore(s => s.previewOpen);
   const activeTabId = useStore(selectActiveTabId);
   const artifacts = useStore(selectArtifacts);
-  const owner = useStore(getPreviewOwner);
   const setPreviewOpen = useStore(s => s.setPreviewOpen);
   const setEditorDetached = useStore(s => s.setEditorDetached);
 
@@ -84,7 +83,7 @@ export function PreviewPanel() {
             />
           )}
           {previewOpen && artifact && !editable && (
-            <ArtifactRenderer artifact={artifact} owner={owner} />
+            <ArtifactRenderer artifact={artifact} />
           )}
           {previewOpen && artifact && editable && (
             <ArtifactEditor
