@@ -845,6 +845,63 @@ After dispatching subagent or other background tasks:
     return this._sessions.get(sessionPath)?.session ?? null;
   }
 
+  /**
+   * 确保 sessionPath 已加载进 _sessions cache，但**不改 this._session（UI 焦点）**。
+   *
+   * 供 /rc 接管态使用：bridge 端操作桌面 session 时，该 session 可能未被
+   * UI 打开过（不在 cache 里）。switchSession 会切焦点 + flush 旧 session，
+   * 副作用太重。此方法走 createSession 的 cold-load 路径后回滚 this._session 指针，
+   * 保证 UI 焦点和内存态不受影响。
+   *
+   * 幂等：已缓存则直接返回，刷新 lastTouchedAt。
+   *
+   * @param {string} sessionPath
+   * @returns {Promise<object>} AgentSession 实例
+   */
+  async ensureSessionLoaded(sessionPath) {
+    const existing = this._sessions.get(sessionPath);
+    if (existing) {
+      existing.lastTouchedAt = Date.now();
+      return existing.session;
+    }
+
+    const targetAgentId = this._d.agentIdFromSessionPath(sessionPath);
+    if (!targetAgentId) {
+      throw new Error(`ensureSessionLoaded: cannot resolve agentId for ${sessionPath}`);
+    }
+    const agent = this._d.getAgentById(targetAgentId);
+    if (!agent) {
+      throw new Error(`ensureSessionLoaded: agent "${targetAgentId}" not found`);
+    }
+
+    // memoryEnabled 从 meta 恢复（跟 switchSession 同一份 meta 数据源）
+    let memoryEnabled = true;
+    try {
+      const metaPath = path.join(agent.sessionDir, "session-meta.json");
+      const meta = await this._readMetaCached(metaPath);
+      const sessKey = path.basename(sessionPath);
+      if (meta[sessKey]?.memoryEnabled === false) memoryEnabled = false;
+    } catch (err) {
+      if (err.code !== "ENOENT") {
+        log.warn(`ensureSessionLoaded: session-meta.json read failed: ${err.message}`);
+      }
+    }
+
+    // 保存焦点：createSession 副作用会设 this._session，执行完手动回滚
+    const prevFocus = this._session;
+    try {
+      const sessionMgr = SessionManager.open(sessionPath, agent.sessionDir);
+      const cwd = sessionMgr.getCwd?.() || undefined;
+      await this.createSession(sessionMgr, cwd, memoryEnabled, null, { restore: true });
+    } finally {
+      this._session = prevFocus;
+    }
+
+    const entry = this._sessions.get(sessionPath);
+    if (!entry) throw new Error(`ensureSessionLoaded: session not in cache after createSession`);
+    return entry.session;
+  }
+
   isSessionStreaming(sessionPath) {
     return !!this.getSessionByPath(sessionPath)?.isStreaming;
   }

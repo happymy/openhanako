@@ -330,6 +330,8 @@ export class HanaEngine {
   get rcState() { return this._slashSystem?.rcState ?? null; }
   async closeSession(p) { return this._sessionCoord.closeSession(p); }
   getSessionByPath(p) { return this._sessionCoord.getSessionByPath(p); }
+  /** 确保桌面 session 已加载进 cache 但不改 UI 焦点（Phase 2-C：/rc 接管态用） */
+  async ensureSessionLoaded(p) { return this._sessionCoord.ensureSessionLoaded(p); }
   isSessionStreaming(p) { return this._sessionCoord.isSessionStreaming(p); }
   async abortSessionByPath(p) { return this._sessionCoord.abortSessionByPath(p); }
   async listSessions() { return this._sessionCoord.listSessions(); }
