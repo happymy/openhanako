@@ -19,6 +19,22 @@ function getSteerPrefix() {
   return isZh ? "（插话，无需 MOOD）\n" : "(Interjection, no MOOD needed)\n";
 }
 
+/**
+ * Bridge index entry（持久化到 bridge-sessions.json）。
+ * 这个 typedef 只声明结构以便 IDE 和未来读者，运行时仍是 plain JSON object。
+ *
+ * @typedef {object} BridgeIndexEntry
+ * @property {string} [file] - owner/xxx.jsonl 或 guests/xxx.jsonl（rotate 后会被移除保留 meta）
+ * @property {string} [name]
+ * @property {string} [avatarUrl]
+ * @property {string} [userId]
+ * @property {string} [linkedSessionPath]
+ *   - 预留字段：当该 bridge session 由某个桌面 session "推送"产生时，
+ *     记录源桌面 session 的绝对路径。一期不写入（/push 命令在后续 phase 落地），
+ *     现有读写路径对未知字段透明保留（readIndex → writeIndex roundtrip 不丢）。
+ *     这是"桌面 session 推送到社交平台"长期能力的数据模型钩子。
+ */
+
 export class BridgeSessionManager {
   /**
    * @param {object} deps - 注入依赖（不持有 engine 引用）
