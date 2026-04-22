@@ -57,7 +57,26 @@
     "switchFailed": "切換 session 失敗",
     "createFailed": "新建 session 失敗",
     "archiveFailed": "歸檔 session 失敗",
-    "rename": "重新命名"
+    "rename": "重新命名",
+    "archived": {
+      "entry": "已封存的對話",
+      "title": "已封存的對話",
+      "empty": "還沒有封存的對話",
+      "stats": "共 {count} 條 · 佔用 {size}",
+      "cleanup30": "清理 30 天以上",
+      "cleanup90": "清理 90 天以上",
+      "cleanupConfirm": "將永久刪除 {count} 條封存（共 {size}），無法復原。繼續？",
+      "cleanupDone": "已清理 {count} 條封存",
+      "cleanupNoMatch": "沒有符合條件的封存",
+      "restore": "還原",
+      "restoreConfirm": "將此對話還原至原位置？",
+      "restoreConflict": "原位置已被佔用，無法還原",
+      "restoreFailed": "還原失敗",
+      "deleteForever": "永久刪除",
+      "deleteConfirm": "永久刪除此封存？此操作無法復原。",
+      "deleteFailed": "刪除失敗",
+      "daysAgo": "封存於 {days} 天前"
+    }
   },
   "common": {
     "on": "開",

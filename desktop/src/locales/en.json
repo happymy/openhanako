@@ -58,7 +58,26 @@
     "switchFailed": "Failed to switch session",
     "createFailed": "Failed to create session",
     "archiveFailed": "Failed to archive session",
-    "rename": "Rename"
+    "rename": "Rename",
+    "archived": {
+      "entry": "Archived Chats",
+      "title": "Archived Chats",
+      "empty": "No archived chats yet",
+      "stats": "{count} items · {size}",
+      "cleanup30": "Clean up >30 days",
+      "cleanup90": "Clean up >90 days",
+      "cleanupConfirm": "Permanently delete {count} archives ({size} total)? This cannot be undone.",
+      "cleanupDone": "Cleaned up {count} archives",
+      "cleanupNoMatch": "No archives match the criteria",
+      "restore": "Restore",
+      "restoreConfirm": "Restore this conversation to its original location?",
+      "restoreConflict": "Original location is occupied; cannot restore",
+      "restoreFailed": "Restore failed",
+      "deleteForever": "Delete forever",
+      "deleteConfirm": "Permanently delete this archive? This cannot be undone.",
+      "deleteFailed": "Delete failed",
+      "daysAgo": "Archived {days} days ago"
+    }
   },
   "common": {
     "on": "On",

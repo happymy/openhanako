@@ -57,7 +57,26 @@
     "switchFailed": "セッションの切り替えに失敗しました",
     "createFailed": "セッションの作成に失敗しました",
     "archiveFailed": "セッションのアーカイブに失敗しました",
-    "rename": "名前を変更"
+    "rename": "名前を変更",
+    "archived": {
+      "entry": "アーカイブ済み",
+      "title": "アーカイブ済みチャット",
+      "empty": "アーカイブはまだありません",
+      "stats": "{count} 件 · {size}",
+      "cleanup30": "30 日以上を削除",
+      "cleanup90": "90 日以上を削除",
+      "cleanupConfirm": "{count} 件のアーカイブ（合計 {size}）を完全に削除します。取り消せません。続けますか？",
+      "cleanupDone": "{count} 件を削除しました",
+      "cleanupNoMatch": "該当するアーカイブがありません",
+      "restore": "復元",
+      "restoreConfirm": "この会話を元の場所に復元しますか？",
+      "restoreConflict": "元の場所が使用中のため、復元できません",
+      "restoreFailed": "復元に失敗しました",
+      "deleteForever": "完全に削除",
+      "deleteConfirm": "このアーカイブを完全に削除しますか？取り消せません。",
+      "deleteFailed": "削除に失敗しました",
+      "daysAgo": "{days} 日前にアーカイブ"
+    }
   },
   "common": {
     "on": "オン",

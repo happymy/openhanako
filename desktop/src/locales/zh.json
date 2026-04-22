@@ -58,7 +58,26 @@
     "switchFailed": "切换 session 失败",
     "createFailed": "新建 session 失败",
     "archiveFailed": "归档 session 失败",
-    "rename": "重命名"
+    "rename": "重命名",
+    "archived": {
+      "entry": "已归档的聊天",
+      "title": "已归档的聊天",
+      "empty": "还没有归档的聊天",
+      "stats": "共 {count} 条 · 占用 {size}",
+      "cleanup30": "清理 30 天以上",
+      "cleanup90": "清理 90 天以上",
+      "cleanupConfirm": "将永久删除 {count} 条归档（共 {size}），无法撤销。继续？",
+      "cleanupDone": "已清理 {count} 条归档",
+      "cleanupNoMatch": "没有符合条件的归档",
+      "restore": "恢复",
+      "restoreConfirm": "将此对话恢复到原位置？",
+      "restoreConflict": "原位置已被占用，无法恢复",
+      "restoreFailed": "恢复失败",
+      "deleteForever": "永久删除",
+      "deleteConfirm": "永久删除此归档？此操作无法撤销。",
+      "deleteFailed": "删除失败",
+      "daysAgo": "归档于 {days} 天前"
+    }
   },
   "common": {
     "on": "开",
