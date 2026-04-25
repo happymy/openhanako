@@ -2,10 +2,15 @@ import { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const clearConfigCache = vi.fn();
+const callText = vi.fn();
 
 vi.mock("../lib/memory/config-loader.js", () => ({
   clearConfigCache,
   getRawConfig: () => ({}),
+}));
+
+vi.mock("../core/llm-client.js", () => ({
+  callText,
 }));
 
 /** 从 providerRegistry.getCredentials 构造 engine.resolveProviderCredentials（与 ModelManager 行为一致） */
@@ -207,6 +212,56 @@ describe("model sync related routes", () => {
     expect(allData.models[0].id).toBe("gpt-5.4");
     expect(allData.models[0].name).toBe("Gpt 5.4");
     expect(allData.models[1].xhigh).toBe(true);
+  });
+
+  it("model health accepts explicit model refs and uses the utility LLM path", async () => {
+    const { createModelsRoute } = await import("../server/routes/models.js");
+    const app = new Hono();
+    const resolved = {
+      model: {
+        id: "deepseek-v4-flash",
+        provider: "deepseek",
+        reasoning: true,
+        maxTokens: 384000,
+      },
+      provider: "deepseek",
+      api: "openai-completions",
+      api_key: "sk-test",
+      base_url: "https://api.deepseek.com/v1",
+    };
+    const engine = {
+      availableModels: [],
+      currentModel: null,
+      config: {},
+      resolveModelWithCredentials: vi.fn(() => resolved),
+    };
+    callText.mockResolvedValue("ok");
+
+    app.route("/api", createModelsRoute(engine));
+
+    const healthRes = await app.request("/api/models/health", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        modelId: { id: "deepseek-v4-flash", provider: "deepseek" },
+      }),
+    });
+    const healthData = await healthRes.json();
+
+    expect(healthRes.status).toBe(200);
+    expect(healthData).toMatchObject({ ok: true, provider: "deepseek" });
+    expect(engine.resolveModelWithCredentials).toHaveBeenCalledWith({
+      id: "deepseek-v4-flash",
+      provider: "deepseek",
+    });
+    expect(callText).toHaveBeenCalledWith(expect.objectContaining({
+      api: "openai-completions",
+      apiKey: "sk-test",
+      baseUrl: "https://api.deepseek.com/v1",
+      model: resolved.model,
+      maxTokens: 8,
+      timeoutMs: 15_000,
+    }));
   });
 
   it("oauth provider with empty baseUrl falls back to registry", async () => {

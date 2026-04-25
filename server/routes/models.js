@@ -4,8 +4,9 @@
 import { Hono } from "hono";
 import { safeJson } from "../hono-helpers.js";
 import { t } from "../i18n.js";
-import { modelRefEquals } from "../../shared/model-ref.js";
+import { modelRefEquals, parseModelRef } from "../../shared/model-ref.js";
 import { lookupKnown } from "../../shared/known-models.js";
+import { callText } from "../../core/llm-client.js";
 
 /** 查询模型显示名：overrides > SDK name > known-models > id */
 function resolveModelName(id, sdkName, overrides, provider) {
@@ -30,6 +31,20 @@ function modelSupportsXhigh(model) {
     || id.includes("gpt-5.4")
     || id.includes("opus-4-6")
     || id.includes("opus-4.6");
+}
+
+function parseHealthModelRef(body) {
+  const parsed = parseModelRef(body?.model ?? body?.modelId);
+  if (!parsed?.id) return { error: "modelId required" };
+
+  const bodyProvider = typeof body.provider === "string" ? body.provider.trim() : "";
+  if (parsed.provider && bodyProvider && parsed.provider !== bodyProvider) {
+    return { error: "provider mismatch" };
+  }
+
+  const provider = bodyProvider || parsed.provider;
+  if (!provider) return { error: "provider required" };
+  return { id: parsed.id, provider };
 }
 
 export function createModelsRoute(engine) {
@@ -62,51 +77,33 @@ export function createModelsRoute(engine) {
     }
   });
 
-  // 健康检测：向 completion 端点发最小请求，验证模型存在且凭证有效。
-  // 契约：body 必须同时传 modelId 和 provider（复合键），无按 id 兜底。
+  // 健康检测：走真实 utility LLM 调用入口，验证模型存在、凭证有效、provider 兼容层可用。
+  // 契约：必须提供显式复合模型引用（{id, provider} 或 modelId + provider），无按 id 兜底。
   route.post("/models/health", async (c) => {
     try {
       const body = await safeJson(c);
-      const modelId = body.modelId;
-      const provider = body.provider;
-      if (!modelId) return c.json({ error: "modelId required" }, 400);
-      if (!provider) return c.json({ error: "provider required" }, 400);
+      const modelRef = parseHealthModelRef(body);
+      if (modelRef.error) return c.json({ error: modelRef.error }, 400);
 
       // 统一凭证解析（找模型 + 拿凭证一步到位）
-      const resolved = engine.resolveModelWithCredentials({ id: modelId, provider });
+      const resolved = engine.resolveModelWithCredentials(modelRef);
 
       // Codex Responses API 无法简单探测
       if (resolved.api === "openai-codex-responses") {
         return c.json({ ok: true, status: 0, provider: resolved.provider, skipped: t("error.codexNoHealthCheck") });
       }
 
-      // 向 completion 端点发最小请求（max_tokens=2 避免部分 provider 空响应）
-      // 只检查 HTTP 状态码，不要求返回有意义的文本
-      const { buildProviderAuthHeaders } = await import("../../lib/llm/provider-client.js");
-      const base = resolved.base_url.replace(/\/+$/, "");
-      let endpoint, headers, reqBody;
-
-      const modelIdForApi = resolved.model.id;
-      if (resolved.api === "anthropic-messages") {
-        endpoint = `${base}/v1/messages`;
-        headers = { "Content-Type": "application/json", "anthropic-version": "2023-06-01" };
-        if (resolved.api_key) headers["x-api-key"] = resolved.api_key;
-        reqBody = { model: modelIdForApi, max_tokens: 2, messages: [{ role: "user", content: "." }] };
-      } else {
-        endpoint = `${base}/chat/completions`;
-        headers = buildProviderAuthHeaders(resolved.api, resolved.api_key, { allowMissingApiKey: true });
-        reqBody = { model: modelIdForApi, max_tokens: 2, messages: [{ role: "user", content: "." }] };
-      }
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(reqBody),
-        signal: AbortSignal.timeout(15_000),
+      await callText({
+        api: resolved.api,
+        apiKey: resolved.api_key,
+        baseUrl: resolved.base_url,
+        model: resolved.model,
+        messages: [{ role: "user", content: "Reply OK." }],
+        maxTokens: 8,
+        timeoutMs: 15_000,
       });
 
-      const authOk = res.status !== 401 && res.status !== 403;
-      return c.json({ ok: authOk, status: res.status, provider: resolved.provider });
+      return c.json({ ok: true, status: 200, provider: resolved.provider });
     } catch (err) {
       return c.json({ ok: false, error: err.message });
     }

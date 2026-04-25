@@ -49,6 +49,27 @@ describe("updateConfig with agentId", () => {
     expect(targetAgent.updateConfig).not.toHaveBeenCalled();
   });
 
+  it("setSharedModels 同步当前 agent 的小工具和大工具模型内存态", () => {
+    let prefs = {};
+    const { focusAgent, deps } = makeDeps({
+      getPrefs: () => ({
+        getPreferences: () => prefs,
+        savePreferences: (next) => { prefs = { ...next }; },
+      }),
+    });
+    focusAgent.setUtilityModel = vi.fn();
+    focusAgent.setMemoryModel = vi.fn();
+    const coord = new ConfigCoordinator(deps);
+
+    coord.setSharedModels({
+      utility: { id: "deepseek-v4-flash", provider: "deepseek" },
+      utility_large: { id: "deepseek-v4-pro", provider: "deepseek" },
+    });
+
+    expect(focusAgent.setUtilityModel).toHaveBeenCalledWith({ id: "deepseek-v4-flash", provider: "deepseek" });
+    expect(focusAgent.setMemoryModel).toHaveBeenCalledWith({ id: "deepseek-v4-pro", provider: "deepseek" });
+  });
+
   it("agentId 等于焦点 agent 时，模型切换逻辑正常执行", async () => {
     const models = {
       availableModels: [{ id: "gpt-4", provider: "openai", name: "GPT-4" }],

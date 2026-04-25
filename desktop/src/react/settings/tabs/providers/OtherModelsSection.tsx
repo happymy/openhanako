@@ -13,20 +13,22 @@ import styles from '../../Settings.module.css';
 function ToolModelTestBtn({ modelRef }: { modelRef: unknown }) {
   const [status, setStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
 
-  // 判断是否有有效模型引用（对象取 id，字符串取自身）
-  const hasRef = typeof modelRef === 'object' && modelRef !== null
-    ? !!(modelRef as any).id
-    : !!modelRef;
+  const ref = typeof modelRef === 'object' && modelRef !== null
+    ? {
+        id: String((modelRef as any).id || ''),
+        provider: String((modelRef as any).provider || ''),
+      }
+    : { id: String(modelRef || ''), provider: '' };
+  const hasRef = !!ref.id;
 
   const test = async () => {
     if (!hasRef) return;
     setStatus('testing');
     try {
-      // 直接把 modelRef 原样传给后端，由后端 parseModelRef 统一解析
       const res = await hanaFetch('/api/models/health', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modelId: modelRef }),
+        body: JSON.stringify({ modelId: ref.id, provider: ref.provider }),
       });
       const data = await res.json();
       setStatus(data.ok ? 'ok' : 'fail');

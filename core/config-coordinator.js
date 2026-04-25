@@ -130,6 +130,7 @@ export class ConfigCoordinator {
       const fresh = this.getSharedModels();
       const agent = this._d.getAgent();
       agent.setUtilityModel(fresh.utility || null);
+      agent.setMemoryModel?.(fresh.utility_large || null);
       log.log(`setSharedModels: ${changed.join(", ")}`);
     }
   }

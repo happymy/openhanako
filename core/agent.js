@@ -467,6 +467,7 @@ export class Agent {
   setDmSentHandler(fn) { this._dmSentHandler = fn; }
   setChannelPostHandler(fn) { this._channelPostHandler = fn; }
   setUtilityModel(val) { this._utilityModel = val; }
+  setMemoryModel(val) { this._memoryModel = val; }
 
   // ════════════════════════════
   //  状态访问
