@@ -85,13 +85,13 @@ describe("provider-compat/deepseek — extractReasoningFromContent", () => {
     expect(deepseek.extractReasoningFromContent(message)).toBe("");
   });
 
-  it("content 为字符串（OpenAI 顶层格式 assistantMsg.content = string）时返回空字符串", () => {
+  it("content 为字符串（真实 SDK 转换后的 assistantMsg.content）时返回字符串内容", () => {
     const message = {
       role: "assistant",
-      content: "已经是 string 形式的 content",
+      content: "已经转换成 string 的思考原文",
       tool_calls: [{ id: "call_1" }],
     };
-    expect(deepseek.extractReasoningFromContent(message)).toBe("");
+    expect(deepseek.extractReasoningFromContent(message)).toBe("已经转换成 string 的思考原文");
   });
 
   it("无 content 字段时返回空字符串", () => {
@@ -184,6 +184,19 @@ describe("provider-compat/deepseek — ensureReasoningContentForToolCalls", () =
         content: [
           { type: "text", text: "用 date 工具查时间" },
         ],
+        tool_calls: [{ id: "call_1", type: "function", function: { name: "date", arguments: "{}" } }],
+      },
+    ];
+    const result = deepseek.ensureReasoningContentForToolCalls(messages);
+    expect(result[1].reasoning_content).toBe("用 date 工具查时间");
+  });
+
+  it("从真实 SDK 转换后的 content 字符串恢复 reasoning_content（档 2，跨 V4 子版本路径）", () => {
+    const messages = [
+      { role: "user", content: "what time" },
+      {
+        role: "assistant",
+        content: "用 date 工具查时间",
         tool_calls: [{ id: "call_1", type: "function", function: { name: "date", arguments: "{}" } }],
       },
     ];

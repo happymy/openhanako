@@ -126,7 +126,7 @@ export async function callText({
   // matches 能基于数据声明字段识别。modelObj 自身已有 quirks 时不覆盖。
   const modelForCompat = modelObj
     ? (Array.isArray(modelObj.quirks) ? modelObj : { ...modelObj, quirks })
-    : null;
+    : (quirks.length > 0 ? { id: modelId, provider, quirks } : null);
   body = normalizeProviderPayload(body, modelForCompat, { mode: "utility" });
 
   // ── 4. 发送请求 ──

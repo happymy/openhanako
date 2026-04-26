@@ -33,7 +33,7 @@
 1. 跑 `npm test` 全套，重点关注 `tests/provider-compat.test.js` 和 `tests/provider-compat/*.test.js`
 2. 检查每个 `provider-compat/*.js` 顶部的"删除条件"，对照 SDK 升级 changelog 看是否还需要保留
 3. 如果某个 provider 子模块的删除条件已满足（SDK 升级后官方一等公民化），删除该文件并从 `PROVIDER_MODULES` 移除 import
-4. 如果 SDK 改了 `message.content` 的内部表示（影响 `deepseek.js` 的 `extractReasoningFromContent`），更新 extract 逻辑
+4. 如果 SDK 改了 `convertMessages` 后的 assistant payload 形态（尤其是 `message.content` 字符串 / 数组边界，影响 `deepseek.js` 的 `extractReasoningFromContent`），更新 extract 逻辑和 `tests/acceptance-issue-468.test.js` 的真实转换场景
 
 ## 接口契约
 

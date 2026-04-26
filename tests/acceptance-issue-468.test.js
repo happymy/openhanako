@@ -5,7 +5,8 @@
  *   "使用 DeepSeek 推理模型时出现 400 错误：reasoning_content in the thinking mode must be passed back to the api"
  *
  * 这套测试把 DeepSeek 思考模式协议的硬约束翻译成可执行断言，模拟 plan §Task 11 列举的 3 个
- * 真实触发场景的 payload 形态，验证 hana 经过 normalizeProviderPayload 全链路后输出的
+ * 真实触发场景的 payload 形态，并在场景 B 覆盖 pi-ai convertMessages 后的实际出站形态，
+ * 验证 hana 经过 normalizeProviderPayload 全链路后输出的
  * payload 满足 DeepSeek server 端校验：
  *
  *   场景 A — V4-Pro 多轮 + 工具调用：assistant 历史每条带 tool_calls 的消息都必须有
@@ -19,6 +20,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { convertMessages } from "../node_modules/@mariozechner/pi-ai/dist/providers/openai-completions.js";
 import { normalizeProviderPayload } from "../core/provider-compat.js";
 
 const v4ProModel = {
@@ -150,6 +152,49 @@ describe("issue #468 验收 — DeepSeek 思考模式协议铁律", () => {
       });
       assertDeepSeekProtocolCompliant(result);
       expect(result.messages[1].reasoning_content).toBe("V4-Pro 时代的思考");  // 档 2 恢复
+    });
+
+    it("真实 SDK 转换后仍从 assistant.content 字符串恢复 reasoning_content", () => {
+      const context = {
+        messages: [
+          { role: "user", content: "之前用 V4-Pro 问的" },
+          {
+            role: "assistant",
+            provider: "deepseek",
+            api: "openai-completions",
+            model: "deepseek-v4-pro",
+            content: [
+              { type: "thinking", thinking: "V4-Pro 时代的思考", thinkingSignature: "reasoning_content" },
+              { type: "toolCall", id: "c1", name: "search", arguments: {} },
+            ],
+          },
+          {
+            role: "toolResult",
+            toolCallId: "c1",
+            toolName: "search",
+            content: [{ type: "text", text: "search ok" }],
+            isError: false,
+          },
+          { role: "user", content: "切到 V4-Flash 继续" },
+        ],
+      };
+      const sdkModel = {
+        ...v4FlashModel,
+        api: "openai-completions",
+        input: ["text"],
+      };
+      const payload = {
+        model: "deepseek-v4-flash",
+        messages: convertMessages(sdkModel, context, {}),
+        tools: [{ type: "function", function: { name: "search" } }],
+      };
+      const result = normalizeProviderPayload(payload, v4FlashModel, {
+        mode: "chat",
+        reasoningLevel: "high",
+      });
+      assertDeepSeekProtocolCompliant(result);
+      expect(result.messages[1].content).toBe("V4-Pro 时代的思考");
+      expect(result.messages[1].reasoning_content).toBe("V4-Pro 时代的思考");
     });
   });
 

@@ -140,16 +140,18 @@ function ensureThinkingTokenBudget(payload, model) {
 }
 
 /**
- * 从 message.content 数组里恢复 DeepSeek 思考链原文。
+ * 从 message.content 恢复 DeepSeek 思考链原文。
  *
  * 处理两种历史路径：
  *   1. 同模型保留路径：pi-ai 流式累积时把 delta.reasoning_content 累加到
  *      content[i] = { type: "thinking", thinking: "...", thinkingSignature: "reasoning_content" }
  *   2. 跨模型降级路径：pi-ai transform-messages 跨模型保护把 thinking block
- *      降级为 { type: "text", text: <思考原文> }，flatMap 保留原顺序。
+ *      降级为 { type: "text", text: <思考原文> }，convertMessages 随后会把
+ *      text block 拼成出站 assistant.content 字符串。若调用方在 convertMessages
+ *      之前测试本函数，也可能看到 content 数组。
  *      由于 DeepSeek 流式累积 reasoning_content 一定先于 content 到达
  *      （参见 openai-completions.js:115-172 的 currentBlock 切换逻辑），
- *      原始 content 首位是 thinking → 降级后首位 text 即思考原文。
+ *      原始 content 首位是 thinking → 降级后的首段 text / 字符串即思考原文。
  *      若未来 SDK 改变累积顺序，此假设需重新评估（README 升级 SDK 检查清单已点名本函数）。
  *
  * 找不到原文时返回空字符串（不抛错）。
@@ -162,6 +164,7 @@ function ensureThinkingTokenBudget(payload, model) {
 export function extractReasoningFromContent(message) {
   if (!message || typeof message !== "object") return "";
   const content = message.content;
+  if (typeof content === "string") return content;
   if (!Array.isArray(content) || content.length === 0) return "";
 
   // 路径 1：同模型，content 里有 thinking block
