@@ -10,7 +10,7 @@
  *   2. reasoning_effort 归一化：low/medium → high；xhigh → max
  *   3. max_tokens 抬升：思考模式下需 ≥ 32768
  *   4. utility mode 主动关思考（短输出场景思考链既无意义又耗光预算）
- *   5. 工具调用轮次必须回传 reasoning_content（issue #468 根因）
+ *   5. 工具调用轮次必须回传 reasoning_content（issue #468 根因；本文件 Task 4 加入提取器，Task 5 加入 ensure 兜底）
  *      官方文档：https://api-docs.deepseek.com/zh-cn/guides/thinking_mode
  *
  * 删除条件：
@@ -40,6 +40,7 @@ function positiveInteger(value) {
 export function matches(model) {
   if (!model || typeof model !== "object") return false;
   const provider = lower(model.provider);
+  // base_url: 兼容上游 SDK 偶发的 snake_case 别名（pi-ai SDK / 用户自定 model 配置）
   const baseUrl = lower(model.baseUrl || model.base_url);
   return provider === "deepseek" || baseUrl.includes("api.deepseek.com");
 }
@@ -136,6 +137,43 @@ function ensureThinkingTokenBudget(payload, model) {
   }
 
   payload.max_tokens = target;
+}
+
+/**
+ * 从 message.content 数组里恢复 DeepSeek 思考链原文。
+ *
+ * 处理两种历史路径：
+ *   1. 同模型保留路径：pi-ai 流式累积时把 delta.reasoning_content 累加到
+ *      content[i] = { type: "thinking", thinking: "...", thinkingSignature: "reasoning_content" }
+ *   2. 跨模型降级路径：pi-ai transform-messages 跨模型保护把 thinking block
+ *      降级为 content[0] = { type: "text", text: <思考原文> }
+ *
+ * 找不到原文时返回空字符串（不抛错）。
+ *
+ * 注：导出仅供单元测试使用，运行时只在本文件内部被 ensureReasoningContentForToolCalls 调用。
+ *
+ * @param {object|null|undefined} message
+ * @returns {string}
+ */
+export function extractReasoningFromContent(message) {
+  if (!message || typeof message !== "object") return "";
+  const content = message.content;
+  if (!Array.isArray(content) || content.length === 0) return "";
+
+  // 路径 1：同模型，content 里有 thinking block
+  for (const block of content) {
+    if (block && block.type === "thinking" && typeof block.thinking === "string") {
+      return block.thinking;
+    }
+  }
+
+  // 路径 2：跨模型降级，第一个 text block 即原文
+  const first = content[0];
+  if (first && first.type === "text" && typeof first.text === "string") {
+    return first.text;
+  }
+
+  return "";
 }
 
 export function apply(payload, model, options = {}) {
