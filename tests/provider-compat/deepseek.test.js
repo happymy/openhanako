@@ -39,7 +39,7 @@ describe("provider-compat/deepseek — matches", () => {
 
 describe("provider-compat/deepseek — extractReasoningFromContent", () => {
   it("从被 transform-messages 降级为 text 的 content 里恢复原文", () => {
-    // pi-ai transform-messages.js:45-48 跨模型时把 thinking block 转为
+    // pi-ai transform-messages.js:38-48 跨模型时把 thinking block 转为
     // { type: "text", text: <思考原文> }，放在 content 数组首位
     const message = {
       role: "assistant",
@@ -60,6 +60,29 @@ describe("provider-compat/deepseek — extractReasoningFromContent", () => {
       ],
     };
     expect(deepseek.extractReasoningFromContent(message)).toBe("原始思考内容");
+  });
+
+  it("多个 thinking block 时返回第一个的 thinking 内容", () => {
+    const message = {
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "第一段思考" },
+        { type: "text", text: "中间正文" },
+        { type: "thinking", thinking: "第二段思考" },
+      ],
+    };
+    expect(deepseek.extractReasoningFromContent(message)).toBe("第一段思考");
+  });
+
+  it("thinking 字段为空字符串时返回空字符串（Path 1 优先于 Path 2 fallback）", () => {
+    const message = {
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "" },
+        { type: "text", text: "正文，不应被当作 reasoning" },
+      ],
+    };
+    expect(deepseek.extractReasoningFromContent(message)).toBe("");
   });
 
   it("content 为字符串（OpenAI 顶层格式 assistantMsg.content = string）时返回空字符串", () => {
