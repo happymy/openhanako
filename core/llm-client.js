@@ -27,7 +27,10 @@ import { normalizeProviderPayload } from './provider-compat.js';
  * @param {string} opts.baseUrl        Provider base URL
  * @param {string|object} opts.model   模型：完整对象 {id, provider, reasoning, maxTokens, ...}
  *                                     或裸 id 字符串（旧调用方过渡期，会丢失 normalize 决策信息）
- * @param {string[]} [opts.quirks]     Provider quirk flags (e.g. ["enable_thinking"])
+ * @param {string[]} [opts.quirks]     Provider quirk flags (e.g. ["enable_thinking"]).
+ *                                     **已废弃**：仅在 modelObj.quirks 字段缺失时作 fallback。
+ *                                     新代码请通过 model.quirks 传递（model-sync.js 自动从
+ *                                     known-models.json 投影）。
  * @param {string} [opts.systemPrompt] System prompt
  * @param {Array}  [opts.messages]     消息数组 [{ role, content }]
  * @param {number} [opts.temperature]  温度 (default 0.3)
