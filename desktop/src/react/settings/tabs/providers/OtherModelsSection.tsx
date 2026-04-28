@@ -12,6 +12,12 @@ import styles from '../../Settings.module.css';
 
 type ModelRef = { id: string; provider: string };
 
+const BROWSER_SEARCH_PROVIDERS = new Set(['bing_browser', 'google_browser', 'duckduckgo_browser']);
+
+function searchProviderNeedsApiKey(provider: string): boolean {
+  return !!provider && !BROWSER_SEARCH_PROVIDERS.has(provider);
+}
+
 function ToolModelTestBtn({ modelRef }: { modelRef: unknown }) {
   const [status, setStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
 
@@ -78,12 +84,21 @@ export function OtherModelsSection({ providers }: { providers: Record<string, { 
   }, [savedSearchKey, searchKeyEdited]);
 
   const searchProvider = globalModelsConfig?.search?.provider || '';
+  const searchIsBrowserProvider = BROWSER_SEARCH_PROVIDERS.has(searchProvider);
+  const searchNeedsApiKey = searchProviderNeedsApiKey(searchProvider);
+
+  useEffect(() => {
+    if (searchIsBrowserProvider) {
+      setSearchApiKey('');
+      setSearchKeyEdited(false);
+    }
+  }, [searchIsBrowserProvider]);
 
   const verifySearch = async () => {
     const provider = (globalModelsConfig?.search?.provider || '').trim();
     const apiKey = searchApiKey.trim();
     if (!provider) { showToast(t('settings.search.noProvider'), 'error'); return; }
-    if (!apiKey) { showToast(t('settings.search.noKey'), 'error'); return; }
+    if (searchProviderNeedsApiKey(provider) && !apiKey) { showToast(t('settings.search.noKey'), 'error'); return; }
     try {
       const res = await hanaFetch('/api/search/verify', {
         method: 'POST',
@@ -188,27 +203,40 @@ export function OtherModelsSection({ providers }: { providers: Record<string, { 
           <label className={styles['settings-field-label']}>{t('settings.api.searchProviderField')}</label>
           <SelectWidget
             options={[
-              { value: '', label: 'Not configured' },
+              { value: '', label: 'Default (Bing Browser)' },
+              { value: 'bing_browser', label: 'Bing (Browser)' },
+              { value: 'google_browser', label: 'Google (Browser)' },
+              { value: 'duckduckgo_browser', label: 'DuckDuckGo (Browser)' },
               { value: 'tavily', label: 'Tavily' },
               { value: 'serper', label: 'Serper (Google)' },
               { value: 'brave', label: 'Brave Search' },
             ]}
             value={searchProvider}
-            onChange={(val) => autoSaveGlobalModels({ search: { provider: val } })}
+            onChange={(val) => autoSaveGlobalModels({
+              search: BROWSER_SEARCH_PROVIDERS.has(val)
+                ? { provider: val, api_key: '' }
+                : { provider: val },
+            })}
             placeholder={t('settings.api.searchProviderField')}
           />
         </div>
         <div className={`${styles['settings-field']} ${styles['settings-field-half']}`}>
           <label className={styles['settings-field-label']}>{t('settings.api.searchApiKey')}</label>
-          <KeyInput
-            value={searchApiKey}
-            onChange={(v) => { setSearchApiKey(v); setSearchKeyEdited(true); }}
-            placeholder={t('settings.api.apiKeyPlaceholder')}
-          />
-          <button className={styles['search-verify-btn']} onClick={verifySearch}>
-            {t('settings.search.verify')}
-          </button>
-          <span className={styles['settings-field-hint']}>{t('settings.api.searchApiKeyHint')}</span>
+          {searchIsBrowserProvider ? (
+            <span className={styles['settings-field-hint']}>{t('settings.api.searchApiKeyNotRequired')}</span>
+          ) : (
+            <>
+              <KeyInput
+                value={searchApiKey}
+                onChange={(v) => { setSearchApiKey(v); setSearchKeyEdited(true); }}
+                placeholder={t('settings.api.apiKeyPlaceholder')}
+              />
+              <button className={styles['search-verify-btn']} onClick={verifySearch}>
+                {t('settings.search.verify')}
+              </button>
+              <span className={styles['settings-field-hint']}>{t('settings.api.searchApiKeyHint')}</span>
+            </>
+          )}
         </div>
       </div>
     </div>

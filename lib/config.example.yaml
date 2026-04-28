@@ -46,11 +46,11 @@ memory:
   forget_speed: 1.0                # 遗忘倍率（1.0 = 正常，2.0 = 忘得快一倍）
 
 # 网页搜索（可选）
-# 支持 tavily / serper / brave。启用后需要显式填写 provider 与 api_key。
-# 推荐 Tavily（免费 1000 次/月）：https://tavily.com
+# 支持免 Key 浏览器搜索：bing_browser / google_browser / duckduckgo_browser。
+# 也支持 API provider：tavily / serper / brave（需要填写 api_key）。
 search:
-  provider: ""                           # tavily / serper / brave
-  api_key: ""                            # 对应 provider 的 API key
+  provider: "bing_browser"               # 默认免费浏览器搜索；也可填 google_browser / duckduckgo_browser / tavily / serper / brave
+  api_key: ""                            # API provider 的 key；浏览器搜索留空
 
 # Skills（per-agent 技能开关）
 skills:

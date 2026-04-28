@@ -18,6 +18,10 @@ const { initAutoUpdater, checkForUpdatesAuto, setMainWindow: setUpdaterMainWindo
 const { createFileWatchRegistry } = require("./file-watch-registry.cjs");
 const { wrapIpcHandler, wrapIpcBestEffortHandler, wrapIpcOn } = require('./ipc-wrapper.cjs');
 const themeRegistry = require('./src/shared/theme-registry.cjs');
+const {
+  buildBrowserSearchExtractionScript,
+  buildBrowserSearchUrl,
+} = require("../lib/browser/browser-search-extractors.cjs");
 
 // preload 缺失时 Electron 会静默忽略，renderer 拿不到 window.hana →
 // onboarding/主窗口白屏且无前端报错。此处硬崩，拒绝以不可用状态启动。
@@ -1383,6 +1387,63 @@ function _notifyViewerUrl(url) {
 
 async function handleBrowserCommand(cmd, params) {
   switch (cmd) {
+
+    // ── browserSearch ──
+    // One-shot hidden search view used by web_search browser providers.
+    // It is intentionally not registered in _browserViews and never mounted
+    // into browserViewerWindow, so it cannot steal the user's visible browser.
+    case "browserSearch": {
+      const provider = String(params.provider || "");
+      const query = String(params.query || "").trim();
+      const maxResults = Math.max(1, Math.min(10, Number(params.maxResults) || 5));
+      if (!query) throw new Error("browserSearch requires query");
+
+      const started = Date.now();
+      const searchUrl = buildBrowserSearchUrl(provider, query, maxResults);
+      const ses = session.fromPartition("hana-search");
+      const view = new WebContentsView({
+        webPreferences: {
+          session: ses,
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
+      });
+      view.webContents.setAudioMuted(true);
+      view.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+
+      try {
+        const NAV_TIMEOUT = 30000;
+        await Promise.race([
+          view.webContents.loadURL(searchUrl),
+          new Promise((_, reject) => setTimeout(() => {
+            try { view.webContents.stop(); } catch {}
+            reject(new Error(`Search navigation timed out after ${NAV_TIMEOUT / 1000}s: ${searchUrl}`));
+          }, NAV_TIMEOUT)),
+        ]);
+        await _delay(800);
+        const extracted = await view.webContents.executeJavaScript(
+          buildBrowserSearchExtractionScript(provider, maxResults),
+        );
+        return {
+          query,
+          provider,
+          source_type: "browser",
+          results: extracted.results || [],
+          diagnostics: {
+            search_url: searchUrl,
+            final_url: extracted.final_url || view.webContents.getURL(),
+            page_title: extracted.title || view.webContents.getTitle(),
+            blocked: !!extracted.blocked,
+            captcha: !!extracted.captcha,
+            reason: extracted.reason || "",
+            elapsed_ms: Date.now() - started,
+          },
+        };
+      } finally {
+        try { view.webContents.close(); } catch {}
+      }
+    }
 
     // ── launch ──
     case "launch": {

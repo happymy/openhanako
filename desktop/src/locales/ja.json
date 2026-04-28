@@ -744,6 +744,7 @@
       "searchProviderField": "検索エンジン",
       "searchApiKey": "検索 API Key",
       "searchApiKeyHint": "選択した検索プロバイダーの API Key を入力してください",
+      "searchApiKeyNotRequired": "ブラウザー検索に API Key は不要です。ローカルのバックグラウンドで検索ページを開き、結果を整形します。",
       "favorites": "お気に入り",
       "searchModel": "モデルを検索...",
       "noFavorites": "☆ をクリックしてモデルをお気に入りに追加",

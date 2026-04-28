@@ -30,6 +30,28 @@ describe("BrowserManager URL tracking (per-session)", () => {
 });
 
 describe("BrowserManager explicit sessionPath", () => {
+  it("searchWeb() uses a transient browser command without registering a session", async () => {
+    const manager = new BrowserManager();
+    manager._sendCmd = vi.fn().mockResolvedValue({
+      provider: "bing_browser",
+      results: [{ title: "Result", url: "https://example.com", content: "Snippet", rank: 1 }],
+    });
+
+    const result = await manager.searchWeb({
+      provider: "bing_browser",
+      query: "hana search",
+      maxResults: 3,
+    });
+
+    expect(result.results).toHaveLength(1);
+    expect(manager._sendCmd).toHaveBeenCalledWith("browserSearch", {
+      provider: "bing_browser",
+      query: "hana search",
+      maxResults: 3,
+    }, 45000);
+    expect(manager.runningSessions).toHaveLength(0);
+  });
+
   it("launch() with explicit sessionPath uses it", async () => {
     const manager = new BrowserManager();
     manager._sendCmd = vi.fn().mockResolvedValue({});

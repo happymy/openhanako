@@ -477,14 +477,15 @@ export function createConfigRoute(engine) {
     if (!provider) {
       return c.json({ ok: false, error: "provider is required" }, 400);
     }
-    if (!api_key) {
-      return c.json({ ok: false, error: "api_key is required" }, 400);
-    }
     try {
-      const { verifySearchKey } = await import("../../lib/tools/web-search.js");
+      const { searchProviderRequiresApiKey, verifySearchKey } = await import("../../lib/tools/web-search.js");
+      if (searchProviderRequiresApiKey(provider) && !api_key) {
+        return c.json({ ok: false, error: "api_key is required" }, 400);
+      }
       await verifySearchKey(provider, api_key);
-      engine.setSearchConfig({ provider, api_key });
-      await engine.updateConfig({ search: { provider, api_key } });
+      const storedApiKey = searchProviderRequiresApiKey(provider) ? api_key : "";
+      engine.setSearchConfig({ provider, api_key: storedApiKey });
+      await engine.updateConfig({ search: { provider, api_key: storedApiKey } });
       debugLog()?.log("api", `POST /api/search/verify provider=${provider} (ok)`);
       return c.json({ ok: true });
     } catch (err) {

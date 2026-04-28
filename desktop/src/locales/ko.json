@@ -744,6 +744,7 @@
       "searchProviderField": "검색 엔진",
       "searchApiKey": "검색 API Key",
       "searchApiKeyHint": "선택한 검색 Provider의 API Key를 입력해 주세요",
+      "searchApiKeyNotRequired": "브라우저 검색은 API Key가 필요 없어요. 로컬 백그라운드에서 검색 페이지를 열고 결과를 정리합니다.",
       "favorites": "즐겨찾기",
       "searchModel": "모델 검색...",
       "noFavorites": "☆를 클릭해서 모델을 즐겨찾기에 추가하세요",

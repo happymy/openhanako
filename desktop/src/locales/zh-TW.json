@@ -744,6 +744,7 @@
       "searchProviderField": "搜尋引擎",
       "searchApiKey": "搜尋 API Key",
       "searchApiKeyHint": "啟用搜尋時請填寫所選 provider 的 API Key",
+      "searchApiKeyNotRequired": "瀏覽器搜尋不需要 API Key，會在本機背景開啟搜尋頁並整理結果。",
       "favorites": "收藏",
       "searchModel": "搜尋模型...",
       "noFavorites": "點擊 ☆ 收藏常用模型",
