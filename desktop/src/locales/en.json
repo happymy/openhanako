@@ -50,7 +50,8 @@
     "jian": "Desk",
     "bridge": "Social Platforms",
     "toggle": "Sidebar",
-    "bridgeShort": "Bridge"
+    "bridgeShort": "Bridge",
+    "pinned": "Pinned"
   },
   "session": {
     "untitled": "New Chat",
@@ -59,6 +60,10 @@
     "createFailed": "Failed to create session",
     "archiveFailed": "Failed to archive session",
     "rename": "Rename",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinFailed": "Failed to pin session",
+    "unpinFailed": "Failed to unpin session",
     "archived": {
       "entry": "Archived Chats",
       "title": "Archived Chats",

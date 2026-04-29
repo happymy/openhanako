@@ -134,6 +134,100 @@ describe("sessions route", () => {
     expect(data.workspaceFolders).toEqual([extra]);
   });
 
+  it("includes pinnedAt in the session list response", async () => {
+    const { createSessionsRoute } = await import("../server/routes/sessions.js");
+    const app = new Hono();
+    const pinnedAt = "2026-04-29T08:00:00.000Z";
+
+    const engine = {
+      listSessions: vi.fn(async () => [{
+        path: "/tmp/agents/hana/sessions/a.jsonl",
+        title: "Pinned thread",
+        firstMessage: "hello",
+        modified: new Date("2026-04-29T07:00:00.000Z"),
+        messageCount: 2,
+        cwd: "/tmp/work",
+        agentId: "hana",
+        agentName: "Hana",
+        pinnedAt,
+      }]),
+      rcState: null,
+    };
+
+    app.route("/api", createSessionsRoute(engine));
+
+    const res = await app.request("/api/sessions");
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data[0].pinnedAt).toBe(pinnedAt);
+  });
+
+  it("pins and unpins sessions through an explicit route", async () => {
+    const { createSessionsRoute } = await import("../server/routes/sessions.js");
+    const app = new Hono();
+    const pinnedAt = "2026-04-29T08:00:00.000Z";
+
+    const engine = {
+      agentsDir: "/tmp/agents",
+      setSessionPinned: vi.fn(async (_sessionPath, pinned) => pinned ? pinnedAt : null),
+    };
+
+    app.route("/api", createSessionsRoute(engine));
+
+    const pinRes = await app.request("/api/sessions/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "/tmp/agents/hana/sessions/a.jsonl", pinned: true }),
+    });
+    const pinData = await pinRes.json();
+
+    expect(pinRes.status).toBe(200);
+    expect(engine.setSessionPinned).toHaveBeenCalledWith("/tmp/agents/hana/sessions/a.jsonl", true);
+    expect(pinData).toEqual({ ok: true, pinnedAt });
+
+    const unpinRes = await app.request("/api/sessions/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "/tmp/agents/hana/sessions/a.jsonl", pinned: false }),
+    });
+    const unpinData = await unpinRes.json();
+
+    expect(unpinRes.status).toBe(200);
+    expect(engine.setSessionPinned).toHaveBeenLastCalledWith("/tmp/agents/hana/sessions/a.jsonl", false);
+    expect(unpinData).toEqual({ ok: true, pinnedAt: null });
+  });
+
+  it("clears pinned state before archiving a session", async () => {
+    const { createSessionsRoute } = await import("../server/routes/sessions.js");
+    const app = new Hono();
+    const agentsDir = path.join(tmpDir, "agents");
+    const sessionPath = path.join(agentsDir, "hana", "sessions", "a.jsonl");
+    fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
+    fs.writeFileSync(sessionPath, "{}\n", "utf-8");
+
+    const engine = {
+      agentsDir,
+      closeSession: vi.fn(async () => {}),
+      setSessionPinned: vi.fn(async () => null),
+      rcState: null,
+    };
+
+    app.route("/api", createSessionsRoute(engine));
+
+    const res = await app.request("/api/sessions/archive", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: sessionPath }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data).toEqual({ ok: true });
+    expect(engine.setSessionPinned).toHaveBeenCalledWith(sessionPath, false);
+    expect(fs.existsSync(path.join(path.dirname(sessionPath), "archived", path.basename(sessionPath)))).toBe(true);
+  });
+
   it("infers subagent agent identity from child sessionPath when history details are missing", async () => {
     const { createSessionsRoute } = await import("../server/routes/sessions.js");
     const msgUtils = await import("../core/message-utils.js");

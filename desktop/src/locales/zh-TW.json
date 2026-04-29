@@ -49,7 +49,8 @@
     "jian": "書桌",
     "bridge": "接入社群平台",
     "toggle": "側邊欄",
-    "bridgeShort": "接入"
+    "bridgeShort": "接入",
+    "pinned": "置頂"
   },
   "session": {
     "untitled": "新對話",
@@ -58,6 +59,10 @@
     "createFailed": "新建 session 失敗",
     "archiveFailed": "歸檔 session 失敗",
     "rename": "重新命名",
+    "pin": "置頂",
+    "unpin": "取消置頂",
+    "pinFailed": "置頂 session 失敗",
+    "unpinFailed": "取消置頂失敗",
     "archived": {
       "entry": "已封存的對話",
       "title": "已封存的對話",

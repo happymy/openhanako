@@ -1158,7 +1158,7 @@ After dispatching subagent or other background tasks:
         const [sessions, titles, meta] = await Promise.all([
           SessionManager.list(process.cwd(), sessionDir),
           this._loadSessionTitlesFor(sessionDir),
-          this._readMetaCached(path.join(sessionDir, "..", "session-meta.json")),
+          this._readMetaCached(path.join(sessionDir, "session-meta.json")),
         ]);
         for (const s of sessions) {
           if (titles[s.path]) s.title = titles[s.path];
@@ -1166,6 +1166,7 @@ After dispatching subagent or other background tasks:
           s.agentName = agent.name;
           const sessKey = path.basename(s.path);
           const metaEntry = meta[sessKey];
+          s.pinnedAt = typeof metaEntry?.pinnedAt === "string" ? metaEntry.pinnedAt : null;
           // 读取新格式 model:{id,provider}；老格式（只有 modelId）视为无 provider，
           // 调用方必须接受 modelProvider 可能为 null。
           if (metaEntry?.model && typeof metaEntry.model === "object") {
@@ -1208,6 +1209,7 @@ After dispatching subagent or other background tasks:
         agentName: this._d.getAgent().agentName,
         modelId: currentEntry?.modelId || null,
         modelProvider: currentEntry?.modelProvider || null,
+        pinnedAt: null,
       });
     }
 
@@ -1226,6 +1228,29 @@ After dispatching subagent or other background tasks:
     await fsp.writeFile(titlePath, JSON.stringify(titles, null, 2), "utf-8");
     // 更新缓存
     this._titlesCache.set(sessionDir, { titles: { ...titles }, ts: Date.now() });
+  }
+
+  async setSessionPinned(sessionPath, pinned) {
+    const pinnedAt = pinned ? new Date().toISOString() : null;
+    await this.writeSessionMeta(sessionPath, { pinnedAt });
+    await this._verifySessionPinnedState(sessionPath, pinnedAt);
+    return pinnedAt;
+  }
+
+  async _verifySessionPinnedState(sessionPath, expectedPinnedAt) {
+    const metaPath = this._sessionMetaPathFor(sessionPath);
+    const sessKey = path.basename(sessionPath);
+    let meta = {};
+    try {
+      meta = JSON.parse(await fsp.readFile(metaPath, "utf-8"));
+    } catch (err) {
+      if (expectedPinnedAt === null && err.code === "ENOENT") return;
+      throw new Error(`setSessionPinned: verify failed for ${sessKey}: ${err.message}`);
+    }
+    const actual = meta[sessKey]?.pinnedAt ?? null;
+    if (actual !== expectedPinnedAt) {
+      throw new Error(`setSessionPinned: expected pinnedAt=${expectedPinnedAt ?? "null"} for ${sessKey}, got ${actual ?? "null"}`);
+    }
   }
 
   /**
@@ -1373,11 +1398,7 @@ After dispatching subagent or other background tasks:
   }
 
   async _doWriteSessionMeta(sessionPath, partial) {
-    const agentId = this._d.agentIdFromSessionPath(sessionPath);
-    const sessionDir = agentId
-      ? path.join(this._d.agentsDir, agentId, "sessions")
-      : this._d.getAgent().sessionDir;
-    const metaPath = path.join(sessionDir, "session-meta.json");
+    const metaPath = this._sessionMetaPathFor(sessionPath);
     const sessKey = path.basename(sessionPath);
 
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -1406,6 +1427,14 @@ After dispatching subagent or other background tasks:
         }
       }
     }
+  }
+
+  _sessionMetaPathFor(sessionPath) {
+    const agentId = this._d.agentIdFromSessionPath(sessionPath);
+    const sessionDir = agentId
+      ? path.join(this._d.agentsDir, agentId, "sessions")
+      : this._d.getAgent().sessionDir;
+    return path.join(sessionDir, "session-meta.json");
   }
 
   // ── Session Context ──

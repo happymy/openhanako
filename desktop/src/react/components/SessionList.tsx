@@ -10,9 +10,10 @@ import { useStore } from '../stores';
 import { hanaFetch, hanaUrl } from '../hooks/use-hana-fetch';
 import { useI18n } from '../hooks/use-i18n';
 import { formatSessionDate } from '../utils/format';
-import { switchSession, archiveSession, renameSession } from '../stores/session-actions';
+import { switchSession, archiveSession, renameSession, pinSession } from '../stores/session-actions';
 import type { Session, Agent } from '../types';
 import { yuanFallbackAvatar } from '../utils/agent-helpers';
+import { buildSessionSections } from './session-sections';
 import styles from './SessionList.module.css';
 
 
@@ -20,42 +21,6 @@ import styles from './SessionList.module.css';
 
 export function SessionList() {
   return <SessionListInner />;
-}
-
-// ── 日期分组 ──
-
-type DateGroup = 'today' | 'yesterday' | 'thisWeek' | 'earlier';
-
-function getSessionDateGroup(isoStr: string | null): DateGroup {
-  if (!isoStr) return 'earlier';
-  const date = new Date(isoStr);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-  const weekAgo = new Date(today); weekAgo.setDate(today.getDate() - 7);
-
-  if (date >= today) return 'today';
-  if (date >= yesterday) return 'yesterday';
-  if (date >= weekAgo) return 'thisWeek';
-  return 'earlier';
-}
-
-interface GroupedSessions {
-  key: DateGroup;
-  items: Session[];
-}
-
-function groupSessionsByDate(sessions: Session[]): GroupedSessions[] {
-  const groups: Record<DateGroup, Session[]> = {
-    today: [], yesterday: [], thisWeek: [], earlier: [],
-  };
-  for (const s of sessions) {
-    groups[getSessionDateGroup(s.modified)].push(s);
-  }
-  const order: DateGroup[] = ['today', 'yesterday', 'thisWeek', 'earlier'];
-  return order
-    .filter(key => groups[key].length > 0)
-    .map(key => ({ key, items: groups[key] }));
 }
 
 // ── 内部组件 ──
@@ -84,35 +49,50 @@ function SessionListInner() {
     return <div className={styles.sessionEmpty}>{t('sidebar.empty')}</div>;
   }
 
-  const grouped = groupSessionsByDate(sessions);
+  const sections = buildSessionSections(sessions, { mode: 'time' });
 
   return (
     <>
-      {grouped.map(({ key, items }) => (
-        <Fragment key={key}>
-          <div className={styles.sessionDateLabel}>{t(`time.${key}`)}</div>
-          {items.map(s => (
-            <SessionItem
-              key={s.path}
-              session={s}
-              isActive={!pendingNewSession && s.path === currentSessionPath}
-              isStreaming={streamingSessions.includes(s.path)}
-              agents={agents}
-              browserUrl={browserSessions[s.path] || null}
-            />
-          ))}
-        </Fragment>
-      ))}
+      {sections.map(section => {
+        const items = section.items.map(s => (
+          <SessionItem
+            key={s.path}
+            session={s}
+            isActive={!pendingNewSession && s.path === currentSessionPath}
+            isStreaming={streamingSessions.includes(s.path)}
+            isPinned={!!s.pinnedAt}
+            agents={agents}
+            browserUrl={browserSessions[s.path] || null}
+          />
+        ));
+
+        if (section.kind === 'pinned') {
+          return (
+            <section key={section.id} className={styles.pinnedSection}>
+              <div className={styles.sessionSectionTitle}>{t(section.titleKey)}</div>
+              {items}
+            </section>
+          );
+        }
+
+        return (
+          <Fragment key={section.id}>
+            <div className={styles.sessionSectionTitle}>{t(section.titleKey)}</div>
+            {items}
+          </Fragment>
+        );
+      })}
     </>
   );
 }
 
 // ── Session Item ──
 
-const SessionItem = memo(function SessionItem({ session: s, isActive, isStreaming, agents, browserUrl }: {
+const SessionItem = memo(function SessionItem({ session: s, isActive, isStreaming, isPinned, agents, browserUrl }: {
   session: Session;
   isActive: boolean;
   isStreaming: boolean;
+  isPinned: boolean;
   agents: Agent[];
   browserUrl: string | null;
 }) {
@@ -130,6 +110,11 @@ const SessionItem = memo(function SessionItem({ session: s, isActive, isStreamin
     e.stopPropagation();
     archiveSession(s.path);
   }, [s.path]);
+
+  const handlePin = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    pinSession(s.path, !isPinned);
+  }, [s.path, isPinned]);
 
   const startRename = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -200,6 +185,17 @@ const SessionItem = memo(function SessionItem({ session: s, isActive, isStreamin
           </div>
         )}
       </div>
+
+      {!editing && (
+        <div className={styles.sessionPinBtn} title={t(isPinned ? 'session.unpin' : 'session.pin')} onClick={handlePin}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 17v5" />
+            <path d="M5 17h14" />
+            <path d="M7 3h10l-2 9H9L7 3z" />
+            <path d="M9 12l-2 5h10l-2-5" />
+          </svg>
+        </div>
+      )}
 
       {!editing && (
         <div className={styles.sessionRenameBtn} title={t('session.rename')} onClick={startRename}>

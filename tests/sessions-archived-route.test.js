@@ -30,6 +30,7 @@ function makeEngine(tmpDir) {
   return {
     agentsDir: path.join(tmpDir, "agents"),
     closeSession: vi.fn(async () => {}),
+    setSessionPinned: vi.fn(async () => null),
     agentIdFromSessionPath: (p) => {
       const rel = path.relative(path.join(tmpDir, "agents"), p);
       return rel.split(path.sep)[0] || null;

@@ -150,6 +150,7 @@ export function createSessionsRoute(engine) {
         agentName: s.agentName || null,
         modelId: s.modelId || null,
         modelProvider: s.modelProvider || null,
+        pinnedAt: s.pinnedAt || null,
         rcAttachment: rcAttachmentByPath.get(s.path)
           ? {
             ...rcAttachmentByPath.get(s.path),
@@ -157,6 +158,27 @@ export function createSessionsRoute(engine) {
           }
           : null,
       })));
+    } catch (err) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // 置顶 / 取消置顶 session
+  route.post("/sessions/pin", async (c) => {
+    try {
+      const body = await safeJson(c);
+      const { path: sessionPath, pinned } = body;
+      if (!sessionPath) {
+        return c.json({ error: t("error.missingParam", { param: "path" }) }, 400);
+      }
+      if (typeof pinned !== "boolean") {
+        return c.json({ error: t("error.missingParam", { param: "pinned" }) }, 400);
+      }
+      if (!isValidSessionPath(sessionPath, engine.agentsDir)) {
+        return c.json({ error: "Invalid session path" }, 403);
+      }
+      const pinnedAt = await engine.setSessionPinned(sessionPath, pinned);
+      return c.json({ ok: true, pinnedAt });
     } catch (err) {
       return c.json({ error: err.message }, 500);
     }
@@ -525,6 +547,7 @@ export function createSessionsRoute(engine) {
       }
 
       // 先从 engine 的 session map 中移除（如果正在后台跑会被 abort）
+      await engine.setSessionPinned(sessionPath, false);
       await engine.closeSession(sessionPath);
 
       // 从 session 路径推导归档目录（同 agent 的 sessions/archived/）

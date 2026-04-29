@@ -32,6 +32,7 @@ const initialStateFactory = (): MockState => ({
   drafts: {} as Record<string, string>,
   streamingSessions: [] as string[],
   inlineErrors: {} as Record<string, string | null>,
+  addToast: vi.fn(),
   activePanel: null,
   agents: [] as unknown[],
   currentAgentId: null,
@@ -187,7 +188,7 @@ import { hanaFetch } from '../../hooks/use-hana-fetch';
 import { clearChat } from '../../stores/agent-actions';
 import { loadDeskFiles } from '../../stores/desk-actions';
 import { bumpMessageLiveVersion, clearMessageLiveVersion } from '../../stores/message-live-version';
-import { archiveSession, createNewSession, ensureSession, loadMessages, switchSession } from '../../stores/session-actions';
+import { archiveSession, createNewSession, ensureSession, loadMessages, pinSession, switchSession } from '../../stores/session-actions';
 import { snapshotStreamBuffer } from '../../stores/stream-invalidator';
 
 const mockFetch = vi.mocked(hanaFetch);
@@ -741,6 +742,45 @@ describe('session-actions', () => {
       expect((mockState.sessionStreams as Record<string, unknown>)['/current']).toBeUndefined();
       expect((mockState.streamingSessions as string[])).toEqual([]);
       expect(mockState.currentSessionPath).toBe('/other');
+    });
+  });
+
+  describe('pinSession', () => {
+    it('posts the explicit pinned state and updates only the matching session after success', async () => {
+      const pinnedAt = '2026-04-29T08:00:00.000Z';
+      (mockState as Record<string, unknown>).sessions = [
+        { path: '/a', pinnedAt: null },
+        { path: '/b', pinnedAt: null },
+      ];
+      mockFetch.mockResolvedValueOnce(jsonResponse({ ok: true, pinnedAt }));
+
+      const ok = await pinSession('/a', true);
+
+      expect(ok).toBe(true);
+      expect(mockFetch).toHaveBeenCalledWith('/api/sessions/pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: '/a', pinned: true }),
+      });
+      expect((mockState.sessions as Array<{ path: string; pinnedAt: string | null }>)).toEqual([
+        { path: '/a', pinnedAt },
+        { path: '/b', pinnedAt: null },
+      ]);
+    });
+
+    it('leaves sessions unchanged and shows a toast when pinning fails', async () => {
+      const sessions = [
+        { path: '/a', pinnedAt: null },
+      ];
+      (mockState as Record<string, unknown>).sessions = sessions;
+      mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'write failed' }, false));
+      (globalThis.window as unknown as { t: (key: string) => string }).t = (key: string) => key;
+
+      const ok = await pinSession('/a', true);
+
+      expect(ok).toBe(false);
+      expect(mockState.sessions).toBe(sessions);
+      expect(mockState.addToast).toHaveBeenCalledWith('session.pinFailed', 'info', 3000);
     });
   });
 });

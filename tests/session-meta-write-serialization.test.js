@@ -14,6 +14,7 @@ vi.mock("../lib/pi-sdk/index.js", () => ({
   createAgentSession: vi.fn(),
   SessionManager: {
     create: vi.fn(),
+    list: vi.fn(),
     open: vi.fn(),
   },
   SettingsManager: {
@@ -30,6 +31,7 @@ vi.mock("../lib/debug-log.js", () => ({
 }));
 
 import { SessionCoordinator } from "../core/session-coordinator.js";
+import { SessionManager } from "../lib/pi-sdk/index.js";
 
 function makeCoordinatorDeps(overrides = {}) {
   return {
@@ -78,6 +80,7 @@ describe("SessionCoordinator.writeSessionMeta serialization", () => {
     sessionDir = path.join(tmpDir, "sessions");
     fs.mkdirSync(sessionDir, { recursive: true });
     fakeSessionPath = path.join(sessionDir, "test-session.jsonl");
+    vi.mocked(SessionManager.list).mockReset();
 
     const deps = makeCoordinatorDeps({ _sessionDir: sessionDir });
     // override getAgent to return dynamic sessionDir from tmpDir
@@ -169,5 +172,59 @@ describe("SessionCoordinator.writeSessionMeta serialization", () => {
     expect(entry.model).toBeUndefined();
     expect(entry.modelId).toBeUndefined();
     expect(entry.memoryEnabled).toBe(true);
+  });
+
+  it("setSessionPinned writes and clears pinnedAt on the session meta entry", async () => {
+    const pinnedAt = await sessionCoord.setSessionPinned(fakeSessionPath, true);
+
+    const metaPath = path.join(sessionDir, "session-meta.json");
+    let meta = JSON.parse(await fsp.readFile(metaPath, "utf-8"));
+    expect(meta[path.basename(fakeSessionPath)].pinnedAt).toBe(pinnedAt);
+    expect(new Date(pinnedAt).toString()).not.toBe("Invalid Date");
+
+    const unpinnedAt = await sessionCoord.setSessionPinned(fakeSessionPath, false);
+
+    meta = JSON.parse(await fsp.readFile(metaPath, "utf-8"));
+    expect(unpinnedAt).toBeNull();
+    expect(meta[path.basename(fakeSessionPath)].pinnedAt).toBeNull();
+  });
+
+  it("listSessions exposes pinnedAt from the session directory sidecar", async () => {
+    const agentsDir = path.join(tmpDir, "agents");
+    const agentSessionDir = path.join(agentsDir, "hana", "sessions");
+    const sessionPath = path.join(agentSessionDir, "pinned.jsonl");
+    const pinnedAt = "2026-04-29T08:00:00.000Z";
+    fs.mkdirSync(agentSessionDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(agentSessionDir, "session-meta.json"),
+      JSON.stringify({ [path.basename(sessionPath)]: { pinnedAt } }, null, 2),
+      "utf-8",
+    );
+
+    vi.mocked(SessionManager.list).mockResolvedValueOnce([
+      {
+        path: sessionPath,
+        title: null,
+        firstMessage: "hello",
+        modified: new Date("2026-04-29T07:00:00.000Z"),
+        messageCount: 1,
+        cwd: "/tmp/work",
+      },
+    ]);
+
+    const coord = new SessionCoordinator(makeCoordinatorDeps({
+      agentsDir,
+      listAgents: () => [{ id: "hana", name: "Hana" }],
+      agentIdFromSessionPath: (p) => {
+        const rel = path.relative(agentsDir, p);
+        return rel.split(path.sep)[0] || null;
+      },
+    }));
+
+    const sessions = await coord.listSessions();
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].pinnedAt).toBe(pinnedAt);
+    expect(sessions[0].agentId).toBe("hana");
   });
 });

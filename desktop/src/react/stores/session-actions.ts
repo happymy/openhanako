@@ -592,6 +592,37 @@ export async function renameSession(path: string, title: string): Promise<boolea
 }
 
 // ══════════════════════════════════════════════════════
+// 置顶 / 取消置顶 Session
+// ══════════════════════════════════════════════════════
+
+export async function pinSession(path: string, pinned: boolean): Promise<boolean> {
+  try {
+    const res = await hanaFetch('/api/sessions/pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, pinned }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      console.error('[session] pin failed:', data.error || res.statusText);
+      showSidebarToast(window.t(pinned ? 'session.pinFailed' : 'session.unpinFailed'));
+      return false;
+    }
+
+    const pinnedAt = typeof data.pinnedAt === 'string' ? data.pinnedAt : null;
+    const sessions = useStore.getState().sessions.map(s =>
+      s.path === path ? { ...s, pinnedAt } : s,
+    );
+    useStore.setState({ sessions });
+    return true;
+  } catch (err) {
+    console.error('[session] pin failed:', err);
+    showSidebarToast(window.t(pinned ? 'session.pinFailed' : 'session.unpinFailed'));
+    return false;
+  }
+}
+
+// ══════════════════════════════════════════════════════
 // Toast
 // ══════════════════════════════════════════════════════
 

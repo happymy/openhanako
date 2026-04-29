@@ -49,7 +49,8 @@
     "jian": "책상",
     "bridge": "소셜 플랫폼",
     "toggle": "사이드바",
-    "bridgeShort": "연결"
+    "bridgeShort": "연결",
+    "pinned": "고정"
   },
   "session": {
     "untitled": "새 대화",
@@ -58,6 +59,10 @@
     "createFailed": "세션 생성 실패",
     "archiveFailed": "세션 보관 실패",
     "rename": "이름 변경",
+    "pin": "고정",
+    "unpin": "고정 해제",
+    "pinFailed": "세션 고정 실패",
+    "unpinFailed": "세션 고정 해제 실패",
     "archived": {
       "entry": "보관된 대화",
       "title": "보관된 대화",

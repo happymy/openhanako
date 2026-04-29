@@ -50,7 +50,8 @@
     "jian": "书桌",
     "bridge": "接入社交平台",
     "toggle": "侧边栏",
-    "bridgeShort": "接入社交平台"
+    "bridgeShort": "接入社交平台",
+    "pinned": "置顶"
   },
   "session": {
     "untitled": "新对话",
@@ -59,6 +60,10 @@
     "createFailed": "新建 session 失败",
     "archiveFailed": "归档 session 失败",
     "rename": "重命名",
+    "pin": "置顶",
+    "unpin": "取消置顶",
+    "pinFailed": "置顶 session 失败",
+    "unpinFailed": "取消置顶失败",
     "archived": {
       "entry": "已归档的聊天",
       "title": "已归档的聊天",

@@ -49,7 +49,8 @@
     "jian": "デスク",
     "bridge": "ソーシャル連携",
     "toggle": "サイドバー",
-    "bridgeShort": "連携"
+    "bridgeShort": "連携",
+    "pinned": "ピン留め"
   },
   "session": {
     "untitled": "新しいチャット",
@@ -58,6 +59,10 @@
     "createFailed": "セッションの作成に失敗しました",
     "archiveFailed": "セッションのアーカイブに失敗しました",
     "rename": "名前を変更",
+    "pin": "ピン留め",
+    "unpin": "ピン留めを解除",
+    "pinFailed": "セッションのピン留めに失敗しました",
+    "unpinFailed": "ピン留め解除に失敗しました",
     "archived": {
       "entry": "アーカイブ済み",
       "title": "アーカイブ済みチャット",
