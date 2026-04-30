@@ -181,6 +181,28 @@ describe("compiled section formatting", () => {
     expect(fs.readFileSync(todayPath, "utf-8")).toBe("用户关注记忆系统。");
   });
 
+  it("compiles short facts updates instead of directly appending them", async () => {
+    callText.mockResolvedValueOnce("用户长期关注记忆系统。");
+    const factsPath = path.join(tmpDir, "facts.md");
+    fs.writeFileSync(factsPath, "用户喜欢清晰边界。", "utf-8");
+    const mgr = makeFakeSummaryManager([
+      {
+        session_id: "s1",
+        updated_at: "2026-04-29T08:30:00.000Z",
+        summary: "## 重要事实\n用户长期关注记忆系统。\n\n## 事情经过\n无",
+      },
+    ]);
+
+    await compileFacts(mgr, factsPath, RESOLVED_MODEL);
+
+    expect(callText).toHaveBeenCalledOnce();
+    const request = callText.mock.calls[0][0];
+    expect(request.messages[0].content).toContain("用户喜欢清晰边界。");
+    expect(request.messages[0].content).toContain("用户长期关注记忆系统。");
+    expect(request.systemPrompt).toContain("200字以内");
+    expect(fs.readFileSync(factsPath, "utf-8")).toBe("用户长期关注记忆系统。");
+  });
+
   it("assemble strips legacy nested headings from source sections", async () => {
     const factsPath = path.join(tmpDir, "facts.md");
     const todayPath = path.join(tmpDir, "today.md");
