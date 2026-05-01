@@ -103,8 +103,11 @@ describe("macos Cua provider", () => {
     });
   });
 
-  it("maps appId lease creation to launch_app and stores pid/window state", async () => {
+  it("falls back to launch_app when the target app is not running", async () => {
     const { runner, calls } = makeRunner((_command, args) => {
+      if (args[0] === "list_apps") {
+        return rawResult({ apps: [{ pid: 0, bundle_id: "com.apple.calculator", name: "Calculator" }] });
+      }
       expect(args[0]).toBe("launch_app");
       return rawResult({
         pid: 844,
@@ -122,7 +125,8 @@ describe("macos Cua provider", () => {
 
     const lease = await provider.createLease({}, { appId: "com.apple.calculator" });
 
-    expect(calls[0].args).toEqual([
+    expect(calls[0].args[0]).toBe("list_apps");
+    expect(calls[1].args).toEqual([
       "launch_app",
       JSON.stringify({ bundle_id: "com.apple.calculator" }),
       "--raw",
@@ -135,9 +139,56 @@ describe("macos Cua provider", () => {
       windowId: "10725",
       providerState: { pid: 844, windowId: 10725, bundleId: "com.apple.calculator" },
     });
-    expect(lease.allowedActions).toContain("click_point");
-    expect(lease.allowedActions).toContain("double_click");
+    expect(lease.allowedActions).not.toContain("click_point");
+    expect(lease.allowedActions).not.toContain("double_click");
+    expect(lease.allowedActions).not.toContain("drag");
     expect(lease.allowedActions).toContain("click_element");
+  });
+
+  it("uses list_windows instead of launch_app when the target app is already running", async () => {
+    const { runner, calls } = makeRunner((_command, args) => {
+      if (args[0] === "list_apps") {
+        return rawResult({
+          apps: [{
+            pid: 844,
+            bundle_id: "com.apple.Music",
+            name: "Music",
+            running: true,
+          }],
+        });
+      }
+      if (args[0] === "list_windows") {
+        expect(JSON.parse(args[1])).toEqual({ pid: 844 });
+        return rawResult({
+          windows: [{
+            window_id: 10725,
+            pid: 844,
+            app_name: "Music",
+            title: "Music",
+            bounds: { x: 40, y: 80, width: 1200, height: 800 },
+            layer: 0,
+            z_index: 9,
+            is_on_screen: true,
+            on_current_space: true,
+          }],
+        });
+      }
+      throw new Error(`unexpected helper tool: ${args[0]}`);
+    });
+    const provider = createMacosCuaProvider({
+      platform: "darwin",
+      command: "/tmp/cua-driver",
+      runner,
+    });
+
+    const lease = await provider.createLease({}, { appId: "com.apple.Music" });
+
+    expect(calls.map((call) => call.args[0])).toEqual(["list_apps", "list_windows"]);
+    expect(lease).toMatchObject({
+      appId: "com.apple.Music",
+      windowId: "10725",
+      providerState: { pid: 844, windowId: 10725, bundleId: "com.apple.Music" },
+    });
   });
 
   it("configures Hana's native cursor before controlling an app", async () => {
@@ -162,6 +213,9 @@ describe("macos Cua provider", () => {
       if (args[0] === "set_agent_cursor_enabled") {
         expect(JSON.parse(args[1])).toEqual({ enabled: true });
         return rawResult({ ok: true });
+      }
+      if (args[0] === "list_apps") {
+        return rawResult({ apps: [{ pid: 0, bundle_id: "com.apple.calculator", name: "Calculator" }] });
       }
       if (args[0] === "launch_app") {
         return rawResult({
@@ -197,10 +251,11 @@ describe("macos Cua provider", () => {
       leaseId: "lease-1",
     });
 
-    expect(calls.slice(0, 4).map((call) => call.args[0])).toEqual([
+    expect(calls.slice(0, 5).map((call) => call.args[0])).toEqual([
       "set_agent_cursor_style",
       "set_agent_cursor_motion",
       "set_agent_cursor_enabled",
+      "list_apps",
       "launch_app",
     ]);
     expect(calls.filter((call) => call.args[0] === "set_agent_cursor_enabled")).toHaveLength(1);
@@ -224,6 +279,9 @@ describe("macos Cua provider", () => {
           name: "Calculator",
           windows: [{ window_id: 10725, title: "Calculator" }],
         });
+      }
+      if (args[0] === "list_apps") {
+        return rawResult({ apps: [] });
       }
       return rawResult({ ok: true });
     });
@@ -250,6 +308,7 @@ describe("macos Cua provider", () => {
       "set_agent_cursor_style",
       "set_agent_cursor_motion",
       "set_agent_cursor_enabled",
+      "list_apps",
       "launch_app",
     ]);
   });
@@ -257,6 +316,9 @@ describe("macos Cua provider", () => {
   it("waits for launch_app to expose a usable window", async () => {
     let attempts = 0;
     const { runner, calls } = makeRunner((_command, args) => {
+      if (args[0] === "list_apps") {
+        return rawResult({ apps: [{ pid: 0, bundle_id: "com.apple.Music", name: "Music" }] });
+      }
       expect(args[0]).toBe("launch_app");
       attempts += 1;
       if (attempts === 1) {
@@ -283,7 +345,7 @@ describe("macos Cua provider", () => {
 
     const lease = await provider.createLease({}, { appId: "com.apple.Music" });
 
-    expect(calls).toHaveLength(2);
+    expect(calls.map((call) => call.args[0])).toEqual(["list_apps", "launch_app", "launch_app"]);
     expect(lease).toMatchObject({
       appId: "com.apple.Music",
       windowId: "10725",
@@ -293,6 +355,9 @@ describe("macos Cua provider", () => {
 
   it("prefers the visible titled app window returned by launch_app", async () => {
     const { runner } = makeRunner((_command, args) => {
+      if (args[0] === "list_apps") {
+        return rawResult({ apps: [] });
+      }
       expect(args[0]).toBe("launch_app");
       return rawResult({
         pid: 844,
@@ -380,7 +445,7 @@ describe("macos Cua provider", () => {
     });
   });
 
-  it("maps point clicks and text input to Cua CLI tools", async () => {
+  it("maps clean text input to Cua CLI tools without enabling pixel clicks", async () => {
     const { runner, calls } = makeRunner(() => rawResult({ ok: true }));
     const provider = createMacosCuaProvider({ platform: "darwin", command: "/tmp/cua-driver", runner });
     const lease = {
@@ -390,19 +455,17 @@ describe("macos Cua provider", () => {
       providerState: { pid: 844, windowId: 10725 },
     };
 
-    await provider.performAction({}, lease, { type: "click_point", x: 20, y: 30 });
     await provider.performAction({}, lease, { type: "type_text", text: "hello" });
     await provider.performAction({}, lease, { type: "press_key", key: "return" });
 
     const helperCalls = calls.filter((c) => c.command === "/tmp/cua-driver");
     expect(calls.filter((c) => c.command === "osascript")).toHaveLength(0);
-    expect(helperCalls.map((c) => c.args[0])).toEqual(["click", "type_text", "press_key"]);
-    expect(helperCalls[0].args[1]).toBe(JSON.stringify({ pid: 844, window_id: 10725, x: 20, y: 30 }));
-    expect(helperCalls[1].args[1]).toBe(JSON.stringify({ pid: 844, text: "hello" }));
-    expect(helperCalls[2].args[1]).toBe(JSON.stringify({ pid: 844, key: "return" }));
+    expect(helperCalls.map((c) => c.args[0])).toEqual(["type_text", "press_key"]);
+    expect(helperCalls[0].args[1]).toBe(JSON.stringify({ pid: 844, text: "hello" }));
+    expect(helperCalls[1].args[1]).toBe(JSON.stringify({ pid: 844, key: "return" }));
   });
 
-  it("passes model screenshot coordinates through unchanged to Cua", async () => {
+  it("rejects aggressive pixel actions by default before invoking Cua", async () => {
     const { runner, calls } = makeRunner(() => rawResult({ ok: true }));
     const provider = createMacosCuaProvider({ platform: "darwin", command: "/tmp/cua-driver", runner });
     const lease = {
@@ -419,49 +482,31 @@ describe("macos Cua provider", () => {
       scaleFactor: 2,
     };
 
-    await provider.performAction({}, lease, { type: "click_point", x: 125, y: 80, snapshotDisplay });
-    await provider.performAction({}, lease, {
+    await expect(provider.performAction({}, lease, { type: "click_point", x: 125, y: 80, snapshotDisplay }))
+      .rejects.toMatchObject({ code: COMPUTER_USE_ERRORS.CAPABILITY_UNSUPPORTED });
+    await expect(provider.performAction({}, lease, {
       type: "drag",
       fromX: 10,
       fromY: 20,
       toX: 300,
       toY: 120,
       snapshotDisplay,
-    });
+    })).rejects.toMatchObject({ code: COMPUTER_USE_ERRORS.CAPABILITY_UNSUPPORTED });
+    await expect(provider.performAction({}, lease, { type: "double_click", elementId: "14" }))
+      .rejects.toMatchObject({ code: COMPUTER_USE_ERRORS.CAPABILITY_UNSUPPORTED });
 
     const helperCalls = calls.filter((c) => c.command === "/tmp/cua-driver");
-    expect(helperCalls.map((c) => c.args[0])).toEqual(["click", "drag"]);
-    expect(helperCalls[0].args[1]).toBe(JSON.stringify({ pid: 844, window_id: 10725, x: 125, y: 80 }));
-    expect(helperCalls[1].args[1]).toBe(JSON.stringify({
-      pid: 844,
-      window_id: 10725,
-      from_x: 10,
-      from_y: 20,
-      to_x: 300,
-      to_y: 120,
-    }));
+    expect(helperCalls).toHaveLength(0);
   });
 
-  it("declares raw coordinate input as approval-gated without foreground activation", async () => {
-    const { runner, calls } = makeRunner((command, args) => {
-      if (args[0] === "click") return rawResult({ ok: true });
-      throw new Error(`unexpected call: ${command} ${args.join(" ")}`);
-    });
+  it("declares clean AX-first capabilities by default", async () => {
+    const { runner } = makeRunner(() => rawResult({ ok: true }));
     const provider = createMacosCuaProvider({ platform: "darwin", command: "/tmp/cua-driver", runner });
-    const lease = {
-      leaseId: "lease-1",
-      appId: "com.apple.calculator",
-      windowId: "10725",
-      providerState: { pid: 844, windowId: 10725, bundleId: "com.apple.calculator" },
-    };
 
-    expect(provider.capabilities.pointClick).toBe("requiresApproval");
-    expect(provider.capabilities.drag).toBe("requiresApproval");
+    expect(provider.capabilities.elementDoubleClick).toBe(false);
+    expect(provider.capabilities.pointClick).toBe("unsupported");
+    expect(provider.capabilities.drag).toBe("unsupported");
     expect(provider.capabilities.requiresForegroundForInput).toBe(false);
-
-    await provider.performAction({}, lease, { type: "click_point", x: 20, y: 30 });
-
-    expect(calls.map((c) => c.command)).toEqual(["/tmp/cua-driver"]);
   });
 
   it("passes Hana cursor runtime config to each bundled helper process", async () => {
@@ -480,7 +525,7 @@ describe("macos Cua provider", () => {
       providerState: { pid: 844, windowId: 10725, bundleId: "com.apple.calculator" },
     };
 
-    await provider.performAction({}, lease, { type: "click_point", x: 20, y: 30 });
+    await provider.performAction({}, lease, { type: "click_element", elementId: "14" });
 
     const clickCall = calls.find((call) => call.command === "/tmp/hana-computer-use-helper" && call.args[0] === "click");
     expect(clickCall?.options?.env?.HANA_AGENT_CURSOR_CONFIG_JSON).toBeTruthy();
@@ -516,15 +561,61 @@ describe("macos Cua provider", () => {
     };
 
     await provider.performAction({}, lease, { type: "click_element", elementId: "14" });
-    await provider.performAction({}, lease, { type: "double_click", elementId: "14" });
     await provider.performAction({}, lease, { type: "perform_secondary_action", elementId: "14" });
 
-    expect(calls.map((c) => c.args[0])).toEqual(["click", "double_click", "right_click"]);
+    expect(calls.map((c) => c.args[0])).toEqual(["click", "right_click"]);
     expect(calls.map((c) => JSON.parse(c.args[1]))).toEqual([
       { pid: 844, window_id: 10725, element_index: 14 },
       { pid: 844, window_id: 10725, element_index: 14 },
-      { pid: 844, window_id: 10725, element_index: 14 },
     ]);
+  });
+
+  it("uses Cua's element double-click fallback for AXShowDefaultUI rows that do not support AXPress", async () => {
+    const { runner, calls } = makeRunner((_command, args) => {
+      if (args[0] === "get_window_state") {
+        return rawResult(
+          {
+            tree_markdown: [
+              "- AXWindow \"音乐\"",
+              "  - [15] AXRow actions=[AXShowDefaultUI, AXShowAlternateUI]",
+              "    - AXCell",
+              "      - AXStaticText = \"日系 Lo-Fi \"",
+            ].join("\n"),
+          },
+          [
+            { type: "text", text: "ok" },
+            { type: "image", mimeType: "image/png", data: "abc" },
+          ],
+        );
+      }
+      return rawResult({ ok: true });
+    });
+    const provider = createMacosCuaProvider({ platform: "darwin", command: "/tmp/hana-computer-use-helper", runner });
+    const lease = {
+      leaseId: "lease-1",
+      appId: "com.apple.Music",
+      windowId: "10725",
+      providerState: { pid: 844, windowId: 10725 },
+    };
+
+    const snapshot = await provider.getAppState({}, lease);
+    await provider.performAction({}, lease, {
+      type: "click_element",
+      elementId: "15",
+      snapshotElement: snapshot.elements.find((element) => element.elementId === "15"),
+    });
+
+    expect(snapshot.elements.find((element) => element.elementId === "15")).toMatchObject({
+      actions: ["AXShowDefaultUI", "AXShowAlternateUI"],
+    });
+    expect(calls.map((c) => c.args[0])).toContain("double_click");
+    const actionCall = calls.find((c) => c.args[0] === "double_click");
+    expect(JSON.parse(actionCall.args[1])).toEqual({
+      pid: 844,
+      window_id: 10725,
+      element_index: 15,
+    });
+    expect(calls.map((c) => c.args[0])).not.toContain("click");
   });
 
   it("converts Cua CLI failures into typed errors", async () => {

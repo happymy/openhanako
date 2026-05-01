@@ -573,6 +573,7 @@
     },
     "computerUse": {
       "title": "Computer Use",
+      "experimentalWarning": "Computer use is experimental and requires strong model performance. Enable it only after understanding the risks. Some apps are already known not to behave as expected; treat it as an early preview.",
       "description": "A global high-permission tool. When enabled, only the main agent can use computer control in Operate sessions, and only one session can hold it at a time.",
       "enabled": "Enable Computer Use",
       "enabledHint": "Off by default. When off, new sessions do not expose the computer control tool.",

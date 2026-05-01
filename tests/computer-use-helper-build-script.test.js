@@ -2,6 +2,7 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 import {
   computerUseHelperOutputDir,
+  patchCuaDriverAppStateSource,
   shouldBuildComputerUseHelper,
   swiftBuildScratchPath,
   swiftArchForNodeArch,
@@ -32,5 +33,60 @@ describe("Computer Use helper build script", () => {
       rootDir: "/repo",
       arch: "arm64",
     })).toBe(path.join("/repo", ".cache", "computer-use-helper", "swift-build", "mac-arm64"));
+  });
+
+  it("patches Cua AppState snapshots to stay bounded and AX-safe", () => {
+    const source = `extension AXObserver: @retroactive @unchecked Sendable {}
+
+/// No-op callback
+    public static let maxDepth = 25
+        let root = AXUIElementCreateApplication(pid)
+
+        // Cue Chromium/Electron apps to turn on their web accessibility tree.
+        // Non-Chromium apps ignore these attribute writes — safe no-op.
+        try await activateAccessibilityIfNeeded(pid: pid, root: root)
+    private func activateAccessibilityIfNeeded(
+        pid: Int32,
+        root: AXUIElement
+    ) async throws {
+        // Already did the one-shot pump + observer for this pid.
+        pumpRunLoopForActivation(duration: 0.5)
+    }
+
+    /// Pump the current thread's CFRunLoop for roughly \`duration\` seconds.
+    ) {
+        guard depth <= AppStateEngine.maxDepth else { return }
+
+        let role = attributeString(element, "AXRole") ?? "?"
+        let enabled = attributeBool(element, "AXEnabled")
+        let actions = actionNames(of: element)
+
+        let indent = String(repeating: "  ", count: depth)
+        line += role
+        if let t = title, !t.isEmpty { line += " \\"\\(t)\\"" }
+        if let v = value, !v.isEmpty, v.count < 120 { line += " = \\"\\(v)\\"" }
+    private func windows(of appRoot: AXUIElement) -> [AXUIElement] {
+        var value: CFTypeRef?
+    private func isMenuOpen(_ menu: AXUIElement) -> Bool {
+        var value: CFTypeRef?
+    private func attributeString(_ element: AXUIElement, _ attribute: String) -> String? {
+        var value: CFTypeRef?
+    private func attributeBool(_ element: AXUIElement, _ attribute: String) -> Bool? {
+        var value: CFTypeRef?
+    private func actionNames(of element: AXUIElement) -> [String] {
+        var names: CFArray?
+    private func children(of element: AXUIElement) -> [AXUIElement] {
+        var value: CFTypeRef?
+    /// Standard AX actions come through as simple strings like \`AXPress\`.
+`;
+
+    const patched = patchCuaDriverAppStateSource(source);
+
+    expect(patched).toContain("cuaDriverAXMessagingTimeoutSeconds");
+    expect(patched).toContain("public static let maxDepth = 6");
+    expect(patched).toContain("public static let maxActionableElements = 48");
+    expect(patched).toContain("shouldAssertAccessibilityForAXClientSignals");
+    expect(patched).toContain("descendantLabelSummary");
+    expect(patchCuaDriverAppStateSource(patched)).toBe(patched);
   });
 });

@@ -75,7 +75,7 @@ describe("Windows UIA provider", () => {
     });
   });
 
-  it("declares foreground input capabilities and allows raw input actions on leases", async () => {
+  it("declares background-only UIA capabilities and omits foreground raw input actions from leases", async () => {
     const { runner } = makeRunner(() => helperResult({ ok: true }));
     const provider = createWindowsUiaProvider({ platform: "win32", command: "powershell.exe", runner });
 
@@ -83,21 +83,17 @@ describe("Windows UIA provider", () => {
 
     expect(provider.capabilities).toMatchObject({
       backgroundControl: "partial",
-      pointClick: "foreground",
-      drag: "foreground",
-      keyboardInput: "foreground",
-      requiresForegroundForInput: true,
+      pointClick: "unsupported",
+      drag: "unsupported",
+      keyboardInput: "unsupported",
+      requiresForegroundForInput: false,
     });
-    expect(lease.allowedActions).toEqual(expect.arrayContaining([
+    expect(lease.allowedActions).toEqual([
       "click_element",
-      "click_point",
-      "double_click",
-      "drag",
-      "press_key",
       "type_text",
       "scroll",
       "stop",
-    ]));
+    ]);
   });
 
   it("normalizes helper snapshots into Hana snapshots", async () => {
@@ -127,7 +123,7 @@ describe("Windows UIA provider", () => {
     });
   });
 
-  it("maps semantic and foreground input actions to the helper", async () => {
+  it("maps only snapshot-bound semantic UIA actions to the helper", async () => {
     const { runner, calls } = makeRunner(() => helperResult({ ok: true }));
     const provider = createWindowsUiaProvider({ platform: "win32", command: "powershell.exe", runner });
     const lease = { leaseId: "lease-1", providerState: { processId: 12, windowId: 123 } };
@@ -141,11 +137,7 @@ describe("Windows UIA provider", () => {
 
     await provider.performAction({}, lease, { type: "click_element", elementId: "uia:1", snapshotElement });
     await provider.performAction({}, lease, { type: "type_text", elementId: "uia:1", text: "hello", snapshotElement });
-    await provider.performAction({}, lease, { type: "click_point", x: 10, y: 20, snapshotDisplay: { width: 300, height: 200, scaleFactor: 0.5 } });
-    await provider.performAction({}, lease, { type: "double_click", x: 11, y: 21 });
-    await provider.performAction({}, lease, { type: "drag", fromX: 1, fromY: 2, toX: 30, toY: 40 });
-    await provider.performAction({}, lease, { type: "press_key", key: "Return" });
-    await provider.performAction({}, lease, { type: "type_text", text: "foreground text" });
+    await provider.performAction({}, lease, { type: "scroll", elementId: "uia:1", direction: "down", snapshotElement });
 
     expect(JSON.parse(calls[0].options.stdin)).toMatchObject({
       command: "perform_action",
@@ -157,24 +149,29 @@ describe("Windows UIA provider", () => {
     });
     expect(JSON.parse(calls[2].options.stdin)).toMatchObject({
       command: "perform_action",
-      action: { type: "click_point", x: 10, y: 20, snapshotDisplay: { width: 300, height: 200, scaleFactor: 0.5 } },
+      action: { type: "scroll", elementId: "uia:1", direction: "down", snapshotElement },
     });
-    expect(JSON.parse(calls[3].options.stdin)).toMatchObject({
-      command: "perform_action",
-      action: { type: "double_click", x: 11, y: 21 },
-    });
-    expect(JSON.parse(calls[4].options.stdin)).toMatchObject({
-      command: "perform_action",
-      action: { type: "drag", fromX: 1, fromY: 2, toX: 30, toY: 40 },
-    });
-    expect(JSON.parse(calls[5].options.stdin)).toMatchObject({
-      command: "perform_action",
-      action: { type: "press_key", key: "Return" },
-    });
-    expect(JSON.parse(calls[6].options.stdin)).toMatchObject({
-      command: "perform_action",
-      action: { type: "type_text", text: "foreground text" },
-    });
+  });
+
+  it("rejects foreground-only actions before invoking the helper", async () => {
+    const { runner, calls } = makeRunner(() => helperResult({ ok: true }));
+    const provider = createWindowsUiaProvider({ platform: "win32", command: "powershell.exe", runner });
+    const lease = { leaseId: "lease-1", providerState: { processId: 12, windowId: 123 } };
+
+    await expect(provider.performAction({}, lease, { type: "click_point", x: 1, y: 2 }))
+      .rejects.toMatchObject({ code: COMPUTER_USE_ERRORS.ACTION_REQUIRES_FOREGROUND });
+    await expect(provider.performAction({}, lease, { type: "double_click", x: 1, y: 2 }))
+      .rejects.toMatchObject({ code: COMPUTER_USE_ERRORS.ACTION_REQUIRES_FOREGROUND });
+    await expect(provider.performAction({}, lease, { type: "drag", fromX: 1, fromY: 2, toX: 3, toY: 4 }))
+      .rejects.toMatchObject({ code: COMPUTER_USE_ERRORS.ACTION_REQUIRES_FOREGROUND });
+    await expect(provider.performAction({}, lease, { type: "press_key", key: "Return" }))
+      .rejects.toMatchObject({ code: COMPUTER_USE_ERRORS.ACTION_REQUIRES_FOREGROUND });
+    await expect(provider.performAction({}, lease, { type: "type_text", text: "foreground text" }))
+      .rejects.toMatchObject({ code: COMPUTER_USE_ERRORS.ACTION_REQUIRES_FOREGROUND });
+    await expect(provider.performAction({}, lease, { type: "scroll", direction: "down" }))
+      .rejects.toMatchObject({ code: COMPUTER_USE_ERRORS.ACTION_REQUIRES_FOREGROUND });
+
+    expect(calls).toHaveLength(0);
   });
 
   it("rejects element-indexed actions unless the host provides snapshot-bound metadata", async () => {

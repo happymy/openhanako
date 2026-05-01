@@ -158,6 +158,13 @@
     letter-spacing: 0.05em;
 }
 
+.computer-use-warning {
+    margin: calc(var(--space-xl) * -0.5) 0 var(--space-lg);
+    color: var(--danger, #c85143);
+    font-size: 0.82rem;
+    line-height: 1.7;
+}
+
 /* Section */
 .settings-section {
     margin-bottom: var(--space-xl);

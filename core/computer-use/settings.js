@@ -2,7 +2,7 @@ export const COMPUTER_USE_DEFAULT_SETTINGS = Object.freeze({
   enabled: false,
   provider_by_platform: {
     darwin: "macos:cua",
-    win32: "mock",
+    win32: "windows:uia",
     linux: "mock",
   },
   allow_windows_input_injection: false,

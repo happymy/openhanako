@@ -25,15 +25,13 @@ const HANA_CURSOR_MOTION = Object.freeze({
 });
 const MACOS_CUA_ALLOWED_ACTIONS = [
   "click_element",
-  "double_click",
   "type_text",
   "press_key",
   "scroll",
   "perform_secondary_action",
-  "click_point",
-  "drag",
   "stop",
 ];
+const MACOS_CUA_DISABLED_PIXEL_ACTIONS = new Set(["click_point", "double_click", "drag"]);
 
 function expandHome(filePath, homeDir = os.homedir()) {
   if (!filePath || !filePath.startsWith("~/")) return filePath;
@@ -177,6 +175,11 @@ function normalizeAppsPayload(payload) {
   });
 }
 
+function normalizeWindowsPayload(payload) {
+  const windows = Array.isArray(payload) ? payload : (payload?.windows || payload?.items || []);
+  return normalizeWindows(windows);
+}
+
 function windowArea(win) {
   const width = Number(win?.bounds?.width || 0);
   const height = Number(win?.bounds?.height || 0);
@@ -228,6 +231,48 @@ function normalizeLaunchPayload(payload, target) {
   };
 }
 
+function sameAppId(left, right) {
+  return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
+}
+
+function appMatchesTarget(app, target = {}) {
+  if (target.appId) {
+    return [
+      app?.appId,
+      app?.providerData?.bundleId,
+    ].some((value) => sameAppId(value, target.appId));
+  }
+  const targetName = String(target.name || target.appName || "").trim().toLowerCase();
+  if (!targetName) return false;
+  return [
+    app?.name,
+    app?.appId,
+    app?.providerData?.bundleId,
+  ].some((value) => String(value || "").trim().toLowerCase() === targetName);
+}
+
+function runningPid(app) {
+  const pid = Number(app?.pid ?? app?.providerData?.pid);
+  return Number.isFinite(pid) && pid > 0 ? pid : null;
+}
+
+function normalizeRunningAppLease(app, windows, target = {}) {
+  const pid = runningPid(app);
+  const selectedWindow = selectLaunchWindow(windows, target.windowId);
+  if (!pid || !selectedWindow) return null;
+  const bundleId = app?.providerData?.bundleId || app?.appId || target.appId || null;
+  return {
+    appId: bundleId || `pid:${pid}`,
+    windowId: String(selectedWindow.windowId),
+    providerState: {
+      pid,
+      windowId: Number(selectedWindow.windowId),
+      appName: app?.name || target.name || target.appName || null,
+      bundleId,
+    },
+  };
+}
+
 function sleep(ms) {
   if (!ms) return Promise.resolve();
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -256,11 +301,21 @@ function parseElementsFromMarkdown(markdown) {
       elementId: match[2],
       role: match[3],
       label: labelFromMarkdownFragment(rest) || uniqueLabelParts(childLabels).join(" "),
+      actions: actionsFromMarkdownFragment(rest),
       enabled: !/\bDISABLED\b/.test(rest),
       bounds: null,
     });
   }
   return elements;
+}
+
+function actionsFromMarkdownFragment(fragment) {
+  const match = String(fragment || "").match(/\bactions=\[([^\]]*)\]/);
+  if (!match?.[1]) return [];
+  return match[1]
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function labelFromMarkdownFragment(fragment) {
@@ -310,6 +365,7 @@ function normalizeWindowState(result, lease) {
         role: el.role || el.ax_role || el.type || "element",
         label: el.label || el.name || el.title || "",
         value: el.value,
+        actions: Array.isArray(el.actions) ? el.actions.map(String).filter(Boolean) : [],
         bounds: el.bounds || null,
         enabled: el.enabled !== false,
       }))
@@ -376,6 +432,26 @@ function requireElementIndex(action) {
     `Computer action requires an elementId from the latest Cua snapshot: ${action?.type}`,
     { action: action?.type || null },
   );
+}
+
+function rejectDisabledPixelAction(action = {}) {
+  throw computerUseError(
+    COMPUTER_USE_ERRORS.CAPABILITY_UNSUPPORTED,
+    `macOS Cua pixel input is disabled for clean background control: ${action.type}`,
+    { action: action.type || null },
+  );
+}
+
+function advertisedActions(snapshotElement = {}) {
+  return Array.isArray(snapshotElement?.actions)
+    ? snapshotElement.actions.map(String).filter(Boolean)
+    : [];
+}
+
+function shouldUseElementDoubleClickFallback(snapshotElement = {}) {
+  const actions = advertisedActions(snapshotElement);
+  if (!actions.length || actions.includes("AXPress")) return false;
+  return snapshotElement?.role === "AXRow" && actions.includes("AXShowDefaultUI");
 }
 
 function normalizeCursorStyle({ cursorStyle, cursorImagePath, cursorBloomColor }) {
@@ -536,6 +612,17 @@ export function createMacosCuaProvider({
     await nativeCursorConfigPromise;
   }
 
+  async function tryCreateLeaseFromRunningApp(target = {}) {
+    const appsResult = await runTool("list_apps");
+    const app = normalizeAppsPayload(getStructured(appsResult)).find((candidate) => appMatchesTarget(candidate, target));
+    const pid = runningPid(app);
+    if (!pid) return null;
+
+    const windowsResult = await runTool("list_windows", { pid });
+    const windows = normalizeWindowsPayload(getStructured(windowsResult));
+    return normalizeRunningAppLease(app, windows, target);
+  }
+
   function ensureDarwin() {
     if (platform !== "darwin") {
       throw computerUseError(COMPUTER_USE_ERRORS.PROVIDER_UNAVAILABLE, "Cua Driver is available only on macOS.", {
@@ -553,10 +640,10 @@ export function createMacosCuaProvider({
       screenshot: true,
       accessibilityTree: true,
       elementActions: true,
-      elementDoubleClick: true,
+      elementDoubleClick: false,
       backgroundControl: "full",
-      pointClick: "requiresApproval",
-      drag: "requiresApproval",
+      pointClick: "unsupported",
+      drag: "unsupported",
       textInput: "semantic",
       keyboardInput: "pidScoped",
       requiresForegroundForInput: false,
@@ -628,6 +715,14 @@ export function createMacosCuaProvider({
         throw computerUseError(COMPUTER_USE_ERRORS.TARGET_NOT_FOUND, "Cua lease target requires appId, app name, or pid/windowId.", { target });
       }
 
+      const runningLease = await tryCreateLeaseFromRunningApp(target);
+      if (runningLease) {
+        return {
+          ...runningLease,
+          allowedActions: MACOS_CUA_ALLOWED_ACTIONS,
+        };
+      }
+
       const payload = target.appId ? { bundle_id: target.appId } : { name: target.name };
       const attempts = Math.max(1, Number(launchRetryAttempts) || 1);
       let normalized = null;
@@ -672,19 +767,22 @@ export function createMacosCuaProvider({
       if (!pid || !windowId) {
         throw computerUseError(COMPUTER_USE_ERRORS.TARGET_NOT_FOUND, "Cua lease is missing native pid/windowId.", { leaseId: lease.leaseId });
       }
+      if (MACOS_CUA_DISABLED_PIXEL_ACTIONS.has(action.type)) {
+        rejectDisabledPixelAction(action);
+      }
 
       if (action.type === "click_element") {
+        if (shouldUseElementDoubleClickFallback(action.snapshotElement)) {
+          return getStructured(await runTool("double_click", {
+            pid,
+            window_id: windowId,
+            element_index: requireElementIndex(action),
+          })) || { ok: true };
+        }
         return getStructured(await runTool("click", { pid, window_id: windowId, element_index: requireElementIndex(action) })) || { ok: true };
-      }
-      if (action.type === "double_click") {
-        const payload = { pid, window_id: windowId, element_index: requireElementIndex(action) };
-        return getStructured(await runTool("double_click", payload)) || { ok: true };
       }
       if (action.type === "perform_secondary_action") {
         return getStructured(await runTool("right_click", { pid, window_id: windowId, element_index: requireElementIndex(action) })) || { ok: true };
-      }
-      if (action.type === "click_point") {
-        return getStructured(await runTool("click", { pid, window_id: windowId, x: action.x, y: action.y })) || { ok: true };
       }
       if (action.type === "type_text") {
         const payload = { pid, text: action.text || "" };
@@ -704,16 +802,6 @@ export function createMacosCuaProvider({
           payload.element_index = requireElementIndex(action);
         }
         return getStructured(await runTool("scroll", payload)) || { ok: true };
-      }
-      if (action.type === "drag") {
-        return getStructured(await runTool("drag", {
-          pid,
-          window_id: windowId,
-          from_x: action.fromX,
-          from_y: action.fromY,
-          to_x: action.toX,
-          to_y: action.toY,
-        })) || { ok: true };
       }
       throw computerUseError(COMPUTER_USE_ERRORS.CAPABILITY_UNSUPPORTED, `Unsupported Cua action: ${action.type}`, { action: action.type });
     },

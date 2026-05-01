@@ -1,6 +1,6 @@
 export const DEFAULT_COMPUTER_PROVIDER_BY_PLATFORM = Object.freeze({
   darwin: "macos:cua",
-  win32: "mock",
+  win32: "windows:uia",
   linux: "mock",
 });
 

@@ -69,7 +69,7 @@ describe("ComputerHost", () => {
     expect(lease.providerState).toMatchObject({ mock: true });
   });
 
-  it("keeps Windows Computer Use on the inert provider unless explicitly configured", async () => {
+  it("selects the Windows UIA provider by default when it is available", async () => {
     const providers = new ComputerProviderRegistry();
     providers.register(createMockComputerProvider({ providerId: "mock" }));
     providers.register(createMockComputerProvider({ providerId: "windows:uia" }));
@@ -83,8 +83,8 @@ describe("ComputerHost", () => {
     const status = await host.getStatus(ctx);
     const lease = await host.createLease(ctx, { appId: "app.notes" });
 
-    expect(status.selectedProviderId).toBe("mock");
-    expect(lease.providerId).toBe("mock");
+    expect(status.selectedProviderId).toBe("windows:uia");
+    expect(lease.providerId).toBe("windows:uia");
   });
 
   it("rejects stale snapshot actions", async () => {

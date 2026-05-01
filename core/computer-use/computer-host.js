@@ -53,6 +53,19 @@ function findSnapshotElement(snapshot, elementId) {
   return snapshot.elements.find((element) => String(element?.elementId) === String(elementId)) || null;
 }
 
+function actionCapabilitiesFromProvider(capabilities = {}) {
+  return {
+    backgroundControl: capabilities?.backgroundControl,
+    elementActions: capabilities?.elementActions,
+    elementDoubleClick: capabilities?.elementDoubleClick,
+    pointClick: capabilities?.pointClick,
+    drag: capabilities?.drag,
+    textInput: capabilities?.textInput,
+    keyboardInput: capabilities?.keyboardInput,
+    requiresForegroundForInput: capabilities?.requiresForegroundForInput === true,
+  };
+}
+
 function capabilityKeyForAction(capabilities, action = {}) {
   if (action?.type === "double_click" && action?.elementId && capabilities?.elementDoubleClick !== undefined) {
     return "elementDoubleClick";
@@ -134,7 +147,7 @@ export class ComputerHost {
       providerId,
       appId: providerLease?.appId || target.appId,
       windowId: providerLease?.windowId || target.windowId || null,
-      allowedActions: providerLease?.allowedActions || ["click_element", "double_click", "type_text", "press_key", "scroll", "perform_secondary_action", "stop"],
+      allowedActions: providerLease?.allowedActions || ["click_element", "type_text", "press_key", "scroll", "perform_secondary_action", "stop"],
       providerState: providerLease?.providerState || {},
     });
   }
@@ -158,6 +171,7 @@ export class ComputerHost {
       leaseId: lease.leaseId,
       providerId: lease.providerId,
       allowedActions: Array.isArray(lease.allowedActions) ? [...lease.allowedActions] : [],
+      actionCapabilities: actionCapabilitiesFromProvider(provider.capabilities),
       mode: raw.mode || "vision-native",
     });
   }

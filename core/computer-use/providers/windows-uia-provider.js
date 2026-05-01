@@ -92,8 +92,24 @@ function normalizeSnapshot(data, lease) {
   };
 }
 
-const WINDOWS_UIA_ALLOWED_ACTIONS = ["click_element", "double_click", "click_point", "type_text", "press_key", "scroll", "drag", "stop"];
+const WINDOWS_UIA_ALLOWED_ACTIONS = ["click_element", "type_text", "scroll", "stop"];
 const ELEMENT_BOUND_ACTIONS = new Set(["click_element", "double_click", "type_text", "scroll"]);
+const FOREGROUND_ONLY_ACTIONS = new Set(["click_point", "double_click", "drag", "press_key"]);
+
+function isForegroundOnlyAction(action = {}) {
+  if (FOREGROUND_ONLY_ACTIONS.has(action.type)) return true;
+  if (action.type === "type_text" && !action.elementId) return true;
+  if (action.type === "scroll" && !action.elementId) return true;
+  return false;
+}
+
+function rejectForegroundOnlyAction(providerId, action = {}) {
+  throw computerUseError(
+    COMPUTER_USE_ERRORS.ACTION_REQUIRES_FOREGROUND,
+    "Windows UIA provider is configured for background-only control; this action would require foreground input.",
+    { providerId, action: action.type || null },
+  );
+}
 
 function assertNumber(value, field, actionType) {
   if (typeof value === "number" && Number.isFinite(value)) return;
@@ -224,11 +240,11 @@ export function createWindowsUiaProvider({
       accessibilityTree: true,
       elementActions: true,
       backgroundControl: "partial",
-      pointClick: "foreground",
-      drag: "foreground",
+      pointClick: "unsupported",
+      drag: "unsupported",
       textInput: "semantic",
-      keyboardInput: "foreground",
-      requiresForegroundForInput: true,
+      keyboardInput: "unsupported",
+      requiresForegroundForInput: false,
       isolated: false,
     },
 
@@ -285,12 +301,15 @@ export function createWindowsUiaProvider({
 
     async performAction(_ctx, lease, action) {
       ensureWin32();
+      validateForegroundAction(action);
+      if (isForegroundOnlyAction(action)) {
+        rejectForegroundOnlyAction(providerId, action);
+      }
       if (!WINDOWS_UIA_ALLOWED_ACTIONS.includes(action.type)) {
         throw computerUseError(COMPUTER_USE_ERRORS.CAPABILITY_UNSUPPORTED, `Unsupported Windows UIA action: ${action.type}`, {
           action: action.type,
         });
       }
-      validateForegroundAction(action);
       assertSnapshotBoundElement(action);
       return await runHelper({
         command: "perform_action",

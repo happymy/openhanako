@@ -251,53 +251,6 @@ function Scroll-Element($el, $direction, $amount) {
   return "ScrollPattern"
 }
 
-function Ensure-InputBridge() {
-  if ("HanaComputerUseNativeInput" -as [type]) { return }
-  Add-Type -AssemblyName System.Windows.Forms
-  Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-
-public static class HanaComputerUseNativeInput {
-  [StructLayout(LayoutKind.Sequential)]
-  public struct POINT {
-    public int X;
-    public int Y;
-  }
-
-  [DllImport("user32.dll")]
-  public static extern bool SetForegroundWindow(IntPtr hWnd);
-
-  [DllImport("user32.dll")]
-  public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
-
-  [DllImport("user32.dll")]
-  public static extern IntPtr GetForegroundWindow();
-
-  [DllImport("user32.dll")]
-  public static extern bool SetCursorPos(int X, int Y);
-
-  [DllImport("user32.dll")]
-  public static extern bool GetCursorPos(out POINT lpPoint);
-
-  [DllImport("user32.dll")]
-  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
-}
-"@
-}
-
-function Focus-Window($window) {
-  Ensure-InputBridge
-  $handle = [IntPtr]([int64]$window.Current.NativeWindowHandle)
-  for ($i = 0; $i -lt 3; $i += 1) {
-    [HanaComputerUseNativeInput]::ShowWindowAsync($handle, 9) | Out-Null
-    [HanaComputerUseNativeInput]::SetForegroundWindow($handle) | Out-Null
-    Start-Sleep -Milliseconds (80 + ($i * 80))
-    if ([HanaComputerUseNativeInput]::GetForegroundWindow() -eq $handle) { return $true }
-  }
-  return $false
-}
-
 function Window-Point($window, $x, $y, $snapshotDisplay) {
   $r = $window.Current.BoundingRectangle
   $scale = 1.0
@@ -327,109 +280,6 @@ function Element-Center($el) {
   }
 }
 
-function Mouse-Click-Screen($x, $y) {
-  Ensure-InputBridge
-  Set-Cursor-Screen $x $y
-  Start-Sleep -Milliseconds 40
-  [HanaComputerUseNativeInput]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
-  Start-Sleep -Milliseconds 45
-  [HanaComputerUseNativeInput]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
-}
-
-function Mouse-DoubleClick-Screen($x, $y) {
-  Mouse-Click-Screen $x $y
-  Start-Sleep -Milliseconds 60
-  Mouse-Click-Screen $x $y
-}
-
-function Mouse-Drag-Screen($fromX, $fromY, $toX, $toY) {
-  Ensure-InputBridge
-  Set-Cursor-Screen $fromX $fromY
-  Start-Sleep -Milliseconds 50
-  [HanaComputerUseNativeInput]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
-  Start-Sleep -Milliseconds 80
-  Set-Cursor-Screen $toX $toY
-  Start-Sleep -Milliseconds 80
-  [HanaComputerUseNativeInput]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
-}
-
-function Mouse-Wheel-Screen($x, $y, $direction, $amount) {
-  Ensure-InputBridge
-  $n = [int]([Math]::Max(1, [Math]::Min(8, [int]$amount)))
-  $delta = 120 * $n
-  $flag = 0x0800
-  if ($direction -eq "down" -or $direction -eq "left") { $delta = -1 * $delta }
-  if ($direction -eq "left" -or $direction -eq "right") { $flag = 0x1000 }
-  Set-Cursor-Screen $x $y
-  Start-Sleep -Milliseconds 40
-  [HanaComputerUseNativeInput]::mouse_event($flag, 0, 0, $delta, [UIntPtr]::Zero)
-}
-
-function Set-Cursor-Screen($x, $y) {
-  Ensure-InputBridge
-  [HanaComputerUseNativeInput]::SetCursorPos([int]$x, [int]$y) | Out-Null
-  $pt = New-Object HanaComputerUseNativeInput+POINT
-  [HanaComputerUseNativeInput]::GetCursorPos([ref]$pt) | Out-Null
-  if ($pt.X -ne [int]$x -or $pt.Y -ne [int]$y) {
-    [HanaComputerUseNativeInput]::SetCursorPos([int]$x, [int]$y) | Out-Null
-  }
-}
-
-function Escape-SendKeysText($text) {
-  $special = "+^%~()[]{}"
-  $sb = New-Object System.Text.StringBuilder
-  foreach ($ch in ([string]$text).ToCharArray()) {
-    if ($special.Contains([string]$ch)) {
-      [void]$sb.Append("{")
-      [void]$sb.Append($ch)
-      [void]$sb.Append("}")
-    } else {
-      [void]$sb.Append($ch)
-    }
-  }
-  return $sb.ToString()
-}
-
-function Normalize-SendKey($key) {
-  $k = ([string]$key).Trim()
-  switch ($k.ToLowerInvariant()) {
-    "return" { return "{ENTER}" }
-    "enter" { return "{ENTER}" }
-    "escape" { return "{ESC}" }
-    "esc" { return "{ESC}" }
-    "tab" { return "{TAB}" }
-    "backspace" { return "{BACKSPACE}" }
-    "delete" { return "{DELETE}" }
-    "space" { return " " }
-    "up" { return "{UP}" }
-    "down" { return "{DOWN}" }
-    "left" { return "{LEFT}" }
-    "right" { return "{RIGHT}" }
-    default {
-      if ($k.Length -eq 1) { return Escape-SendKeysText $k }
-      return "{" + $k.ToUpperInvariant() + "}"
-    }
-  }
-}
-
-function Send-ForegroundText($text) {
-  Ensure-InputBridge
-  [System.Windows.Forms.SendKeys]::SendWait((Escape-SendKeysText $text))
-}
-
-function Send-ForegroundKey($key) {
-  Ensure-InputBridge
-  [System.Windows.Forms.SendKeys]::SendWait((Normalize-SendKey $key))
-}
-
-function Foreground-Result($extra) {
-  $result = @{ ok = $true; mode = "foreground-input"; requiresForeground = $true }
-  if ($null -ne $extra) {
-    foreach ($name in $extra.Keys) { $result[$name] = $extra[$name] }
-  }
-  return $result
-}
-
 function Foreground-Required($message, $details) {
   return @{
     ok = $false
@@ -437,15 +287,6 @@ function Foreground-Required($message, $details) {
     message = $message
     details = $details
   }
-}
-
-function Ensure-Foreground-For-Action($window, $action, $details) {
-  if (Focus-Window $window) { return $true }
-  Write-Result (Foreground-Required "Windows refused to foreground the target window before input." @{
-    action = $action
-    details = $details
-  })
-  return $false
 }
 
 function Stale-Snapshot-Result($action, $match) {
@@ -525,36 +366,44 @@ try {
     }
     if ($req.action.type -eq "click_point") {
       $pt = Window-Point $window $req.action.x $req.action.y $req.action.snapshotDisplay
-      if (-not (Ensure-Foreground-For-Action $window "click_point" @{ x = $pt.x; y = $pt.y })) { exit 0 }
-      Mouse-Click-Screen $pt.x $pt.y
-      Write-Result @{ ok = $true; data = (Foreground-Result @{ action = "click_point"; x = $pt.x; y = $pt.y }) }
+      Write-Result (Foreground-Required "Windows UIA is configured for background-only control; click_point would require foreground input." @{
+        action = "click_point"
+        x = $pt.x
+        y = $pt.y
+      })
       exit 0
     }
     if ($req.action.type -eq "double_click" -and -not $req.action.elementId) {
       $pt = Window-Point $window $req.action.x $req.action.y $req.action.snapshotDisplay
-      if (-not (Ensure-Foreground-For-Action $window "double_click" @{ x = $pt.x; y = $pt.y })) { exit 0 }
-      Mouse-DoubleClick-Screen $pt.x $pt.y
-      Write-Result @{ ok = $true; data = (Foreground-Result @{ action = "double_click"; x = $pt.x; y = $pt.y }) }
+      Write-Result (Foreground-Required "Windows UIA is configured for background-only control; double_click would require foreground input." @{
+        action = "double_click"
+        x = $pt.x
+        y = $pt.y
+      })
       exit 0
     }
     if ($req.action.type -eq "drag") {
       $from = Window-Point $window $req.action.fromX $req.action.fromY $req.action.snapshotDisplay
       $to = Window-Point $window $req.action.toX $req.action.toY $req.action.snapshotDisplay
-      if (-not (Ensure-Foreground-For-Action $window "drag" @{ from = $from; to = $to })) { exit 0 }
-      Mouse-Drag-Screen $from.x $from.y $to.x $to.y
-      Write-Result @{ ok = $true; data = (Foreground-Result @{ action = "drag"; fromX = $from.x; fromY = $from.y; toX = $to.x; toY = $to.y }) }
+      Write-Result (Foreground-Required "Windows UIA is configured for background-only control; drag would require foreground input." @{
+        action = "drag"
+        from = $from
+        to = $to
+      })
       exit 0
     }
     if ($req.action.type -eq "press_key") {
-      if (-not (Ensure-Foreground-For-Action $window "press_key" @{ key = $req.action.key })) { exit 0 }
-      Send-ForegroundKey $req.action.key
-      Write-Result @{ ok = $true; data = (Foreground-Result @{ action = "press_key"; key = $req.action.key }) }
+      Write-Result (Foreground-Required "Windows UIA is configured for background-only control; press_key would require foreground input." @{
+        action = "press_key"
+        key = $req.action.key
+      })
       exit 0
     }
     if ($req.action.type -eq "type_text" -and -not $req.action.elementId) {
-      if (-not (Ensure-Foreground-For-Action $window "type_text" @{ textLength = ([string]$req.action.text).Length })) { exit 0 }
-      Send-ForegroundText $req.action.text
-      Write-Result @{ ok = $true; data = (Foreground-Result @{ action = "type_text"; textLength = ([string]$req.action.text).Length }) }
+      Write-Result (Foreground-Required "Windows UIA is configured for background-only control; type_text without an element would require foreground input." @{
+        action = "type_text"
+        textLength = ([string]$req.action.text).Length
+      })
       exit 0
     }
     if ($req.action.type -eq "scroll" -and -not $req.action.elementId) {
@@ -563,9 +412,12 @@ try {
       } else {
         $pt = Window-Center $window
       }
-      if (-not (Ensure-Foreground-For-Action $window "scroll" @{ x = $pt.x; y = $pt.y; direction = $req.action.direction })) { exit 0 }
-      Mouse-Wheel-Screen $pt.x $pt.y $req.action.direction $req.action.amount
-      Write-Result @{ ok = $true; data = (Foreground-Result @{ action = "scroll"; x = $pt.x; y = $pt.y; direction = $req.action.direction }) }
+      Write-Result (Foreground-Required "Windows UIA is configured for background-only control; scroll without an element would require foreground input." @{
+        action = "scroll"
+        x = $pt.x
+        y = $pt.y
+        direction = $req.action.direction
+      })
       exit 0
     }
 
@@ -586,8 +438,7 @@ try {
         $pattern = Invoke-Element $el
         Write-Result @{ ok = $true; data = @{ ok = $true; mode = "background"; pattern = $pattern } }
       } catch {
-        Write-Result (Foreground-Required "Element does not expose a UIA invoke pattern. Retry with click_point if foreground takeover is allowed." @{
-          suggestedAction = "click_point"
+        Write-Result (Foreground-Required "Element does not expose a UIA invoke pattern, and foreground input is disabled." @{
           elementId = $req.action.elementId
           bounds = Bounds-Of $el
         })
@@ -596,9 +447,12 @@ try {
     }
     if ($req.action.type -eq "double_click") {
       $pt = Element-Center $el
-      if (-not (Ensure-Foreground-For-Action $window "double_click" @{ elementId = $req.action.elementId; x = $pt.x; y = $pt.y })) { exit 0 }
-      Mouse-DoubleClick-Screen $pt.x $pt.y
-      Write-Result @{ ok = $true; data = (Foreground-Result @{ action = "double_click"; elementId = $req.action.elementId; x = $pt.x; y = $pt.y }) }
+      Write-Result (Foreground-Required "Windows UIA is configured for background-only control; double_click would require foreground input." @{
+        action = "double_click"
+        elementId = $req.action.elementId
+        x = $pt.x
+        y = $pt.y
+      })
       exit 0
     }
     if ($req.action.type -eq "type_text") {
@@ -606,8 +460,7 @@ try {
         $pattern = Set-Element-Value $el $req.action.text
         Write-Result @{ ok = $true; data = @{ ok = $true; mode = "background"; pattern = $pattern } }
       } catch {
-        Write-Result (Foreground-Required "Element does not expose ValuePattern. Retry with click_point plus foreground text input if foreground takeover is allowed." @{
-          suggestedAction = "click_point"
+        Write-Result (Foreground-Required "Element does not expose ValuePattern, and foreground text input is disabled." @{
           elementId = $req.action.elementId
           bounds = Bounds-Of $el
         })
@@ -619,7 +472,7 @@ try {
         $pattern = Scroll-Element $el $req.action.direction $req.action.amount
         Write-Result @{ ok = $true; data = @{ ok = $true; mode = "background"; pattern = $pattern } }
       } catch {
-        Write-Result (Foreground-Required "Element does not expose ScrollPattern. Retry with foreground wheel input if foreground takeover is allowed." @{
+        Write-Result (Foreground-Required "Element does not expose ScrollPattern, and foreground wheel input is disabled." @{
           suggestedAction = "scroll"
           elementId = $req.action.elementId
           bounds = Bounds-Of $el

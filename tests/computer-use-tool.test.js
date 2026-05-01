@@ -93,11 +93,80 @@ function makeNativeCursorTool() {
 
 function makeCoordinateOnlyTool() {
   const provider = createMockComputerProvider({ providerId: "macos:cua" });
+  provider.capabilities.pointClick = "allowed";
   provider.createLease = async (_ctx, target) => ({
     providerId: "macos:cua",
     appId: target?.appId || "app.notes",
     windowId: target?.windowId || "win-1",
     allowedActions: ["click_point", "double_click", "type_text", "press_key", "scroll", "drag", "stop"],
+    providerState: {},
+  });
+  const providers = new ComputerProviderRegistry();
+  providers.register(provider);
+  const host = new ComputerHost({
+    providers,
+    defaultProviderId: "macos:cua",
+    getSettings: () => ({ enabled: true }),
+  });
+  const emitted = [];
+  const tool = createComputerUseTool({
+    getComputerHost: () => host,
+    getSessionModel: () => ({ id: "gpt-5.5", provider: "openai", input: ["text", "image"] }),
+    getAgentId: () => "hana",
+    isAgentToolEnabled: () => true,
+    emitEvent: (event, sessionPath) => emitted.push({ event, sessionPath }),
+  });
+  const ctx = {
+    sessionManager: { getSessionFile: () => "/tmp/session.jsonl" },
+    agentId: "hana",
+    model: { id: "gpt-5.5", provider: "openai", input: ["text", "image"] },
+  };
+  return { tool, ctx, emitted };
+}
+
+function makeHybridCoordinateTool() {
+  const provider = createMockComputerProvider({ providerId: "macos:cua" });
+  provider.capabilities.pointClick = "allowed";
+  provider.createLease = async (_ctx, target) => ({
+    providerId: "macos:cua",
+    appId: target?.appId || "app.notes",
+    windowId: target?.windowId || "win-1",
+    allowedActions: ["click_element", "double_click", "type_text", "press_key", "scroll", "perform_secondary_action", "click_point", "stop"],
+    providerState: {},
+  });
+  const providers = new ComputerProviderRegistry();
+  providers.register(provider);
+  const host = new ComputerHost({
+    providers,
+    defaultProviderId: "macos:cua",
+    getSettings: () => ({ enabled: true }),
+  });
+  const emitted = [];
+  const tool = createComputerUseTool({
+    getComputerHost: () => host,
+    getSessionModel: () => ({ id: "gpt-5.5", provider: "openai", input: ["text", "image"] }),
+    getAgentId: () => "hana",
+    isAgentToolEnabled: () => true,
+    emitEvent: (event, sessionPath) => emitted.push({ event, sessionPath }),
+  });
+  const ctx = {
+    sessionManager: { getSessionFile: () => "/tmp/session.jsonl" },
+    agentId: "hana",
+    model: { id: "gpt-5.5", provider: "openai", input: ["text", "image"] },
+  };
+  return { tool, ctx, emitted };
+}
+
+function makeCleanElementOnlyTool() {
+  const provider = createMockComputerProvider({ providerId: "macos:cua" });
+  provider.capabilities.pointClick = "unsupported";
+  provider.capabilities.elementDoubleClick = false;
+  provider.capabilities.drag = "unsupported";
+  provider.createLease = async (_ctx, target) => ({
+    providerId: "macos:cua",
+    appId: target?.appId || "app.notes",
+    windowId: target?.windowId || "win-1",
+    allowedActions: ["click_element", "type_text", "press_key", "scroll", "perform_secondary_action", "stop"],
     providerState: {},
   });
   const providers = new ComputerProviderRegistry();
@@ -166,6 +235,18 @@ function makeApprovalTool(confirmAction = "confirmed") {
 }
 
 describe("computer tool", () => {
+  it("does not expose provider-disabled input-injection actions in the model schema", () => {
+    const { tool } = makeTool();
+    const actions = tool.parameters.properties.action.enum;
+
+    expect(actions).toContain("click_element");
+    expect(actions).toContain("perform_secondary_action");
+    expect(actions).not.toContain("click_point");
+    expect(actions).not.toContain("double_click");
+    expect(actions).not.toContain("drag");
+    expect(JSON.stringify(tool.parameters)).not.toMatch(/click_point|double_click|drag|fromX|from_x|toX|to_x/);
+  });
+
   it("creates a lease and reads app state", async () => {
     const { tool, ctx } = makeTool();
     const started = await tool.execute("call-1", {
@@ -207,7 +288,7 @@ describe("computer tool", () => {
     expect(state.content[1].type).toBe("image");
   });
 
-  it("tells the model to use screenshot coordinates when element actions are not lease-allowed", async () => {
+  it("does not advertise provider-internal coordinate actions when element clicks are not lease-allowed", async () => {
     const { tool, ctx } = makeCoordinateOnlyTool();
     await tool.execute("call-1", {
       action: "start",
@@ -219,10 +300,66 @@ describe("computer tool", () => {
       action: "get_app_state",
     }, null, null, ctx);
 
-    expect(state.content[0].text).toContain("Use screenshot coordinates with click_point or double_click");
-    expect(state.content[0].text).toContain("Element ids are for reading only");
-    expect(state.content[0].text).not.toContain("Use element ids with click_element");
-    expect(state.details.allowedActions).toEqual(["click_point", "double_click", "type_text", "press_key", "scroll", "drag", "stop"]);
+    expect(state.content[0].text).toContain("Use element ids with type_text or scroll");
+    expect(state.content[0].text).not.toContain("Use screenshot coordinates");
+    expect(state.content[0].text).not.toContain("click_point");
+    expect(state.content[0].text).not.toContain("double_click");
+    expect(state.content[0].text).not.toContain("drag");
+    expect(state.details.actionCapabilities).not.toHaveProperty("pointClick");
+    expect(state.details.allowedActions).toEqual(["type_text", "press_key", "scroll", "stop"]);
+  });
+
+  it("does not advertise foreground-only coordinate clicks", async () => {
+    const { tool, ctx } = makeForegroundTool();
+    await tool.execute("call-1", {
+      action: "start",
+      appId: "pid:12",
+      windowId: "123",
+    }, null, null, ctx);
+
+    const state = await tool.execute("call-2", {
+      action: "get_app_state",
+    }, null, null, ctx);
+
+    expect(state.content[0].text).toContain("no clean element action");
+    expect(state.content[0].text).not.toContain("Use screenshot coordinates");
+    expect(state.content[0].text).not.toContain("click_point");
+    expect(state.details.actionCapabilities).not.toHaveProperty("pointClick");
+  });
+
+  it("keeps guidance element-only even when a provider reports hidden point-click support", async () => {
+    const { tool, ctx } = makeHybridCoordinateTool();
+    await tool.execute("call-1", {
+      action: "start",
+      appId: "app.notes",
+      windowId: "win-1",
+    }, null, null, ctx);
+
+    const state = await tool.execute("call-2", {
+      action: "get_app_state",
+    }, null, null, ctx);
+
+    expect(state.content[0].text).toContain("Use element ids with click_element, type_text, scroll, or perform_secondary_action");
+    expect(state.content[0].text).not.toContain("click_point");
+    expect(state.content[0].text).not.toContain("double_click");
+  });
+
+  it("does not mention coordinate or double-click actions for clean element-only providers", async () => {
+    const { tool, ctx } = makeCleanElementOnlyTool();
+    await tool.execute("call-1", {
+      action: "start",
+      appId: "app.notes",
+      windowId: "win-1",
+    }, null, null, ctx);
+
+    const state = await tool.execute("call-2", {
+      action: "get_app_state",
+    }, null, null, ctx);
+
+    expect(state.content[0].text).toContain("Use element ids with click_element, type_text, scroll, or perform_secondary_action");
+    expect(state.content[0].text).not.toContain("click_point");
+    expect(state.content[0].text).not.toContain("double_click");
+    expect(state.content[0].text).toContain("report that the target cannot be clicked cleanly");
   });
 
   it("continues with the current session lease when ids are omitted", async () => {
@@ -348,33 +485,16 @@ describe("computer tool", () => {
     });
   });
 
-  it("marks foreground input actions as errors in overlay events", async () => {
+  it("rejects hidden input-injection actions at the tool boundary", async () => {
     const { tool, ctx, emitted } = makeForegroundTool();
-    const started = await tool.execute("call-1", {
-      action: "start",
-      appId: "pid:12",
-      windowId: "123",
-    }, null, null, ctx);
-    const state = await tool.execute("call-2", {
-      action: "get_app_state",
-      leaseId: started.details.leaseId,
-    }, null, null, ctx);
-
-    const action = await tool.execute("call-3", {
-      action: "click_point",
-      leaseId: started.details.leaseId,
-      snapshotId: state.details.snapshotId,
-      x: 20,
-      y: 30,
-    }, null, null, ctx);
-
-    const actionEvents = emitted.map((entry) => entry.event).filter((event) => event.action === "click_point");
-    expect(action.details.errorCode).toBe(COMPUTER_USE_ERRORS.ACTION_REQUIRES_FOREGROUND);
-    expect(actionEvents.map((event) => event.phase)).toEqual(["preview", "running", "error"]);
-    expect(actionEvents.every((event) => event.inputMode === "foreground-input")).toBe(true);
-    expect(actionEvents.every((event) => event.requiresForeground === true)).toBe(true);
-    expect(actionEvents.every((event) => event.interruptKey === "Escape")).toBe(true);
-    expect(actionEvents.at(-1)).toMatchObject({ errorCode: COMPUTER_USE_ERRORS.ACTION_REQUIRES_FOREGROUND });
+    for (const action of ["click_point", "double_click", "drag"]) {
+      const result = await tool.execute(`call-${action}`, { action }, null, null, ctx);
+      expect(result.details).toMatchObject({
+        errorCode: COMPUTER_USE_ERRORS.CAPABILITY_UNSUPPORTED,
+        action,
+      });
+    }
+    expect(emitted).toHaveLength(0);
   });
 
   it("marks overlay events as provider-rendered when the provider owns the cursor", async () => {
@@ -425,23 +545,11 @@ describe("computer tool", () => {
     expect(result.details.action).toBe("perform_secondary_action");
   });
 
-  it("accepts double click actions for media/list targets", async () => {
+  it("does not expose double click as a model action", async () => {
     const { tool, ctx } = makeTool();
-    await tool.execute("call-1", {
-      action: "start",
-      appId: "app.notes",
-      windowId: "win-1",
-    }, null, null, ctx);
-    await tool.execute("call-2", {
-      action: "get_app_state",
-    }, null, null, ctx);
+    const result = await tool.execute("call-hidden", { action: "double_click" }, null, null, ctx);
 
-    const result = await tool.execute("call-3", {
-      action: "double_click",
-      elementId: "mock-button",
-    }, null, null, ctx);
-
-    expect(result.details.errorCode).toBeUndefined();
+    expect(result.details.errorCode).toBe(COMPUTER_USE_ERRORS.CAPABILITY_UNSUPPORTED);
     expect(result.details.action).toBe("double_click");
   });
 

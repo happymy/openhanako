@@ -226,13 +226,45 @@ describe('computer app approval prompt', () => {
       path.join(process.cwd(), 'desktop/src/react/components/input/InputArea.module.css'),
       'utf8',
     );
+    const inputSource = fs.readFileSync(
+      path.join(process.cwd(), 'desktop/src/react/components/InputArea.tsx'),
+      'utf8',
+    );
+    const stackBlock = css.match(/\.input-stack\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
     const promptBlock = css.match(/\.session-confirmation-prompt\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
     const inputWrapperBlock = css.match(/\.input-wrapper\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
 
-    expect(promptBlock).toMatch(/width:\s*calc\(100%\s*-\s*3rem\)/);
-    expect(promptBlock).toMatch(/margin:\s*0 auto -1\.[0-9]+rem/);
+    expect(inputSource).toContain("styles['input-stack']");
+    expect(stackBlock).toMatch(/width:\s*100%/);
+    expect(promptBlock).toMatch(/width:\s*calc\(100%\s*-\s*4rem\)/);
+    expect(promptBlock).toMatch(/background:\s*var\(--bg-card\)/);
+    expect(promptBlock).toMatch(/border-radius:\s*var\(--radius-lg\)/);
+    expect(promptBlock).toMatch(/margin:\s*0 auto -2rem/);
+    expect(promptBlock).not.toContain('color-mix');
+    expect(promptBlock).not.toContain('border-bottom-color: transparent');
     expect(inputWrapperBlock).toMatch(/position:\s*relative/);
     expect(inputWrapperBlock).toMatch(/z-index:\s*1/);
+  });
+
+  it('removes the input confirmation after the retract animation so surrounding layout can settle', async () => {
+    const { container } = render(React.createElement(InputArea));
+
+    expect(container.querySelector('[data-confirm-id="confirm-computer-1"]')).toBeTruthy();
+
+    handleServerMessage({
+      type: 'confirmation_resolved',
+      confirmId: 'confirm-computer-1',
+      action: 'confirmed',
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-confirm-id="confirm-computer-1"]')?.getAttribute('data-status')).toBe('confirmed');
+    });
+
+    await waitFor(
+      () => expect(container.querySelector('[data-confirm-id="confirm-computer-1"]')).toBeNull(),
+      { timeout: 700 },
+    );
   });
 
   it('keeps the permission mode switch available after a session exists', () => {

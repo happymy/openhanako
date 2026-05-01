@@ -136,12 +136,16 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
     const resolved = findLatestInputSessionConfirmation(currentSessionItems, visibleSessionConfirmation.confirmId);
     setVisibleSessionConfirmation(resolved || visibleSessionConfirmation);
     setSessionConfirmationExiting(true);
+  }, [currentSessionItems, pendingSessionConfirmation, sessionConfirmationExiting, visibleSessionConfirmation]);
+
+  useEffect(() => {
+    if (!sessionConfirmationExiting) return;
     const timer = window.setTimeout(() => {
       setVisibleSessionConfirmation(null);
       setSessionConfirmationExiting(false);
     }, 260);
     return () => window.clearTimeout(timer);
-  }, [currentSessionItems, pendingSessionConfirmation, sessionConfirmationExiting, visibleSessionConfirmation]);
+  }, [sessionConfirmationExiting]);
 
   // ── 全局 inline notice（截图等非斜杠命令的轻提示）──
   useEffect(() => {
@@ -640,45 +644,47 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
             onSelect={handleSlashSelect} onHover={(i) => setSlashSelected(i)} />
         )}
       </div>
-      {visibleSessionConfirmation && (
-        <SessionConfirmationPrompt
-          block={visibleSessionConfirmation}
-          exiting={sessionConfirmationExiting}
-        />
-      )}
-      <div className={styles['input-wrapper']} ref={cardRef}>
-        <div
-          onKeyDown={handleEditorKeyDown}
-          onPaste={handlePaste}
-          onCompositionStart={() => { isComposing.current = true; }}
-          onCompositionEnd={() => { isComposing.current = false; }}
-        >
-          <EditorContent editor={editor} />
+      <div className={styles['input-stack']}>
+        {visibleSessionConfirmation && (
+          <SessionConfirmationPrompt
+            block={visibleSessionConfirmation}
+            exiting={sessionConfirmationExiting}
+          />
+        )}
+        <div className={styles['input-wrapper']} ref={cardRef}>
+          <div
+            onKeyDown={handleEditorKeyDown}
+            onPaste={handlePaste}
+            onCompositionStart={() => { isComposing.current = true; }}
+            onCompositionEnd={() => { isComposing.current = false; }}
+          >
+            <EditorContent editor={editor} />
+          </div>
+          <InputControlBar
+            t={t}
+            onAttach={handleAttach}
+            slashBtnRef={slashBtnRef}
+            onSlashToggle={handleSlashToggle}
+            permissionMode={permissionMode}
+            onPermissionModeChange={setPermissionMode}
+            planModeLocked={false}
+            hasDoc={hasDoc}
+            docContextAttached={docContextAttached}
+            onToggleDocContext={toggleDocContext}
+            showThinking={currentModelInfo?.reasoning !== false}
+            thinkingLevel={thinkingLevel}
+            onThinkingChange={setThinkingLevel}
+            modelXhigh={(sessionModel ? models.find(m => m.id === sessionModel.id && m.provider === sessionModel.provider)?.xhigh : globalModelInfo?.xhigh) ?? false}
+            models={models}
+            sessionModel={sessionModel}
+            isStreaming={isStreaming}
+            hasInput={!!inputText.trim()}
+            canSend={canSend}
+            onSend={handleSend}
+            onSteer={handleSteer}
+            onStop={handleStop}
+          />
         </div>
-        <InputControlBar
-          t={t}
-          onAttach={handleAttach}
-          slashBtnRef={slashBtnRef}
-          onSlashToggle={handleSlashToggle}
-          permissionMode={permissionMode}
-          onPermissionModeChange={setPermissionMode}
-          planModeLocked={false}
-          hasDoc={hasDoc}
-          docContextAttached={docContextAttached}
-          onToggleDocContext={toggleDocContext}
-          showThinking={currentModelInfo?.reasoning !== false}
-          thinkingLevel={thinkingLevel}
-          onThinkingChange={setThinkingLevel}
-          modelXhigh={(sessionModel ? models.find(m => m.id === sessionModel.id && m.provider === sessionModel.provider)?.xhigh : globalModelInfo?.xhigh) ?? false}
-          models={models}
-          sessionModel={sessionModel}
-          isStreaming={isStreaming}
-          hasInput={!!inputText.trim()}
-          canSend={canSend}
-          onSend={handleSend}
-          onSteer={handleSteer}
-          onStop={handleStop}
-        />
       </div>
     </>
   );
