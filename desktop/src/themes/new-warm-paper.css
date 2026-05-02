@@ -1,15 +1,11 @@
 /*
- * Hana Theme: 新暖纸（试验）
- * 基于 Claude Design 工具导出的 "Hanako Design System" 规范，
+ * Hana Theme: 新暖纸
  * 纸本世界 + 5 档墨色 + 印章青蓝 + 极方圆角 + 0.5px hairline。
- *
- * 文件名 / data-theme key 保留 claude-design 以避免破坏用户已保存
- * 的 localStorage 主题选择；显示名（i18n）为"新暖纸"。
  *
  * 字体离线打包由全局 styles.css 引入；当前主题使用全局默认字体。
  */
 
-[data-theme="claude-design"] {
+[data-theme="new-warm-paper"] {
     /* ─── Paper 系 ─── */
     --bg:           #F5EFE4;                    /* paper · 宣纸主面 */
     --bg-card:      #FBF7EE;                    /* paper-sunk · 浮起的卡（光落上去更亮） */

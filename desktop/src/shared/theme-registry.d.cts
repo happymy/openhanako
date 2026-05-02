@@ -14,7 +14,8 @@ export type ThemeId =
   | 'absolutely'
   | 'delve'
   | 'deep-think'
-  | 'claude-design';
+  | 'new-warm-paper'
+  | 'midnight-contrast';
 
 export type StoredThemeSelection = ThemeId | 'auto';
 
@@ -34,6 +35,7 @@ export const DEFAULT_THEME: 'warm-paper';
 export const AUTO_LIGHT_DEFAULT: 'warm-paper';
 export const AUTO_DARK_DEFAULT: 'midnight';
 export const AUTO_OPTION: ThemeUIOption;
+export const LEGACY_THEME_ALIASES: Readonly<Record<string, ThemeId>>;
 export const THEMES: Readonly<Record<ThemeId, ThemeEntry>>;
 
 export function migrateSavedTheme(raw: unknown): StoredThemeSelection;

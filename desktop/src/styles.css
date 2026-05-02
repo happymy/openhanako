@@ -1,4 +1,4 @@
-@import url('./themes/claude-design-fonts.css');
+@import url('./themes/new-warm-paper-fonts.css');
 
 /* ========================================
    设计系统 · 结构 Token（主题无关）
@@ -89,7 +89,7 @@ body:not(.no-paper-texture) .yuan-chip {
 }
 
 /* ③ 亮度补偿：暖白叠层抵消纹理变暗（暗色主题跳过） */
-html:not([data-theme="midnight"]) body:not(.no-paper-texture)::before {
+html:not([data-theme="midnight"]):not([data-theme="midnight-contrast"]) body:not(.no-paper-texture)::before {
     content: '';
     position: fixed;
     inset: 0;
@@ -599,6 +599,7 @@ html[data-platform="linux"] .tb-toggle-right {
     background: rgba(255,255,255,0.5);
     border: 1px solid rgba(0,0,0,0.05);
     box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    color: var(--sidebar-bridge-card-text, var(--text-muted));
     width: calc(100% - var(--space-md) * 2);
     margin: 4px auto 6px;
     padding: 7px 12px;

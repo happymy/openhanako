@@ -10,6 +10,9 @@ const STORAGE_KEY = 'hana-theme';
 const DEFAULT_THEME = 'warm-paper';
 const AUTO_LIGHT_DEFAULT = 'warm-paper';
 const AUTO_DARK_DEFAULT = 'midnight';
+const LEGACY_THEME_ALIASES = Object.freeze({
+  'claude-design': 'new-warm-paper',
+});
 
 const AUTO_OPTION = Object.freeze({
   id: 'auto',
@@ -27,7 +30,7 @@ const THEMES = Object.freeze(Object.fromEntries(
     },
     'midnight': {
       cssPath: 'themes/midnight.css',
-      backgroundColor: '#2D4356',
+      backgroundColor: '#3B4A54',
       i18nName: 'settings.appearance.midnight',
       i18nMode: 'settings.appearance.midnightMode',
     },
@@ -67,11 +70,17 @@ const THEMES = Object.freeze(Object.fromEntries(
       i18nName: 'settings.appearance.deepThink',
       i18nMode: 'settings.appearance.deepThinkMode',
     },
-    'claude-design': {
-      cssPath: 'themes/claude-design.css',
+    'new-warm-paper': {
+      cssPath: 'themes/new-warm-paper.css',
       backgroundColor: '#F5EFE4',
-      i18nName: 'settings.appearance.claudeDesign',
-      i18nMode: 'settings.appearance.claudeDesignMode',
+      i18nName: 'settings.appearance.newWarmPaper',
+      i18nMode: 'settings.appearance.newWarmPaperMode',
+    },
+    'midnight-contrast': {
+      cssPath: 'themes/midnight-contrast.css',
+      backgroundColor: '#26343D',
+      i18nName: 'settings.appearance.midnightContrast',
+      i18nMode: 'settings.appearance.midnightContrastMode',
     },
   }).map(([k, v]) => [k, Object.freeze(v)])
 ));
@@ -93,6 +102,7 @@ for (const [id, entry] of Object.entries(THEMES)) {
 function migrateSavedTheme(raw) {
   if (raw === 'auto') return 'auto';
   if (typeof raw !== 'string' || raw.length === 0) return DEFAULT_THEME;
+  if (LEGACY_THEME_ALIASES[raw]) return LEGACY_THEME_ALIASES[raw];
   return THEMES[raw] ? raw : DEFAULT_THEME;
 }
 
@@ -125,6 +135,7 @@ module.exports = {
   AUTO_LIGHT_DEFAULT,
   AUTO_DARK_DEFAULT,
   AUTO_OPTION,
+  LEGACY_THEME_ALIASES,
   THEMES,
   migrateSavedTheme,
   resolveSavedTheme,

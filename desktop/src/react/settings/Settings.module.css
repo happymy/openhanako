@@ -1769,15 +1769,15 @@
 
 /* 青夜：用青夜主题的真实配色 */
 .theme-card[data-theme="midnight"] {
-    background: #2D4356;
+    background: #3B4A54;
 }
 
 .theme-card[data-theme="midnight"] .theme-card-name {
-    color: #C8D1D8;
+    color: #E1EAF0;
 }
 
 .theme-card[data-theme="midnight"] .theme-card-mode {
-    color: #A76F6F;
+    color: #C99AAF;
 }
 
 /* 素白（高对比）：用高对比主题的真实配色 */
@@ -1819,7 +1819,7 @@
     color: #7E99A8;
 }
 
-/* Absolutely：Claude 赤陶配色 */
+/* Absolutely：暖奶油底 + 哑光赤陶 */
 .theme-card[data-theme="absolutely"] {
     background: #F4F3EE;
 }
@@ -1858,17 +1858,30 @@
     color: #636AE8;
 }
 
-/* Claude Design：手账宣纸 + 印章青蓝 */
-.theme-card[data-theme="claude-design"] {
+/* 新暖纸：手账宣纸 + 印章青蓝 */
+.theme-card[data-theme="new-warm-paper"] {
     background: #F5EFE4;
 }
 
-.theme-card[data-theme="claude-design"] .theme-card-name {
+.theme-card[data-theme="new-warm-paper"] .theme-card-name {
     color: #2A2622;
 }
 
-.theme-card[data-theme="claude-design"] .theme-card-mode {
+.theme-card[data-theme="new-warm-paper"] .theme-card-mode {
     color: #537D96;
+}
+
+/* 青夜高对比：更深青蓝 + 亮玫瑰 */
+.theme-card[data-theme="midnight-contrast"] {
+    background: #26343D;
+}
+
+.theme-card[data-theme="midnight-contrast"] .theme-card-name {
+    color: #F0F6FA;
+}
+
+.theme-card[data-theme="midnight-contrast"] .theme-card-mode {
+    color: #E6B1C4;
 }
 
 /* 自动：左暖纸右蓝调，硬拼色 */

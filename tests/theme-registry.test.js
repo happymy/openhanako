@@ -26,19 +26,21 @@ describe('theme-registry', () => {
   });
 
   describe('THEMES 完整性', () => {
-    it('恰好 9 条', () => {
-      expect(Object.keys(reg.THEMES)).toHaveLength(9);
+    it('恰好 10 条', () => {
+      expect(Object.keys(reg.THEMES)).toHaveLength(10);
     });
 
     it('包含所有已知主题 id', () => {
       expect(Object.keys(reg.THEMES).sort()).toEqual([
-        'absolutely', 'claude-design', 'contemplation', 'deep-think',
-        'delve', 'grass-aroma', 'high-contrast', 'midnight', 'warm-paper',
+        'absolutely', 'contemplation', 'deep-think',
+        'delve', 'grass-aroma', 'high-contrast', 'midnight', 'midnight-contrast',
+        'new-warm-paper', 'warm-paper',
       ]);
     });
 
     it.each(['warm-paper', 'midnight', 'high-contrast', 'grass-aroma',
-             'contemplation', 'absolutely', 'delve', 'deep-think', 'claude-design'])(
+             'contemplation', 'absolutely', 'delve', 'deep-think', 'new-warm-paper',
+             'midnight-contrast'])(
       '"%s" 每条都有完整字段',
       (id) => {
         const t = reg.THEMES[id];
@@ -53,6 +55,11 @@ describe('theme-registry', () => {
       }
     );
 
+    it('高对比暗色主题紧跟新暖纸，保证设置页显示在它右侧', () => {
+      const ids = reg.getThemeIds();
+      expect(ids[ids.indexOf('new-warm-paper') + 1]).toBe('midnight-contrast');
+    });
+
     it('THEMES 及每个条目都是 frozen（防止意外 mutation）', () => {
       expect(Object.isFrozen(reg.THEMES)).toBe(true);
       for (const id of Object.keys(reg.THEMES)) {
@@ -65,7 +72,11 @@ describe('theme-registry', () => {
     it('合法主题 id 原样返回', () => {
       expect(reg.migrateSavedTheme('warm-paper')).toBe('warm-paper');
       expect(reg.migrateSavedTheme('midnight')).toBe('midnight');
-      expect(reg.migrateSavedTheme('claude-design')).toBe('claude-design');
+      expect(reg.migrateSavedTheme('new-warm-paper')).toBe('new-warm-paper');
+    });
+
+    it('旧新暖纸主题 id 迁移到新 id', () => {
+      expect(reg.migrateSavedTheme('claude-design')).toBe('new-warm-paper');
     });
 
     it('"auto" 原样返回', () => {
@@ -125,9 +136,9 @@ describe('theme-registry', () => {
       expect(reg.getThemeIds().sort()).toEqual(Object.keys(reg.THEMES).sort());
     });
 
-    it('getAllUIOptions 含 9 个主题 + auto', () => {
+    it('getAllUIOptions 含 10 个主题 + auto', () => {
       const opts = reg.getAllUIOptions();
-      expect(opts).toHaveLength(10);
+      expect(opts).toHaveLength(11);
       expect(opts.map(o => o.id).sort()).toContain('auto');
       expect(opts.map(o => o.id).sort()).toContain('warm-paper');
       opts.forEach(o => {
