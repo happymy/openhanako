@@ -41,6 +41,7 @@ export const bridgeCommands = [
   },
   {
     name: "reset",
+    aliases: ["clear"],
     description: "彻底重置会话，清除历史",
     scope: "session",
     permission: "owner",

@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { bridgeCommands } from "../../core/slash-commands/bridge-commands.js";
+import { SlashCommandRegistry } from "../../core/slash-command-registry.js";
+import { SlashCommandDispatcher } from "../../core/slash-command-dispatcher.js";
 
 function makeCtx(overrides = {}) {
   return {
@@ -73,6 +75,34 @@ describe("/reset", () => {
     const ctx = makeCtx({ sessionOps: { delete: vi.fn(async () => ({ status: "not-found" })) } });
     const r = await cmd.handler(ctx);
     expect(r.reply).toMatch(/未找到/);
+  });
+
+  it("/clear dispatches to the same reset handler and deletes the current session", async () => {
+    const registry = new SlashCommandRegistry();
+    for (const def of bridgeCommands) registry.registerCommand(def);
+    const sessionOps = makeCtx().sessionOps;
+    const reply = vi.fn(async () => {});
+    const dispatcher = new SlashCommandDispatcher({
+      registry,
+      hub: {},
+      engine: {},
+      sessionOps,
+    });
+
+    const res = await dispatcher.tryDispatch("/clear", {
+      sessionRef: { kind: "bridge", agentId: "a1", sessionKey: "tg_dm_x@a1" },
+      source: "telegram",
+      isOwner: true,
+      reply,
+    });
+
+    expect(res.handled).toBe(true);
+    expect(sessionOps.delete).toHaveBeenCalledWith({
+      kind: "bridge",
+      agentId: "a1",
+      sessionKey: "tg_dm_x@a1",
+    });
+    expect(reply).toHaveBeenCalledWith(expect.stringMatching(/已重置/));
   });
 });
 
