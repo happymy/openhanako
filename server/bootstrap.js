@@ -21,10 +21,21 @@ log(`[server-bootstrap] node=${process.version} hanaHome=${process.env.HANA_HOME
 log(`[server-bootstrap] root=${hanaRoot}`);
 log(`[server-bootstrap] entry=${serverEntry}`);
 
+const importStartedAt = Date.now();
+const importTimer = setInterval(() => {
+  const elapsedSec = Math.round((Date.now() - importStartedAt) / 1000);
+  log(`[server-bootstrap] server entry import still pending after ${elapsedSec}s`);
+}, 15000);
+importTimer.unref?.();
+
 try {
+  log("[server-bootstrap] importing server entry");
   await import(pathToFileURL(serverEntry).href);
+  log("[server-bootstrap] server entry import completed");
 } catch (err) {
   logError(`[server-bootstrap] failed to import server entry: ${err?.stack || err?.message || String(err)}`);
   process.exitCode = 1;
   throw err;
+} finally {
+  clearInterval(importTimer);
 }

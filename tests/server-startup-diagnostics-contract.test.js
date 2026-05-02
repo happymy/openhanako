@@ -14,6 +14,31 @@ describe("server startup diagnostics contract", () => {
     expect(mainSource).toContain("Server child alive:");
   });
 
+  it("keeps process diagnostics even when bootstrap already wrote output", () => {
+    const mainSource = fs.readFileSync(path.join(root, "desktop", "main.cjs"), "utf-8");
+
+    expect(mainSource).toContain("function buildServerCrashDiagnostics(");
+    expect(mainSource).toContain("const diagnostics = buildServerCrashDiagnostics();");
+    expect(mainSource).not.toContain("if (!logs) {\n    // production 时 server");
+  });
+
+  it("waits for the server graceful shutdown contract before force killing", () => {
+    const mainSource = fs.readFileSync(path.join(root, "desktop", "main.cjs"), "utf-8");
+
+    expect(mainSource).toContain("SERVER_SHUTDOWN_GRACE_MS");
+    expect(mainSource).toContain("waitForProcessExit(");
+    expect(mainSource).toContain("killPid(pid, true)");
+    expect(mainSource).not.toContain("setTimeout(done, 3000)");
+  });
+
+  it("keeps server-info when shutdown cannot confirm the server is gone", () => {
+    const mainSource = fs.readFileSync(path.join(root, "desktop", "main.cjs"), "utf-8");
+
+    expect(mainSource).toContain("let removeServerInfo = true");
+    expect(mainSource).toContain("removeServerInfo = false");
+    expect(mainSource).toContain("if (removeServerInfo)");
+  });
+
   it("starts packaged and dev server through an early bootstrap entry", () => {
     const mainSource = fs.readFileSync(path.join(root, "desktop", "main.cjs"), "utf-8");
     const buildSource = fs.readFileSync(path.join(root, "scripts", "build-server.mjs"), "utf-8");
@@ -25,6 +50,9 @@ describe("server startup diagnostics contract", () => {
     expect(bootstrapSource.indexOf("[server-bootstrap] process started")).toBeLessThan(
       bootstrapSource.indexOf("await import("),
     );
+    expect(bootstrapSource).toContain("[server-bootstrap] importing server entry");
+    expect(bootstrapSource).toContain("[server-bootstrap] server entry import still pending");
+    expect(bootstrapSource).toContain("[server-bootstrap] server entry import completed");
 
     expect(mainSource).toContain("bootstrap.js");
     expect(mainSource).toContain("HANA_SERVER_ENTRY");
