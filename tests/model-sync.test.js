@@ -63,6 +63,14 @@ const KNOWN_MODELS = {
     },
   },
   "kimi-coding": {
+    "kimi-for-coding": {
+      name: "Kimi for Coding",
+      context: 262144,
+      maxOutput: 32768,
+      image: true,
+      reasoning: true,
+      visionCapabilities: { grounding: true, boxes: true, points: true, coordinateSpace: "norm-1000", boxOrder: "xyxy", outputFormat: "anchor", groundingMode: "prompted" },
+    },
     "kimi-k2.6": {
       name: "Kimi K2.6",
       context: 262144,
@@ -335,6 +343,36 @@ describe("syncModels", () => {
     expect(model.maxTokens).toBe(98304);
     expect(model.input).toEqual(["text", "image"]);
     expect(model.reasoning).toBe(true);
+  });
+
+  it("projects Kimi Coding Plan stable model with Anthropic thinking compat", async () => {
+    const syncModels = await loadSync();
+
+    const providers = {
+      "kimi-coding": {
+        base_url: "https://api.kimi.com/coding/",
+        api: "anthropic-messages",
+        api_key: "sk-test",
+        models: ["kimi-for-coding"],
+      },
+    };
+
+    syncModels(providers, { modelsJsonPath });
+
+    const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
+    const model = result.providers["kimi-coding"].models[0];
+    expect(model).toMatchObject({
+      id: "kimi-for-coding",
+      name: "Kimi for Coding",
+      contextWindow: 262144,
+      maxTokens: 32768,
+      input: ["text", "image"],
+      reasoning: true,
+      compat: {
+        supportsDeveloperRole: false,
+        thinkingFormat: "anthropic",
+      },
+    });
   });
 
   it("marks Anthropic-compatible reasoning models with anthropic thinking format", async () => {

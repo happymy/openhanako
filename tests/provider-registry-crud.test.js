@@ -221,6 +221,16 @@ describe("auth policy", () => {
   });
 });
 
+// ── builtin defaults ─────────────────────────────────────────────────────────
+
+describe("builtin default models", () => {
+  it("uses the stable Kimi for Coding model ID for Kimi Coding Plan", () => {
+    writeAddedModels({});
+    const reg = new ProviderRegistry(tmpDir);
+    expect(reg.getDefaultModels("kimi-coding")[0]).toBe("kimi-for-coding");
+  });
+});
+
 // ── getProviderModels ────────────────────────────────────────────────────────
 
 describe("getProviderModels", () => {

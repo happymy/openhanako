@@ -2395,6 +2395,22 @@
     }
   },
   "kimi-coding": {
+    "kimi-for-coding": {
+      "name": "Kimi for Coding",
+      "context": 262144,
+      "maxOutput": 32768,
+      "image": true,
+      "reasoning": true,
+      "visionCapabilities": {
+        "grounding": true,
+        "boxes": true,
+        "points": true,
+        "coordinateSpace": "norm-1000",
+        "boxOrder": "xyxy",
+        "outputFormat": "anchor",
+        "groundingMode": "prompted"
+      }
+    },
     "kimi-k2.6": {
       "name": "Kimi K2.6",
       "context": 262144,

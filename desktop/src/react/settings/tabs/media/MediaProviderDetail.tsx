@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useSettingsStore } from '../../store';
 import { hanaFetch } from '../../api';
 import { invalidateConfigCache } from '../../../hooks/use-config';
 import { t } from '../../helpers';
+import { useAnchoredDropdown } from '../../hooks/useAnchoredDropdown';
 import styles from '../../Settings.module.css';
 
 interface Props {
@@ -73,39 +75,20 @@ export function MediaProviderDetail({ providerId, provider, config, onSaveConfig
   const [search, setSearch] = useState('');
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+  const closeDropdown = useCallback(() => setDropdownOpen(false), []);
 
   const addedIds = new Set(provider.models.map(m => m.id));
   const allModels = [...provider.models, ...provider.availableModels];
   const query = search.toLowerCase();
   const filtered = query ? allModels.filter(m => m.id.toLowerCase().includes(query) || m.name.toLowerCase().includes(query)) : allModels;
 
-  useEffect(() => {
-    if (!dropdownOpen || !triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const w = rect.width + 80;
-    const left = Math.min(rect.left, window.innerWidth - w - 8);
-    setPanelStyle({
-      position: 'fixed',
-      left: Math.max(8, left),
-      width: w,
-      top: rect.bottom + 4,
-      maxHeight: window.innerHeight - rect.bottom - 12,
-      zIndex: 9999,
-    });
-  }, [dropdownOpen]);
-
-  useEffect(() => {
-    if (!dropdownOpen) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target)) return;
-      if (panelRef.current?.contains(target)) return;
-      setDropdownOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [dropdownOpen]);
+  const panelStyle = useAnchoredDropdown({
+    open: dropdownOpen,
+    triggerRef,
+    panelRef,
+    onClose: closeDropdown,
+    widthOffset: 80,
+  });
 
   return (
     <div className={styles['pv-detail-inner']}>
@@ -168,8 +151,13 @@ export function MediaProviderDetail({ providerId, provider, config, onSaveConfig
           </button>
         </div>
 
-        {dropdownOpen && (
-          <div className={styles['pv-model-dropdown-panel']} ref={panelRef} style={panelStyle}>
+        {dropdownOpen && createPortal(
+          <div
+            className={styles['pv-model-dropdown-panel']}
+            ref={panelRef}
+            style={panelStyle}
+            data-media-model-dropdown="true"
+          >
             <input
               className={styles['pv-model-dropdown-search']}
               type="text"
@@ -196,7 +184,8 @@ export function MediaProviderDetail({ providerId, provider, config, onSaveConfig
                 <div className={styles['pv-model-dropdown-empty']}>{t('settings.providers.noModels')}</div>
               )}
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
 

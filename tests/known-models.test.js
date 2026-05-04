@@ -78,6 +78,16 @@ describe("known-models dictionary", () => {
     });
   });
 
+  it("declares the stable Kimi for Coding model for Kimi Coding Plan", () => {
+    expect(lookupKnown("kimi-coding", "kimi-for-coding")).toMatchObject({
+      name: "Kimi for Coding",
+      context: 262144,
+      maxOutput: 32768,
+      image: true,
+      reasoning: true,
+    });
+  });
+
   it("keeps provider-specific metadata ahead of generic fallbacks", () => {
     expect(lookupKnown("openai-codex-oauth", "gpt-5.5")).toMatchObject({
       context: 400000,

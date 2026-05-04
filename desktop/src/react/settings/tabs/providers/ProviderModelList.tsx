@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useSettingsStore, type ProviderSummary } from '../../store';
 import { hanaFetch } from '../../api';
 import { invalidateConfigCache } from '../../../hooks/use-config';
 import { t, formatContext, lookupModelMeta } from '../../helpers';
+import { useAnchoredDropdown } from '../../hooks/useAnchoredDropdown';
 import { ModelEditPanel } from './ModelEditPanel';
 import styles from '../../Settings.module.css';
 
@@ -139,34 +141,14 @@ export function ProviderModelList({ providerId, summary, onRefresh }: {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
-
-  useEffect(() => {
-    if (!dropdownOpen || !triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const w = rect.width + 80;
-    const left = Math.min(rect.left, window.innerWidth - w - 8);
-    setPanelStyle({
-      position: 'fixed',
-      left: Math.max(8, left),
-      width: w,
-      top: rect.bottom + 4,
-      maxHeight: window.innerHeight - rect.bottom - 12,
-      zIndex: 9999,
-    });
-  }, [dropdownOpen]);
-
-  useEffect(() => {
-    if (!dropdownOpen) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target)) return;
-      if (panelRef.current?.contains(target)) return;
-      setDropdownOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [dropdownOpen]);
+  const closeDropdown = useCallback(() => setDropdownOpen(false), []);
+  const panelStyle = useAnchoredDropdown({
+    open: dropdownOpen,
+    triggerRef,
+    panelRef,
+    onClose: closeDropdown,
+    widthOffset: 80,
+  });
 
   const [editing, setEditing] = useState<{ id: string; anchor: HTMLElement } | null>(null);
 
@@ -181,7 +163,7 @@ export function ProviderModelList({ providerId, summary, onRefresh }: {
           </div>
           <div className={styles['pv-fav-list']}>
             {currentModelIds.map(mid => {
-              const meta = lookupModelMeta(mid) || {};
+              const meta = lookupModelMeta(mid, providerId) || {};
               return (
                 <div key={mid} className={styles['pv-fav-item']}>
                   <span className={styles['pv-fav-item-name']} title={mid}>{meta.displayName || meta.name || mid}</span>
@@ -235,8 +217,13 @@ export function ProviderModelList({ providerId, summary, onRefresh }: {
         </button>
       </div>
       {fetchHint && <div className={`${styles['pv-fetch-hint']} ${fetchHint.ok ? styles['ok'] : styles['fail']}`}>{fetchHint.msg}</div>}
-      {dropdownOpen && (
-          <div className={styles['pv-model-dropdown-panel']} ref={panelRef} style={panelStyle}>
+      {dropdownOpen && createPortal(
+          <div
+            className={styles['pv-model-dropdown-panel']}
+            ref={panelRef}
+            style={panelStyle}
+            data-provider-model-dropdown="true"
+          >
             <input
               className={styles['pv-model-dropdown-search']}
               type="text"
@@ -248,7 +235,7 @@ export function ProviderModelList({ providerId, summary, onRefresh }: {
             <div className={styles['pv-model-dropdown-list']}>
               {filtered.map(mid => {
                 const isAdded = currentModelIds.includes(mid);
-                const meta = lookupModelMeta(mid) || {};
+                const meta = lookupModelMeta(mid, providerId) || {};
                 const discovered = discoveredModels.find(d => d.id === mid);
                 const ctx = meta.context || discovered?.context;
                 return (
@@ -278,7 +265,8 @@ export function ProviderModelList({ providerId, summary, onRefresh }: {
               />
               <button className={styles['pv-model-add-btn']} onClick={addCustomModel}>{'\u21B5'}</button>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
     </div>
   );
