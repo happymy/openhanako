@@ -3,6 +3,7 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStageFilesTool } from "../lib/tools/output-file-tool.js";
+import { loadLocale } from "../server/i18n.js";
 
 describe("stage_files tool", () => {
   let tmpDir = null;
@@ -12,7 +13,18 @@ describe("stage_files tool", () => {
     tmpDir = null;
   });
 
+  it("describes the tool as the unified file delivery handoff", () => {
+    loadLocale("en");
+    const tool = createStageFilesTool({});
+
+    expect(tool.description).toContain("hand one or more local files to the user");
+    expect(tool.description).toContain("Bridge/remote platforms");
+    expect(tool.description).toContain("consumers choose the platform-specific delivery");
+    expect(tool.parameters.properties.filepaths.description).toContain("StageFile");
+  });
+
   it("registers staged files as session files while preserving legacy mediaUrls", async () => {
+    loadLocale("en");
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-stage-tool-"));
     const filePath = path.join(tmpDir, "out.txt");
     fs.writeFileSync(filePath, "ok");

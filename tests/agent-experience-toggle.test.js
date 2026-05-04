@@ -98,6 +98,17 @@ describe("agent experience toggle", () => {
       .toContain("create_artifact");
   });
 
+  it("guides fresh sessions to deliver files through stage_files", () => {
+    const { agent, root } = makeAgent({ experienceEnabled: false });
+    roots.push(root);
+
+    const prompt = agent.buildSystemPrompt();
+    expect(prompt).toContain("use stage_files to register it");
+    expect(prompt).toContain("Bridge can send according to platform capabilities");
+    expect(prompt).toContain("same SessionFile");
+    expect(prompt).not.toContain("create_artifact");
+  });
+
   it("lets session creation force the frozen experience tool state", () => {
     const { agent, root } = makeAgent({ experienceEnabled: true });
     roots.push(root);

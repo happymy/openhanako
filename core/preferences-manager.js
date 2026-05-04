@@ -150,6 +150,24 @@ export class PreferencesManager {
     this.savePreferences(prefs);
   }
 
+  /** 读取 Bridge 媒体临时公网 base URL。空值表示回退到启动环境变量。 */
+  getBridgeMediaPublicBaseUrl() {
+    return normalizeBridgeMediaPublicBaseUrl(this._cache.bridge?.mediaPublicBaseUrl || "");
+  }
+
+  /** 保存 Bridge 媒体临时公网 base URL。传空字符串会清除持久配置。 */
+  setBridgeMediaPublicBaseUrl(value) {
+    const normalized = normalizeBridgeMediaPublicBaseUrl(value);
+    const prefs = this._mutableCopy();
+    const bridge = { ...(prefs.bridge || {}) };
+    if (normalized) bridge.mediaPublicBaseUrl = normalized;
+    else delete bridge.mediaPublicBaseUrl;
+    if (Object.keys(bridge).length === 0) delete prefs.bridge;
+    else prefs.bridge = bridge;
+    this.savePreferences(prefs);
+    return normalized;
+  }
+
   /** 读取 Computer Use 全局设置（provider 选择、批准列表、平台策略） */
   getComputerUseSettings() {
     return normalizeComputerUseSettings(this._cache.computer_use || {});
@@ -358,4 +376,22 @@ export class PreferencesManager {
     } catch {}
     return null;
   }
+}
+
+function normalizeBridgeMediaPublicBaseUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("bridge media public base URL must be a valid URL");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("bridge media public base URL must use http or https");
+  }
+  if (parsed.search || parsed.hash) {
+    throw new Error("bridge media public base URL must not include query or hash");
+  }
+  return raw.replace(/\/+$/, "");
 }

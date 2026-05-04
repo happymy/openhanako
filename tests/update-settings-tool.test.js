@@ -18,6 +18,10 @@ function makeMockPrefs(initial = {}) {
     setLocale(v) { store.locale = v; },
     getTimezone: () => store.timezone || "",
     setTimezone(v) { store.timezone = v; },
+    getBridgeMediaPublicBaseUrl: () => store.bridge?.mediaPublicBaseUrl || "",
+    setBridgeMediaPublicBaseUrl(v) {
+      store.bridge = { ...(store.bridge || {}), mediaPublicBaseUrl: v };
+    },
     getThinkingLevel: () => store.thinking_level || "auto",
     setThinkingLevel(v) { store.thinking_level = v; },
     getFileBackup: () => store.file_backup || { enabled: false, retention_days: 1, max_file_size_kb: 1024 },
@@ -53,6 +57,8 @@ function makeMockEngine(overrides = {}) {
     setFileBackup: vi.fn(function (v) { prefs.setFileBackup(v); }),
     setLocale: vi.fn(function (v) { prefs.setLocale(v); }),
     setTimezone: vi.fn(function (v) { prefs.setTimezone(v); }),
+    getBridgeMediaPublicBaseUrl: vi.fn(() => prefs.getBridgeMediaPublicBaseUrl()),
+    setBridgeMediaPublicBaseUrl: vi.fn(function (v) { prefs.setBridgeMediaPublicBaseUrl(v); }),
     setThinkingLevel: vi.fn(function (v) { prefs.setThinkingLevel(v); }),
     setDefaultModel: vi.fn(),
     currentSessionPath: "/sessions/test",
@@ -144,6 +150,29 @@ describe("update-settings-tool", () => {
       await tool.execute("c3", { action: "apply", key: "locale", value: "en" });
 
       expect(engine.setLocale).toHaveBeenCalledWith("en");
+    });
+  });
+
+  describe("bridge media public URL", () => {
+    it("searches the Bridge media public URL setting", async () => {
+      const { tool } = buildTool();
+      const result = await tool.execute("c-bridge-url-search", { action: "search", query: "public url" });
+      const text = result.content[0].text;
+
+      expect(text).toContain("bridge_media_public_base_url");
+      expect(text).toContain("Bridge File Public URL");
+    });
+
+    it("applies the Bridge media public URL as a global preference", async () => {
+      const { tool, engine } = buildTool();
+      await tool.execute("c-bridge-url-apply", {
+        action: "apply",
+        key: "bridge_media_public_base_url",
+        value: "https://hana.example.com",
+      });
+
+      expect(engine.setBridgeMediaPublicBaseUrl).toHaveBeenCalledWith("https://hana.example.com");
+      expect(engine._prefs._store.bridge.mediaPublicBaseUrl).toBe("https://hana.example.com");
     });
   });
 

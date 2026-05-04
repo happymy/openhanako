@@ -246,6 +246,7 @@ describe("MediaDeliveryService", () => {
   it("publishes QQ local images before sending them as public URLs", async () => {
     const filePath = makeTempFile("image.png", Buffer.from([0x89, 0x50, 0x4E, 0x47]));
     const mediaPublisher = {
+      setBaseUrl: vi.fn(),
       publish: vi.fn(() => ({
         publicUrl: "https://hana.example.com/api/bridge/media/token_123",
         expiresAt: 61_000,
@@ -276,6 +277,7 @@ describe("MediaDeliveryService", () => {
       id: "sf_image",
       realPath: filePath,
     }));
+    expect(mediaPublisher.setBaseUrl).toHaveBeenCalledOnce();
     expect(adapter.sendMedia).toHaveBeenCalledWith(
       "chat-1",
       "https://hana.example.com/api/bridge/media/token_123",
@@ -286,5 +288,49 @@ describe("MediaDeliveryService", () => {
       },
     );
     expect(adapter.sendMediaBuffer).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the publisher base URL from preferences before publishing local files", async () => {
+    const filePath = makeTempFile("image.png", Buffer.from([0x89, 0x50, 0x4E, 0x47]));
+    const mediaPublisher = {
+      setBaseUrl: vi.fn(),
+      publish: vi.fn(() => ({
+        publicUrl: "https://new.example.com/api/bridge/media/token_123",
+        expiresAt: 61_000,
+      })),
+    };
+    const sessionFile = {
+      id: "sf_image",
+      filePath,
+      realPath: filePath,
+      filename: "image.png",
+      mime: "image/png",
+      kind: "image",
+    };
+    const service = new MediaDeliveryService({
+      engine: {
+        getBridgeMediaPublicBaseUrl: vi.fn(() => "https://new.example.com"),
+        getSessionFile: vi.fn((id) => id === "sf_image" ? sessionFile : null),
+      },
+      mediaPublisher,
+    });
+    const adapter = {
+      mediaCapabilities: QQ_MEDIA_CAPABILITIES,
+      sendMedia: vi.fn(async () => {}),
+    };
+
+    await service.send({
+      adapter,
+      chatId: "chat-1",
+      platform: "qq",
+      mediaItem: { type: "session_file", fileId: "sf_image" },
+    });
+
+    expect(mediaPublisher.setBaseUrl).toHaveBeenCalledWith("https://new.example.com");
+    expect(adapter.sendMedia).toHaveBeenCalledWith(
+      "chat-1",
+      "https://new.example.com/api/bridge/media/token_123",
+      expect.objectContaining({ filename: "image.png" }),
+    );
   });
 });

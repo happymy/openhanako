@@ -1674,10 +1674,10 @@
     },
     "outputFile": {
       "label": "交付檔案",
-      "description": "當你為任何人（使用者、agents）成功建立了檔案，或被要求提供某個檔案時，呼叫此工具將檔案呈現在對話中，讓使用者可以直接點擊開啟。只在檔案存在時呼叫，不要在檔案找不到或建立失敗時呼叫。不要僅在文字中提及檔案路徑，必須呼叫此工具。",
-      "filepathsDesc": "檔案絕對路徑陣列",
-      "filePathDesc": "（相容）單一檔案的絕對路徑",
-      "labelDesc": "（相容）顯示給使用者的檔案名稱"
+      "description": "當你需要把一個或多個本機檔案交給使用者、讓桌面端呈現、或透過 Bridge/遠端平台傳送給使用者時，呼叫此工具登記這些檔案。適用場景包括：你剛建立了檔案、你在本機找到使用者要的檔案、外掛或子 Agent 產出了要交付的檔案。只在檔案真實存在且路徑是本機絕對路徑時呼叫；不要只在回覆裡寫路徑，也不要自行判斷具體平台該怎麼呈現或傳送，消費端會按平台能力處理。",
+      "filepathsDesc": "要交付的本機檔案絕對路徑陣列。找到檔案後把路徑傳到這裡，由 StageFile 統一登記並交給桌面、Bridge 或未來行動端消費。",
+      "filePathDesc": "（相容）單一個本機檔案的絕對路徑；新呼叫優先使用 filepaths。",
+      "labelDesc": "（相容）顯示給使用者的檔案名稱，通常可以省略，預設使用檔名。"
     },
     "subagent": {
       "label": "啟動子 Agent",
@@ -1712,6 +1712,8 @@
       "locale": "語言",
       "timezone": "時區",
       "timezoneDesc": "IANA 時區（如 Asia/Shanghai）",
+      "bridgeMediaPublicBaseUrl": "Bridge 檔案公網 URL",
+      "bridgeMediaPublicBaseUrlDesc": "外部平台拉取本機 staged 檔案時使用的公網 HTTP/HTTPS base URL，通常來自反向代理或 tunnel；留空則回退到 HANA_BRIDGE_PUBLIC_BASE_URL。",
       "thinkingBudget": "思考深度",
       "memory": "記憶系統",
       "memoryDesc": "開啟/關閉目前 Agent 的記憶功能",

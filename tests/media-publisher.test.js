@@ -66,6 +66,25 @@ describe("MediaPublisher", () => {
     })).toThrow(/public media base URL/);
   });
 
+  it("can update the public base URL after construction", () => {
+    const filePath = makeFile();
+    const publisher = new MediaPublisher({
+      allowedRoots: [tmpDir],
+      randomToken: () => "token_123",
+    });
+
+    expect(publisher.setBaseUrl("https://hana.example.com/")).toBe("https://hana.example.com");
+    const result = publisher.publish({
+      id: "sf_1",
+      filePath,
+      realPath: fs.realpathSync(filePath),
+      filename: "image.png",
+      mime: "image/png",
+    });
+
+    expect(result.publicUrl).toBe("https://hana.example.com/api/bridge/media/token_123");
+  });
+
   it("refuses files outside allowed roots", () => {
     const filePath = makeFile();
     const publisher = new MediaPublisher({

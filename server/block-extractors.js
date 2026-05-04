@@ -10,7 +10,8 @@
 import { materializeExecutorIdentity } from "../lib/subagent-executor-metadata.js";
 
 export const BLOCK_EXTRACTORS = {
-  // COMPAT(v0.98): present_files 是 stage_files 的旧名，共用 extractor。v0.98 后可删
+  // COMPAT(present_files, remove no earlier than v0.133):
+  // 旧 session 可能仍有 present_files 结果，新 session 只注册 stage_files。
   stage_files: (details) => {
     const files = details.files || [];
     if (!files.length && details.filePath) {
@@ -139,7 +140,7 @@ export const BLOCK_EXTRACTORS = {
   },
 };
 
-BLOCK_EXTRACTORS.present_files = BLOCK_EXTRACTORS.stage_files; // COMPAT(v0.98)
+BLOCK_EXTRACTORS.present_files = BLOCK_EXTRACTORS.stage_files; // legacy alias, see note above
 
 function buildComputerAppApprovalBlock(confirmation) {
   const approval = confirmation?.approval;
