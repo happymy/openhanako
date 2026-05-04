@@ -14,6 +14,7 @@ const MAX_NOTE_CHARS = 3200;
 const MAX_CACHE_ENTRIES = 256;
 const MAX_VISUAL_PRIMITIVES = 16;
 const MAX_PRIMITIVE_REF_CHARS = 96;
+const VISION_ANALYSIS_TIMEOUT_MS = 120_000;
 const VISION_NOTES_FILE = "session-vision-notes.json";
 
 function normalizeUserRequest(text) {
@@ -547,9 +548,8 @@ export class VisionBridge {
           img,
         ],
       }],
-      temperature: 0,
       maxTokens: 900,
-      timeoutMs: 45_000,
+      timeoutMs: VISION_ANALYSIS_TIMEOUT_MS,
     }));
   }
 
@@ -593,9 +593,8 @@ export class VisionBridge {
           img,
         ],
       }],
-      temperature: 0,
       maxTokens: 1100,
-      timeoutMs: 45_000,
+      timeoutMs: VISION_ANALYSIS_TIMEOUT_MS,
     });
 
     const analysis = extractJsonObject(responseText);

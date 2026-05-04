@@ -398,6 +398,26 @@ describe("VisionBridge", () => {
     expect(injected.messages[0].content[0].text).not.toContain(VISUAL_PRIMITIVES_START);
   });
 
+  it("lets provider defaults choose auxiliary vision temperature and waits up to two minutes", async () => {
+    const { bridge, callText } = makeBridge(undefined, () => ({
+      model: { id: "LongCat-Flash-Omni-2603", provider: "longcat", input: ["text", "image"] },
+      api: "openai-completions",
+      api_key: "sk-test",
+      base_url: "https://api.longcat.chat/openai/v1",
+    }));
+
+    await bridge.prepare({
+      sessionPath: "/tmp/session.jsonl",
+      targetModel: { id: "deepseek-chat", provider: "deepseek", input: ["text"] },
+      text: `[attached_image: ${pathA}]\nwhat is this?`,
+      images: [image],
+      imageAttachmentPaths: [pathA],
+    });
+
+    expect(callText.mock.calls[0][0]).not.toHaveProperty("temperature");
+    expect(callText.mock.calls[0][0].timeoutMs).toBe(120_000);
+  });
+
   it("does nothing for image-capable target models", async () => {
     const { bridge, callText } = makeBridge();
 

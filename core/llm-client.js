@@ -85,7 +85,7 @@ function convertContentForApi(content, api) {
  *                                     known-models.json 投影）。
  * @param {string} [opts.systemPrompt] System prompt
  * @param {Array}  [opts.messages]     消息数组 [{ role, content }]
- * @param {number} [opts.temperature]  温度 (default 0.3)
+ * @param {number} [opts.temperature]  温度。未传时不写入请求体，使用 provider 默认值
  * @param {number} [opts.maxTokens]    最大输出 token (default 512)
  * @param {number} [opts.timeoutMs]    超时毫秒 (default 60000)
  * @param {AbortSignal} [opts.signal]  外部取消信号
@@ -100,7 +100,7 @@ export async function callText({
   quirks = [],
   systemPrompt = "",
   messages = [],
-  temperature = 0.3,
+  temperature,
   maxTokens = 512,
   timeoutMs = 60_000,
   signal,
@@ -145,7 +145,8 @@ export async function callText({
     const anthropicMessages = normalizedMessages.filter(m => m.role === "user" || m.role === "assistant");
     if (anthropicMessages.length === 0) anthropicMessages.push({ role: "user", content: "" });
     body = {
-      model: modelId, temperature, max_tokens: maxTokens,
+      model: modelId, max_tokens: maxTokens,
+      ...(temperature !== undefined && { temperature }),
       ...(mergedSystem && { system: mergedSystem }),
       messages: anthropicMessages,
     };
@@ -155,7 +156,8 @@ export async function callText({
     headers = { "Content-Type": "application/json" };
     if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
     body = {
-      model: modelId, temperature, max_output_tokens: maxTokens,
+      model: modelId, max_output_tokens: maxTokens,
+      ...(temperature !== undefined && { temperature }),
       ...(mergedSystem && { instructions: mergedSystem }),
       input: normalizedMessages,
     };
@@ -169,7 +171,8 @@ export async function callText({
     if (mergedSystem) allMessages.push({ role: "system", content: mergedSystem });
     allMessages.push(...normalizedMessages);
     body = {
-      model: modelId, temperature, max_tokens: maxTokens,
+      model: modelId, max_tokens: maxTokens,
+      ...(temperature !== undefined && { temperature }),
       messages: allMessages,
     };
   }
