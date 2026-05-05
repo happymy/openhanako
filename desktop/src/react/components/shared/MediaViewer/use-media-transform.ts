@@ -111,16 +111,18 @@ export function useMediaTransform(opts: {
   );
 
   const [transform, setTransform] = useState<Transform>({ scale: fitScale, offsetX: 0, offsetY: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number; moved: boolean } | null>(null);
 
   // natural/viewport 变化时重置（切图或窗口尺寸变化）
   useEffect(() => {
+    dragRef.current = null;
+    setIsDragging(false);
     setTransform({ scale: fitScale, offsetX: 0, offsetY: 0 });
   }, [fitScale]);
 
-  const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number; moved: boolean } | null>(null);
-
   const onWheel = useCallback((e: React.WheelEvent<HTMLElement>) => {
-    if (!e.altKey || e.ctrlKey || e.shiftKey) return;
+    if (!e.altKey || e.ctrlKey || e.shiftKey || e.metaKey) return;
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
     const point = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -129,8 +131,10 @@ export function useMediaTransform(opts: {
   }, [opts.natural, opts.viewport, range]);
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLElement>) => {
+    if (e.button !== 0) return;
     if (transform.scale <= fitScale) return; // 只有放大后才允许拖动
-    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
     dragRef.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -138,21 +142,24 @@ export function useMediaTransform(opts: {
       baseY: transform.offsetY,
       moved: false,
     };
+    setIsDragging(true);
   }, [transform.scale, transform.offsetX, transform.offsetY, fitScale]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLElement>) => {
     const d = dragRef.current;
     if (!d) return;
+    e.preventDefault();
     const dx = e.clientX - d.startX;
     const dy = e.clientY - d.startY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) d.moved = true;
     setTransform((t) => ({ ...t, offsetX: d.baseX + dx, offsetY: d.baseY + dy }));
   }, []);
 
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLElement>) => {
+  const finishDrag = useCallback((e: React.PointerEvent<HTMLElement>) => {
     const el = e.currentTarget;
     if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
     dragRef.current = null;
+    setIsDragging(false);
   }, []);
 
   const onDoubleClick = useCallback(() => {
@@ -181,11 +188,13 @@ export function useMediaTransform(opts: {
     onWheel,
     onPointerDown,
     onPointerMove,
-    onPointerUp,
+    onPointerUp: finishDrag,
+    onPointerCancel: finishDrag,
     onDoubleClick,
     reset,
     zoomIn,
     zoomOut,
+    isDragging,
     dragMoved: () => dragRef.current?.moved ?? false,
   };
 }

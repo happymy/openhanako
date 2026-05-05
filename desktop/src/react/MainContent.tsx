@@ -11,6 +11,11 @@ import { useState, useRef, useCallback } from 'react';
 import { useStore } from './stores';
 import { hanaFetch } from './hooks/use-hana-fetch';
 import { toSlash, baseName } from './utils/format';
+import {
+  clearAppFileDragPayload,
+  readAppFileDragPayload,
+  type AppFileDragPayload,
+} from './utils/app-file-drag';
 import { BrowserCard } from './components/BrowserCard';
 import { ComputerUseOverlay } from './components/ComputerUseOverlay';
 
@@ -129,7 +134,40 @@ export async function attachFilesFromPaths(
   }
 }
 
+export async function attachAppFileDragPayloadToInput(payload: AppFileDragPayload): Promise<void> {
+  if (payload.files.length === 0) return;
+  const state = useStore.getState();
+  if (state.attachedFiles.length >= 9) return;
+
+  if (payload.source === 'session-file') {
+    for (const file of payload.files) {
+      if (useStore.getState().attachedFiles.length >= 9) break;
+      useStore.getState().addAttachedFile({
+        fileId: file.fileId,
+        path: file.path,
+        name: file.name,
+        isDirectory: file.isDirectory || false,
+        ...(file.base64Data ? { base64Data: file.base64Data } : {}),
+        ...(file.mimeType ? { mimeType: file.mimeType } : {}),
+      });
+    }
+    return;
+  }
+
+  const paths = payload.files
+    .filter(file => file.path)
+    .map(file => file.path);
+  await attachFilesFromPaths(paths);
+}
+
 async function handleDrop(e: React.DragEvent): Promise<void> {
+  const appPayload = readAppFileDragPayload(e.dataTransfer);
+  if (appPayload) {
+    clearAppFileDragPayload(appPayload.dragId);
+    await attachAppFileDragPayloadToInput(appPayload);
+    return;
+  }
+
   const files = e.dataTransfer?.files;
   if (!files || files.length === 0) return;
 

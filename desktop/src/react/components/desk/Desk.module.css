@@ -6,7 +6,9 @@
 /* ── 工作空间区：延伸到底 ── */
 .section {
     align-self: stretch;
-    flex: 1;
+    flex: 1 1 0;
+    height: 100%;
+    max-height: 100%;
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -144,15 +146,17 @@
 
 /* Obsidian-like workspace tree */
 .tree {
-    flex: 1;
+    flex: 1 1 0;
+    height: 0;
     min-height: 0;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    padding: 4px 2px 72px;
+    display: block;
+    padding: 4px 2px calc(var(--right-workspace-jian-reserved, 56px) + 8px);
+    scroll-padding-bottom: calc(var(--right-workspace-jian-reserved, 56px) + 8px);
 }
 
 .tree:empty {
+    display: flex;
     align-items: center;
     justify-content: center;
 }
@@ -165,8 +169,44 @@
 }
 
 .treeGroup {
+    display: block;
+}
+
+.rightWorkspaceSection {
+    --right-workspace-list-toolbar-height: 25px;
+    position: relative;
+    flex: 1 1 0;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    display: block;
+    overflow: hidden;
+}
+
+.rightWorkspaceSection .toolbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    height: var(--right-workspace-list-toolbar-height);
+    min-height: 0;
+    margin: 0 var(--space-sm);
+}
+
+.rightWorkspaceSection .tree {
+    position: absolute;
+    top: var(--right-workspace-list-toolbar-height);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    flex: none;
+    height: auto;
+    max-height: none;
+}
+
+.rightWorkspaceSection .tree:empty {
     display: flex;
-    flex-direction: column;
 }
 
 .treeItem {
@@ -201,6 +241,10 @@
 
 .treeItemSelected {
     background: rgba(var(--accent-rgb), 0.10);
+}
+
+.treeItemDropTarget {
+    background: rgba(var(--accent-rgb), 0.12);
 }
 
 .treeDisclosure {

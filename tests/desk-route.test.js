@@ -115,4 +115,44 @@ describe("desk route", () => {
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }
   });
+
+  it("moves workspace tree items by explicit subdir and reports affected folders", async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hana-desk-route-"));
+    try {
+      const cwd = path.join(tempRoot, "workspace");
+      fs.mkdirSync(path.join(cwd, "notes"), { recursive: true });
+      fs.mkdirSync(path.join(cwd, "archive"), { recursive: true });
+      fs.writeFileSync(path.join(cwd, "notes", "chapter.md"), "chapter", "utf-8");
+
+      const engine = {
+        deskCwd: cwd,
+        homeCwd: cwd,
+      };
+
+      const { createDeskRoute } = await import("../server/routes/desk.js");
+      const app = new Hono();
+      app.route("/api", createDeskRoute(engine, null));
+
+      const res = await app.request("/api/desk/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "movePaths",
+          dir: cwd,
+          items: [{ sourceSubdir: "notes", name: "chapter.md", isDirectory: false }],
+          destSubdir: "archive",
+          currentSubdir: "",
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.results).toEqual([{ name: "chapter.md", ok: true }]);
+      expect(fs.existsSync(path.join(cwd, "archive", "chapter.md"))).toBe(true);
+      expect(data.filesByPath.notes).toEqual([]);
+      expect(data.filesByPath.archive.map(f => f.name)).toEqual(["chapter.md"]);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
 });

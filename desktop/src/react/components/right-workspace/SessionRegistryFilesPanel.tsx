@@ -9,6 +9,10 @@ import { openFilePreview } from '../../utils/file-preview';
 import { extOfName, isMediaKind } from '../../utils/file-kind';
 import { openMediaViewerForRef } from '../../utils/open-media-viewer';
 import { hanaFetch } from '../../hooks/use-hana-fetch';
+import {
+  clearAppFileDragPayload,
+  writeAppFileDragPayload,
+} from '../../utils/app-file-drag';
 import styles from './RightWorkspacePanel.module.css';
 
 const EMPTY_FILES: readonly FileRef[] = Object.freeze([]);
@@ -88,6 +92,10 @@ function canUseFilePath(file: FileRef): boolean {
 
 function canCopyFilePath(file: FileRef): boolean {
   return !!file.path;
+}
+
+function canDragFile(file: FileRef): boolean {
+  return !isExpired(file) && (!!file.path || !!file.inlineData);
 }
 
 function bridgePlatformLabel(platform: BridgePlatform): string {
@@ -283,6 +291,7 @@ function SessionFileRow({
   onDragStart: (event: React.DragEvent, file: FileRef) => void;
 }) {
   const canPreview = canPreviewFile(file);
+  const canDrag = canDragFile(file);
   const canUsePath = canUseFilePath(file);
   const canCopyPath = canCopyFilePath(file);
 
@@ -309,7 +318,7 @@ function SessionFileRow({
       data-file-id={file.id}
       data-selected={selected ? 'true' : 'false'}
       role="listitem"
-      draggable={canUsePath}
+      draggable={canDrag}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onContextMenu={(event) => onContextMenu(event, file)}
@@ -635,10 +644,26 @@ export function SessionRegistryFilesPanel() {
 
   const handleDragStart = useCallback((event: React.DragEvent, file: FileRef) => {
     const dragFiles = selectedIdsRef.current.has(file.id) ? filesForAction(file) : [file];
-    const paths = pathBackedFiles(dragFiles, { requireAvailable: true }).map(item => item.path);
-    if (paths.length === 0) return;
-    event.preventDefault();
-    window.platform?.startDrag?.(paths.length === 1 ? paths[0] : paths);
+    const availableFiles = dragFiles.filter(canDragFile);
+    if (availableFiles.length === 0) return;
+    const payload = writeAppFileDragPayload(event.dataTransfer, {
+      source: 'session-file',
+      files: availableFiles.map(item => ({
+        id: item.id,
+        fileId: item.fileId,
+        name: item.name,
+        path: item.path,
+        isDirectory: false,
+        mimeType: item.inlineData?.mimeType || item.mime,
+        base64Data: item.inlineData?.base64,
+      })),
+    });
+    event.currentTarget.addEventListener('dragend', () => clearAppFileDragPayload(payload.dragId), { once: true });
+    const paths = pathBackedFiles(availableFiles, { requireAvailable: true }).map(item => item.path);
+    if (paths.length > 0) {
+      event.preventDefault();
+      window.platform?.startDrag?.(paths.length === 1 ? paths[0] : paths);
+    }
   }, [filesForAction]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {

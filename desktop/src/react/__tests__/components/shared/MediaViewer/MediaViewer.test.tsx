@@ -93,11 +93,14 @@ describe('MediaViewer interaction', () => {
     await waitFor(() => expect(getByTestId('video-stage-video')).toBeTruthy());
   });
 
-  it('顶栏显示 序号 n/total + 文件名', () => {
+  it('底部显示文件名，顶栏只保留序号和关闭动作', () => {
     useStore.getState().setMediaViewer({ files: [f('a'), f('b'), f('c')], currentId: 'b', origin: 'desk' });
     const { getByTestId } = render(<MediaViewer />);
     expect(getByTestId('media-viewer-index').textContent).toContain('2 / 3');
-    expect(getByTestId('media-viewer-name').textContent).toContain('b.png');
+    const caption = getByTestId('media-viewer-caption');
+    const name = getByTestId('media-viewer-name');
+    expect(caption.contains(name)).toBe(true);
+    expect(name.textContent).toContain('b.png');
   });
 
   it('+ 键触发 zoomIn 命令', () => {

@@ -524,12 +524,21 @@ export function createDeskRoute(engine, hub) {
     const { action, subdir: sub, paths, name, content, oldName, newName } = body;
 
     // 解析子目录
+    const isValidSubdir = (value) => {
+      const subdir = value || "";
+      return !(subdir.includes("\\") || subdir.includes("..") || subdir.startsWith("."));
+    };
     const subdirStr = sub || "";
-    if (subdirStr && (subdirStr.includes("\\") || subdirStr.includes("..") || subdirStr.startsWith("."))) {
-      return c.json({ error: "invalid subdir" });
-    }
+    if (!isValidSubdir(subdirStr)) return c.json({ error: "invalid subdir" });
     const dir = subdirStr ? path.join(baseDir, subdirStr) : baseDir;
     if (!isInsidePath(dir, baseDir)) return c.json({ error: "invalid path" });
+
+    const subdirToDir = (value) => {
+      const subdir = value || "";
+      if (!isValidSubdir(subdir)) return null;
+      const target = subdir ? path.join(baseDir, subdir) : baseDir;
+      return isInsidePath(target, baseDir) ? target : null;
+    };
 
     switch (action) {
       case "upload": {
@@ -622,6 +631,63 @@ export function createDeskRoute(engine, hub) {
           }
         }
         return c.json({ ok: true, results, files: await listWorkspaceFiles(dir) });
+      }
+
+      case "movePaths": {
+        const items = body.items;
+        const destSubdir = body.destSubdir || "";
+        const currentSubdir = body.currentSubdir || "";
+        if (!Array.isArray(items) || items.length === 0) return c.json({ error: "items[] required" });
+        const destDir = subdirToDir(destSubdir);
+        if (!destDir) return c.json({ error: "invalid destSubdir" });
+        if (!fs.existsSync(destDir) || !fs.statSync(destDir).isDirectory()) {
+          return c.json({ error: "destSubdir is not a directory" });
+        }
+
+        const affectedSubdirs = new Set([destSubdir, currentSubdir]);
+        const results = [];
+        for (const item of items) {
+          const sourceSubdir = item && typeof item.sourceSubdir === "string" ? item.sourceSubdir : "";
+          const itemName = item && typeof item.name === "string" ? path.basename(item.name) : "";
+          if (!itemName) { results.push({ name: item?.name, error: "invalid name" }); continue; }
+          const sourceDir = subdirToDir(sourceSubdir);
+          if (!sourceDir) { results.push({ name: itemName, error: "invalid sourceSubdir" }); continue; }
+
+          const src = path.join(sourceDir, itemName);
+          const dest = path.join(destDir, itemName);
+          if (!isInsidePath(src, sourceDir) || !isInsidePath(dest, destDir)) {
+            results.push({ name: itemName, error: "invalid path" });
+            continue;
+          }
+          if (!fs.existsSync(src)) { results.push({ name: itemName, error: "not found" }); continue; }
+          if (src === dest) { results.push({ name: itemName, ok: true, skipped: true }); continue; }
+          if (fs.existsSync(dest)) { results.push({ name: itemName, error: "target already exists" }); continue; }
+
+          const sourceRel = sourceSubdir ? `${sourceSubdir}/${itemName}` : itemName;
+          if (fs.statSync(src).isDirectory() && (destSubdir === sourceRel || destSubdir.startsWith(`${sourceRel}/`))) {
+            results.push({ name: itemName, error: "cannot move folder into itself" });
+            continue;
+          }
+
+          try {
+            fs.renameSync(src, dest);
+            affectedSubdirs.add(sourceSubdir);
+            affectedSubdirs.add(destSubdir);
+            results.push({ name: itemName, ok: true });
+          } catch (err) {
+            results.push({ name: itemName, error: err.message });
+          }
+        }
+
+        const filesByPath = {};
+        for (const subdir of affectedSubdirs) {
+          if (!isValidSubdir(subdir)) continue;
+          const targetDir = subdirToDir(subdir);
+          if (targetDir && fs.existsSync(targetDir) && fs.statSync(targetDir).isDirectory()) {
+            filesByPath[subdir] = await listWorkspaceFiles(targetDir);
+          }
+        }
+        return c.json({ ok: true, results, filesByPath, files: await listWorkspaceFiles(dir) });
       }
 
       case "remove": {

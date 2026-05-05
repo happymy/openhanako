@@ -55,7 +55,18 @@ export function ImageStage({ file, viewport, neighbors, zoomCmd, onReady, onErro
     viewport: { w: viewport.width, h: viewport.height },
   });
 
-  const { cssTransform, onWheel, onPointerDown, onPointerMove, onPointerUp, onDoubleClick, fitScale, transform } = transformApi;
+  const {
+    cssTransform,
+    onWheel,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+    onDoubleClick,
+    fitScale,
+    transform,
+    isDragging,
+  } = transformApi;
 
   // 外壳的缩放命令（单调计数器）变化时触发对应动作
   const prevCmdRef = useRef({ in: 0, out: 0, reset: 0 });
@@ -68,7 +79,8 @@ export function ImageStage({ file, viewport, neighbors, zoomCmd, onReady, onErro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoomCmd?.in, zoomCmd?.out, zoomCmd?.reset]);
 
-  const cursorStyle = transform.scale > fitScale + 0.01 ? 'grab' : 'default';
+  const isZoomed = transform.scale > fitScale + 0.01;
+  const cursorStyle = isDragging ? 'grabbing' : isZoomed ? 'grab' : 'default';
 
   return (
     <div
@@ -81,6 +93,7 @@ export function ImageStage({ file, viewport, neighbors, zoomCmd, onReady, onErro
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       onDoubleClick={onDoubleClick}
       style={{ transform: cssTransform, cursor: cursorStyle }}
     >

@@ -95,12 +95,3 @@ export interface CtxMenuState {
   items: ContextMenuItem[];
   position: { x: number; y: number };
 }
-
-// ── 内部拖拽追踪（模块级变量，供 DeskFileItem / DeskFileList 共享） ──
-
-/** 当前正在拖拽的 desk 文件名列表 */
-export let _deskDragNames: string[] | null = null;
-
-export function setDeskDragNames(names: string[] | null): void {
-  _deskDragNames = names;
-}

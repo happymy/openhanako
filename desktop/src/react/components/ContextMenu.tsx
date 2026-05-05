@@ -112,7 +112,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
               handleItemClick(e, item.action);
             }}
           >
-            <span className="context-menu-label">{item.label || ''}</span>
+            <span className={`context-menu-label${item.disabled ? ' disabled' : ''}`}>{item.label || ''}</span>
             {submenuOpen && (
               <div className={`context-menu-submenu ${submenuSide}`}>
                 {item.children?.map((child, childIndex) => {
@@ -133,7 +133,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
                         handleItemClick(e, child.action);
                       }}
                     >
-                      <span className="context-menu-label">{child.label || ''}</span>
+                      <span className={`context-menu-label${child.disabled ? ' disabled' : ''}`}>{child.label || ''}</span>
                     </div>
                   );
                 })}

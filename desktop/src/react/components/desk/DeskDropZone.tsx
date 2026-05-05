@@ -2,13 +2,19 @@
  * DeskDropZone — 工作空间区域的拖放包装容器
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   deskCurrentDir,
   deskUploadFiles,
+  deskUploadFilesToSubdir,
   deskCreateFile,
   deskMkdir,
+  deskMoveTreeFiles,
 } from '../../stores/desk-actions';
+import {
+  clearAppFileDragPayload,
+  readAppFileDragPayload,
+} from '../../utils/app-file-drag';
 import type { CtxMenuState } from './desk-types';
 import s from './Desk.module.css';
 
@@ -16,14 +22,37 @@ export function DeskDropZone({
   children,
   onShowMenu,
   framed = true,
+  rightWorkspaceLayout = false,
 }: {
   children: React.ReactNode;
   onShowMenu: (state: CtxMenuState) => void;
   framed?: boolean;
+  rightWorkspaceLayout?: boolean;
 }) {
   const [dragging, setDragging] = useState(false);
 
+  useEffect(() => {
+    if (!dragging) return undefined;
+    const clear = () => setDragging(false);
+    window.addEventListener('dragend', clear);
+    window.addEventListener('drop', clear);
+    window.addEventListener('blur', clear);
+    return () => {
+      window.removeEventListener('dragend', clear);
+      window.removeEventListener('drop', clear);
+      window.removeEventListener('blur', clear);
+    };
+  }, [dragging]);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
+    const payload = readAppFileDragPayload(e.dataTransfer);
+    if (payload?.source === 'workspace' && (e.target as HTMLElement).closest('[data-desk-item]')) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'none';
+      setDragging(false);
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     setDragging(true);
@@ -61,6 +90,28 @@ export function DeskDropZone({
     // 如果 drop 目标在技能面板内，让技能面板自己处理，这里不复制文件
     if ((e.target as HTMLElement).closest('[data-desk-cwd-panel]')) return;
 
+    const payload = readAppFileDragPayload(e.dataTransfer);
+    if (payload?.source === 'workspace') {
+      clearAppFileDragPayload(payload.dragId);
+      if ((e.target as HTMLElement).closest('[data-desk-item]')) return;
+      const items = payload.files
+        .filter(item => item.sourceSubdir !== undefined)
+        .filter(item => (item.sourceSubdir || '').replace(/^\/+|\/+$/g, '') !== '')
+        .map(item => ({
+          sourceSubdir: (item.sourceSubdir || '').replace(/^\/+|\/+$/g, ''),
+          name: item.name,
+          isDirectory: item.isDirectory,
+        }));
+      if (items.length > 0) await deskMoveTreeFiles(items, '');
+      return;
+    }
+    if (payload?.source === 'session-file') {
+      clearAppFileDragPayload(payload.dragId);
+      const paths = payload.files.map(file => file.path).filter(Boolean);
+      if (paths.length > 0) await deskUploadFilesToSubdir(paths, '');
+      return;
+    }
+
     const files = e.dataTransfer.files;
     const text = e.dataTransfer.getData('text/plain');
 
@@ -78,9 +129,16 @@ export function DeskDropZone({
     }
   }, []);
 
+  const className = [
+    framed ? 'jian-card' : '',
+    s.section,
+    rightWorkspaceLayout ? s.rightWorkspaceSection : '',
+    dragging ? s.dragOver : '',
+  ].filter(Boolean).join(' ');
+
   return (
     <div
-      className={`${framed ? 'jian-card ' : ''}${s.section}${dragging ? ` ${s.dragOver}` : ''}`}
+      className={className}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

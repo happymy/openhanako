@@ -9,11 +9,18 @@
 }
 
 .workspaceCard {
+    --right-workspace-jian-open-height: 320px;
+    --right-workspace-jian-closed-height: 40px;
+    --right-workspace-jian-bottom: var(--space-sm);
+    --right-workspace-jian-reserved: calc(var(--right-workspace-jian-closed-height) + var(--right-workspace-jian-bottom));
     position: relative;
     flex: 1 1 auto;
+    height: 100%;
+    max-height: 100%;
     min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .workspaceHeader {
@@ -98,7 +105,9 @@
 }
 
 .content {
-    flex: 1 1 auto;
+    position: relative;
+    flex: 1 1 0;
+    height: 0;
     min-height: 0;
     overflow: hidden;
     display: flex;
@@ -107,21 +116,29 @@
 }
 
 .sessionFilesPanel {
-    flex: 1;
+    --right-workspace-list-toolbar-height: 25px;
+    position: relative;
+    flex: 1 1 0;
+    height: 100%;
+    max-height: 100%;
     min-height: 0;
-    display: flex;
-    flex-direction: column;
+    display: block;
     overflow: hidden;
     background: transparent;
 }
 
 .sessionFilesToolbar {
-    flex: 0 0 auto;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1;
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    min-height: 20px;
-    margin: 3px var(--space-sm) 2px;
+    height: var(--right-workspace-list-toolbar-height);
+    min-height: 0;
+    margin: 0 var(--space-sm);
 }
 
 .sessionFilesSortButton {
@@ -160,7 +177,8 @@
 }
 
 .emptyState {
-    flex: 1;
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -171,13 +189,17 @@
 }
 
 .fileList {
-    position: relative;
-    flex: 1;
+    position: absolute;
+    top: var(--right-workspace-list-toolbar-height);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: auto;
     min-height: 0;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    padding: 4px 2px 72px;
+    display: block;
+    padding: 4px 2px calc(var(--right-workspace-jian-reserved, 56px) + 8px);
+    scroll-padding-bottom: calc(var(--right-workspace-jian-reserved, 56px) + 8px);
     outline: none;
 }
 
@@ -306,20 +328,29 @@
     --right-workspace-jian-open-dur: 400ms;
     --right-workspace-jian-close-dur: 350ms;
     --right-workspace-jian-ease: cubic-bezier(0.22, 1, 0.36, 1);
-    flex: 0 0 auto;
-    max-height: 320px;
+    position: absolute;
+    left: var(--space-sm);
+    right: var(--space-sm);
+    bottom: var(--right-workspace-jian-bottom);
+    z-index: 2;
+    height: var(--right-workspace-jian-open-height);
+    max-height: none;
     overflow: hidden;
-    margin: 0 var(--space-sm) var(--space-sm);
+    margin: 0;
     border-radius: var(--radius-md);
     border: 1px solid var(--jian-note-border, rgba(200, 160, 110, 0.2));
     background: var(--jian-note-bg, #FAF0E2);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    transition: max-height var(--right-workspace-jian-open-dur) var(--right-workspace-jian-ease);
+    transition: height var(--right-workspace-jian-open-dur) var(--right-workspace-jian-ease);
 }
 
 .jianDrawer[data-open="false"] {
-    max-height: 48px;
+    height: var(--right-workspace-jian-closed-height);
     transition-duration: var(--right-workspace-jian-close-dur);
+}
+
+.jianDrawer[data-open="false"] .jianHeader {
+    height: var(--right-workspace-jian-closed-height);
 }
 
 .jianHeader {
@@ -347,7 +378,7 @@
     position: absolute;
     right: calc(var(--space-sm) + 6px);
     bottom: calc(var(--space-sm) + 6px);
-    z-index: 2;
+    z-index: 3;
     width: 28px;
     height: 28px;
     display: inline-flex;
@@ -367,7 +398,7 @@
 }
 
 .jianBody {
-    height: 272px;
+    height: calc(var(--right-workspace-jian-open-height) - 48px);
     transform: translateY(0);
     transition: transform var(--right-workspace-jian-open-dur) var(--right-workspace-jian-ease);
 }

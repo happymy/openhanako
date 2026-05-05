@@ -45,10 +45,41 @@ describe('ImageStage', () => {
     fireEvent.wheel(stage, { deltaY: -100, clientX: 400, clientY: 300 });
     fireEvent.wheel(stage, { deltaY: -100, clientX: 400, clientY: 300, ctrlKey: true });
     fireEvent.wheel(stage, { deltaY: -100, clientX: 400, clientY: 300, shiftKey: true });
+    fireEvent.wheel(stage, { deltaY: -100, clientX: 400, clientY: 300, altKey: true, metaKey: true });
     expect((stage as HTMLElement).style.transform || '').toBe(before);
 
     fireEvent.wheel(stage, { deltaY: -100, clientX: 400, clientY: 300, altKey: true });
     expect((stage as HTMLElement).style.transform || '').not.toBe(before);
+  });
+
+  it('Option 缩放后允许鼠标拖拽平移图片', async () => {
+    const { container } = render(<ImageStage file={file} viewport={{ width: 800, height: 600 }} />);
+    await waitFor(() => {
+      const img = container.querySelector('img');
+      expect(img?.getAttribute('src')).toBeTruthy();
+    });
+
+    const img = container.querySelector('img')!;
+    Object.defineProperty(img, 'naturalWidth', { value: 400, configurable: true });
+    Object.defineProperty(img, 'naturalHeight', { value: 300, configurable: true });
+    fireEvent.load(img);
+
+    const stage = container.querySelector('[data-testid="image-stage"]') as HTMLElement;
+    stage.setPointerCapture = vi.fn();
+    stage.releasePointerCapture = vi.fn();
+    stage.hasPointerCapture = vi.fn(() => true);
+
+    fireEvent.wheel(stage, { deltaY: -100, clientX: 400, clientY: 300, altKey: true });
+    const zoomed = stage.style.transform;
+
+    fireEvent.pointerDown(stage, { pointerId: 1, button: 0, clientX: 120, clientY: 140 });
+    expect(stage.style.cursor).toBe('grabbing');
+    fireEvent.pointerMove(stage, { pointerId: 1, clientX: 150, clientY: 180 });
+    expect(stage.style.transform).not.toBe(zoomed);
+
+    fireEvent.pointerUp(stage, { pointerId: 1 });
+    expect(stage.releasePointerCapture).toHaveBeenCalledWith(1);
+    expect(stage.style.cursor).toBe('grab');
   });
 
   it('natural size 就绪后图片在视口中央按 fit scale 显示', async () => {

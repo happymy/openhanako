@@ -7,6 +7,7 @@
 import { useStore } from './index';
 import { hanaFetch } from '../hooks/use-hana-fetch';
 import { clearChat } from './agent-actions';
+import type { DeskFile } from '../types';
 import type { WorkspaceDeskState } from './desk-slice';
 // @ts-expect-error — shared JS module
 import { mergeWorkspaceHistory, normalizeWorkspacePath } from '../../../../shared/workspace-history.js';
@@ -274,6 +275,26 @@ export async function deskUploadFiles(paths: string[]): Promise<void> {
   }
 }
 
+export async function deskUploadFilesToSubdir(paths: string[], subdir: string): Promise<void> {
+  const s = useStore.getState();
+  const normalizedSubdir = subdir.replace(/^\/+|\/+$/g, '');
+  try {
+    const res = await hanaFetch('/api/desk/files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'upload', dir: s.deskBasePath || undefined, subdir: normalizedSubdir, paths }),
+    });
+    const data = await res.json();
+    if (data.files) {
+      const st = useStore.getState();
+      st.setDeskTreeFiles(normalizedSubdir, data.files);
+      if ((st.deskCurrentPath || '') === normalizedSubdir) st.setDeskFiles(data.files);
+    }
+  } catch (err) {
+    console.error('[jian-desk] upload to tree failed:', err);
+  }
+}
+
 export async function deskCreateFile(text: string): Promise<void> {
   const s = useStore.getState();
   const d = new Date();
@@ -314,6 +335,49 @@ export async function deskMoveFiles(names: string[], destFolder: string): Promis
     }
   } catch (err) {
     console.error('[jian-desk] move failed:', err);
+  }
+}
+
+export interface DeskTreeMoveItem {
+  sourceSubdir: string;
+  name: string;
+  isDirectory?: boolean;
+}
+
+export async function deskMoveTreeFiles(items: DeskTreeMoveItem[], destSubdir: string): Promise<void> {
+  const s = useStore.getState();
+  if (items.length === 0) return;
+  const normalizedDest = destSubdir.replace(/^\/+|\/+$/g, '');
+  try {
+    const res = await hanaFetch('/api/desk/files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'movePaths',
+        dir: s.deskBasePath || undefined,
+        items: items.map(item => ({
+          sourceSubdir: item.sourceSubdir.replace(/^\/+|\/+$/g, ''),
+          name: item.name,
+          isDirectory: !!item.isDirectory,
+        })),
+        destSubdir: normalizedDest,
+        currentSubdir: s.deskCurrentPath || '',
+      }),
+    });
+    const data = await res.json();
+    const st = useStore.getState();
+    if (data.filesByPath && typeof data.filesByPath === 'object') {
+      for (const [subdir, files] of Object.entries(data.filesByPath)) {
+        st.setDeskTreeFiles(subdir, files as DeskFile[]);
+        if ((st.deskCurrentPath || '') === subdir) st.setDeskFiles(files as DeskFile[]);
+      }
+    }
+    if (data.files && !data.filesByPath) {
+      st.setDeskFiles(data.files);
+      st.setDeskTreeFiles(st.deskCurrentPath || '', data.files);
+    }
+  } catch (err) {
+    console.error('[jian-desk] tree move failed:', err);
   }
 }
 

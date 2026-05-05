@@ -67,7 +67,7 @@ function JianFloatingToggle() {
 
 function TabContent({ activeTab }: { activeTab: RightWorkspaceTab }) {
   if (activeTab === 'session-files') return <SessionRegistryFilesPanel />;
-  return <DeskSection framed={false} showHeader={false} />;
+  return <DeskSection framed={false} showHeader={false} rightWorkspaceLayout />;
 }
 
 function WorkspaceHeader() {
@@ -94,6 +94,7 @@ export function RightWorkspacePanel() {
   const rightWorkspaceTab = useStore(s => s.rightWorkspaceTab);
   const setRightWorkspaceTab = useStore(s => s.setRightWorkspaceTab);
   const jianView = useStore(s => s.jianView);
+  const jianDrawerOpen = useStore(s => s.jianDrawerOpen);
   const t = window.t ?? ((p: string) => p);
 
   if (jianView.startsWith('widget:')) {
@@ -115,7 +116,11 @@ export function RightWorkspacePanel() {
 
   return (
     <div className={styles.shell}>
-      <div className={`jian-card ${styles.workspaceCard}`}>
+      <div
+        className={`jian-card ${styles.workspaceCard}`}
+        data-right-workspace-card=""
+        data-jian-open={jianDrawerOpen ? 'true' : 'false'}
+      >
         <WorkspaceHeader />
         <div className={styles.tabs} role="tablist" aria-label={t('rightWorkspace.tabs.label')} style={tabsStyle}>
           <div className={styles.tabSlider} data-right-workspace-tab-slider aria-hidden="true" />

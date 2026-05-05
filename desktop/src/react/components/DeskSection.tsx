@@ -96,9 +96,11 @@ function useDeskTreeDirectoryWatcher(basePath: string, expandedPaths: string[]):
 export function DeskSection({
   framed = true,
   showHeader = true,
+  rightWorkspaceLayout = false,
 }: {
   framed?: boolean;
   showHeader?: boolean;
+  rightWorkspaceLayout?: boolean;
 }) {
   const deskBasePath = useStore(st => st.deskBasePath);
   const deskExpandedPaths = useStore(st => st.deskExpandedPaths);
@@ -128,7 +130,7 @@ export function DeskSection({
 
   return (
     <>
-      <DeskDropZone onShowMenu={handleShowMenu} framed={framed}>
+      <DeskDropZone onShowMenu={handleShowMenu} framed={framed} rightWorkspaceLayout={rightWorkspaceLayout}>
         {showHeader && (
           <div className={s.header}>
             <div className={`jian-section-title ${s.sectionTitle}`} title={deskBasePath || selectedFolder || homeFolder || undefined}>

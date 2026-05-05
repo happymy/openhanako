@@ -253,4 +253,43 @@ describe('desk-actions workspace roots', () => {
       notes: [{ name: 'chapter.md', isDir: false }],
     });
   });
+
+  it('moves tree items by explicit source and destination subdirs without relying on the current folder', async () => {
+    useStore.setState({
+      deskBasePath: '/workspace',
+      deskCurrentPath: 'drafts',
+      deskFiles: [{ name: 'draft.md', isDir: false }],
+      deskTreeFilesByPath: {
+        '': [{ name: 'notes', isDir: true }],
+        notes: [{ name: 'chapter.md', isDir: false }],
+        archive: [],
+      },
+    } as never);
+    mockHanaFetch.mockResolvedValueOnce(jsonResponse({
+      filesByPath: {
+        notes: [],
+        archive: [{ name: 'chapter.md', isDir: false }],
+      },
+      files: [{ name: 'draft.md', isDir: false }],
+    }));
+
+    const { deskMoveTreeFiles } = await import('../../stores/desk-actions');
+    await deskMoveTreeFiles([{ sourceSubdir: 'notes', name: 'chapter.md', isDirectory: false }], 'archive');
+
+    expect(mockHanaFetch).toHaveBeenCalledWith('/api/desk/files', expect.objectContaining({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'movePaths',
+        dir: '/workspace',
+        items: [{ sourceSubdir: 'notes', name: 'chapter.md', isDirectory: false }],
+        destSubdir: 'archive',
+        currentSubdir: 'drafts',
+      }),
+    }));
+    expect(useStore.getState().deskCurrentPath).toBe('drafts');
+    expect(useStore.getState().deskTreeFilesByPath.notes).toEqual([]);
+    expect(useStore.getState().deskTreeFilesByPath.archive).toEqual([{ name: 'chapter.md', isDir: false }]);
+    expect(useStore.getState().deskFiles).toEqual([{ name: 'draft.md', isDir: false }]);
+  });
 });

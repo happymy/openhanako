@@ -128,7 +128,6 @@ export function MediaViewer() {
     >
       {/* 顶栏 */}
       <div className={`${styles.topbar} ${chromeVisible ? '' : styles.hidden}`}>
-        <span className={styles.name} data-testid="media-viewer-name">{current.name}</span>
         {multi && (
           <span className={styles.index} data-testid="media-viewer-index">
             {currentIndex + 1} / {state.files.length}
@@ -175,6 +174,13 @@ export function MediaViewer() {
             key={current.id}
           />
         )}
+      </div>
+
+      <div
+        className={`${styles.captionBar} ${chromeVisible ? '' : styles.hidden}`}
+        data-testid="media-viewer-caption"
+      >
+        <span className={styles.name} data-testid="media-viewer-name">{current.name}</span>
       </div>
     </div>
   );
