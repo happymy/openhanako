@@ -202,7 +202,6 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
   const addAttachedFile = useStore(s => s.addAttachedFile);
   const removeAttachedFile = useStore(s => s.removeAttachedFile);
   const clearAttachedFiles = useStore(s => s.clearAttachedFiles);
-  const toggleDocContext = useStore(s => s.toggleDocContext);
   const setDocContextAttached = useStore(s => s.setDocContextAttached);
   const setDraft = useStore(s => s.setDraft);
   const clearDraft = useStore(s => s.clearDraft);
@@ -701,9 +700,6 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
             permissionMode={permissionMode}
             onPermissionModeChange={setPermissionMode}
             planModeLocked={false}
-            hasDoc={hasDoc}
-            docContextAttached={docContextAttached}
-            onToggleDocContext={toggleDocContext}
             showThinking={currentModelInfo?.reasoning !== false}
             thinkingLevel={thinkingLevel}
             onThinkingChange={setThinkingLevel}

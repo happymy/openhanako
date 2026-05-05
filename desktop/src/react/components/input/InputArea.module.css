@@ -119,47 +119,6 @@
     white-space: nowrap;
 }
 
-/* 工作空间目录按钮 */
-.desk-context-btn {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.2rem 0.55rem;
-    font-family: inherit;
-    font-size: 0.72rem;
-    color: var(--text-muted);
-    background: var(--bg-card);
-    border: 1px solid rgba(var(--accent-rgb), 0.12);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: all var(--duration) var(--ease-out);
-    -webkit-app-region: no-drag;
-}
-
-.desk-context-btn:hover:not(:disabled) {
-    color: var(--accent);
-    border-color: rgba(var(--accent-rgb), 0.25);
-}
-
-.desk-context-btn:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-}
-
-.desk-context-btn.active {
-    color: var(--accent);
-    border-color: rgba(var(--accent-rgb), 0.3);
-    background: rgba(var(--accent-rgb), 0.06);
-}
-
-.desk-context-label {
-    letter-spacing: 0.02em;
-    overflow: hidden;
-    text-overflow: clip;
-    white-space: nowrap;
-}
-
 /* ── Context Usage Ring ── */
 
 .context-ring {
