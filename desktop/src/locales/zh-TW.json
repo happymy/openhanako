@@ -1242,6 +1242,12 @@
     "sessionFiles": {
       "title": "Session 檔案",
       "empty": "本對話還沒有產生或上傳檔案",
+      "actions": {
+        "preview": "預覽",
+        "open": "打開",
+        "reveal": "定位",
+        "copyPath": "複製路徑"
+      },
       "status": {
         "available": "可用",
         "expired": "已過期"

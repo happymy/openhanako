@@ -1287,6 +1287,12 @@
     "sessionFiles": {
       "title": "Session Registry Files",
       "empty": "This conversation has not created or uploaded any files yet.",
+      "actions": {
+        "preview": "Preview",
+        "open": "Open",
+        "reveal": "Reveal",
+        "copyPath": "Copy path"
+      },
       "status": {
         "available": "Available",
         "expired": "Expired"

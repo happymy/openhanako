@@ -1292,6 +1292,12 @@
     "sessionFiles": {
       "title": "Session 文件",
       "empty": "本对话还没有产生或上传文件",
+      "actions": {
+        "preview": "预览",
+        "open": "打开",
+        "reveal": "定位",
+        "copyPath": "复制路径"
+      },
       "status": {
         "available": "可用",
         "expired": "已过期"

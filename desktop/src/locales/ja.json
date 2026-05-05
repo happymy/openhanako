@@ -1242,6 +1242,12 @@
     "sessionFiles": {
       "title": "セッションファイル",
       "empty": "この会話ではまだファイルが作成またはアップロードされていません",
+      "actions": {
+        "preview": "プレビュー",
+        "open": "開く",
+        "reveal": "場所を表示",
+        "copyPath": "パスをコピー"
+      },
       "status": {
         "available": "利用可能",
         "expired": "期限切れ"

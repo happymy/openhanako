@@ -188,6 +188,7 @@ describe('selectSessionFiles', () => {
     expect(refs[0].source).toBe('session-block-file');
     expect(refs[0].fileId).toBe('sf_diagram');
     expect(refs[0].path).toBe('/out/diagram.svg');
+    expect(refs[0].sessionBlockIdx).toBe(0);
   });
 
   it('保留 blocks.file 的 session file lifecycle 状态', () => {
@@ -247,6 +248,7 @@ describe('selectSessionFiles', () => {
       source: 'session-block-legacy-artifact',
       name: 'Plan',
       path: '/cache/plan.md',
+      sessionBlockIdx: 0,
       status: 'expired',
       missingAt: 9999,
     });
@@ -268,6 +270,7 @@ describe('selectSessionFiles', () => {
     expect(refs[0].kind).toBe('image');
     expect(refs[0].source).toBe('session-block-screenshot');
     expect(refs[0].path).toBe('');
+    expect(refs[0].sessionBlockIdx).toBe(0);
     expect(refs[0].inlineData).toEqual({ base64: 'iVBORw0...', mimeType: 'image/png' });
   });
 

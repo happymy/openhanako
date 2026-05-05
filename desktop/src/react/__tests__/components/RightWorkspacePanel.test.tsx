@@ -3,10 +3,20 @@
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStore } from '../../stores';
 import type { ChatListItem } from '../../stores/chat-types';
 import { RightWorkspacePanel } from '../../components/right-workspace/RightWorkspacePanel';
+import { openFilePreview } from '../../utils/file-preview';
+import { openMediaViewerForRef } from '../../utils/open-media-viewer';
+
+vi.mock('../../utils/file-preview', () => ({
+  openFilePreview: vi.fn(async () => undefined),
+}));
+
+vi.mock('../../utils/open-media-viewer', () => ({
+  openMediaViewerForRef: vi.fn(),
+}));
 
 const tMap: Record<string, string> = {
   'rightWorkspace.tabs.sessionFiles': 'Session 文件',
@@ -15,6 +25,10 @@ const tMap: Record<string, string> = {
   'rightWorkspace.sessionFiles.title': 'Session 文件',
   'rightWorkspace.sessionFiles.status.expired': '已过期',
   'rightWorkspace.sessionFiles.status.available': '可用',
+  'rightWorkspace.sessionFiles.actions.preview': '预览',
+  'rightWorkspace.sessionFiles.actions.open': '打开',
+  'rightWorkspace.sessionFiles.actions.reveal': '定位',
+  'rightWorkspace.sessionFiles.actions.copyPath': '复制路径',
   'rightWorkspace.jian.collapse': '收起笺',
   'rightWorkspace.jian.expand': '展开笺',
   'desk.workspaceTitle': '工作空间',
@@ -69,13 +83,20 @@ describe('RightWorkspacePanel', () => {
       },
     });
     window.t = ((key: string) => tMap[key] || key) as typeof window.t;
+    vi.mocked(openFilePreview).mockClear();
+    vi.mocked(openMediaViewerForRef).mockClear();
     window.platform = {
       openFolder: () => undefined,
-      showInFinder: () => undefined,
+      openFile: vi.fn(),
+      showInFinder: vi.fn(),
       watchFile: async () => true,
       unwatchFile: async () => true,
       onFileChanged: () => undefined,
     } as unknown as typeof window.platform;
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn(async () => undefined) },
+    });
     resetStore();
   });
 
@@ -147,6 +168,81 @@ describe('RightWorkspacePanel', () => {
     expect(screen.getByText('report.pdf')).toBeInTheDocument();
     expect(screen.getByText('session-block-file')).toBeInTheDocument();
     expect(screen.getByText('可用')).toBeInTheDocument();
+  });
+
+  it('wires session file actions to preview, open, reveal and copy path consumers', () => {
+    resetStore([
+      {
+        type: 'message',
+        data: {
+          id: 'a1',
+          role: 'assistant',
+          timestamp: 1700000000000,
+          blocks: [
+            {
+              type: 'file',
+              fileId: 'sf_report',
+              filePath: '/tmp/session-files/report.pdf',
+              label: 'report.pdf',
+              ext: 'pdf',
+              status: 'available',
+            },
+          ],
+        },
+      },
+    ]);
+
+    render(<RightWorkspacePanel />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Session 文件' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '预览 report.pdf' }));
+    expect(openFilePreview).toHaveBeenCalledWith('/tmp/session-files/report.pdf', 'report.pdf', 'pdf', {
+      origin: 'session',
+      sessionPath: '/sessions/main.jsonl',
+      messageId: 'a1',
+      blockIdx: 0,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '打开 report.pdf' }));
+    expect(window.platform?.openFile).toHaveBeenCalledWith('/tmp/session-files/report.pdf');
+
+    fireEvent.click(screen.getByRole('button', { name: '定位 report.pdf' }));
+    expect(window.platform?.showInFinder).toHaveBeenCalledWith('/tmp/session-files/report.pdf');
+
+    fireEvent.click(screen.getByRole('button', { name: '复制路径 report.pdf' }));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('/tmp/session-files/report.pdf');
+  });
+
+  it('opens pathless screenshot files through MediaViewer and disables path actions', () => {
+    resetStore([
+      {
+        type: 'message',
+        data: {
+          id: 'shot-1',
+          role: 'assistant',
+          timestamp: 1700000000000,
+          blocks: [
+            { type: 'screenshot', base64: 'iVBORw0...', mimeType: 'image/png' },
+          ],
+        },
+      },
+    ]);
+
+    render(<RightWorkspacePanel />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Session 文件' }));
+
+    const name = 'screenshot-shot-1-0.png';
+    fireEvent.click(screen.getByRole('button', { name: `预览 ${name}` }));
+    expect(openMediaViewerForRef).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'session-block-screenshot',
+      name,
+      path: '',
+      inlineData: { base64: 'iVBORw0...', mimeType: 'image/png' },
+    }), { origin: 'session', sessionPath: '/sessions/main.jsonl' });
+
+    expect(screen.getByRole('button', { name: `打开 ${name}` })).toBeDisabled();
+    expect(screen.getByRole('button', { name: `定位 ${name}` })).toBeDisabled();
+    expect(screen.getByRole('button', { name: `复制路径 ${name}` })).toBeDisabled();
   });
 
   it('collapses and expands the Jian drawer without unmounting its editor state', () => {

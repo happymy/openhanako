@@ -192,6 +192,37 @@
     margin-right: 0.35rem;
 }
 
+.fileActions {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.fileAction {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.16s var(--ease-out), background 0.16s var(--ease-out);
+}
+
+.fileAction:hover:not(:disabled) {
+    color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.08);
+}
+
+.fileAction:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
 .jianDrawer {
     --right-workspace-jian-open-dur: 400ms;
     --right-workspace-jian-close-dur: 350ms;

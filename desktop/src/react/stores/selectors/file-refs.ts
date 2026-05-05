@@ -142,6 +142,7 @@ export function selectSessionFiles(state: SessionStateShape, sessionPath: string
             missingAt: b.missingAt,
             timestamp: msg.timestamp,
             sessionMessageId: msg.id,
+            sessionBlockIdx: i,
           });
         } else if (b.type === 'artifact' && b.filePath) {
           const ext = b.ext || extOf(b.filePath);
@@ -161,6 +162,7 @@ export function selectSessionFiles(state: SessionStateShape, sessionPath: string
             missingAt: b.missingAt,
             timestamp: msg.timestamp,
             sessionMessageId: msg.id,
+            sessionBlockIdx: i,
           });
         } else if (b.type === 'screenshot') {
           result.push({
@@ -175,6 +177,7 @@ export function selectSessionFiles(state: SessionStateShape, sessionPath: string
             mime: b.mimeType,
             timestamp: msg.timestamp,
             sessionMessageId: msg.id,
+            sessionBlockIdx: i,
             inlineData: { base64: b.base64, mimeType: b.mimeType },
           });
         }
