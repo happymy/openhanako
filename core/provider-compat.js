@@ -99,7 +99,7 @@ function stripIncompatibleThinking(payload, model) {
  *
  * @param {object} payload — 即将发送的 HTTP body（OpenAI / Anthropic 风格）
  * @param {object|null|undefined} model — 完整 model 对象 {id, provider, baseUrl, reasoning, maxTokens, quirks, ...}
- * @param {{ mode?: "chat" | "utility", reasoningLevel?: string }} [options]
+ * @param {{ mode?: "chat" | "utility", reasoningLevel?: string, outputBudgetSource?: "user" | "system" | "sdk-default" }} [options]
  * @returns {object} 处理后的 payload
  */
 export function normalizeProviderPayload(payload, model, options = {}) {

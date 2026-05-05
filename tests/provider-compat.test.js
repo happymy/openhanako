@@ -7,6 +7,7 @@ import {
   getThinkingFormat,
   getReasoningProfile,
 } from "../core/provider-compat.js";
+import { resolveOutputCapCapability } from "../core/provider-compat/output-budget.js";
 
 describe("isDeepSeekModel", () => {
   it("只把官方 DeepSeek provider / baseUrl 视为 DeepSeek 兼容路径", () => {
@@ -93,6 +94,35 @@ describe("getReasoningProfile", () => {
       reasoning: true,
       compat: { thinkingFormat: "anthropic" },
     })).toBe(null);
+  });
+});
+
+describe("resolveOutputCapCapability", () => {
+  it("marks Anthropic-compatible message protocol as requiring an output cap", () => {
+    const capability = resolveOutputCapCapability({
+      id: "claude-compatible",
+      provider: "custom-anthropic-proxy",
+      api: "anthropic-messages",
+    });
+    expect(capability).toMatchObject({
+      id: "anthropic-messages",
+      required: true,
+      preserveImplicitSdkDefault: true,
+    });
+  });
+
+  it("marks official DeepSeek as owned by the DeepSeek provider compat path", () => {
+    const capability = resolveOutputCapCapability({
+      id: "deepseek-v4-flash",
+      provider: "deepseek",
+      api: "openai-completions",
+      baseUrl: "https://api.deepseek.com/v1",
+    });
+    expect(capability).toMatchObject({
+      id: "official-deepseek",
+      required: false,
+      preserveImplicitSdkDefault: true,
+    });
   });
 });
 
@@ -226,6 +256,22 @@ describe("normalizeProviderPayload — 通用层", () => {
     expect(result.max_completion_tokens).toBe(12000);
   });
 
+  it("保留系统显式给出的输出上限，即使数值等于 SDK 隐式默认", () => {
+    const payload = {
+      model: "custom-model",
+      messages: [{ role: "user", content: "hi" }],
+      max_completion_tokens: 32000,
+    };
+    const result = normalizeProviderPayload(payload, {
+      id: "custom-model",
+      provider: "openai-compatible",
+      api: "openai-completions",
+      maxTokens: 384000,
+    }, { mode: "chat", outputBudgetSource: "system" });
+    expect(result).toBe(payload);
+    expect(result.max_completion_tokens).toBe(32000);
+  });
+
   it("保留协议必填 provider 上看起来像 SDK 默认的输出上限", () => {
     const payload = {
       model: "claude-opus-4-7",
@@ -237,6 +283,23 @@ describe("normalizeProviderPayload — 通用层", () => {
       provider: "anthropic",
       api: "anthropic-messages",
       maxTokens: 128000,
+    }, { mode: "chat" });
+    expect(result.max_tokens).toBe(32000);
+    expect(payload.max_tokens).toBe(32000);
+  });
+
+  it("保留自定义 Anthropic-compatible provider 的协议必填输出上限", () => {
+    const payload = {
+      model: "claude-compatible",
+      messages: [{ role: "user", content: "hi" }],
+      max_tokens: 32000,
+    };
+    const result = normalizeProviderPayload(payload, {
+      id: "claude-compatible",
+      provider: "custom-anthropic-proxy",
+      api: "anthropic-messages",
+      maxTokens: 128000,
+      compat: { thinkingFormat: "anthropic" },
     }, { mode: "chat" });
     expect(result.max_tokens).toBe(32000);
     expect(payload.max_tokens).toBe(32000);

@@ -13,6 +13,12 @@ const OUTPUT_CAP_FIELDS = [
   "maxOutputTokens",
 ];
 
+const DEFAULT_OUTPUT_CAP_CAPABILITY = Object.freeze({
+  id: "default-optional",
+  required: false,
+  preserveImplicitSdkDefault: false,
+});
+
 function lower(value) {
   return typeof value === "string" ? value.toLowerCase() : "";
 }
@@ -32,19 +38,47 @@ function isOfficialDeepSeekEndpoint(model) {
   return provider === "deepseek" || baseUrl.includes("api.deepseek.com");
 }
 
-function requiresOutputCap(model) {
-  if (!model || typeof model !== "object") return false;
-  if (model.compat?.outputCapRequired === true) return true;
+const OUTPUT_CAP_CAPABILITIES = [
+  {
+    id: "explicit-required",
+    required: true,
+    preserveImplicitSdkDefault: true,
+    matches: (model) => model?.compat?.outputCapRequired === true,
+  },
+  {
+    id: "official-deepseek",
+    required: false,
+    preserveImplicitSdkDefault: true,
+    matches: isOfficialDeepSeekEndpoint,
+  },
+  {
+    id: "anthropic-native",
+    required: true,
+    preserveImplicitSdkDefault: true,
+    matches: (model) => lower(model?.provider) === "anthropic"
+      || lower(model?.baseUrl || model?.base_url).includes("api.anthropic.com"),
+  },
+  {
+    id: "bedrock-native",
+    required: true,
+    preserveImplicitSdkDefault: true,
+    matches: (model) => {
+      const provider = lower(model?.provider);
+      return provider === "amazon-bedrock" || provider === "bedrock";
+    },
+  },
+  {
+    id: "anthropic-messages",
+    required: true,
+    preserveImplicitSdkDefault: true,
+    matches: (model) => lower(model?.api) === "anthropic-messages",
+  },
+];
 
-  const provider = lower(model.provider);
-  const api = lower(model.api);
-  const baseUrl = lower(model.baseUrl || model.base_url);
-
-  return provider === "anthropic"
-    || provider === "amazon-bedrock"
-    || provider === "bedrock"
-    || api === "anthropic-messages"
-    || baseUrl.includes("api.anthropic.com");
+export function resolveOutputCapCapability(model) {
+  if (!model || typeof model !== "object") return DEFAULT_OUTPUT_CAP_CAPABILITY;
+  return OUTPUT_CAP_CAPABILITIES.find((capability) => capability.matches(model))
+    || DEFAULT_OUTPUT_CAP_CAPABILITY;
 }
 
 function isImplicitSdkOutputCap(value, model) {
@@ -53,10 +87,18 @@ function isImplicitSdkOutputCap(value, model) {
   return positiveInteger(value) === Math.min(modelLimit, SDK_IMPLICIT_MAX_TOKENS_CAP);
 }
 
-function hasUserOutputCap(options = {}) {
-  return options.outputBudgetSource === "user"
-    || options.maxTokensSource === "user"
-    || positiveInteger(options.userMaxTokens) !== null;
+function getOutputBudgetSource(options = {}) {
+  const outputBudgetSource = lower(options.outputBudgetSource);
+  if (outputBudgetSource) return outputBudgetSource;
+  const maxTokensSource = lower(options.maxTokensSource);
+  if (maxTokensSource) return maxTokensSource;
+  if (positiveInteger(options.userMaxTokens) !== null) return "user";
+  return "";
+}
+
+function shouldPreserveForSource(options = {}) {
+  const source = getOutputBudgetSource(options);
+  return source === "user" || source === "system";
 }
 
 /**
@@ -67,9 +109,10 @@ function hasUserOutputCap(options = {}) {
 export function normalizeImplicitOutputBudget(payload, model, options = {}) {
   if (!payload || typeof payload !== "object") return payload;
   if (options.mode === "utility") return payload;
-  if (hasUserOutputCap(options)) return payload;
-  if (requiresOutputCap(model)) return payload;
-  if (isOfficialDeepSeekEndpoint(model)) return payload;
+  if (shouldPreserveForSource(options)) return payload;
+
+  const outputCap = resolveOutputCapCapability(model);
+  if (outputCap.required || outputCap.preserveImplicitSdkDefault) return payload;
 
   let next = payload;
   for (const field of OUTPUT_CAP_FIELDS) {
