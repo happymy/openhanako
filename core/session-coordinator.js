@@ -1071,6 +1071,40 @@ export class SessionCoordinator {
     return { ok: true, mode: nextMode, enabled: isReadOnlyPermissionMode(nextMode) };
   }
 
+  _applyPermissionModeToEntry(sessionPath, entry, nextMode) {
+    entry.permissionMode = nextMode;
+    entry.accessMode = legacyAccessModeFromPermissionMode(nextMode);
+    entry.planMode = isReadOnlyPermissionMode(nextMode);
+    this.writeSessionMeta(sessionPath, {
+      permissionMode: entry.permissionMode,
+      accessMode: entry.accessMode,
+      planMode: entry.planMode,
+    });
+    this._emitPermissionModeChanged(nextMode, sessionPath);
+    return { ok: true, mode: nextMode, enabled: entry.planMode };
+  }
+
+  setCurrentSessionPermissionMode(mode) {
+    const nextMode = normalizeSessionPermissionMode(mode);
+    const sp = this.currentSessionPath;
+    if (!sp) {
+      return {
+        ok: false,
+        error: "current session permission mode requires an active session",
+        mode: this._getDefaultPermissionMode(),
+      };
+    }
+    const entry = this._sessions.get(sp);
+    if (!entry) {
+      return {
+        ok: false,
+        error: "current session not found",
+        mode: this.getPermissionMode(sp),
+      };
+    }
+    return this._applyPermissionModeToEntry(sp, entry, nextMode);
+  }
+
   setPermissionMode(mode) {
     const nextMode = normalizeSessionPermissionMode(mode);
     const sp = this.currentSessionPath;
@@ -1078,16 +1112,7 @@ export class SessionCoordinator {
     if (sp) {
       const entry = this._sessions.get(sp);
       if (!entry) return { ok: false, mode: this.getPermissionMode(sp) };
-      entry.permissionMode = nextMode;
-      entry.accessMode = legacyAccessModeFromPermissionMode(nextMode);
-      entry.planMode = isReadOnlyPermissionMode(nextMode);
-      this.writeSessionMeta(sp, {
-        permissionMode: entry.permissionMode,
-        accessMode: entry.accessMode,
-        planMode: entry.planMode,
-      });
-      this._emitPermissionModeChanged(nextMode, sp);
-      return { ok: true, mode: nextMode, enabled: entry.planMode };
+      return this._applyPermissionModeToEntry(sp, entry, nextMode);
     }
 
     return this.setPendingPermissionMode(nextMode);

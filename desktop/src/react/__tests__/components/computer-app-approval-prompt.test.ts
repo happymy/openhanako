@@ -221,6 +221,78 @@ describe('computer app approval prompt', () => {
     });
   });
 
+  it('can switch the current ask-mode conversation to operate before confirming a tool action', async () => {
+    const permissionEvents: Array<{ mode?: string; enabled?: boolean }> = [];
+    const listener = (event: Event) => {
+      permissionEvents.push((event as CustomEvent).detail || {});
+    };
+    window.addEventListener('hana-plan-mode', listener);
+    hanaFetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, mode: 'operate' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+    const block = {
+      type: 'session_confirmation',
+      confirmId: 'confirm-tool-1',
+      kind: 'tool_action_approval',
+      surface: 'input',
+      status: 'pending',
+      title: '允许 Hana 执行这次操作',
+      body: '当前会话处于先问模式，这次操作会改变本地或外部状态。',
+      subject: { label: 'write', detail: 'path: note.md' },
+      severity: 'elevated',
+      actions: { confirmLabel: '同意', rejectLabel: '拒绝' },
+      payload: { toolName: 'write', params: { path: 'note.md' } },
+    } as const;
+
+    try {
+      render(React.createElement(SessionConfirmationPrompt, { block }));
+
+      fireEvent.click(screen.getByRole('button', { name: '更多确认选项' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: '本对话不再询问' }));
+
+      await waitFor(() => {
+        expect(hanaFetchMock).toHaveBeenCalledTimes(2);
+      });
+      expect(hanaFetchMock.mock.calls[0]).toEqual([
+        '/api/session-permission-mode',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ mode: 'operate', currentSessionOnly: true }),
+        }),
+      ]);
+      expect(hanaFetchMock.mock.calls[1]).toEqual([
+        '/api/confirm/confirm-tool-1',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ action: 'confirmed' }),
+        }),
+      ]);
+      expect(permissionEvents.at(-1)).toMatchObject({ mode: 'operate', enabled: false });
+    } finally {
+      window.removeEventListener('hana-plan-mode', listener);
+    }
+  });
+
+  it('does not offer ask-mode bypass on computer app approval prompts', () => {
+    const block = {
+      type: 'session_confirmation',
+      confirmId: 'confirm-computer-1',
+      kind: 'computer_app_approval',
+      surface: 'input',
+      status: 'pending',
+      title: '允许 Hana 使用电脑',
+      subject: { label: 'Mock Notes', detail: 'mock · app.notes' },
+      severity: 'elevated',
+      actions: { confirmLabel: '同意', rejectLabel: '拒绝' },
+      payload: { approval: { providerId: 'mock', appId: 'app.notes' } },
+    } as const;
+
+    render(React.createElement(SessionConfirmationPrompt, { block }));
+
+    expect(screen.queryByRole('button', { name: '更多确认选项' })).toBeNull();
+  });
+
   it('keeps the input confirmation as a short card sliding from behind the input box', () => {
     const css = fs.readFileSync(
       path.join(process.cwd(), 'desktop/src/react/components/input/InputArea.module.css'),

@@ -361,14 +361,25 @@ app.get("/api/session-permission-mode", async (c) => {
 });
 
 app.post("/api/session-permission-mode", async (c) => {
-  const { mode, pendingNewSession } = await safeJson(c);
-  const result = pendingNewSession === true
+  const { mode, pendingNewSession, currentSessionOnly } = await safeJson(c);
+  const result = currentSessionOnly === true
+    ? engine.setCurrentSessionPermissionMode(mode)
+    : pendingNewSession === true
     ? engine.setPendingSessionPermissionMode(mode)
     : engine.setSessionPermissionMode(mode);
+  if (currentSessionOnly === true && result?.ok === false) {
+    return c.json({
+      ok: false,
+      error: result.error || "current session permission mode requires an active session",
+      mode: result.mode,
+      accessMode: result.mode === "read_only" ? "read_only" : "operate",
+      defaultMode: engine.getSessionPermissionModeDefault(),
+    }, 409);
+  }
   return c.json({
     ok: result?.ok !== false,
-    mode: pendingNewSession === true ? result?.mode : engine.permissionMode,
-    accessMode: pendingNewSession === true
+    mode: (pendingNewSession === true || currentSessionOnly === true) ? result?.mode : engine.permissionMode,
+    accessMode: (pendingNewSession === true || currentSessionOnly === true)
       ? (result?.mode === "read_only" ? "read_only" : "operate")
       : engine.accessMode,
     defaultMode: engine.getSessionPermissionModeDefault(),

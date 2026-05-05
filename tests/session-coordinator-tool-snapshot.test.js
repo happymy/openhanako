@@ -237,6 +237,43 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     expect(defaultModeSaveSpy).not.toHaveBeenCalled();
   });
 
+  it("can switch only the current session permission mode without mutating the runtime default", async () => {
+    currentAgentConfig = { tools: { disabled: [] } };
+    const { sessionPath: firstPath } = await coord.createSession(null, tmpDir, true);
+
+    const result = coord.setCurrentSessionPermissionMode("operate");
+
+    expect(result).toMatchObject({ ok: true, mode: "operate", enabled: false });
+    expect(coord.getPermissionMode(firstPath)).toBe("operate");
+    expect(coord.getPermissionModeDefault()).toBe("ask");
+
+    const secondSessionPath = path.join(sessionDir, "second-ask-session.jsonl");
+    createAgentSessionMock.mockResolvedValueOnce({
+      session: {
+        sessionManager: { getSessionFile: () => secondSessionPath },
+        subscribe: vi.fn(() => vi.fn()),
+        model: { id: "test-model", name: "test-model" },
+        setActiveToolsByName: activeToolsSpy,
+      },
+    });
+    const { sessionPath: secondPath } = await coord.createSession(null, tmpDir, true);
+
+    expect(coord.getPermissionMode(secondPath)).toBe("ask");
+    expect(defaultModeSaveSpy).not.toHaveBeenCalled();
+
+    const meta = JSON.parse(await fsp.readFile(path.join(sessionDir, "session-meta.json"), "utf-8"));
+    expect(meta[path.basename(firstPath)]).toMatchObject({
+      permissionMode: "operate",
+      accessMode: "operate",
+      planMode: false,
+    });
+    expect(meta[path.basename(secondPath)]).toMatchObject({
+      permissionMode: "ask",
+      accessMode: "operate",
+      planMode: false,
+    });
+  });
+
   it("new session with pending read-only access mode keeps tool schema stable", async () => {
     currentAgentConfig = { tools: { disabled: [] } };
     coord.setPendingAccessMode("read_only");
