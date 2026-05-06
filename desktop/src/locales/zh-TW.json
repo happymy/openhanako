@@ -201,6 +201,7 @@
     ],
     "memoryOn": "記憶",
     "memoryOff": "此次聊天不參考記憶",
+    "memoryDisabled": "記憶已關閉",
     "agentSelector": "選擇助手"
   },
   "yuan": {
@@ -632,7 +633,7 @@
       "identityHint": "簡短描述助手是誰、擅長什麼。其他助手透過這段文字認識 Ta",
       "ishiki": "意識",
       "ishikiHint": "定義助手的性格、語氣和行為方式。名字會自動注入，無需手動填寫",
-      "ishikiSeparationHint": "助手的人格設定，可以在這裡填寫你想要 Ta 怎麼回覆。跟「元」是分離開的，互不影響。",
+      "ishikiSeparationHint": "跟「元」是分離開的，互不影響。",
       "publicIshiki": "對外意識",
       "publicIshikiHint": "出於隱私考量，助手與訪客對話時無法存取記憶、你的個人資訊，以及電腦上的任何檔案與工具。\n你可以在這裡設定助手對訪客說話時的回覆風格以及注意事項。",
       "chatModel": "Ta 的模型",

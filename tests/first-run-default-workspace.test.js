@@ -53,5 +53,6 @@ describe("first run default workspace", () => {
     expect(cfg.desk.home_folder).toBe(workspace);
     expect(cfg.desk.heartbeat_enabled).toBe(false);
     expect(cfg.desk.heartbeat_interval).toBe(31);
+    expect(cfg.memory.enabled).toBe(false);
   });
 });

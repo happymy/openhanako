@@ -38,6 +38,7 @@ models:
 # 被 hit 过的记忆会重置衰减起点，常提起的记忆不会消失。
 # token_budget 控制 memory.md 能装多少内容。
 memory:
+  enabled: false                  # 记忆总开关：默认关闭，用户需要时在设置中开启
   token_budget: 2500               # memory.md 的目标 token 预算
   decay_per_day: 0.02              # 高斯衰减系数 λ（越大遗忘越快）
   hit_bonus: 5                     # 每次命中加多少分

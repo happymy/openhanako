@@ -226,6 +226,13 @@
     opacity: 0.85;
 }
 
+.memoryToggleBtnDisabled,
+.memoryToggleBtnDisabled:hover {
+    color: var(--text-muted);
+    opacity: 0.42;
+    cursor: default;
+}
+
 .memoryToggleIcon {
     display: inline-flex;
     align-items: center;

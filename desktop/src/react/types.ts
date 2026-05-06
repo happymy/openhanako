@@ -41,6 +41,7 @@ export interface Agent {
   yuan: string;
   isPrimary: boolean;
   hasAvatar?: boolean;
+  memoryMasterEnabled?: boolean;
 }
 
 export interface SessionStream {

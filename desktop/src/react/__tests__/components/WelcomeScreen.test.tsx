@@ -15,6 +15,9 @@ const translations: Record<string, string | string[] | Record<string, { avatar: 
   'input.addExternalFolder': '添加工作空间以外的文件夹',
   'welcome.messages': ['想到什么就说什么吧~'],
   'yuan.welcome.hanako': ['想到什么就说什么吧~'],
+  'welcome.memoryOn': '记忆',
+  'welcome.memoryOff': '此次聊天不参考记忆',
+  'welcome.memoryDisabled': '记忆已关闭',
   'yuan.types': { hanako: { avatar: 'Hanako.png' } },
 };
 
@@ -61,5 +64,23 @@ describe('WelcomeScreen workspace picker', () => {
     expect(currentLabel.compareDocumentPosition(selectOther) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(selectOther.compareDocumentPosition(extraLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(extraLabel.compareDocumentPosition(addExternal) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('disables the memory toggle when the selected agent has memory disabled in settings', async () => {
+    useStore.setState({
+      agents: [
+        { id: 'hana', name: 'Hanako', yuan: 'hanako', isPrimary: true, memoryMasterEnabled: false },
+      ],
+      currentAgentId: 'hana',
+      memoryEnabled: true,
+    } as never);
+    const { WelcomeScreen } = await import('../../components/WelcomeScreen');
+
+    render(<WelcomeScreen />);
+    const button = screen.getByRole('button', { name: '记忆已关闭' });
+    fireEvent.click(button);
+
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(useStore.getState().memoryEnabled).toBe(true);
   });
 });

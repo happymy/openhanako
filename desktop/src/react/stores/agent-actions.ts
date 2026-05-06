@@ -83,6 +83,9 @@ export async function loadAgents(): Promise<void> {
     const currentAgent = agents.find((a: any) => a.id === currentId);
     if (currentAgent?.yuan) patch.agentYuan = currentAgent.yuan;
     if (currentAgent?.name) patch.agentName = currentAgent.name;
+    if (typeof currentAgent?.memoryMasterEnabled === 'boolean') {
+      patch.memoryMasterEnabled = currentAgent.memoryMasterEnabled;
+    }
 
     useStore.setState(patch);
   } catch (err) {

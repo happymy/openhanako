@@ -202,6 +202,7 @@
     ],
     "memoryOn": "Memory",
     "memoryOff": "Memory not used for this chat",
+    "memoryDisabled": "Memory is off",
     "agentSelector": "Choose agent"
   },
   "drop": {
@@ -635,7 +636,7 @@
       "identityHint": "A short description of who this agent is and what they're good at. Other agents use this to know them",
       "ishiki": "Ishiki",
       "ishikiHint": "Defines the assistant's character, tone and behavior. Names are auto-injected",
-      "ishikiSeparationHint": "This is the assistant's personality setting. Write how you want them to reply here. It is separate from Yuan and does not affect it.",
+      "ishikiSeparationHint": "Separate from Yuan and does not affect it.",
       "publicIshiki": "Public Ishiki",
       "publicIshikiHint": "For privacy, the assistant cannot access memories, your personal info, or any files and tools on your computer when talking to visitors.\nYou can set the assistant's reply style and guidelines for visitor conversations here.",
       "chatModel": "Model",

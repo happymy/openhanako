@@ -151,6 +151,7 @@ describe("agents route", () => {
         locale: "en-US",
         agent: { name: "Hana Prime", yuan: "muse" },
         desk: { home_folder: "/tmp/hana-work" },
+        memory: { enabled: false },
         models: { chat: { id: "gpt-5", provider: "openai" } },
         skills: { enabled: ["writer"] },
       }),
@@ -160,9 +161,11 @@ describe("agents route", () => {
     expect(engine.updateConfig).toHaveBeenCalledWith(expect.objectContaining({
       agent: { name: "Hana Prime", yuan: "muse" },
       desk: { home_folder: "/tmp/hana-work" },
+      memory: expect.objectContaining({ enabled: false }),
       models: { chat: { id: "gpt-5", provider: "openai" } },
       skills: { enabled: ["writer"] },
     }), { agentId });
+    expect(engine.setMemoryMasterEnabled).toHaveBeenCalledWith(agentId, false);
     expectAppEvent(engine.emitEvent, "models-changed", { agentId });
     expectAppEvent(engine.emitEvent, "agent-updated", {
       agentId,
@@ -172,6 +175,10 @@ describe("agents route", () => {
     expectAppEvent(engine.emitEvent, "agent-workspace-changed", {
       agentId,
       homeFolder: "/tmp/hana-work",
+    });
+    expectAppEvent(engine.emitEvent, "memory-master-changed", {
+      agentId,
+      enabled: false,
     });
     expectAppEvent(engine.emitEvent, "locale-changed", { locale: "en-US" });
     expectAppEvent(engine.emitEvent, "skills-changed", { agentId });

@@ -6,6 +6,7 @@ export interface AgentSlice {
   agentAvatarUrl: string | null;
   userAvatarUrl: string | null;
   agentYuan: string;
+  memoryMasterEnabled: boolean;
   agents: Agent[];
   currentAgentId: string | null;
   selectedAgentId: string | null;
@@ -15,6 +16,7 @@ export interface AgentSlice {
   setAgentAvatarUrl: (url: string | null) => void;
   setUserAvatarUrl: (url: string | null) => void;
   setAgentYuan: (yuan: string) => void;
+  setMemoryMasterEnabled: (enabled: boolean) => void;
   setAgents: (agents: Agent[]) => void;
   setCurrentAgentId: (id: string | null) => void;
   setSelectedAgentId: (id: string | null) => void;
@@ -29,6 +31,7 @@ export const createAgentSlice = (
   agentAvatarUrl: null,
   userAvatarUrl: null,
   agentYuan: 'hanako',
+  memoryMasterEnabled: true,
   agents: [],
   currentAgentId: null,
   selectedAgentId: null,
@@ -38,6 +41,7 @@ export const createAgentSlice = (
   setAgentAvatarUrl: (url) => set({ agentAvatarUrl: url }),
   setUserAvatarUrl: (url) => set({ userAvatarUrl: url }),
   setAgentYuan: (yuan) => set({ agentYuan: yuan }),
+  setMemoryMasterEnabled: (enabled) => set({ memoryMasterEnabled: enabled }),
   setAgents: (agents) => set({ agents }),
   setCurrentAgentId: (id) => set({ currentAgentId: id }),
   setSelectedAgentId: (id) => set({ selectedAgentId: id }),

@@ -180,6 +180,43 @@ describe('handleAppEvent', () => {
     expect(mockLoadAgents).not.toHaveBeenCalled();
   });
 
+  it('memory-master-changed updates the current agent gate and cached agent row', async () => {
+    Object.assign(mockState, {
+      currentAgentId: 'agent-a',
+      memoryMasterEnabled: true,
+      agents: [
+        { id: 'agent-a', name: 'Hana', memoryMasterEnabled: true },
+        { id: 'agent-b', name: 'Other', memoryMasterEnabled: true },
+      ],
+    });
+    const { handleAppEvent } = await import('../../services/app-event-actions');
+
+    handleAppEvent('memory-master-changed', { agentId: 'agent-a', enabled: false });
+
+    expect(mockState.memoryMasterEnabled).toBe(false);
+    expect((mockState.agents as any[]).find(a => a.id === 'agent-a')?.memoryMasterEnabled).toBe(false);
+    expect((mockState.agents as any[]).find(a => a.id === 'agent-b')?.memoryMasterEnabled).toBe(true);
+  });
+
+  it('agent-switched reads the next agent memory gate from config', async () => {
+    mockHanaFetch
+      .mockResolvedValueOnce(jsonResponse({
+        memory: { enabled: false },
+        desk: { home_folder: '/agent-home' },
+        cwd_history: ['/recent'],
+      }))
+      .mockResolvedValueOnce(jsonResponse({ jobs: [] }));
+    Object.assign(mockState, { currentAgentId: 'agent-a', memoryMasterEnabled: true });
+    const { handleAppEvent } = await import('../../services/app-event-actions');
+
+    handleAppEvent('agent-switched', { agentName: 'Other', agentId: 'agent-b' });
+    await vi.waitFor(() => {
+      expect(mockState.memoryMasterEnabled).toBe(false);
+    });
+
+    expect(mockHanaFetch).toHaveBeenCalledWith('/api/config');
+  });
+
   it('theme-changed applies the selected theme', async () => {
     const { handleAppEvent } = await import('../../services/app-event-actions');
 

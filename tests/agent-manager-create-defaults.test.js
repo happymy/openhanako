@@ -212,4 +212,42 @@ describe("AgentManager.createAgent default skills.enabled", () => {
     expect(cfg.desk.heartbeat_enabled).toBe(false);
     expect(cfg.desk.heartbeat_interval).toBe(31);
   });
+
+  it("defaults the memory master switch to disabled for newly created agents", async () => {
+    skillsMock._allSkills = [];
+
+    const { id: newId } = await mgr.createAgent({ name: "QuietMemoryAgent", yuan: "hanako" });
+
+    const cfgPath = path.join(agentsDir, newId, "config.yaml");
+    const cfg = YAML.load(fs.readFileSync(cfgPath, "utf-8"));
+    expect(cfg.memory.enabled).toBe(false);
+  });
+
+  it("includes each agent memory master state in the agent list", async () => {
+    fs.mkdirSync(path.join(agentsDir, "memory-off"), { recursive: true });
+    fs.writeFileSync(
+      path.join(agentsDir, "memory-off", "config.yaml"),
+      [
+        "agent:",
+        "  name: Memory Off",
+        "memory:",
+        "  enabled: false",
+      ].join("\n"),
+    );
+    fs.mkdirSync(path.join(agentsDir, "memory-on"), { recursive: true });
+    fs.writeFileSync(
+      path.join(agentsDir, "memory-on", "config.yaml"),
+      [
+        "agent:",
+        "  name: Memory On",
+        "memory:",
+        "  enabled: true",
+      ].join("\n"),
+    );
+
+    const agents = mgr.listAgents();
+
+    expect(agents.find(a => a.id === "memory-off").memoryMasterEnabled).toBe(false);
+    expect(agents.find(a => a.id === "memory-on").memoryMasterEnabled).toBe(true);
+  });
 });

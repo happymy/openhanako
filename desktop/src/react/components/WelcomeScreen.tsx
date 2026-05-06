@@ -54,6 +54,7 @@ function WelcomeInner() {
   const currentAgentId = useStore(s => s.currentAgentId);
   const selectedAgentId = useStore(s => s.selectedAgentId);
   const memoryEnabled = useStore(s => s.memoryEnabled);
+  const activeMemoryMasterEnabled = useStore(s => s.memoryMasterEnabled);
   const selectedFolder = useStore(s => s.selectedFolder);
   const homeFolder = useStore(s => s.homeFolder);
   const workspaceFolders = useStore(s => s.workspaceFolders);
@@ -67,6 +68,7 @@ function WelcomeInner() {
 
   const displayName = displayAgent?.name || agentName;
   const displayYuan = displayAgent?.yuan || agentYuan;
+  const memoryMasterEnabled = displayAgent?.memoryMasterEnabled ?? activeMemoryMasterEnabled;
 
   // Greeting text — regenerate when agent changes or welcome becomes visible
   const [greeting, setGreeting] = useState('');
@@ -112,7 +114,7 @@ function WelcomeInner() {
         workspaceFolders={workspaceFolders}
         cwdHistory={cwdHistory}
       />
-      <MemoryToggle enabled={memoryEnabled} t={t} />
+      <MemoryToggle enabled={memoryEnabled} masterEnabled={memoryMasterEnabled} t={t} />
     </div>
   );
 }
@@ -414,23 +416,28 @@ function FolderHistory({ cwdHistory, selectedFolder, homeFolder, workspaceFolder
 
 // ── Memory Toggle ──
 
-function MemoryToggle({ enabled, t }: {
+function MemoryToggle({ enabled, masterEnabled, t }: {
   enabled: boolean;
+  masterEnabled: boolean;
   t: (key: string) => string;
 }) {
   const handleClick = useCallback(() => {
-    useStore.setState((s: any) => ({ memoryEnabled: !s.memoryEnabled }));
+    useStore.setState((s) => ({ memoryEnabled: !s.memoryEnabled }));
   }, []);
+  const disabled = !masterEnabled;
+  const label = disabled ? t('welcome.memoryDisabled') : t(enabled ? 'welcome.memoryOn' : 'welcome.memoryOff');
 
   return (
     <button
-      className={`${styles.memoryToggleBtn}${enabled ? ` ${styles.memoryToggleBtnActive}` : ''}`}
+      className={`${styles.memoryToggleBtn}${enabled && !disabled ? ` ${styles.memoryToggleBtnActive}` : ''}${disabled ? ` ${styles.memoryToggleBtnDisabled}` : ''}`}
       onClick={handleClick}
+      disabled={disabled}
+      title={disabled ? t('welcome.memoryDisabled') : undefined}
     >
       <svg className={styles.memoryToggleIcon} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2 L22 12 L12 22 L2 12 Z" />
       </svg>
-      <span>{t(enabled ? 'welcome.memoryOn' : 'welcome.memoryOff')}</span>
+      <span>{label}</span>
     </button>
   );
 }

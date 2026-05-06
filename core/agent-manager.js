@@ -214,6 +214,7 @@ export class AgentManager {
           identity,
           hasAvatar,
           chatModel,
+          memoryMasterEnabled: cfg.memory?.enabled !== false,
         });
       } catch {}
     }
@@ -307,6 +308,10 @@ export class AgentManager {
     const yuanType = VALID_YUAN.includes(yuan) ? yuan : "hanako";
     const config = configSeed;
     config.agent = { ...(config.agent || {}), name: name.trim(), yuan: yuanType };
+    config.memory = {
+      ...(config.memory || {}),
+      enabled: false,
+    };
     config.desk = {
       ...(config.desk || {}),
       heartbeat_enabled: false,

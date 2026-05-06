@@ -48,6 +48,10 @@ export function readConfigCwdHistory(config: any): string[] {
   return mergeWorkspaceHistory(history, []);
 }
 
+export function readConfigMemoryMasterEnabled(config: any): boolean {
+  return config?.memory?.enabled !== false;
+}
+
 function handleAgentWorkspaceChanged(data: any): void {
   const state = useStore.getState();
   if (!data?.agentId || data.agentId !== state.currentAgentId) return;
@@ -112,6 +116,7 @@ export function handleAppEvent(type: string, data: any = {}): void {
           selectedFolder: homeFolder,
           workspaceFolders: [],
           cwdHistory: readConfigCwdHistory(cfg),
+          memoryMasterEnabled: readConfigMemoryMasterEnabled(cfg),
         });
         void activateWorkspaceDesk(homeFolder);
       }).catch(() => {});
@@ -156,6 +161,24 @@ export function handleAppEvent(type: string, data: any = {}): void {
         yuan: data.yuan,
         ui: { settings: false },
       });
+      break;
+    }
+    case 'memory-master-changed': {
+      const state = useStore.getState();
+      if (!data.agentId) break;
+      const enabled = data.enabled !== false;
+      const patch: any = {};
+      if (Array.isArray(state.agents)) {
+        patch.agents = state.agents.map((agent: any) =>
+          agent.id === data.agentId ? { ...agent, memoryMasterEnabled: enabled } : agent,
+        );
+      }
+      if (data.agentId === state.currentAgentId) {
+        patch.memoryMasterEnabled = enabled;
+      }
+      if (Object.keys(patch).length) {
+        useStore.setState(patch);
+      }
       break;
     }
     case 'agent-workspace-changed':

@@ -19,7 +19,7 @@ import { updateLayout } from './components/SidebarLayout';
 import { initErrorBusBridge } from './errors/error-bus-bridge';
 import { refreshPluginUI } from './stores/plugin-ui-actions';
 import { openSettingsModal } from './stores/settings-modal-actions';
-import { configureAppEventActions, handleAppEvent, readConfigCwdHistory, readConfigHomeFolder } from './services/app-event-actions';
+import { configureAppEventActions, handleAppEvent, readConfigCwdHistory, readConfigHomeFolder, readConfigMemoryMasterEnabled } from './services/app-event-actions';
 import { configureWsMessageHandler } from './services/ws-message-handler';
 import { applyEditorTypography } from './editor/typography';
 // @ts-expect-error — shared JS module
@@ -109,6 +109,7 @@ export async function initApp(): Promise<void> {
       homeFolder,
       selectedFolder: homeFolder,
       workspaceFolders: [],
+      memoryMasterEnabled: readConfigMemoryMasterEnabled(configData),
     });
     useStore.setState({ cwdHistory: readConfigCwdHistory(configData) });
 

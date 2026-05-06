@@ -113,6 +113,13 @@ function emitAgentConfigAppEvents(engine, agentId, { globalFields, agentPartial,
     });
   }
 
+  if (hasOwn(agentPartial?.memory, "enabled")) {
+    emitAppEvent(engine, "memory-master-changed", {
+      agentId,
+      enabled: agentPartial.memory.enabled !== false,
+    });
+  }
+
   const locale = getGlobalValue(globalFields, "locale");
   if (locale !== undefined) {
     emitAppEvent(engine, "locale-changed", { locale });

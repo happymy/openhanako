@@ -95,6 +95,10 @@ function seedDefaultAgent(agentsDir, productDir) {
     heartbeat_enabled: false,
     heartbeat_interval: DEFAULT_HEARTBEAT_INTERVAL_MINUTES,
   };
+  raw.memory = {
+    ...(raw.memory || {}),
+    enabled: false,
+  };
   fs.writeFileSync(cfgDest, YAML.dump(raw, { indent: 2, lineWidth: -1, sortKeys: false, quotingType: '"' }), "utf-8");
 
 
