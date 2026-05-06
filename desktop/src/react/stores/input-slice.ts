@@ -13,6 +13,15 @@ export interface DocContextFile {
   name: string;
 }
 
+export interface FloatingAnchorRect {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  width: number;
+  height: number;
+}
+
 export interface QuotedSelection {
   text: string;
   sourceTitle: string;
@@ -20,6 +29,8 @@ export interface QuotedSelection {
   lineStart?: number;
   lineEnd?: number;
   charCount: number;
+  anchorRect?: FloatingAnchorRect;
+  updatedAt?: number;
 }
 
 export interface InputSlice {
@@ -86,7 +97,8 @@ export const createInputSlice = (
     set((s) => ({ drafts: { ...s.drafts, [sessionPath]: text } })),
   clearDraft: (sessionPath) =>
     set((s) => {
-      const { [sessionPath]: _, ...rest } = s.drafts;
+      const rest = { ...s.drafts };
+      delete rest[sessionPath];
       return { drafts: rest };
     }),
   setDeskContextAttached: (attached) => set({ deskContextAttached: attached }),

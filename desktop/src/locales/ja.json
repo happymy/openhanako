@@ -144,6 +144,7 @@
   },
   "input": {
     "placeholder": "なにか話しかけてみてください...",
+    "floatingInput": "選択範囲のフローティング入力",
     "selectFolder": "フォルダを選択",
     "workspace": "ワークスペース：",
     "selectWorkspace": "ワークスペースを選択",

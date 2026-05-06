@@ -145,6 +145,7 @@
   },
   "input": {
     "placeholder": "说点什么...",
+    "floatingInput": "选区浮动输入",
     "selectFolder": "选择工作文件夹",
     "workspace": "工作空间：",
     "selectWorkspace": "选择工作空间",

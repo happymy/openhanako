@@ -145,6 +145,7 @@
   },
   "input": {
     "placeholder": "Say something...",
+    "floatingInput": "Selection floating input",
     "selectFolder": "Select folder",
     "workspace": "Workspace: ",
     "selectWorkspace": "Select workspace",
