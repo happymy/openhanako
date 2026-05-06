@@ -5,6 +5,7 @@
 import { useState, useCallback } from 'react';
 import { PROVIDER_PRESETS } from '../constants';
 import type { ProviderPreset } from '../constants';
+import { getProviderPresetLabel } from '../../utils/provider-presets';
 import { testConnection, saveProvider as saveProviderAction } from '../onboarding-actions';
 import type { HanaFetch } from '../onboarding-actions';
 import { StepContainer, Multiline } from '../onboarding-ui';
@@ -46,17 +47,32 @@ export function ProviderStep({
   const [connectionTested, setConnectionTested] = useState(false);
   const [testStatus, setTestStatus] = useState<{ type: '' | 'loading' | 'success' | 'error'; text: string }>({ type: '', text: '' });
   const [showKey, setShowKey] = useState(false);
+  const [providerMenuOpen, setProviderMenuOpen] = useState(false);
+  const [providerSearch, setProviderSearch] = useState('');
 
   // ── Custom provider fields ──
   const [customName, setCustomName] = useState('');
   const [customUrl, setCustomUrl] = useState('');
   const [customApi, setCustomApi] = useState('openai-completions');
 
-  const isZh = i18n.locale?.startsWith('zh');
+  const providerLabel = useCallback((preset: ProviderPreset) => (
+    preset.custom ? t('onboarding.provider.custom') : getProviderPresetLabel(preset, i18n.locale)
+  ), []);
+
+  const selectedProviderLabel = selectedPreset
+    ? providerLabel(PROVIDER_PRESETS.find(preset => preset.value === selectedPreset) || PROVIDER_PRESETS[PROVIDER_PRESETS.length - 1])
+    : '';
+
+  const providerQuery = providerSearch.trim().toLowerCase();
+  const filteredProviders = providerQuery
+    ? PROVIDER_PRESETS.filter(preset => providerLabel(preset).toLowerCase().includes(providerQuery) || preset.value.toLowerCase().includes(providerQuery))
+    : PROVIDER_PRESETS;
 
   // ── Preset selection ──
   const selectPreset = useCallback((preset: ProviderPreset) => {
     setSelectedPreset(preset.value);
+    setProviderMenuOpen(false);
+    setProviderSearch('');
     setConnectionTested(false);
     setTestStatus({ type: '', text: '' });
 
@@ -146,19 +162,40 @@ export function ProviderStep({
       <h1 className="onboarding-title">{t('onboarding.provider.title')}</h1>
       <Multiline className="onboarding-subtitle" text={t('onboarding.provider.subtitle')} />
 
-      <div className="provider-grid">
-        {PROVIDER_PRESETS.map(preset => (
-          <div
-            key={preset.value}
-            className={`provider-card${selectedPreset === preset.value ? ' selected' : ''}`}
-            onClick={() => selectPreset(preset)}
-          >
-            {preset.custom
-              ? t('onboarding.provider.custom')
-              : (isZh && 'labelZh' in preset && preset.labelZh ? preset.labelZh : preset.label)
-            }
+      <div className="ob-provider-select">
+        <button type="button" className="ob-provider-trigger" onClick={() => setProviderMenuOpen(open => !open)}>
+          <span>{selectedProviderLabel || t('onboarding.provider.selectPlaceholder')}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        {providerMenuOpen && (
+          <div className="ob-provider-menu">
+            <input
+              className="ob-input ob-provider-search"
+              type="text"
+              placeholder={t('onboarding.provider.searchPlaceholder')}
+              value={providerSearch}
+              onChange={e => setProviderSearch(e.target.value)}
+              autoComplete="off"
+              autoFocus
+            />
+            <div className="ob-provider-options">
+              {filteredProviders.length > 0 ? filteredProviders.map(preset => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  className={`ob-provider-option${selectedPreset === preset.value ? ' selected' : ''}`}
+                  onClick={() => selectPreset(preset)}
+                >
+                  {providerLabel(preset)}
+                </button>
+              )) : (
+                <div className="ob-provider-empty">{t('onboarding.provider.empty')}</div>
+              )}
+            </div>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Custom provider fields */}

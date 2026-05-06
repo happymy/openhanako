@@ -1121,6 +1121,9 @@
     "provider": {
       "title": "選擇 AI 供應商",
       "subtitle": "我需要一個 AI 模型供應商來工作。\n選擇你常用的供應商並填入 API Key。",
+      "selectPlaceholder": "選擇供應商",
+      "searchPlaceholder": "搜尋供應商...",
+      "empty": "未找到供應商",
       "custom": "自訂...",
       "customName": "名稱",
       "customNamePlaceholder": "如 my-provider",

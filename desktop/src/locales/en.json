@@ -1166,6 +1166,9 @@
     "provider": {
       "title": "Choose an AI Provider",
       "subtitle": "I need an AI model provider to work.\nPick your provider and enter your API Key.",
+      "selectPlaceholder": "Choose provider",
+      "searchPlaceholder": "Search providers...",
+      "empty": "No providers found",
       "custom": "Custom...",
       "customName": "Name",
       "customNamePlaceholder": "e.g. my-provider",

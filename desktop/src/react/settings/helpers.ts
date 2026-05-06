@@ -5,6 +5,7 @@ import { useSettingsStore } from './store';
 import { hanaFetch } from './api';
 import registry from '../../shared/theme-registry.cjs';
 import { lookupReferenceModelMeta } from '../utils/model-metadata';
+import { API_PROVIDER_PRESETS, getProviderPresetLabel } from '../utils/provider-presets';
 
 export function t(key: string, params?: Record<string, any>): any {
   return window.t?.(key, params) ?? key;
@@ -145,22 +146,10 @@ export function savePins() {
   }, 300);
 }
 
-export const PROVIDER_PRESETS = [
-  { value: 'ollama', label: 'Ollama (Local)', url: 'http://localhost:11434/v1', api: 'openai-completions', local: true },
-  { value: 'dashscope', label: 'DashScope (Qwen)', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', api: 'openai-completions' },
-  { value: 'openai', label: 'OpenAI', url: 'https://api.openai.com/v1', api: 'openai-completions' },
-  { value: 'deepseek', label: 'DeepSeek', url: 'https://api.deepseek.com/v1', api: 'openai-completions' },
-  { value: 'volcengine', label: (window.i18n?.locale?.startsWith?.('zh') ? 'Volcengine (豆包)' : 'Volcengine (Doubao)'), url: 'https://ark.cn-beijing.volces.com/api/v3', api: 'openai-completions' },
-  { value: 'moonshot', label: 'Moonshot (Kimi)', url: 'https://api.moonshot.cn/v1', api: 'openai-completions' },
-  { value: 'kimi-coding', label: 'Kimi Coding Plan', url: 'https://api.kimi.com/coding/', api: 'anthropic-messages' },
-  { value: 'zhipu', label: 'Zhipu (GLM)', url: 'https://open.bigmodel.cn/api/paas/v4', api: 'openai-completions' },
-  { value: 'siliconflow', label: 'SiliconFlow', url: 'https://api.siliconflow.cn/v1', api: 'openai-completions' },
-  { value: 'groq', label: 'Groq', url: 'https://api.groq.com/openai/v1', api: 'openai-completions' },
-  { value: 'mistral', label: 'Mistral', url: 'https://api.mistral.ai/v1', api: 'openai-completions' },
-  { value: 'minimax', label: 'MiniMax', url: 'https://api.minimaxi.com/anthropic', api: 'anthropic-messages' },
-  { value: 'openrouter', label: 'OpenRouter', url: 'https://openrouter.ai/api/v1', api: 'openai-completions' },
-  { value: 'mimo', label: 'Xiaomi (MiMo)', url: 'https://api.xiaomimimo.com/v1', api: 'openai-completions' },
-];
+export const PROVIDER_PRESETS = API_PROVIDER_PRESETS.map(preset => ({
+  ...preset,
+  label: getProviderPresetLabel(preset),
+}));
 
 export const API_FORMAT_OPTIONS = [
   { value: 'openai-completions', label: 'OpenAI Compatible' },

@@ -1121,6 +1121,9 @@
     "provider": {
       "title": "AI プロバイダーを選択",
       "subtitle": "動作するには AI モデルプロバイダーが必要です。\nプロバイダーを選んで API Key を入力してください。",
+      "selectPlaceholder": "プロバイダーを選択",
+      "searchPlaceholder": "プロバイダーを検索...",
+      "empty": "プロバイダーが見つかりません",
       "custom": "カスタム...",
       "customName": "名前",
       "customNamePlaceholder": "例: my-provider",

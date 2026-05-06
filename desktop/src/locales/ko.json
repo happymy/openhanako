@@ -1121,6 +1121,9 @@
     "provider": {
       "title": "AI Provider를 선택해 주세요",
       "subtitle": "작동하려면 AI 모델 Provider가 필요해요.\nProvider를 선택하고 API Key를 입력해 주세요.",
+      "selectPlaceholder": "Provider 선택",
+      "searchPlaceholder": "Provider 검색...",
+      "empty": "Provider를 찾지 못했어요",
       "custom": "직접 입력...",
       "customName": "이름",
       "customNamePlaceholder": "예: my-provider",
