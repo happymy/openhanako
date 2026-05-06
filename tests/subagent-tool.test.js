@@ -467,8 +467,7 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
 
     const result = await tool.execute("call_1", { task: "任务", agent: "nonexistent" });
 
-    // t() falls back to the key when locale is not loaded
-    expect(result.content[0].text).toMatch(/agentNotFound|not found|不存在/);
+    expect(result.content[0].text).toMatch(/agentNotFound|not found|不存在|找不到 agent/);
     expect(noopExecute).not.toHaveBeenCalled();
   });
 

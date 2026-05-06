@@ -6,7 +6,7 @@
  */
 
 import fs from "fs";
-import { getModel as getPiModel } from "@mariozechner/pi-ai";
+import { getPiModel } from "../lib/pi-sdk/index.js";
 import { lookupKnown } from "../shared/known-models.js";
 import { normalizeVisionCapabilities, withThinkingFormatCompat } from "../shared/model-capabilities.js";
 import { providerCredentialAllowsMissingApiKey } from "../shared/provider-auth.js";

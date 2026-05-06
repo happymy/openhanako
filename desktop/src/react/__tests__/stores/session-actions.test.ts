@@ -503,6 +503,29 @@ describe('session-actions', () => {
   });
 
   describe('switchSession 的 hasData 语义（#405 直接回归）', () => {
+    it('surfaces the server error when switching to an old session fails', async () => {
+      (globalThis.window as unknown as { t: (key: string) => string }).t = (key: string) =>
+        key === 'session.switchFailed' ? 'Switch session failed' : key;
+      Object.assign(mockState, {
+        currentSessionPath: '/session/current.jsonl',
+      });
+      mockFetch.mockResolvedValueOnce(jsonResponse({
+        error: 'Invalid session path',
+      }, false));
+
+      await switchSession('/session/old.jsonl');
+
+      expect(mockState.currentSessionPath).toBe('/session/current.jsonl');
+      expect(mockState.inlineErrors).toMatchObject({
+        '/session/current.jsonl': 'Switch session failed: Invalid session path',
+      });
+      expect(mockState.addToast).toHaveBeenCalledWith(
+        'Switch session failed: Invalid session path',
+        'error',
+        6000,
+      );
+    });
+
     it('后端返回 currentModelId，uncached session 仍然触发 loadMessages', async () => {
       // 1) /sessions/switch 响应
       mockFetch.mockResolvedValueOnce(jsonResponse({

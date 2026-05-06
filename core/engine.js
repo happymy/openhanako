@@ -23,6 +23,7 @@ import { resolveWorkspaceSkillPaths } from "../shared/workspace-skill-paths.js";
 import { resolveHanaPiAgentDir, resolveHanaPiProjectDir } from "../shared/hana-runtime-paths.js";
 import { PluginManager } from "./plugin-manager.js";
 import { DefaultResourceLoader, SettingsManager } from "../lib/pi-sdk/index.js";
+import { loadLocale } from "../server/i18n.js";
 
 /** 已知的外部 AI 工具技能目录（相对 $HOME） */
 export const WELL_KNOWN_SKILL_PATHS = [
@@ -837,6 +838,10 @@ export class HanaEngine {
       providerRegistry: this._models.providerRegistry,
       log,
     });
+
+    // 频道初始化和 agent 构造会调用 server-side i18n。locale 是 global
+    // preference，必须在任何会写持久化文案的初始化逻辑前加载。
+    loadLocale(this._prefs.getLocale());
 
     // 1. Pi SDK + 模型基础设施（必须在 agent init 之前，agent 需要解析记忆模型）
     log(`[init] 1/5 Pi SDK 初始化...`);

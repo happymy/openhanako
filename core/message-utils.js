@@ -166,14 +166,24 @@ export async function loadLatestAssistantSummaryFromSessionFile(sessionPath, opt
   return null;
 }
 
+export function relativePathInsideBase(targetPath, baseDir) {
+  if (typeof targetPath !== "string" || typeof baseDir !== "string") return null;
+  if (!targetPath || !baseDir) return null;
+
+  const resolved = path.resolve(targetPath);
+  const base = path.resolve(baseDir);
+  const rel = path.relative(base, resolved);
+  if (rel === "") return "";
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) return null;
+  return rel;
+}
+
 /**
  * 校验 sessionPath 是否在合法范围内，防止路径穿越
  * baseDir 可以是 sessionDir（单 agent）或 agentsDir（跨 agent）
  */
 export function isValidSessionPath(sessionPath, baseDir) {
-  const resolved = path.resolve(sessionPath);
-  const base = path.resolve(baseDir);
-  return resolved.startsWith(base + path.sep) || resolved === base;
+  return relativePathInsideBase(sessionPath, baseDir) !== null;
 }
 
 /**
@@ -186,8 +196,8 @@ export function isValidSessionPath(sessionPath, baseDir) {
  * 重启即消失），参见 session-coordinator listSessions 占位逻辑。
  */
 export function isActiveSessionPath(sessionPath, agentsDir) {
-  if (!isValidSessionPath(sessionPath, agentsDir)) return false;
-  const rel = path.relative(path.resolve(agentsDir), path.resolve(sessionPath));
+  const rel = relativePathInsideBase(sessionPath, agentsDir);
+  if (rel === null) return false;
   const parts = rel.split(path.sep);
   if (parts.length < 3) return false;
   if (parts[1] !== "sessions") return false;

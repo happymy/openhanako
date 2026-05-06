@@ -54,15 +54,15 @@
 
 /* ========================================
    纸质纹理系统
-   开关：body.no-paper-texture 关闭全部纹理
+   开关：body.paper-texture 显式开启全部纹理
    三层：surface → card → 亮度补偿
    新增 card 元素只需往 Card 层追加选择器
    ======================================== */
 
 /* ① Surface 层：铺底元素直接叠纹理 */
-body:not(.no-paper-texture),
-body:not(.no-paper-texture) .titlebar,
-body:not(.no-paper-texture) .sidebar {
+body.paper-texture,
+body.paper-texture .titlebar,
+body.paper-texture .sidebar {
     background-image: url(./assets/textures/rice-paper.png);
     background-repeat: repeat;
     background-size: 160px;
@@ -70,19 +70,19 @@ body:not(.no-paper-texture) .sidebar {
 }
 
 /* ② Card 层：bg-card 元素用 lighten 混合，纹理暗部被背景色提亮 */
-body:not(.no-paper-texture) .jian-card,
-body:not(.no-paper-texture) .msg-card,
-body:not(.no-paper-texture) .input-wrapper,
-body:not(.no-paper-texture) .hana-warning-box,
-body:not(.no-paper-texture) .browser-floating-card,
-body:not(.no-paper-texture) .hana-toast,
-body:not(.no-paper-texture) .ob-input,
-body:not(.no-paper-texture) .provider-card,
-body:not(.no-paper-texture) .ob-provider-trigger,
-body:not(.no-paper-texture) .ob-provider-menu,
-body:not(.no-paper-texture) .model-list,
-body:not(.no-paper-texture) .tutorial-card,
-body:not(.no-paper-texture) .yuan-chip {
+body.paper-texture .jian-card,
+body.paper-texture .msg-card,
+body.paper-texture .input-wrapper,
+body.paper-texture .hana-warning-box,
+body.paper-texture .browser-floating-card,
+body.paper-texture .hana-toast,
+body.paper-texture .ob-input,
+body.paper-texture .provider-card,
+body.paper-texture .ob-provider-trigger,
+body.paper-texture .ob-provider-menu,
+body.paper-texture .model-list,
+body.paper-texture .tutorial-card,
+body.paper-texture .yuan-chip {
     background-image: url(./assets/textures/rice-paper.png);
     background-repeat: repeat;
     background-size: 160px;
@@ -91,7 +91,7 @@ body:not(.no-paper-texture) .yuan-chip {
 }
 
 /* ③ 亮度补偿：暖白叠层抵消纹理变暗（暗色主题跳过） */
-html:not([data-theme="midnight"]):not([data-theme="midnight-contrast"]) body:not(.no-paper-texture)::before {
+html:not([data-theme="midnight"]):not([data-theme="midnight-contrast"]) body.paper-texture::before {
     content: '';
     position: fixed;
     inset: 0;

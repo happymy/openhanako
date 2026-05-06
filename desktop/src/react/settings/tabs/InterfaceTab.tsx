@@ -12,6 +12,7 @@ import {
   normalizeEditorTypography,
   type EditorMarkdownTypography,
 } from '../../editor/typography';
+import { isPaperTextureEnabled } from '../../../shared/appearance-preferences';
 import styles from '../Settings.module.css';
 import registry from '../../../shared/theme-registry.cjs';
 
@@ -50,7 +51,7 @@ export function InterfaceTab() {
   const { settingsConfig } = useSettingsStore();
   const currentTheme = registry.migrateSavedTheme(localStorage.getItem(registry.STORAGE_KEY));
   const serifEnabled = localStorage.getItem('hana-font-serif') !== '0';
-  const paperTextureEnabled = localStorage.getItem('hana-paper-texture') === '1';
+  const paperTextureEnabled = isPaperTextureEnabled(localStorage);
   const leavesOverlayEnabled = localStorage.getItem('hana-leaves-overlay') === '1';
   const editorTypography = useMemo(
     () => normalizeEditorTypography(settingsConfig?.editor),

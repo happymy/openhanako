@@ -298,7 +298,7 @@ export class ChannelRouter {
           capture: true,
         },
       ],
-      { engine: this._engine, signal, sessionSuffix: "channel-temp" },
+      { engine: this._engine, signal, sessionSuffix: "channel-temp", readOnly: true },
     );
 
     if (!text || text.includes("[NO_REPLY]")) {

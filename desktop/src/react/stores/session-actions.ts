@@ -216,6 +216,7 @@ export async function switchSession(path: string): Promise<void> {
     if (myVersion !== _switchVersion) return;
     if (data.error) {
       console.error('[session] switch failed:', data.error);
+      showSessionSwitchError(path, data.error);
       return;
     }
 
@@ -326,6 +327,7 @@ export async function switchSession(path: string): Promise<void> {
     });
   } catch (err) {
     console.error('[session] switch failed:', err);
+    showSessionSwitchError(path, errorMessage(err));
   }
 }
 
@@ -677,5 +679,13 @@ function showSessionCreationError(detail: unknown): void {
   const message = `${label}: ${errorMessage(detail)}`;
   const state = useStore.getState();
   state.setInlineError?.(state.currentSessionPath || '', message, 6000);
+  state.addToast(message, 'error', 6000);
+}
+
+function showSessionSwitchError(targetPath: string, detail: unknown): void {
+  const label = tr('session.switchFailed');
+  const message = `${label}: ${errorMessage(detail)}`;
+  const state = useStore.getState();
+  state.setInlineError?.(state.currentSessionPath || targetPath || '', message, 6000);
   state.addToast(message, 'error', 6000);
 }

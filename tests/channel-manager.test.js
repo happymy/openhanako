@@ -81,7 +81,7 @@ describe("ChannelManager", () => {
     });
 
     it("throws on non-existent channel", async () => {
-      await expect(manager.deleteChannelByName("nope")).rejects.toThrow('error.channelNotFoundById');
+      await expect(manager.deleteChannelByName("nope")).rejects.toThrow(/nope/);
     });
 
     it("cleans up agent bookmark references", async () => {

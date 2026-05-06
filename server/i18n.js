@@ -9,6 +9,7 @@ const localesDir = fromRoot("desktop", "src", "locales");
 
 let data = {};
 let currentLocale = "zh";
+let loaded = false;
 
 /**
  * locale 字符串 → JSON 文件名 key
@@ -29,6 +30,7 @@ function resolveKey(locale) {
 export function loadLocale(locale) {
   const key = resolveKey(locale);
   currentLocale = key;
+  loaded = true;
   try {
     const file = path.join(localesDir, `${key}.json`);
     data = JSON.parse(fs.readFileSync(file, "utf-8"));
@@ -48,6 +50,7 @@ export function loadLocale(locale) {
  * 按 dot path 取值
  */
 function get(p) {
+  if (!loaded) loadLocale(currentLocale);
   return p.split(".").reduce((obj, k) => obj?.[k], data);
 }
 

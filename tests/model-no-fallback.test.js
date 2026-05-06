@@ -141,7 +141,7 @@ describe("模型选择无 fallback", () => {
         models: makeModels([]),
       });
       const ctx = coord.createSessionContext();
-      expect(() => ctx.resolveModel({})).toThrow("error.resolveModelNoChatModel");
+      expect(() => ctx.resolveModel({})).toThrow(/resolveModelNoChatModel|models\.chat|未指定/);
     });
 
     it("指定的模型不在 availableModels 中、有 defaultModel 时回退", () => {
@@ -161,14 +161,14 @@ describe("模型选择无 fallback", () => {
       const coord = makeCoordinator(tempDir, { models });
       const ctx = coord.createSessionContext();
       expect(() => ctx.resolveModel({ models: { chat: { id: "qwen3.5-plus", provider: "dashscope" } } }))
-        .toThrow('error.resolveModelNotAvailable');
+        .toThrow(/resolveModelNotAvailable|不在可用列表|not available/);
     });
 
     it("availableModels 为空时抛错", () => {
       const coord = makeCoordinator(tempDir, { models: makeModels([]) });
       const ctx = coord.createSessionContext();
       expect(() => ctx.resolveModel({ models: { chat: { id: "qwen3.5-plus", provider: "dashscope" } } }))
-        .toThrow('error.resolveModelNotAvailable');
+        .toThrow(/resolveModelNotAvailable|不在可用列表|not available/);
     });
   });
 
@@ -181,7 +181,7 @@ describe("模型选择无 fallback", () => {
         models: makeModels([]),
       });
       const result = await coord.executeIsolated("hello");
-      expect(result.error).toContain("error.executeIsolatedNoModel");
+      expect(result.error).toMatch(/executeIsolatedNoModel|无可用模型|no available model/);
     });
 
     it("配置的模型不在可用列表中、无 defaultModel 时抛错", async () => {
@@ -190,7 +190,7 @@ describe("模型选择无 fallback", () => {
         models: { ...makeModels([]), defaultModel: null },
       });
       const result = await coord.executeIsolated("hello");
-      expect(result.error).toContain("error.executeIsolatedNoModel");
+      expect(result.error).toMatch(/executeIsolatedNoModel|无可用模型|no available model/);
     });
 
     it("模型匹配成功时正常执行", async () => {
@@ -353,7 +353,7 @@ describe("模型选择无 fallback", () => {
       const mm = new ModelManager({ hanakoHome: tempDir });
       setupRouter(mm);
       expect(() => mm.resolveUtilityConfig({}, {}, {}))
-        .toThrow("error.noUtilityModel");
+        .toThrow(/noUtilityModel|utility 模型|utility model/);
     });
 
     it("utility_large 未配置时抛错", () => {
@@ -361,7 +361,7 @@ describe("模型选择无 fallback", () => {
       setupRouter(mm);
       mm._availableModels = [{ id: "some-model", provider: "x" }];
       expect(() => mm.resolveUtilityConfig({}, { utility: { id: "some-model", provider: "x" } }, {}))
-        .toThrow("error.noUtilityLargeModel");
+        .toThrow(/noUtilityLargeModel|utility_large 模型|utility_large model/);
     });
 
     it("utility 和 utility_large 都配置时正常返回", () => {
@@ -440,14 +440,14 @@ describe("模型选择无 fallback", () => {
           utility_large: { id: "large-model", provider: "test-provider" },
         },
         { provider: "openai", api_key: "sk-test", base_url: "https://api.openai.com/v1" },
-      )).toThrow('error.utilityApiProviderMismatch');
+      )).toThrow(/utilityApiProviderMismatch|provider.*一致|provider.*match/);
     });
 
     it("不再接受 hardcoded fallback 模型名", () => {
       const mm = new ModelManager({ hanakoHome: tempDir });
       // 以前会 fallback 到 "doubao-seed-2-0-mini-260215"，现在应该抛错
       expect(() => mm.resolveUtilityConfig({}, {}, {}))
-        .toThrow("error.noUtilityModel");
+        .toThrow(/noUtilityModel|utility 模型|utility model/);
     });
   });
 });

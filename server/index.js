@@ -131,8 +131,8 @@ const sessionFileCleanupTimer = setInterval(() => {
 }, 24 * 60 * 60 * 1000);
 sessionFileCleanupTimer.unref?.();
 
-// 加载 i18n
-loadLocale(engine.config?.locale);
+// 加载 i18n（engine.init 已经按全局偏好加载过，这里保持启动入口显式同步）
+loadLocale(engine.getLocale?.() || engine.config?.locale);
 
 // ── 启动令牌（阻止本机其他程序随意访问） ──
 const SERVER_TOKEN = process.env.HANA_TOKEN || crypto.randomBytes(16).toString("hex");

@@ -9,6 +9,10 @@
  */
 import registry from './theme-registry.cjs';
 import type { ThemeId } from './theme-registry.d.cts';
+import {
+  loadPaperTexturePreference,
+  setPaperTexturePreference,
+} from './appearance-preferences';
 
 const themeSheet = document.getElementById('themeSheet') as HTMLLinkElement | null;
 
@@ -65,15 +69,11 @@ function loadSavedFont(): void {
 
 /* ── 纸质纹理开关 ── */
 function setPaperTexture(enabled: boolean): void {
-  document.body.classList.toggle('no-paper-texture', !enabled);
-  localStorage.setItem('hana-paper-texture', enabled ? '1' : '0');
+  setPaperTexturePreference(enabled);
 }
 
 function loadSavedPaperTexture(): void {
-  const saved = localStorage.getItem('hana-paper-texture');
-  // 默认关闭（saved === null → 首次使用）
-  const enabled = saved === '1';
-  document.body.classList.toggle('no-paper-texture', !enabled);
+  loadPaperTexturePreference();
 }
 
 // 暴露给 WS 事件处理器（设置工具远程切换主题用）

@@ -21,6 +21,7 @@ import {
 } from "./llm-utils.js";
 import { findModel, parseModelRef } from "../shared/model-ref.js";
 import { DEFAULT_HEARTBEAT_INTERVAL_MINUTES } from "../shared/default-workspace.js";
+import { relativePathInsideBase } from "./message-utils.js";
 
 const log = createModuleLogger("agent-mgr");
 
@@ -571,8 +572,8 @@ export class AgentManager {
   }
 
   agentIdFromSessionPath(sessionPath) {
-    const rel = path.relative(this._d.agentsDir, sessionPath);
-    if (rel.startsWith("..")) return null;
+    const rel = relativePathInsideBase(sessionPath, this._d.agentsDir);
+    if (rel === null || rel === "") return null;
     return rel.split(path.sep)[0] || null;
   }
 
