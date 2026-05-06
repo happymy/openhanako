@@ -937,10 +937,8 @@
 }
 
 .session-confirmation-menu {
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + var(--space-xs));
-    z-index: 20;
+    position: fixed;
+    z-index: 10000;
     min-width: 8.5rem;
     padding: var(--space-xs);
     background: var(--bg-card);

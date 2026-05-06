@@ -274,6 +274,30 @@ describe('computer app approval prompt', () => {
     }
   });
 
+  it('portals the ask-mode bypass menu outside the confirmation card', () => {
+    const block = {
+      type: 'session_confirmation',
+      confirmId: 'confirm-tool-portal',
+      kind: 'tool_action_approval',
+      surface: 'input',
+      status: 'pending',
+      title: '允许 Hana 执行这次操作',
+      body: '当前会话处于先问模式，这次操作会改变本地或外部状态。',
+      subject: { label: 'write', detail: 'path: note.md' },
+      severity: 'elevated',
+      actions: { confirmLabel: '同意', rejectLabel: '拒绝' },
+      payload: { toolName: 'write', params: { path: 'note.md' } },
+    } as const;
+
+    render(React.createElement(SessionConfirmationPrompt, { block }));
+
+    fireEvent.click(screen.getByRole('button', { name: '更多确认选项' }));
+
+    const menuItem = screen.getByRole('menuitem', { name: '本对话不再询问' });
+    expect(menuItem.closest('[data-confirm-id="confirm-tool-portal"]')).toBeNull();
+    expect(menuItem.closest('[role="menu"]')).toBeTruthy();
+  });
+
   it('does not offer ask-mode bypass on computer app approval prompts', () => {
     const block = {
       type: 'session_confirmation',
