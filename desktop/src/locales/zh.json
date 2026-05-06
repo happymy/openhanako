@@ -1375,6 +1375,21 @@
       "nameDescShort": "名称↓",
       "sizeShort": "大小",
       "typeShort": "类型"
+    },
+    "filter": {
+      "label": "过滤",
+      "images": "图片",
+      "text": "文本",
+      "videos": "视频",
+      "clear": "清除过滤",
+      "activeShort": "{count} 类"
+    },
+    "search": {
+      "placeholder": "搜索工作空间",
+      "label": "搜索工作空间文件",
+      "results": "搜索结果",
+      "empty": "没有找到匹配文件",
+      "root": "根目录"
     }
   },
   "window": {

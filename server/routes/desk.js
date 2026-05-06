@@ -90,6 +90,77 @@ async function listWorkspaceFiles(dir) {
   return items.filter(Boolean).sort((a, b) => new Date(b.mtime) - new Date(a.mtime));
 }
 
+const WORKSPACE_SEARCH_SKIP_DIRS = new Set([
+  ".git",
+  ".hg",
+  ".svn",
+  "node_modules",
+  ".next",
+  ".turbo",
+  "dist",
+  "build",
+  "coverage",
+]);
+const WORKSPACE_SEARCH_LIMIT = 80;
+
+function toRelativeSubdir(root, target) {
+  const rel = path.relative(root, target);
+  return rel.split(path.sep).filter(Boolean).join("/");
+}
+
+async function searchWorkspaceFiles(root, query, {
+  limit = WORKSPACE_SEARCH_LIMIT,
+} = {}) {
+  const needle = String(query || "").trim().toLowerCase();
+  if (!needle) return [];
+  const results = [];
+
+  async function walk(dir) {
+    if (results.length >= limit) return;
+    let entries;
+    try {
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch (err) {
+      if (err.code !== "ENOENT" && err.code !== "EACCES") {
+        console.warn(`[desk] search readdir failed for ${dir}: ${err.message}`);
+      }
+      return;
+    }
+
+    entries.sort((a, b) => a.name.localeCompare(b.name, "zh"));
+    for (const entry of entries) {
+      if (results.length >= limit) break;
+      if (entry.name.startsWith(".")) continue;
+      const fullPath = path.join(dir, entry.name);
+      const isDir = entry.isDirectory();
+      if (isDir && WORKSPACE_SEARCH_SKIP_DIRS.has(entry.name)) continue;
+      const relativePath = toRelativeSubdir(root, fullPath);
+      const parentSubdir = toRelativeSubdir(root, path.dirname(fullPath));
+
+      if (entry.name.toLowerCase().includes(needle)) {
+        try {
+          const stat = await fs.promises.stat(fullPath);
+          results.push({
+            name: entry.name,
+            relativePath,
+            parentSubdir,
+            isDir,
+            size: isDir ? null : stat.size,
+            mtime: stat.mtime.toISOString(),
+          });
+        } catch (err) {
+          if (err.code !== "ENOENT") console.warn(`[desk] search stat failed for ${entry.name}: ${err.message}`);
+        }
+      }
+
+      if (isDir) await walk(fullPath);
+    }
+  }
+
+  await walk(root);
+  return results.sort((a, b) => a.relativePath.localeCompare(b.relativePath, "zh")).slice(0, limit);
+}
+
 export function createDeskRoute(engine, hub) {
   const route = new Hono();
 
@@ -461,6 +532,26 @@ export function createDeskRoute(engine, hub) {
     const target = subdir ? path.join(dir, subdir) : dir;
     if (!isInsidePath(target, dir)) return c.json({ error: "invalid path" });
     return c.json({ files: await listWorkspaceFiles(target), subdir: subdir || "", basePath: dir });
+  });
+
+  /** 搜索工作空间文件名（递归，默认跳过隐藏目录和常见依赖/构建目录） */
+  route.get("/desk/search-files", async (c) => {
+    const dir = c.req.query("dir") ? decodeURIComponent(c.req.query("dir")) : defaultDeskDir(engine);
+    if (!dir) return c.json({ results: [], basePath: null, query: c.req.query("q") || "" });
+    if (c.req.query("dir") && !isApprovedDir(dir, engine)) return c.json({ error: t("error.dirNotAllowed") });
+    const query = c.req.query("q") || "";
+    const limitRaw = Number.parseInt(c.req.query("limit") || "", 10);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0
+      ? Math.min(limitRaw, WORKSPACE_SEARCH_LIMIT)
+      : WORKSPACE_SEARCH_LIMIT;
+    let stat = null;
+    try {
+      stat = await fs.promises.stat(dir);
+    } catch {
+      return c.json({ results: [], basePath: dir, query });
+    }
+    if (!stat.isDirectory()) return c.json({ error: t("error.pathNotFound") });
+    return c.json({ results: await searchWorkspaceFiles(dir, query, { limit }), basePath: dir, query });
   });
 
   /** 读取指定目录的 jian.md */

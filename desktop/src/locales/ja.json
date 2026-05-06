@@ -1325,6 +1325,21 @@
       "nameDescShort": "名前↓",
       "sizeShort": "サイズ",
       "typeShort": "タイプ"
+    },
+    "filter": {
+      "label": "フィルター",
+      "images": "画像",
+      "text": "テキスト",
+      "videos": "動画",
+      "clear": "フィルターをクリア",
+      "activeShort": "{count} 種類"
+    },
+    "search": {
+      "placeholder": "ワークスペースを検索",
+      "label": "ワークスペースのファイルを検索",
+      "results": "検索結果",
+      "empty": "一致するファイルはありません",
+      "root": "ルート"
     }
   },
   "window": {

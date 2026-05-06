@@ -1325,6 +1325,21 @@
       "nameDescShort": "이름↓",
       "sizeShort": "크기",
       "typeShort": "유형"
+    },
+    "filter": {
+      "label": "필터",
+      "images": "이미지",
+      "text": "텍스트",
+      "videos": "동영상",
+      "clear": "필터 지우기",
+      "activeShort": "{count} 유형"
+    },
+    "search": {
+      "placeholder": "작업 공간 검색",
+      "label": "작업 공간 파일 검색",
+      "results": "검색 결과",
+      "empty": "일치하는 파일이 없어요",
+      "root": "루트"
     }
   },
   "window": {

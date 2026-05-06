@@ -13,6 +13,7 @@ export interface ContextMenuItem {
   action?: () => void;
   danger?: boolean;
   disabled?: boolean;
+  checked?: boolean;
   divider?: boolean;
   children?: ContextMenuItem[];
 }
@@ -112,6 +113,9 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
               handleItemClick(e, item.action);
             }}
           >
+            {item.checked !== undefined && (
+              <span className="context-menu-check" aria-hidden="true">{item.checked ? '✓' : ''}</span>
+            )}
             <span className={`context-menu-label${item.disabled ? ' disabled' : ''}`}>{item.label || ''}</span>
             {submenuOpen && (
               <div className={`context-menu-submenu ${submenuSide}`}>
@@ -133,6 +137,9 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
                         handleItemClick(e, child.action);
                       }}
                     >
+                      {child.checked !== undefined && (
+                        <span className="context-menu-check" aria-hidden="true">{child.checked ? '✓' : ''}</span>
+                      )}
                       <span className={`context-menu-label${child.disabled ? ' disabled' : ''}`}>{child.label || ''}</span>
                     </div>
                   );

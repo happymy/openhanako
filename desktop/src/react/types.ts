@@ -114,6 +114,15 @@ export interface DeskFile {
   mtime?: string;
 }
 
+export interface DeskSearchResult {
+  name: string;
+  relativePath: string;
+  parentSubdir: string;
+  isDir: boolean;
+  size?: number | null;
+  mtime?: string;
+}
+
 export type TodoStatus = 'pending' | 'in_progress' | 'completed';
 
 export interface TodoItem {

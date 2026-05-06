@@ -7,7 +7,7 @@
 import { useStore } from './index';
 import { hanaFetch } from '../hooks/use-hana-fetch';
 import { clearChat } from './agent-actions';
-import type { DeskFile } from '../types';
+import type { DeskFile, DeskSearchResult } from '../types';
 import type { WorkspaceDeskState } from './desk-slice';
 // @ts-expect-error — shared JS module
 import { mergeWorkspaceHistory, normalizeWorkspacePath } from '../../../../shared/workspace-history.js';
@@ -189,6 +189,17 @@ function childSubdir(parent: string, name: string): string {
   return normalized ? `${normalized}/${name}` : name;
 }
 
+function ancestorSubdirs(pathValue: string): string[] {
+  const normalized = normalizeSubdir(pathValue);
+  if (!normalized) return [];
+  const parts = normalized.split('/').filter(Boolean);
+  const result: string[] = [];
+  for (let i = 1; i <= parts.length; i++) {
+    result.push(parts.slice(0, i).join('/'));
+  }
+  return result;
+}
+
 function replaceSubdirPrefix(value: string, oldPrefix: string, newPrefix: string): string {
   if (value === oldPrefix) return newPrefix;
   if (value.startsWith(`${oldPrefix}/`)) return `${newPrefix}${value.slice(oldPrefix.length)}`;
@@ -242,6 +253,43 @@ export async function loadDeskTreeFiles(subdir = '', options: { force?: boolean;
     if (_deskTreeLoadVersion.get(key) !== myVersion) return;
     useStore.getState().setDeskTreeFiles(normalizedSubdir, []);
   }
+}
+
+export async function searchDeskFiles(query: string): Promise<DeskSearchResult[]> {
+  const s = useStore.getState();
+  if (!s.serverPort) return [];
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  try {
+    const params = new URLSearchParams();
+    const dir = defaultDeskRoot(s);
+    if (dir) params.set('dir', dir);
+    params.set('q', trimmed);
+    const res = await hanaFetch(`/api/desk/search-files?${params}`);
+    const data = await res.json();
+    if (data.error) throw new Error(String(data.error));
+    return Array.isArray(data.results) ? data.results : [];
+  } catch (err) {
+    console.error('[desk] search failed:', err);
+    return [];
+  }
+}
+
+export async function jumpToDeskSearchResult(result: DeskSearchResult): Promise<void> {
+  const target = normalizeSubdir(result.relativePath);
+  if (!target) return;
+  const parent = normalizeSubdir(result.parentSubdir);
+  const foldersToExpand = result.isDir
+    ? ancestorSubdirs(target)
+    : ancestorSubdirs(parent);
+  useStore.setState((s: any) => ({
+    deskExpandedPaths: Array.from(new Set([...(s.deskExpandedPaths || []), ...foldersToExpand])),
+    deskSelectedPath: target,
+  }));
+  for (const subdir of foldersToExpand) {
+    await loadDeskTreeFiles(subdir);
+  }
+  useStore.getState().setDeskSelectedPath(target);
 }
 
 export async function loadJianContent(): Promise<void> {

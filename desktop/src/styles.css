@@ -2159,6 +2159,17 @@ body.resizing .jian-sidebar-inner {
     text-overflow: ellipsis;
 }
 
+.context-menu-check {
+    width: 12px;
+    min-width: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    font-size: 0.68rem;
+    line-height: 1;
+}
+
 .context-menu-item.has-submenu {
     padding-right: 26px;
 }

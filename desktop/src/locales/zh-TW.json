@@ -1325,6 +1325,21 @@
       "nameDescShort": "名稱↓",
       "sizeShort": "大小",
       "typeShort": "類型"
+    },
+    "filter": {
+      "label": "篩選",
+      "images": "圖片",
+      "text": "文字",
+      "videos": "影片",
+      "clear": "清除篩選",
+      "activeShort": "{count} 類"
+    },
+    "search": {
+      "placeholder": "搜尋工作空間",
+      "label": "搜尋工作空間檔案",
+      "results": "搜尋結果",
+      "empty": "沒有找到相符檔案",
+      "root": "根目錄"
     }
   },
   "window": {

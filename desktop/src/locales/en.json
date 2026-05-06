@@ -1370,6 +1370,21 @@
       "nameDescShort": "Name↓",
       "sizeShort": "Size",
       "typeShort": "Type"
+    },
+    "filter": {
+      "label": "Filter",
+      "images": "Images",
+      "text": "Text",
+      "videos": "Videos",
+      "clear": "Clear filter",
+      "activeShort": "{count} types"
+    },
+    "search": {
+      "placeholder": "Search workspace",
+      "label": "Search workspace files",
+      "results": "Search results",
+      "empty": "No matching files",
+      "root": "Root"
     }
   },
   "window": {

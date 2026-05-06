@@ -12,8 +12,8 @@ import { useStore } from '../stores';
 import { loadDeskTreeFiles } from '../stores/desk-actions';
 import { subscribeFileChanges } from '../services/file-change-events';
 import { ContextMenu } from './ContextMenu';
-import { DESK_SORT_KEY, type SortMode, type CtxMenuState } from './desk/desk-types';
-import { DeskOpenIconButton, DeskSortButton } from './desk/DeskToolbar';
+import { DESK_SORT_KEY, type SortMode, type CtxMenuState, type FileTypeFilter } from './desk/desk-types';
+import { DeskFilterButton, DeskOpenIconButton, DeskSearchBox, DeskSortButton } from './desk/DeskToolbar';
 import { DeskTree } from './desk/DeskTree';
 import { DeskDropZone } from './desk/DeskDropZone';
 import { DeskEmptyOverlay } from './desk/DeskEmptyOverlay';
@@ -23,6 +23,8 @@ import s from './desk/Desk.module.css';
 import { workspaceDisplayName } from '../../../../shared/workspace-history.js';
 
 const DESK_RELOAD_DEBOUNCE_MS = 120;
+const DESK_FILTER_KEY = 'hana-desk-type-filters';
+const VALID_TYPE_FILTERS = new Set<FileTypeFilter>(['image', 'text', 'video']);
 
 function normalizeDirectoryPath(value: string): string {
   const slashed = value.replace(/\\/g, '/');
@@ -93,6 +95,18 @@ function useDeskTreeDirectoryWatcher(basePath: string, expandedPaths: string[]):
   }, [basePath, expandedPaths.join('\n')]);
 }
 
+function getInitialTypeFilters(): FileTypeFilter[] {
+  try {
+    const raw = localStorage.getItem(DESK_FILTER_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is FileTypeFilter => VALID_TYPE_FILTERS.has(item));
+  } catch {
+    return [];
+  }
+}
+
 export function DeskSection({
   framed = true,
   showHeader = true,
@@ -111,6 +125,7 @@ export function DeskSection({
   const [sortMode, setSortMode] = useState<SortMode>(
     () => (localStorage.getItem(DESK_SORT_KEY) as SortMode) || 'mtime-desc',
   );
+  const [typeFilters, setTypeFilters] = useState<FileTypeFilter[]>(getInitialTypeFilters);
 
   // ── 共享 context menu 状态 ──
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
@@ -121,6 +136,11 @@ export function DeskSection({
 
   const handleCloseMenu = useCallback(() => {
     setCtxMenu(null);
+  }, []);
+
+  const handleTypeFiltersChange = useCallback((filters: FileTypeFilter[]) => {
+    localStorage.setItem(DESK_FILTER_KEY, JSON.stringify(filters));
+    setTypeFilters(filters);
   }, []);
 
   const t = window.t ?? ((p: string) => p);
@@ -140,13 +160,15 @@ export function DeskSection({
           </div>
         )}
         {showHeader && <DeskCwdSkillsPanel />}
+        <DeskSearchBox />
         <div className={s.toolbar}>
           <div className={s.toolbarActions}>
             <DeskOpenIconButton />
+            <DeskFilterButton filters={typeFilters} onFiltersChange={handleTypeFiltersChange} onShowMenu={handleShowMenu} />
             <DeskSortButton sortMode={sortMode} onSort={setSortMode} onShowMenu={handleShowMenu} />
           </div>
         </div>
-        <DeskTree sortMode={sortMode} onShowMenu={handleShowMenu} />
+        <DeskTree sortMode={sortMode} typeFilters={typeFilters} onShowMenu={handleShowMenu} />
         <DeskEmptyOverlay />
       </DeskDropZone>
       {ctxMenu && (

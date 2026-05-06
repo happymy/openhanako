@@ -6,6 +6,7 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStore } from '../../stores';
+import type { DeskSearchResult } from '../../types';
 
 const mocks = vi.hoisted(() => ({
   loadDeskFiles: vi.fn(async () => {}),
@@ -13,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   deskMoveTreeFiles: vi.fn(async () => {}),
   deskRenameTreeItem: vi.fn(async () => true),
   deskTrashTreeItems: vi.fn(async () => true),
+  searchDeskFiles: vi.fn(async (): Promise<DeskSearchResult[]> => []),
+  jumpToDeskSearchResult: vi.fn(async () => {}),
 }));
 
 vi.mock('../../stores/desk-actions', async (importOriginal) => {
@@ -24,6 +27,8 @@ vi.mock('../../stores/desk-actions', async (importOriginal) => {
     deskMoveTreeFiles: mocks.deskMoveTreeFiles,
     deskRenameTreeItem: mocks.deskRenameTreeItem,
     deskTrashTreeItems: mocks.deskTrashTreeItems,
+    searchDeskFiles: mocks.searchDeskFiles,
+    jumpToDeskSearchResult: mocks.jumpToDeskSearchResult,
   };
 });
 
@@ -295,6 +300,60 @@ describe('DeskSection directory watching', () => {
     expect(mocks.deskTrashTreeItems).toHaveBeenCalledWith([
       { sourceSubdir: 'notes', name: 'chapter.md', isDirectory: false },
     ]);
+  });
+
+  it('filters workspace tree files by checked file types while keeping folders navigable', async () => {
+    useStore.setState({
+      deskCurrentPath: '',
+      deskTreeFilesByPath: {
+        '': [
+          { name: 'notes', isDir: true },
+          { name: 'photo.png', isDir: false },
+          { name: 'story.md', isDir: false },
+          { name: 'clip.mp4', isDir: false },
+        ],
+      },
+      deskExpandedPaths: [],
+    } as never);
+    const { DeskSection } = await import('../../components/DeskSection');
+
+    render(<DeskSection />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'desk.filter.label' }));
+    fireEvent.click(screen.getByText('desk.filter.images'));
+
+    expect(screen.getByRole('treeitem', { name: /notes/ })).toBeTruthy();
+    expect(screen.getByRole('treeitem', { name: /photo.png/ })).toBeTruthy();
+    expect(screen.queryByRole('treeitem', { name: /story.md/ })).toBeNull();
+    expect(screen.queryByRole('treeitem', { name: /clip.mp4/ })).toBeNull();
+  });
+
+  it('searches workspace files and jumps to the selected result', async () => {
+    mocks.searchDeskFiles.mockResolvedValueOnce([
+      { name: 'DeskTree.tsx', relativePath: 'src/DeskTree.tsx', parentSubdir: 'src', isDir: false },
+    ]);
+    const { DeskSection } = await import('../../components/DeskSection');
+
+    render(<DeskSection />);
+
+    fireEvent.change(screen.getByPlaceholderText('desk.search.placeholder'), { target: { value: 'Desk' } });
+    act(() => {
+      vi.advanceTimersByTime(220);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    fireEvent.click(screen.getByText('DeskTree.tsx'));
+
+    expect(mocks.searchDeskFiles).toHaveBeenCalledWith('Desk');
+    expect(mocks.jumpToDeskSearchResult).toHaveBeenCalledWith({
+      name: 'DeskTree.tsx',
+      relativePath: 'src/DeskTree.tsx',
+      parentSubdir: 'src',
+      isDir: false,
+    });
   });
 
   it('marks the right workspace card with the Jian drawer state for overlay layout', async () => {

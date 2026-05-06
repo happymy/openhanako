@@ -22,8 +22,8 @@ import {
   writeAppFileDragPayload,
 } from '../../utils/app-file-drag';
 import type { DeskFile } from '../../types';
-import type { CtxMenuState, SortMode } from './desk-types';
-import { ICONS, getFileIcon, sortDeskFiles } from './desk-types';
+import type { CtxMenuState, FileTypeFilter, SortMode } from './desk-types';
+import { ICONS, fileMatchesTypeFilters, getFileIcon, sortDeskFiles } from './desk-types';
 import s from './Desk.module.css';
 
 function childSubdir(parent: string, name: string): string {
@@ -65,11 +65,13 @@ function collectVisibleTreeEntries(
   parent: string,
   depth: number,
   sortMode: SortMode,
+  typeFilters: FileTypeFilter[],
   expandedPaths: string[],
   treeFilesByPath: Record<string, DeskFile[]>,
 ): VisibleTreeEntry[] {
   const entries: VisibleTreeEntry[] = [];
   for (const file of sortDeskFiles(files, sortMode)) {
+    if (!fileMatchesTypeFilters(file, typeFilters)) continue;
     const subdir = childSubdir(parent, file.name);
     entries.push({ file, parent, subdir, depth });
     if (file.isDir && expandedPaths.includes(subdir)) {
@@ -78,6 +80,7 @@ function collectVisibleTreeEntries(
         subdir,
         depth + 1,
         sortMode,
+        typeFilters,
         expandedPaths,
         treeFilesByPath,
       ));
@@ -203,6 +206,7 @@ function TreeNode({
   parent,
   depth,
   sortMode,
+  typeFilters,
   onShowMenu,
   selectedPaths,
   onSelect,
@@ -216,6 +220,7 @@ function TreeNode({
   parent: string;
   depth: number;
   sortMode: SortMode;
+  typeFilters: FileTypeFilter[];
   onShowMenu: (state: CtxMenuState) => void;
   selectedPaths: Set<string>;
   onSelect: (subdir: string, meta: TreeSelectMeta) => void;
@@ -408,6 +413,7 @@ function TreeNode({
         aria-label={file.name}
         aria-expanded={file.isDir ? expanded : undefined}
         data-desk-item=""
+        data-desk-path={subdir}
         data-selected={selected ? 'true' : 'false'}
         style={{ '--tree-depth': depth } as CSSProperties}
         onClick={handleClick}
@@ -441,13 +447,14 @@ function TreeNode({
       </div>
       {expanded && children.length > 0 && (
         <div role="group" className={s.treeGroup}>
-          {sortDeskFiles(children, sortMode).map(child => (
+          {sortDeskFiles(children, sortMode).filter(child => fileMatchesTypeFilters(child, typeFilters)).map(child => (
             <TreeNode
               key={childSubdir(subdir, child.name)}
               file={child}
               parent={subdir}
               depth={depth + 1}
               sortMode={sortMode}
+              typeFilters={typeFilters}
               onShowMenu={onShowMenu}
               selectedPaths={selectedPaths}
               onSelect={onSelect}
@@ -464,19 +471,27 @@ function TreeNode({
   );
 }
 
-export function DeskTree({ sortMode, onShowMenu }: {
+export function DeskTree({ sortMode, typeFilters = [], onShowMenu }: {
   sortMode: SortMode;
+  typeFilters?: FileTypeFilter[];
   onShowMenu: (state: CtxMenuState) => void;
 }) {
   const deskBasePath = useStore(s => s.deskBasePath);
   const rootFiles = useStore(s => s.deskTreeFilesByPath[''] || s.deskFiles);
   const treeFilesByPath = useStore(s => s.deskTreeFilesByPath);
   const expandedPaths = useStore(s => s.deskExpandedPaths);
+  const deskSelectedPath = useStore(s => s.deskSelectedPath);
   const setDeskSelectedPath = useStore(s => s.setDeskSelectedPath);
-  const sortedRootFiles = useMemo(() => sortDeskFiles(rootFiles, sortMode), [rootFiles, sortMode]);
+  const activeTypeFilters = typeFilters || [];
+  const treeRef = useRef<HTMLDivElement | null>(null);
+  const localSelectionRef = useRef(false);
+  const sortedRootFiles = useMemo(
+    () => sortDeskFiles(rootFiles, sortMode).filter(file => fileMatchesTypeFilters(file, activeTypeFilters)),
+    [rootFiles, sortMode, activeTypeFilters],
+  );
   const visibleEntries = useMemo(
-    () => collectVisibleTreeEntries(rootFiles, '', 0, sortMode, expandedPaths, treeFilesByPath),
-    [expandedPaths, rootFiles, sortMode, treeFilesByPath],
+    () => collectVisibleTreeEntries(rootFiles, '', 0, sortMode, activeTypeFilters, expandedPaths, treeFilesByPath),
+    [activeTypeFilters, expandedPaths, rootFiles, sortMode, treeFilesByPath],
   );
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
@@ -496,7 +511,28 @@ export function DeskTree({ sortMode, onShowMenu }: {
     setSelectionAnchor(prev => (prev && visible.has(prev) ? prev : null));
   }, [visibleEntries]);
 
+  useEffect(() => {
+    if (!deskSelectedPath) return;
+    if (localSelectionRef.current) {
+      localSelectionRef.current = false;
+      return;
+    }
+    if (!visibleEntries.some(entry => entry.subdir === deskSelectedPath)) return;
+    setSelectedPaths(new Set([deskSelectedPath]));
+    setSelectionAnchor(deskSelectedPath);
+  }, [deskSelectedPath, visibleEntries]);
+
+  useEffect(() => {
+    if (!deskSelectedPath) return;
+    const root = treeRef.current;
+    if (!root) return;
+    const target = Array.from(root.querySelectorAll<HTMLElement>('[data-desk-path]'))
+      .find(el => el.getAttribute('data-desk-path') === deskSelectedPath);
+    target?.scrollIntoView?.({ block: 'nearest' });
+  }, [deskSelectedPath, selectedPaths]);
+
   const selectTreePath = useCallback((subdir: string, meta: TreeSelectMeta) => {
+    localSelectionRef.current = true;
     setDeskSelectedPath(subdir);
     if (meta.shift && selectionAnchor) {
       const anchorIndex = visibleEntries.findIndex(entry => entry.subdir === selectionAnchor);
@@ -536,6 +572,7 @@ export function DeskTree({ sortMode, onShowMenu }: {
   }, [selectedPaths, visibleEntries]);
 
   const beginRename = useCallback((subdir: string) => {
+    localSelectionRef.current = true;
     setSelectedPaths(new Set([subdir]));
     setSelectionAnchor(subdir);
     setDeskSelectedPath(subdir);
@@ -564,6 +601,7 @@ export function DeskTree({ sortMode, onShowMenu }: {
       return;
     }
     const nextSubdir = childSubdir(entry.parent, trimmed);
+    localSelectionRef.current = true;
     setSelectedPaths(new Set([nextSubdir]));
     setSelectionAnchor(nextSubdir);
     setDeskSelectedPath(nextSubdir);
@@ -571,7 +609,7 @@ export function DeskTree({ sortMode, onShowMenu }: {
   }, [setDeskSelectedPath]);
 
   return (
-    <div className={s.tree} role="tree" data-desk-tree="" data-empty-text={window.t?.('common.noFiles') || ''}>
+    <div ref={treeRef} className={s.tree} role="tree" data-desk-tree="" data-empty-text={window.t?.('common.noFiles') || ''}>
       {sortedRootFiles.map(file => (
         <TreeNode
           key={file.name}
@@ -579,6 +617,7 @@ export function DeskTree({ sortMode, onShowMenu }: {
           parent=""
           depth={0}
           sortMode={sortMode}
+          typeFilters={activeTypeFilters}
           onShowMenu={onShowMenu}
           selectedPaths={selectedPaths}
           onSelect={selectTreePath}

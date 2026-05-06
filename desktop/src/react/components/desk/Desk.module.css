@@ -174,6 +174,7 @@
 
 .rightWorkspaceSection {
     --right-workspace-list-toolbar-height: 25px;
+    --right-workspace-search-height: 30px;
     position: relative;
     flex: 1 1 0;
     height: 100%;
@@ -185,7 +186,7 @@
 
 .rightWorkspaceSection .toolbar {
     position: absolute;
-    top: 0;
+    top: var(--right-workspace-search-height);
     left: 0;
     right: 0;
     z-index: 1;
@@ -196,13 +197,21 @@
 
 .rightWorkspaceSection .tree {
     position: absolute;
-    top: var(--right-workspace-list-toolbar-height);
+    top: calc(var(--right-workspace-search-height) + var(--right-workspace-list-toolbar-height));
     right: 0;
     bottom: 0;
     left: 0;
     flex: none;
     height: auto;
     max-height: none;
+}
+
+.rightWorkspaceSection .searchWrap {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
 }
 
 .rightWorkspaceSection .tree:empty {
@@ -369,6 +378,11 @@
     color: var(--text);
 }
 
+.filterBtnActive {
+    color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.08);
+}
+
 .sortBtn:disabled {
     opacity: 0.45;
     cursor: default;
@@ -399,6 +413,96 @@
 
 .iconBtn {
     padding: 2px 5px;
+}
+
+/* 工作区搜索 */
+.searchWrap {
+    position: relative;
+    flex: 0 0 auto;
+    margin: 2px var(--space-sm) 0;
+}
+
+.searchInput {
+    box-sizing: border-box;
+    width: 100%;
+    height: 24px;
+    padding: 2px 8px;
+    border: 1px solid var(--overlay-light);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.65rem;
+    line-height: 1;
+    outline: none;
+}
+
+.searchInput::placeholder {
+    color: var(--text-muted);
+    opacity: 0.55;
+}
+
+.searchInput:focus {
+    border-color: rgba(var(--accent-rgb), 0.42);
+}
+
+.searchResults {
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px 0;
+    border: 1px solid var(--overlay-light);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.searchResult {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1px;
+    padding: 5px 8px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.searchResult:hover {
+    background: var(--overlay-subtle);
+}
+
+.searchResultName,
+.searchResultPath {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.searchResultName {
+    font-size: 0.7rem;
+    line-height: 1.25;
+}
+
+.searchResultPath,
+.searchEmpty {
+    color: var(--text-muted);
+    font-size: 0.58rem;
+    line-height: 1.35;
+}
+
+.searchEmpty {
+    padding: 6px 8px;
 }
 
 /* 项目技能按钮（卡片式） */

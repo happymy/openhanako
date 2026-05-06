@@ -380,4 +380,48 @@ describe('desk-actions workspace roots', () => {
     expect(useStore.getState().deskTreeFilesByPath.archive).toEqual([{ name: 'chapter.md', isDir: false }]);
     expect(useStore.getState().deskFiles).toEqual([{ name: 'draft.md', isDir: false }]);
   });
+
+  it('searches workspace files against the active desk root', async () => {
+    useStore.setState({
+      deskBasePath: '/workspace',
+    } as never);
+    mockHanaFetch.mockResolvedValueOnce(jsonResponse({
+      results: [
+        { name: 'DeskTree.tsx', relativePath: 'src/DeskTree.tsx', parentSubdir: 'src', isDir: false },
+      ],
+    }));
+
+    const { searchDeskFiles } = await import('../../stores/desk-actions');
+    const results = await searchDeskFiles('Desk');
+
+    expect(mockHanaFetch).toHaveBeenCalledWith('/api/desk/search-files?dir=%2Fworkspace&q=Desk');
+    expect(results).toEqual([
+      { name: 'DeskTree.tsx', relativePath: 'src/DeskTree.tsx', parentSubdir: 'src', isDir: false },
+    ]);
+  });
+
+  it('jumps to a search result by expanding ancestors and selecting the real tree path', async () => {
+    useStore.setState({
+      deskBasePath: '/workspace',
+      deskTreeFilesByPath: {},
+      deskExpandedPaths: [],
+      deskSelectedPath: '',
+    } as never);
+    mockHanaFetch
+      .mockResolvedValueOnce(jsonResponse({ files: [{ name: 'components', isDir: true }], basePath: '/workspace' }))
+      .mockResolvedValueOnce(jsonResponse({ files: [{ name: 'DeskTree.tsx', isDir: false }], basePath: '/workspace' }));
+
+    const { jumpToDeskSearchResult } = await import('../../stores/desk-actions');
+    await jumpToDeskSearchResult({
+      name: 'DeskTree.tsx',
+      relativePath: 'src/components/DeskTree.tsx',
+      parentSubdir: 'src/components',
+      isDir: false,
+    });
+
+    expect(mockHanaFetch).toHaveBeenNthCalledWith(1, '/api/desk/files?dir=%2Fworkspace&subdir=src');
+    expect(mockHanaFetch).toHaveBeenNthCalledWith(2, '/api/desk/files?dir=%2Fworkspace&subdir=src%2Fcomponents');
+    expect(useStore.getState().deskExpandedPaths).toEqual(['src', 'src/components']);
+    expect(useStore.getState().deskSelectedPath).toBe('src/components/DeskTree.tsx');
+  });
 });
