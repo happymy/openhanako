@@ -80,17 +80,19 @@ export function SkillsTab() {
   useEffect(() => {
     const locale = window.i18n?.locale || 'zh';
     if (locale === 'en' || visible.length === 0) return;
-    const names = visible.map(s => s.name).filter(n => !nameHints[n]);
+    const agentId = skillsViewAgentIdRef.current;
+    if (!agentId) return;
+    const names = visible.map(s => s.name);
     if (names.length === 0) return;
     hanaFetch('/api/skills/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ names, lang: locale }),
+      body: JSON.stringify({ agentId, names, lang: locale }),
     })
       .then(r => r.json())
       .then(map => { if (map && typeof map === 'object') setNameHints(prev => ({ ...prev, ...map })); })
       .catch(err => console.warn('[skills] translate failed:', err));
-  }, [visible.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [skillsList, skillsViewAgentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 全局安装：只注册 skill 到 engine.skillsDir，不自动对任何 agent 启用。
   // 原则：全局的管全局的。装完后用户到 Section 3 "Agent 配置" 自己打开开关。

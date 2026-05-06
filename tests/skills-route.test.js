@@ -145,6 +145,56 @@ describe("skills route", () => {
     expectAppEvent(engine.emitEvent, "skills-changed", { agentId: null });
   });
 
+  it("translates skill names through the backend cache using the requested agent view", async () => {
+    const agentId = "hana";
+    const agentDir = path.join(tempRoot, agentId);
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, "config.yaml"), "agent:\n  name: Hana\n", "utf-8");
+
+    const { createSkillsRoute } = await import("../server/routes/skills.js");
+    const app = new Hono();
+    const skills = [
+      { name: "literary-craft", filePath: path.join(tempRoot, "literary-craft", "SKILL.md") },
+      { name: "quiet-musing", filePath: path.join(tempRoot, "quiet-musing", "SKILL.md") },
+    ];
+    const engine = {
+      agentsDir: tempRoot,
+      getAllSkills: vi.fn(() => skills),
+      translateSkillNames: vi.fn(async (names, lang, opts) => ({
+        "literary-craft": "文笔",
+        "quiet-musing": "静思",
+        agentId: opts.agentId,
+        skillCount: opts.skills.length,
+      })),
+    };
+
+    app.route("/api", createSkillsRoute(engine));
+
+    const res = await app.request("/api/skills/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agentId,
+        names: ["literary-craft", "quiet-musing"],
+        lang: "zh",
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      "literary-craft": "文笔",
+      "quiet-musing": "静思",
+      agentId,
+      skillCount: 2,
+    });
+    expect(engine.getAllSkills).toHaveBeenCalledWith(agentId);
+    expect(engine.translateSkillNames).toHaveBeenCalledWith(
+      ["literary-craft", "quiet-musing"],
+      "zh",
+      { agentId, skills },
+    );
+  });
+
   it("registers a session-scoped skill install source before installing", async () => {
     const { createSkillsRoute } = await import("../server/routes/skills.js");
     const app = new Hono();

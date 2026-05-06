@@ -88,6 +88,10 @@ import { createMockComputerProvider } from "./computer-use/providers/mock-provid
 import { createMacosCuaProvider } from "./computer-use/providers/macos-cua-provider.js";
 import { createWindowsUiaProvider } from "./computer-use/providers/windows-uia-provider.js";
 import { SessionFileRegistry } from "../lib/session-files/session-file-registry.js";
+import {
+  getSkillNameTranslationCachePath,
+  translateSkillNamesWithCache,
+} from "../lib/skills/skill-name-translation-cache.js";
 
 export class HanaEngine {
   /**
@@ -1284,8 +1288,21 @@ export class HanaEngine {
     return _summarizeTitle(this.resolveUtilityConfig(this._utilityOptionsForContext(opts)), ut, at, opts);
   }
 
-  async translateSkillNames(names, lang) {
-    return _translateSkillNames(this.resolveUtilityConfig(), names, lang);
+  async translateSkillNames(names, lang, opts = {}) {
+    const skills = Array.isArray(opts.skills)
+      ? opts.skills
+      : (opts.agentId ? this.getAllSkills(opts.agentId) : this._skillMgr?.allSkills || []);
+    return translateSkillNamesWithCache({
+      cachePath: getSkillNameTranslationCachePath(this.hanakoHome),
+      skills,
+      names,
+      lang,
+      translateMissing: (missingNames) => _translateSkillNames(
+        this.resolveUtilityConfig(opts.agentId ? { agentId: opts.agentId } : undefined),
+        missingNames,
+        lang,
+      ),
+    });
   }
 
   async summarizeActivity(sp, preloaded, opts = {}) {

@@ -378,11 +378,18 @@ export function createSkillsRoute(engine) {
   // POST /skills/translate — 用工具模型翻译技能名
   route.post("/skills/translate", async (c) => {
     const body = await safeJson(c);
-    const { names, lang } = body;
+    const { names, lang, agentId } = body;
     if (!Array.isArray(names) || !lang || lang === "en") {
       return c.json({});
     }
-    return c.json(await engine.translateSkillNames(names, lang));
+    if (!agentId) {
+      return c.json({ error: "agentId is required" }, 400);
+    }
+    if (!validateId(agentId) || !agentExists(engine, agentId)) {
+      return c.json({ error: "agent not found" }, 404);
+    }
+    const skills = engine.getAllSkills(agentId);
+    return c.json(await engine.translateSkillNames(names, lang, { agentId, skills }));
   });
 
   return route;

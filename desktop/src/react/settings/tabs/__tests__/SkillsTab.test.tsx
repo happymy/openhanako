@@ -295,6 +295,45 @@ describe('SkillsTab — sticky skillsViewAgentId & toggleSkill race guard', () =
     expect(callsForAgentC.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('requests backend skill-name translation with the current agentId and visible names', async () => {
+    (window as unknown as { i18n: { locale: string } }).i18n = { locale: 'zh' };
+    seedStore({ currentAgentId: 'agent-a' });
+
+    fetchMock.mockImplementation((url: string, opts?: RequestInit) => {
+      if (url.includes('/api/skills/translate')) {
+        return Promise.resolve(jsonResponse({
+          received: JSON.parse(String(opts?.body || '{}')),
+        }));
+      }
+      if (url.includes('/api/skills/external-paths')) {
+        return Promise.resolve(jsonResponse({ configured: [], discovered: [] }));
+      }
+      if (url.includes('/api/skills?agentId=agent-a')) {
+        return Promise.resolve(jsonResponse({
+          skills: [
+            { name: 'literary-craft', enabled: true, source: 'user' },
+            { name: 'quiet-musing', enabled: true, source: 'user' },
+            { name: 'hidden-skill', enabled: true, source: 'user', hidden: true },
+          ],
+        }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+
+    render(<SkillsTab />);
+    await flushMicrotasks(6);
+
+    const translateCall = fetchMock.mock.calls.find((c) =>
+      typeof c[0] === 'string' && c[0].includes('/api/skills/translate'),
+    );
+    expect(translateCall).toBeTruthy();
+    expect(JSON.parse(String((translateCall?.[1] as RequestInit)?.body))).toEqual({
+      agentId: 'agent-a',
+      names: ['literary-craft', 'quiet-musing'],
+      lang: 'zh',
+    });
+  });
+
   // ── Test 4: toggleSkill race guard — stale GET must not trigger PUT ─────────
   it('toggleSkill race guard: switching selector mid-flight skips the PUT', async () => {
     seedStore({ currentAgentId: 'agent-a' });
