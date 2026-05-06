@@ -21,4 +21,39 @@ describe('getApiKeySavePlan', () => {
       key: '',
     });
   });
+
+  it('asks the server to seed default models for preset setup', () => {
+    expect(getApiKeySavePlan({
+      keyEdited: true,
+      keyVal: 'sk-test',
+      urlEdited: false,
+      urlVal: '',
+      derivedBaseUrl: 'https://api.xiaomimimo.com/v1',
+      isPresetSetup: true,
+      isLocalPreset: false,
+      api: 'openai-completions',
+    }).payload).toEqual({
+      base_url: 'https://api.xiaomimimo.com/v1',
+      api_key: 'sk-test',
+      api: 'openai-completions',
+      seed_default_models: true,
+    });
+  });
+
+  it('can repair an existing preset provider with no saved models', () => {
+    expect(getApiKeySavePlan({
+      keyEdited: true,
+      keyVal: 'sk-test',
+      urlEdited: false,
+      urlVal: 'https://api.xiaomimimo.com/v1',
+      derivedBaseUrl: 'https://api.xiaomimimo.com/v1',
+      isPresetSetup: false,
+      isLocalPreset: false,
+      seedDefaultModels: true,
+      api: 'openai-completions',
+    }).payload).toEqual({
+      api_key: 'sk-test',
+      seed_default_models: true,
+    });
+  });
 });

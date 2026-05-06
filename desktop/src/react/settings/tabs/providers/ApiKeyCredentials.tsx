@@ -45,6 +45,7 @@ export function ApiKeyCredentials({ providerId, summary, providerConfig, isPrese
       derivedBaseUrl,
       isPresetSetup: !!isPresetSetup,
       isLocalPreset: !!presetInfo?.local,
+      seedDefaultModels: !!presetInfo && (summary.models?.length ?? 0) === 0,
       api,
     });
     if (!plan.shouldSave) return;

@@ -6,6 +6,7 @@ export interface ApiKeySavePlanInput {
   derivedBaseUrl: string;
   isPresetSetup: boolean;
   isLocalPreset: boolean;
+  seedDefaultModels?: boolean;
   api: string;
 }
 
@@ -34,8 +35,12 @@ export function getApiKeySavePlan(input: ApiKeySavePlanInput): ApiKeySavePlan {
   }
 
   const payload: Record<string, unknown> = input.isPresetSetup
-    ? { base_url: effectiveUrl, api_key: key, api: input.api, models: [] as string[] }
+    ? { base_url: effectiveUrl, api_key: key, api: input.api, seed_default_models: true }
     : { api_key: key };
+
+  if (input.seedDefaultModels) {
+    payload.seed_default_models = true;
+  }
 
   if (input.urlEdited && !input.isPresetSetup) {
     payload.base_url = effectiveUrl;

@@ -662,7 +662,14 @@ export class ProviderRegistry {
    */
   saveProvider(providerId, data) {
     const userConfig = this._loadAddedModels();
-    const nextProvider = { ...(userConfig[providerId] || {}), ...data };
+    const { seed_default_models: seedDefaultModels, ...providerData } = data || {};
+    const nextProvider = { ...(userConfig[providerId] || {}), ...providerData };
+
+    if (seedDefaultModels && (!Array.isArray(nextProvider.models) || nextProvider.models.length === 0)) {
+      const defaults = this.getDefaultModels(providerId);
+      if (defaults.length > 0) nextProvider.models = [...defaults];
+    }
+
     validateProviderModels(providerId, nextProvider.models, { baseUrl: nextProvider.base_url });
     userConfig[providerId] = nextProvider;
     this._saveAddedModels(userConfig);

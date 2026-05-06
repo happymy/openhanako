@@ -578,6 +578,39 @@ describe("saveProvider", () => {
     const persisted = readAddedModels();
     expect(persisted.deepseek.models).toEqual(["deepseek-v4-pro"]);
   });
+
+  it("内置 provider 首次保存空 models 时填充默认模型列表", () => {
+    writeAddedModels({});
+    const reg = new ProviderRegistry(tmpDir);
+
+    reg.saveProvider("mimo", {
+      api_key: "sk-mimo",
+      base_url: "https://api.xiaomimimo.com/v1",
+      api: "openai-completions",
+      seed_default_models: true,
+    });
+
+    const persisted = readAddedModels();
+    expect(persisted.mimo.models).toEqual(reg.getDefaultModels("mimo"));
+    expect(persisted.mimo.seed_default_models).toBeUndefined();
+  });
+
+  it("已有 provider 显式保存空 models 时保留用户选择", () => {
+    writeAddedModels({
+      mimo: {
+        api_key: "sk-mimo",
+        base_url: "https://api.xiaomimimo.com/v1",
+        api: "openai-completions",
+        models: ["mimo-v2-pro"],
+      },
+    });
+    const reg = new ProviderRegistry(tmpDir);
+
+    reg.saveProvider("mimo", { models: [] });
+
+    const persisted = readAddedModels();
+    expect(persisted.mimo.models).toEqual([]);
+  });
 });
 
 // ── updateModelEntry type field ───────────────────────────────────────────────
