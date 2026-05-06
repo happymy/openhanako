@@ -141,10 +141,10 @@ function _extractRecentTurns(sessionPath) {
 
 function _buildMessages({ userText, assistantText, tools }, isZh) {
   const system = isZh
-    ? `你是对话摘要生成器。根据下面几轮对话，用 1-2 句极短中文概括话题和当前进展。
-规则：不加引号、不加前缀、不列编号，直接输出 1-2 句。40 字以内。`
-    : `You summarize conversations. Given the turns below, describe the topic and current progress in 1-2 very short English sentences.
-Rules: no quotes, no preamble, no numbering. Under 30 words.`;
+    ? `你是对话摘要生成器。根据下面几轮对话，概括这个桌面会话正在处理什么、当前进展，以及能看出的下一步线索。
+规则：中文，直接输出 1-3 句，100 字以内；不加引号、不加前缀、不列编号；不要逐条复述工具日志，也不要只写工具名或泛泛一句。`
+    : `You summarize conversations. Given the turns below, describe what this desktop session is handling, its current progress, and any visible next-step clue.
+Rules: output 1-3 direct English sentences under 60 words; no quotes, preamble, or numbering; do not list tool logs, and do not reduce the summary to tool names or a generic phrase.`;
 
   const toolStr = tools.length > 0
     ? (isZh ? `\n用到的工具：${tools.join("、")}` : `\nTools used: ${tools.join(", ")}`)
