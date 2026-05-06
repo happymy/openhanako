@@ -317,6 +317,39 @@ describe("provider-compat/deepseek — apply 主流程接入 reasoning_content �
     expect(result.thinking).toEqual({ type: "enabled" });
   });
 
+  it("chat mode + 思考开启：tool_calls 历史已有 reasoning_content 时也补 assistant content 空字符串", () => {
+    const payload = {
+      model: "deepseek-v4-pro",
+      messages: [
+        { role: "user", content: "what time" },
+        {
+          role: "assistant",
+          content: null,
+          reasoning_content: "调用 date 工具",
+          tool_calls: [{ id: "call_1", type: "function", function: { name: "date", arguments: "{}" } }],
+        },
+        { role: "tool", tool_call_id: "call_1", content: "2026-05-06" },
+      ],
+      tools: [{ type: "function", function: { name: "date" } }],
+    };
+    const result = deepseek.apply(payload, deepseekModel, { mode: "chat", reasoningLevel: "high" });
+    expect(result.messages[1].content).toBe("");
+    expect(result.messages[1].reasoning_content).toBe("调用 date 工具");
+    expect(payload.messages[1].content).toBeNull();
+  });
+
+  it("chat mode + 思考开启：移除 DeepSeek V4 thinking 不支持的 tool_choice", () => {
+    const payload = {
+      model: "deepseek-v4-pro",
+      messages: [{ role: "user", content: "use a tool if needed" }],
+      tools: [{ type: "function", function: { name: "date" } }],
+      tool_choice: "auto",
+    };
+    const result = deepseek.apply(payload, deepseekModel, { mode: "chat", reasoningLevel: "high" });
+    expect(result).not.toHaveProperty("tool_choice");
+    expect(payload.tool_choice).toBe("auto");
+  });
+
   it("chat mode + 思考开启：tool_calls 历史无可恢复原文 → fail closed", () => {
     const payload = {
       model: "deepseek-v4-pro",

@@ -41,7 +41,7 @@ describe("provider payload snapshots", () => {
           id: "deepseek-v4-flash",
           provider: "deepseek",
           api: "openai-completions",
-          baseUrl: "https://api.deepseek.com/v1",
+          baseUrl: "https://api.deepseek.com",
           reasoning: true,
           maxTokens: 384000,
         },

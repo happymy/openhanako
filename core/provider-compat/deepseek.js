@@ -58,6 +58,17 @@ function hasStringReasoningContent(message) {
   return hasOwn(message, "reasoning_content") && typeof message.reasoning_content === "string";
 }
 
+function normalizeAssistantContent(content) {
+  if (typeof content === "string") return content;
+  if (content === null || content === undefined) return "";
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .filter((block) => block && block.type === "text" && typeof block.text === "string")
+    .map((block) => block.text)
+    .join("");
+}
+
 export function matches(model) {
   if (!model || typeof model !== "object") return false;
   const provider = lower(model.provider);
@@ -248,8 +259,8 @@ export function extractReasoningFromContent(message) {
  *
  * 不可变契约：未修改时返回原数组；修改时返回新数组（仅修改的 message 浅拷贝）。
  *
- * @param {Array|any} messages — payload.messages
- * @returns {Array|any} — 原数组或新数组
+ * @param {Array|any} messages payload.messages
+ * @returns {Array|any} 原数组或新数组
  */
 export function ensureReasoningContentForToolCalls(messages) {
   if (!Array.isArray(messages)) return messages;
@@ -271,6 +282,38 @@ export function ensureReasoningContentForToolCalls(messages) {
     }
     changed = true;
     return { ...message, reasoning_content: recovered };
+  });
+
+  return changed ? next : messages;
+}
+
+/**
+ * DeepSeek V4 thinking + tool replay 要求 assistant tool-call message 的
+ * content 字段非 null。Pi SDK/OpenAI 格式常用 content:null 表示“只有工具调用”，
+ * 这里在 DeepSeek 专用路径显式收窄成字符串，避免把供应商契约漏到上层。
+ *
+ * @param {Array|any} messages payload.messages
+ * @returns {Array|any} 原数组或新数组
+ */
+export function ensureAssistantContentForToolCalls(messages) {
+  if (!Array.isArray(messages)) return messages;
+
+  let changed = false;
+  const next = messages.map((message) => {
+    if (!message || typeof message !== "object" || message.role !== "assistant") {
+      return message;
+    }
+    if (!hasToolCalls(message)) {
+      return message;
+    }
+
+    const content = normalizeAssistantContent(message.content);
+    if (message.content === content) {
+      return message;
+    }
+
+    changed = true;
+    return { ...message, content };
   });
 
   return changed ? next : messages;
@@ -345,6 +388,13 @@ function applyAnthropicPayload(payload, model, options = {}) {
   return next;
 }
 
+function stripToolChoice(payload) {
+  if (!hasOwn(payload, "tool_choice")) return payload;
+  const next = { ...payload };
+  delete next.tool_choice;
+  return next;
+}
+
 export function apply(payload, model, options = {}) {
   if (!Array.isArray(payload.messages)) return payload;
   if (isDeepSeekAnthropicProfile(model)) {
@@ -391,5 +441,11 @@ export function apply(payload, model, options = {}) {
     p.messages = ensured;
   }
 
+  const contentEnsured = ensureAssistantContentForToolCalls(p.messages);
+  if (contentEnsured !== p.messages) {
+    p.messages = contentEnsured;
+  }
+
+  next = stripToolChoice(p);
   return next;
 }

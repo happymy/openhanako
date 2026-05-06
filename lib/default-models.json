@@ -52,9 +52,6 @@
   ],
 
   "deepseek": [
-    "deepseek-chat",
-    "deepseek-reasoner",
-    "deepseek-v3.2",
     "deepseek-v4-pro",
     "deepseek-v4-flash"
   ],

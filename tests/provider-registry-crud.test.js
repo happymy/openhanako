@@ -303,6 +303,16 @@ describe("builtin default models", () => {
     const reg = new ProviderRegistry(tmpDir);
     expect(reg.getDefaultModels("kimi-coding")[0]).toBe("kimi-for-coding");
   });
+
+  it("keeps DeepSeek defaults aligned with the V4 API endpoint and model family", () => {
+    writeAddedModels({});
+    const reg = new ProviderRegistry(tmpDir);
+    expect(reg.get("deepseek").baseUrl).toBe("https://api.deepseek.com");
+    expect(reg.getDefaultModels("deepseek")).toEqual([
+      "deepseek-v4-pro",
+      "deepseek-v4-flash",
+    ]);
+  });
 });
 
 // ── getProviderModels ────────────────────────────────────────────────────────

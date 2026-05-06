@@ -38,7 +38,7 @@ function providerSummary(overrides: Partial<ProviderSummary>): ProviderSummary {
     type: 'api-key',
     auth_type: 'api-key',
     display_name: 'DeepSeek',
-    base_url: 'https://api.deepseek.com/v1',
+    base_url: 'https://api.deepseek.com',
     api: 'openai-completions',
     api_key: '',
     models: [],

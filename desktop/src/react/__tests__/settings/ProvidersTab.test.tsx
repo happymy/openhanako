@@ -30,7 +30,7 @@ vi.mock('../../settings/helpers', () => ({
     params?.name ? `${key}:${params.name}` : key
   ),
   PROVIDER_PRESETS: [
-    { value: 'deepseek', label: 'DeepSeek', url: 'https://api.deepseek.com/v1', api: 'openai-completions' },
+    { value: 'deepseek', label: 'DeepSeek', url: 'https://api.deepseek.com', api: 'openai-completions' },
     { value: 'groq', label: 'Groq', url: 'https://api.groq.com/openai/v1', api: 'openai-completions' },
   ],
   API_FORMAT_OPTIONS: [
@@ -73,7 +73,7 @@ describe('ProvidersTab provider-scoped form state', () => {
   const providersSummary = {
     deepseek: providerSummary({
       display_name: 'DeepSeek',
-      base_url: 'https://api.deepseek.com/v1',
+      base_url: 'https://api.deepseek.com',
       api_key: 'saved-deepseek-key',
       has_credentials: true,
     }),
