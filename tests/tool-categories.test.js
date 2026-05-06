@@ -99,4 +99,14 @@ describe("computeToolSnapshot", () => {
   it("treats undefined disabled as empty (no tools removed)", () => {
     expect(computeToolSnapshot(["read", "browser"], undefined)).toEqual(["read", "browser"]);
   });
+
+  it("removes explicitly runtime-disabled plugin tools without categorizing them as built-ins", () => {
+    const result = computeToolSnapshot(
+      ["read", "mcp_github_search", "browser"],
+      [],
+      { extraDisabled: ["mcp_github_search"] },
+    );
+
+    expect(result).toEqual(["read", "browser"]);
+  });
 });

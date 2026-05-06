@@ -244,6 +244,19 @@ export function createPluginsRoute(engine) {
     return c.json(widgets);
   });
 
+  route.get("/plugins/settings-tabs", (c) => {
+    const pm = engine.pluginManager;
+    if (!pm) return c.json([]);
+    const tabs = pm.getSettingsTabs().map(t => ({
+      pluginId: t.pluginId,
+      id: t.id,
+      title: t.title,
+      icon: t.icon,
+      nativeComponent: t.nativeComponent,
+    }));
+    return c.json(tabs);
+  });
+
   route.get("/plugins/theme.css", (c) => {
     const theme = c.req.query("theme") || DEFAULT_THEME;
     // Sanitize theme name to prevent path traversal

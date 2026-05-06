@@ -19,6 +19,7 @@ import { AboutTab } from './tabs/AboutTab';
 import { PluginsTab } from './tabs/PluginsTab';
 import { SecurityTab } from './tabs/SecurityTab';
 import { SharingTab } from './tabs/SharingTab';
+import { getNativeSettingsTabComponent } from './native-settings-tabs';
 import { CropOverlay } from './overlays/CropOverlay';
 import { AgentCreateOverlay } from './overlays/AgentCreateOverlay';
 import { AgentDeleteOverlay } from './overlays/AgentDeleteOverlay';
@@ -63,6 +64,13 @@ const TAB_TITLES: Record<string, string> = {
   about: '关于',
 };
 
+function titleToLabel(title: string | Record<string, string> | undefined): string {
+  if (!title) return '';
+  if (typeof title === 'string') return title;
+  const locale = window.i18n?.locale || 'zh-CN';
+  return title[locale] || title[locale.split('-')[0]] || title.zh || title.en || Object.values(title)[0] || '';
+}
+
 interface SettingsContentProps {
   variant: 'window' | 'modal';
   onClose?: () => void;
@@ -76,7 +84,7 @@ export function SettingsContent({
   onActiveTabChange,
   listenToWindowTabSwitch = false,
 }: SettingsContentProps) {
-  const { activeTab, set, ready } = useSettingsStore();
+  const { activeTab, pluginSettingsTabs, set, ready } = useSettingsStore();
 
   useEffect(() => {
     initSettings();
@@ -106,9 +114,13 @@ export function SettingsContent({
     return typeof unsubscribe === 'function' ? unsubscribe : undefined;
   }, []);
 
-  const ActiveTab = TAB_COMPONENTS[activeTab] || AgentTab;
+  const availablePluginSettingsTabs = pluginSettingsTabs || [];
+  const dynamicTab = availablePluginSettingsTabs.find(tab => tab.id === activeTab);
+  const ActiveTab = TAB_COMPONENTS[activeTab]
+    || (dynamicTab ? getNativeSettingsTabComponent(dynamicTab.nativeComponent) : null)
+    || AgentTab;
   const isModal = variant === 'modal';
-  const activeTabTitle = TAB_TITLES[activeTab] || '';
+  const activeTabTitle = TAB_TITLES[activeTab] || titleToLabel(dynamicTab?.title);
 
   return (
     <ErrorBoundary region="settings">

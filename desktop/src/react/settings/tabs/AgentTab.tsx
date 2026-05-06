@@ -254,6 +254,7 @@ export function AgentTab() {
             onChange={(e) => setIshiki(e.target.value)}
           />
           <span className={styles['settings-form-hint']}>{t('settings.agent.ishikiHint')}</span>
+          <span className={styles['settings-form-hint']}>{t('settings.agent.ishikiSeparationHint')}</span>
         </div>
         <div className={styles['settings-form-field']} style={{ display: 'flex', justifyContent: 'center' }}>
           <button className={styles['settings-save-btn-sm']} onClick={saveAgent}>

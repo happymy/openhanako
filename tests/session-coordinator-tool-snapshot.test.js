@@ -383,6 +383,25 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     expect(appliedList).toContain("read");
   });
 
+  it("Case C: fresh sessions exclude plugin tools disabled by runtime agent config", async () => {
+    const mcpTool = {
+      ...makeTool("mcp_github_search"),
+      isEnabledForAgentConfig: (config) => config?.mcp?.servers?.github?.enabled === true,
+    };
+    coord._d.buildTools = () => ({
+      tools: SDK_BUILTIN_OBJS,
+      customTools: [...HANAKO_CUSTOM_OBJS, mcpTool],
+    });
+    currentAgentConfig = { tools: { disabled: [] }, mcp: { servers: { github: { enabled: false } } } };
+
+    await coord.createSession(null, tmpDir, true);
+
+    const appliedList = activeToolsSpy.mock.calls[0][0];
+    expect(appliedList).not.toContain("mcp_github_search");
+    expect(appliedList).toContain("read");
+    expect(appliedList).toContain("browser");
+  });
+
   it("Case C: tampering with core tool name still keeps it (subset tamper protection)", async () => {
     currentAgentConfig = { tools: { disabled: ["browser", "read"] } };
     await coord.createSession(null, tmpDir, true);
@@ -412,6 +431,27 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     const metaPath = path.join(sessionDir, "session-meta.json");
     await fsp.writeFile(
       metaPath,
+      JSON.stringify({ [path.basename(fakeSessionPath)]: { toolNames: replayList } }, null, 2),
+    );
+
+    await coord.createSession(null, tmpDir, true, null, { restore: true });
+
+    expect(activeToolsSpy).toHaveBeenCalledTimes(1);
+    expect(activeToolsSpy.mock.calls[0][0]).toEqual(replayList);
+  });
+
+  it("Case A: restore replays frozen plugin tool snapshot even if MCP is currently disabled", async () => {
+    const mcpTool = {
+      ...makeTool("mcp_github_search"),
+      isEnabledForAgentConfig: () => false,
+    };
+    coord._d.buildTools = () => ({
+      tools: SDK_BUILTIN_OBJS,
+      customTools: [...HANAKO_CUSTOM_OBJS, mcpTool],
+    });
+    const replayList = ["read", "mcp_github_search"];
+    await fsp.writeFile(
+      path.join(sessionDir, "session-meta.json"),
       JSON.stringify({ [path.basename(fakeSessionPath)]: { toolNames: replayList } }, null, 2),
     );
 

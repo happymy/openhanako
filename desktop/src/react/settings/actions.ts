@@ -117,11 +117,16 @@ export async function loadSettingsConfig() {
 export async function loadPluginSettings() {
   const store = useSettingsStore.getState();
   try {
-    const res = await hanaFetch('/api/plugins/settings');
-    const data = await res.json();
+    const [settingsRes, tabsRes] = await Promise.all([
+      hanaFetch('/api/plugins/settings'),
+      hanaFetch('/api/plugins/settings-tabs'),
+    ]);
+    const data = await settingsRes.json();
+    const tabs = await tabsRes.json();
     store.set({
       pluginAllowFullAccess: data.allow_full_access ?? false,
       pluginUserDir: data.plugins_dir || '',
+      pluginSettingsTabs: Array.isArray(tabs) ? tabs : [],
     });
   } catch (err) {
     console.error('[plugins] load settings failed:', err);

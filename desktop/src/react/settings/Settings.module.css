@@ -1001,9 +1001,14 @@
 }
 
 .settings-form-hint {
+    display: block;
     font-size: 0.7rem;
     color: var(--text-muted);
     line-height: 1.4;
+}
+
+.settings-form-hint + .settings-form-hint {
+    margin-top: 4px;
 }
 
 /* 两列布局 */
@@ -1291,6 +1296,28 @@
     flex-shrink: 0;
 }
 
+.mcp-list-item {
+    align-items: flex-start;
+}
+
+.mcp-list-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 360px;
+}
+
+@media (max-width: 720px) {
+    .mcp-list-item {
+        flex-direction: column;
+    }
+
+    .mcp-list-actions {
+        width: 100%;
+        justify-content: flex-start;
+        max-width: none;
+    }
+}
+
 .skill-card-delete {
     display: flex;
     align-items: center;
@@ -1331,6 +1358,11 @@
     font-style: italic;
     padding: var(--space-sm) 0;
     margin: 0;
+}
+
+.mcp-empty-state {
+    width: 100%;
+    text-align: center;
 }
 
 /* 兼容技能路径管理 */

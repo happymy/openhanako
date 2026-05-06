@@ -48,6 +48,7 @@ export class PluginManager {
     this._extensionFactories = [];
     this._pages = [];
     this._widgets = [];
+    this._settingsTabs = [];
 
     // Slash command registry（可选；无则仅保留 palette 路径向后兼容）
     this._slashRegistry = slashRegistry || null;
@@ -177,6 +178,7 @@ export class PluginManager {
       await this._loadProviders(entry);
       this._loadPage(entry);
       this._loadWidget(entry);
+      this._loadSettingsTab(entry);
 
       // Lifecycle (index.js)
       const indexPath = path.join(entry.pluginDir, "index.js");
@@ -264,6 +266,12 @@ export class PluginManager {
       _pluginId: pluginId,
       _dynamic: true,
     };
+    if (typeof toolDef.isEnabledForAgentConfig === "function") {
+      tool.isEnabledForAgentConfig = toolDef.isEnabledForAgentConfig;
+    }
+    if (toolDef.metadata && typeof toolDef.metadata === "object") {
+      tool.metadata = { ...toolDef.metadata };
+    }
     this._tools.push(tool);
     return () => {
       const idx = this._tools.indexOf(tool);
@@ -485,6 +493,30 @@ export class PluginManager {
       title: widget.title || entry.id,
       icon: widget.icon || null,
       route: widget.route,
+    });
+  }
+
+  _loadSettingsTab(entry) {
+    const settingsTab = entry.manifest?.contributes?.settingsTab;
+    if (!settingsTab) return;
+    if (entry.source !== "builtin") {
+      entry.ctx?.log?.warn('settingsTab contribution is only available to bundled built-in plugins, skipping');
+      return;
+    }
+    if (entry.accessLevel !== 'full-access') {
+      entry.ctx?.log?.warn('settingsTab contribution requires full-access, skipping');
+      return;
+    }
+    if (typeof settingsTab.nativeComponent !== "string" || !settingsTab.nativeComponent) {
+      entry.ctx?.log?.warn('settingsTab contribution requires nativeComponent, skipping');
+      return;
+    }
+    this._settingsTabs.push({
+      pluginId: entry.id,
+      id: settingsTab.id || entry.id,
+      title: settingsTab.title || entry.name || entry.id,
+      icon: settingsTab.icon || null,
+      nativeComponent: settingsTab.nativeComponent,
     });
   }
 
@@ -727,6 +759,7 @@ export class PluginManager {
     this._extensionFactories = this._extensionFactories.filter(e => e.pluginId !== pluginId);
     this._pages = this._pages.filter(p => p.pluginId !== pluginId);
     this._widgets = this._widgets.filter(w => w.pluginId !== pluginId);
+    this._settingsTabs = this._settingsTabs.filter(t => t.pluginId !== pluginId);
     this.routeRegistry.delete(pluginId);
 
     entry.status = "unloaded";
@@ -768,6 +801,7 @@ export class PluginManager {
 
   getPages() { return [...this._pages]; }
   getWidgets() { return [...this._widgets]; }
+  getSettingsTabs() { return [...this._settingsTabs]; }
 
   getPlugin(id) { return this._plugins.get(id) || null; }
   listPlugins() { return [...this._plugins.values()]; }

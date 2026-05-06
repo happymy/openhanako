@@ -379,6 +379,15 @@ export class Hub {
       if (!agent) return { error: "not_found" };
       return { config: agent.config };
     }));
+
+    this._sessionHandlerCleanups.push(bus.handle("agent:update-config", async ({ agentId, partial }) => {
+      if (!agentId) return { error: "agent_id_required" };
+      const agent = engine.agentManager.getAgent(agentId);
+      if (!agent) return { error: "not_found" };
+      await engine.updateConfig(partial || {}, { agentId });
+      const fresh = engine.agentManager.getAgent(agentId);
+      return { config: fresh?.config || agent.config };
+    }));
   }
 
   _setupDmHandler() {

@@ -106,11 +106,15 @@ export function assertAllToolsCategorized(actualToolNames) {
  *
  * @param {string[]} allNames
  * @param {string[]} disabled
+ * @param {{ extraDisabled?: string[] }} [options]
  * @returns {string[]} filtered tool names, order preserved from allNames
  */
-export function computeToolSnapshot(allNames, disabled) {
+export function computeToolSnapshot(allNames, disabled, options = {}) {
   const effectivelyDisabled = new Set(
     (disabled || []).filter((n) => OPTIONAL_TOOL_NAMES_SET.has(n))
   );
-  return allNames.filter((n) => !effectivelyDisabled.has(n));
+  const extraDisabled = new Set(
+    (options.extraDisabled || []).filter((n) => typeof n === "string" && n)
+  );
+  return allNames.filter((n) => !effectivelyDisabled.has(n) && !extraDisabled.has(n));
 }

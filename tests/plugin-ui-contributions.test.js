@@ -115,4 +115,72 @@ describe('Plugin UI Contributions', () => {
     expect(pm.getPages()[0].pluginId).toBe('both-plugin');
     expect(pm.getWidgets()[0].pluginId).toBe('both-plugin');
   });
+
+  it('loads hidden built-in native settings tab contributions', async () => {
+    const builtinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hana-builtin-settings-'));
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hana-data-settings-'));
+    try {
+      const pluginDir = path.join(builtinDir, 'mcp');
+      fs.mkdirSync(pluginDir, { recursive: true });
+      fs.writeFileSync(path.join(pluginDir, 'manifest.json'), JSON.stringify({
+        id: 'mcp',
+        name: 'MCP',
+        hidden: true,
+        trust: 'full-access',
+        contributes: {
+          settingsTab: {
+            id: 'mcp',
+            title: { zh: 'MCP', en: 'MCP' },
+            nativeComponent: 'mcp.settings',
+          },
+        },
+      }));
+
+      pm = new PluginManager({
+        pluginsDirs: [builtinDir, tmpDir],
+        dataDir,
+        bus: { emit() {}, subscribe() { return () => {}; } },
+        preferencesManager: {
+          getAllowFullAccessPlugins: () => false,
+          getDisabledPlugins: () => [],
+        },
+      });
+      await pm.loadAll();
+
+      expect(pm.listPlugins().find(p => p.id === 'mcp')?.hidden).toBe(true);
+      expect(pm.getSettingsTabs()).toEqual([
+        {
+          pluginId: 'mcp',
+          id: 'mcp',
+          title: { zh: 'MCP', en: 'MCP' },
+          icon: null,
+          nativeComponent: 'mcp.settings',
+        },
+      ]);
+    } finally {
+      fs.rmSync(builtinDir, { recursive: true, force: true });
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores native settings tab contributions from community plugins', async () => {
+    const pluginDir = path.join(tmpDir, 'community-settings');
+    fs.mkdirSync(pluginDir, { recursive: true });
+    fs.writeFileSync(path.join(pluginDir, 'manifest.json'), JSON.stringify({
+      id: 'community-settings',
+      trust: 'full-access',
+      contributes: {
+        settingsTab: {
+          id: 'community-settings',
+          title: 'Community Settings',
+          nativeComponent: 'mcp.settings',
+        },
+      },
+    }));
+
+    pm = makePM(tmpDir);
+    await pm.loadAll();
+
+    expect(pm.getSettingsTabs()).toEqual([]);
+  });
 });

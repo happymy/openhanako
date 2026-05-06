@@ -412,6 +412,29 @@ window.parent.postMessage({ type: 'ready' }, '*');
 
 Widget 同样通过 iframe 渲染，需要发送 `ready` 握手信号。
 
+### SettingsTab（原生设置页，内置插件专用）⚡ full-access
+
+随 app 打包的内置插件可以注册一个原生设置页，显示在设置左侧导航中，与「技能」「插件」等大页面平级。这个入口只对 `plugins/` 目录下的 built-in 插件生效，社区插件即使声明也会被忽略。原生组件由宿主白名单映射，插件只声明组件 ID，不执行前端代码。
+
+```json
+{
+  "hidden": true,
+  "trust": "full-access",
+  "contributes": {
+    "settingsTab": {
+      "id": "mcp",
+      "title": { "zh": "连接器", "en": "Connectors" },
+      "nativeComponent": "mcp.settings"
+    }
+  }
+}
+```
+
+- `id`：设置页 tab id，需全局唯一
+- `title`：显示名，支持字符串或 `{ zh, en, ... }` 国际化对象
+- `nativeComponent`：宿主内置组件注册名，例如 `mcp.settings`
+- 适用场景：隐藏的随包功能需要原生设置 UI，并且仍希望运行时逻辑可以按插件边界整块删除
+
 ## Manifest
 
 大多数 plugin 不需要 manifest。只有以下场景需要：
@@ -522,7 +545,7 @@ this.register(
 
 ### 动态工具注册 ⚡ full-access
 
-Plugin 可以在 `onload()` 中通过 `ctx.registerTool()` 动态注册工具，适用于运行时才知道有哪些工具的场景（如 MCP bridge）：
+Plugin 可以在 `onload()` 中通过 `ctx.registerTool()` 动态注册工具，适用于运行时才知道有哪些工具的场景（如随包连接器里的 MCP bridge）：
 
 ```js
 this.register(this.ctx.registerTool({

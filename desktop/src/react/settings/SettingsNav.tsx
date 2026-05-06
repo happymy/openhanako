@@ -1,5 +1,6 @@
 import React from 'react';
-import { useSettingsStore } from './store';
+import { useSettingsStore, type PluginSettingsTab } from './store';
+import { getNativeSettingsTabComponent } from './native-settings-tabs';
 import { t } from './helpers';
 import styles from './Settings.module.css';
 
@@ -25,16 +26,45 @@ const TAB_ITEMS = [
   { id: 'about', key: 'settings.tabs.about', d: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>' },
 ];
 
+const FALLBACK_PLUGIN_ICON = '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/><circle cx="8" cy="6" r="1.5"/><circle cx="16" cy="12" r="1.5"/><circle cx="10" cy="18" r="1.5"/>';
+
 interface SettingsNavProps {
   onTabChange?: (tab: string) => void;
 }
 
+function titleToLabel(title: PluginSettingsTab['title']): string {
+  if (typeof title === 'string') return title;
+  const locale = window.i18n?.locale || 'zh-CN';
+  return title[locale] || title[locale.split('-')[0]] || title.zh || title.en || Object.values(title)[0] || '';
+}
+
+function buildNavItems(pluginSettingsTabs: PluginSettingsTab[]) {
+  const nativeTabs = pluginSettingsTabs
+    .filter(tab => getNativeSettingsTabComponent(tab.nativeComponent))
+    .map(tab => ({
+      id: tab.id,
+      label: titleToLabel(tab.title),
+      d: tab.icon || FALLBACK_PLUGIN_ICON,
+    }));
+  if (nativeTabs.length === 0) return TAB_ITEMS.map(item => ({ ...item, label: t(item.key) }));
+
+  const items = TAB_ITEMS.map(item => ({ ...item, label: t(item.key) }));
+  const skillIndex = items.findIndex(item => item.id === 'skills');
+  const insertAt = skillIndex === -1 ? items.length : skillIndex + 1;
+  return [
+    ...items.slice(0, insertAt),
+    ...nativeTabs,
+    ...items.slice(insertAt),
+  ];
+}
+
 export function SettingsNav({ onTabChange }: SettingsNavProps) {
-  const { activeTab, set } = useSettingsStore();
+  const { activeTab, pluginSettingsTabs, set } = useSettingsStore();
+  const navItems = buildNavItems(pluginSettingsTabs || []);
 
   return (
     <nav className={styles['settings-nav']}>
-      {TAB_ITEMS.map(item => (
+      {navItems.map(item => (
         <button
           key={item.id}
           className={`${styles['settings-nav-item']}${activeTab === item.id ? ' ' + styles['active'] : ''}`}
@@ -45,7 +75,7 @@ export function SettingsNav({ onTabChange }: SettingsNavProps) {
           }}
         >
           <TabIcon d={item.d} />
-          <span>{t(item.key)}</span>
+          <span>{item.label}</span>
         </button>
       ))}
     </nav>

@@ -412,6 +412,29 @@ Field rules are the same as Page. The widget appears alongside the desk in the J
 
 Widgets are also rendered via iframe and must send the `ready` handshake signal.
 
+### SettingsTab (Native Settings Page, Built-ins Only) ⚡ full-access
+
+Bundled built-in plugins can register a native settings page shown in the settings sidebar, at the same level as "Skills" and "Plugins". This contribution only works for built-in plugins under the packaged `plugins/` directory; community plugins are ignored even if they declare it. The renderer maps `nativeComponent` through a host whitelist, so plugins declare a component id rather than shipping frontend code.
+
+```json
+{
+  "hidden": true,
+  "trust": "full-access",
+  "contributes": {
+    "settingsTab": {
+      "id": "mcp",
+      "title": { "zh": "连接器", "en": "Connectors" },
+      "nativeComponent": "mcp.settings"
+    }
+  }
+}
+```
+
+- `id`: Settings tab id, globally unique
+- `title`: Display name. Accepts a plain string or an i18n object `{ zh, en, ... }`
+- `nativeComponent`: Host-registered native component id, such as `mcp.settings`
+- Use this when a hidden bundled feature needs native settings UI while keeping runtime logic removable as a plugin-shaped module
+
 ## Manifest
 
 Most plugins don't need a manifest. Only required for:
@@ -522,7 +545,7 @@ this.register(
 
 ### Dynamic Tool Registration ⚡ full-access
 
-Plugins can dynamically register tools in `onload()` via `ctx.registerTool()`, useful when tools are discovered at runtime (e.g. MCP bridge):
+Plugins can dynamically register tools in `onload()` via `ctx.registerTool()`, useful when tools are discovered at runtime (for example, the bundled Connectors MCP bridge):
 
 ```js
 this.register(this.ctx.registerTool({

@@ -41,6 +41,14 @@ export interface ProviderSummary {
   can_delete: boolean;
 }
 
+export interface PluginSettingsTab {
+  pluginId: string;
+  id: string;
+  title: string | Record<string, string>;
+  icon?: string | null;
+  nativeComponent: string;
+}
+
 export interface SettingsState {
   // connection
   serverPort: number | null;
@@ -75,6 +83,7 @@ export interface SettingsState {
   // plugins
   pluginAllowFullAccess: boolean;
   pluginUserDir: string;
+  pluginSettingsTabs: PluginSettingsTab[];
 
   // toast
   toastMessage: string;
@@ -126,6 +135,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   // plugins
   pluginAllowFullAccess: false,
   pluginUserDir: '',
+  pluginSettingsTabs: [],
 
   // toast
   toastMessage: '',
