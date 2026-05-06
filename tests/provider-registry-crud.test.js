@@ -560,6 +560,24 @@ describe("saveProvider", () => {
     expect(entry).toBeTruthy();
     expect(entry.baseUrl).toBe("https://saved.api.com/v1");
   });
+
+  it("拒绝把官方 DeepSeek provider id 保存成模型", () => {
+    writeAddedModels({
+      deepseek: {
+        base_url: "https://api.deepseek.com/v1",
+        api: "openai-completions",
+        api_key: "sk-test",
+        models: ["deepseek-v4-pro"],
+      },
+    });
+    const reg = new ProviderRegistry(tmpDir);
+
+    expect(() => reg.saveProvider("deepseek", { models: ["deepseek"] }))
+      .toThrow(/deepseek.*provider.*model/i);
+
+    const persisted = readAddedModels();
+    expect(persisted.deepseek.models).toEqual(["deepseek-v4-pro"]);
+  });
 });
 
 // ── updateModelEntry type field ───────────────────────────────────────────────

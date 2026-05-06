@@ -506,6 +506,23 @@ describe("syncModels", () => {
     expect(model.input).toEqual(["text"]);
   });
 
+  it("rejects the official DeepSeek provider id before writing models.json", async () => {
+    const syncModels = await loadSync();
+
+    const providers = {
+      deepseek: {
+        base_url: "https://api.deepseek.com/v1",
+        api: "openai-completions",
+        api_key: "sk-test",
+        models: ["deepseek"],
+      },
+    };
+
+    expect(() => syncModels(providers, { modelsJsonPath }))
+      .toThrow(/deepseek.*provider.*model/i);
+    expect(fs.existsSync(modelsJsonPath)).toBe(false);
+  });
+
   it("accepts legacy 'vision' field in dictionary and projects to input array", async () => {
     const syncModels = await loadSync();
     const providers = {

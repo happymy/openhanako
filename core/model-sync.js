@@ -10,6 +10,7 @@ import { getModel as getPiModel } from "@mariozechner/pi-ai";
 import { lookupKnown } from "../shared/known-models.js";
 import { normalizeVisionCapabilities, withThinkingFormatCompat } from "../shared/model-capabilities.js";
 import { providerCredentialAllowsMissingApiKey } from "../shared/provider-auth.js";
+import { validateProviderModels } from "../shared/provider-model-validation.js";
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
 const PI_BUILTIN_PROVIDER_REUSE = new Set(["kimi-coding"]);
@@ -163,6 +164,7 @@ export function syncModels(providers, opts = {}) {
   for (const [name, p] of Object.entries(providers || {})) {
     if (!p.base_url) continue;
     if (!p.models || p.models.length === 0) continue;
+    validateProviderModels(name, p.models, { baseUrl: p.base_url });
 
     let apiKey = p.api_key || "";
 

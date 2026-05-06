@@ -20,6 +20,7 @@ import {
   normalizeProviderAuthType,
   providerCredentialAllowsMissingApiKey,
 } from "../shared/provider-auth.js";
+import { validateProviderModels } from "../shared/provider-model-validation.js";
 
 const _defaultModels = JSON.parse(
   fs.readFileSync(fromRoot("lib", "default-models.json"), "utf-8"),
@@ -574,7 +575,9 @@ export class ProviderRegistry {
     );
     if (exists) return;
 
-    userConfig[providerId].models.push(model);
+    const nextModels = [...userConfig[providerId].models, model];
+    validateProviderModels(providerId, nextModels, { baseUrl: userConfig[providerId].base_url });
+    userConfig[providerId].models = nextModels;
     this._saveAddedModels(userConfig);
     this._entries.clear();
   }
@@ -624,7 +627,7 @@ export class ProviderRegistry {
     }
 
     let found = false;
-    uc.models = uc.models.map((m) => {
+    const nextModels = uc.models.map((m) => {
       const mid = typeof m === "object" ? m.id : m;
       if (mid !== modelId) return m;
       found = true;
@@ -643,9 +646,11 @@ export class ProviderRegistry {
 
     // upsert：模型不在列表中时自动添加
     if (!found) {
-      uc.models.push({ id: modelId, ...safe });
+      nextModels.push({ id: modelId, ...safe });
     }
 
+    validateProviderModels(providerId, nextModels, { baseUrl: uc.base_url });
+    uc.models = nextModels;
     this._saveAddedModels(userConfig);
     this._entries.clear();
   }
@@ -657,7 +662,9 @@ export class ProviderRegistry {
    */
   saveProvider(providerId, data) {
     const userConfig = this._loadAddedModels();
-    userConfig[providerId] = { ...(userConfig[providerId] || {}), ...data };
+    const nextProvider = { ...(userConfig[providerId] || {}), ...data };
+    validateProviderModels(providerId, nextProvider.models, { baseUrl: nextProvider.base_url });
+    userConfig[providerId] = nextProvider;
     this._saveAddedModels(userConfig);
     this._entries.clear();
   }

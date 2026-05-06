@@ -208,7 +208,7 @@ export function createConfigRoute(engine) {
       return c.json({ ok: true });
     } catch (err) {
       debugLog()?.error("api", `PUT /api/config failed: ${err.message}`);
-      return c.json({ error: err.message }, 500);
+      return c.json({ error: err.message }, err.statusCode || 500);
     }
   });
 

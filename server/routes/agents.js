@@ -477,7 +477,7 @@ export function createAgentsRoute(engine) {
       emitAgentConfigAppEvents(engine, id, { globalFields, agentPartial, providersChanged });
       return c.json({ ok: true });
     } catch (err) {
-      return c.json({ error: err.message }, 500);
+      return c.json({ error: err.message }, err.statusCode || 500);
     }
   });
 

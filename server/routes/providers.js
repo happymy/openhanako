@@ -7,6 +7,7 @@ import os from "os";
 import { Hono } from "hono";
 import { safeJson } from "../hono-helpers.js";
 import { buildProviderAuthHeaders, probeProvider } from "../../lib/llm/provider-client.js";
+import { filterDiscoveredProviderModels } from "../../shared/provider-model-validation.js";
 
 // ── Models-cache helpers ──
 
@@ -179,6 +180,13 @@ export function createProvidersRoute(engine) {
     }));
   }
 
+  function filterProviderModels(name, models, baseUrl = "") {
+    const { models: filtered, ignoredModels } = filterDiscoveredProviderModels(name, models, { baseUrl });
+    const payload = { models: filtered };
+    if (ignoredModels.length > 0) payload.ignoredModels = ignoredModels;
+    return payload;
+  }
+
   /** Registry → defaults 两级 fallback，fetch-models 和 Anthropic 路径共用 */
   function registryOrDefaultsFallback(name) {
     if (!name) {
@@ -189,8 +197,17 @@ export function createProvidersRoute(engine) {
     const registryModels = engine.getRegistryModelsForProvider(name);
     if (registryModels.length > 0) {
       const normalized = normalizeRegistryModels(registryModels);
-      saveToCache(name, normalized);
-      return { source: "registry", models: normalized };
+      const payload = filterProviderModels(name, normalized);
+      if (payload.models.length === 0 && payload.ignoredModels?.length > 0) {
+        return {
+          source: "registry",
+          error: `Registry only returned invalid model ids for provider "${name}": ${payload.ignoredModels.join(", ")}`,
+          models: [],
+          ignoredModels: payload.ignoredModels,
+        };
+      }
+      saveToCache(name, payload.models);
+      return { source: "registry", ...payload };
     }
 
     // 回退到 default-models.json（用 authJsonKey 兜底，如 openai-codex-oauth → openai-codex）
@@ -200,8 +217,9 @@ export function createProvidersRoute(engine) {
       || [];
     if (defaults.length > 0) {
       const builtinModels = defaults.map(id => ({ id, name: id, context: null, maxOutput: null }));
-      saveToCache(name, builtinModels);
-      return { source: "builtin", models: builtinModels };
+      const payload = filterProviderModels(name, builtinModels);
+      saveToCache(name, payload.models);
+      return { source: "builtin", ...payload };
     }
 
     return { error: `No models found for provider "${name}"`, models: [] };
@@ -258,7 +276,7 @@ export function createProvidersRoute(engine) {
         if (res.ok) {
           const data = await res.json();
           // 两种协议的响应字段名不同，分别归一化
-          const models = (data.data || []).map(m => isAnthropic ? ({
+          const remoteModels = (data.data || []).map(m => isAnthropic ? ({
             id: m.id,
             name: m.display_name || m.id,
             context: m.max_input_tokens ?? null,
@@ -269,8 +287,18 @@ export function createProvidersRoute(engine) {
             context: m.context_length || m.context_window || m.max_context_length || null,
             maxOutput: m.max_completion_tokens || m.max_output_tokens || null,
           }));
+          const { models, ignoredModels } = filterDiscoveredProviderModels(name, remoteModels, {
+            baseUrl: effectiveBaseUrl,
+          });
+          if (models.length === 0 && ignoredModels.length > 0) {
+            return c.json({
+              error: `Remote catalog only returned invalid model ids for provider "${name}": ${ignoredModels.join(", ")}`,
+              models: [],
+              ignoredModels,
+            });
+          }
           saveToCache(name, models);
-          return c.json({ models });
+          return c.json(ignoredModels.length > 0 ? { models, ignoredModels } : { models });
         }
 
         // 404 / 其他 → 进入 step 3
@@ -292,7 +320,9 @@ export function createProvidersRoute(engine) {
     const cache = readModelsCache(engine);
     const entry = cache[providerName];
     if (!entry) return c.json({ models: [], fetchedAt: null });
-    return c.json({ models: entry.models || [], fetchedAt: entry.fetchedAt || null });
+    const creds = engine.resolveProviderCredentials?.(providerName) || {};
+    const payload = filterProviderModels(providerName, entry.models || [], creds.base_url || "");
+    return c.json({ ...payload, fetchedAt: entry.fetchedAt || null });
   });
 
   /**

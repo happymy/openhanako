@@ -1,5 +1,8 @@
 import { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 const clearConfigCache = vi.fn();
 const callText = vi.fn();
@@ -697,6 +700,88 @@ describe("model sync related routes", () => {
     const data = await res.json();
     expect(data.models).toHaveLength(2);
     expect(data.models[0].id).toBe("MiniMax-M2.5");
+  });
+
+  it("fetch-models does not expose the official DeepSeek provider id as a model", async () => {
+    const { createProvidersRoute } = await import("../server/routes/providers.js");
+    const app = new Hono();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          { id: "deepseek" },
+          { id: "deepseek-v4-pro", context_length: 1000000, max_output_tokens: 384000 },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const engine = withResolveCreds({
+      getRegistryModelsForProvider: vi.fn().mockReturnValue([]),
+      providerRegistry: {
+        getCredentials: () => null,
+        getAuthJsonKey: (id) => id,
+        getDefaultModels: () => [],
+      },
+      hanakoHome: "/tmp",
+    });
+
+    app.route("/api", createProvidersRoute(engine));
+
+    const res = await app.request("/api/providers/fetch-models", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "deepseek",
+        base_url: "https://api.deepseek.com/v1",
+        api: "openai-completions",
+        api_key: "sk-test",
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.models.map(m => m.id)).toEqual(["deepseek-v4-pro"]);
+    expect(data.ignoredModels).toEqual(["deepseek"]);
+  });
+
+  it("discovered-models filters cached official DeepSeek provider ids", async () => {
+    const { createProvidersRoute } = await import("../server/routes/providers.js");
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-test-model-cache-"));
+    try {
+      fs.writeFileSync(
+        path.join(tmpDir, "models-cache.json"),
+        JSON.stringify({
+          deepseek: {
+            fetchedAt: "2026-05-06T08:00:00.000Z",
+            models: [
+              { id: "deepseek" },
+              { id: "deepseek-v4-flash" },
+            ],
+          },
+        }),
+        "utf-8",
+      );
+
+      const app = new Hono();
+      const engine = withResolveCreds({
+        providerRegistry: {
+          getCredentials: () => ({ apiKey: "sk-test", baseUrl: "https://api.deepseek.com/v1", api: "openai-completions" }),
+        },
+        hanakoHome: tmpDir,
+      });
+
+      app.route("/api", createProvidersRoute(engine));
+
+      const res = await app.request("/api/providers/deepseek/discovered-models");
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.models.map(m => m.id)).toEqual(["deepseek-v4-flash"]);
+      expect(data.ignoredModels).toEqual(["deepseek"]);
+      expect(data.fetchedAt).toBe("2026-05-06T08:00:00.000Z");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it("api-key provider with saved credentials uses remote catalog", async () => {
