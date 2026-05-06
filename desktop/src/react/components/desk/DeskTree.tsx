@@ -608,8 +608,25 @@ export function DeskTree({ sortMode, typeFilters = [], onShowMenu }: {
     setRenamingPath(null);
   }, [setDeskSelectedPath]);
 
+  const clearSelectionFromBlankSpace = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('[data-desk-item]')) return;
+    localSelectionRef.current = true;
+    setSelectedPaths(new Set());
+    setSelectionAnchor(null);
+    setRenamingPath(null);
+    setDeskSelectedPath('');
+  }, [setDeskSelectedPath]);
+
   return (
-    <div ref={treeRef} className={s.tree} role="tree" data-desk-tree="" data-empty-text={window.t?.('common.noFiles') || ''}>
+    <div
+      ref={treeRef}
+      className={s.tree}
+      role="tree"
+      data-desk-tree=""
+      data-empty-text={window.t?.('common.noFiles') || ''}
+      onClick={clearSelectionFromBlankSpace}
+    >
       {sortedRootFiles.map(file => (
         <TreeNode
           key={file.name}

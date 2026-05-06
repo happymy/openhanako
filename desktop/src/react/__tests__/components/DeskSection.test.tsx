@@ -278,6 +278,32 @@ describe('DeskSection directory watching', () => {
     expect(screen.getByDisplayValue('chapter.md')).toBeTruthy();
   });
 
+  it('clears the highlighted tree item when clicking blank tree space', async () => {
+    useStore.setState({
+      deskCurrentPath: '',
+      deskTreeFilesByPath: {
+        '': [
+          { name: 'chapter.md', isDir: false },
+          { name: 'draft.md', isDir: false },
+        ],
+      },
+      deskExpandedPaths: [],
+      deskSelectedPath: '',
+    } as never);
+    const { DeskSection } = await import('../../components/DeskSection');
+
+    render(<DeskSection />);
+
+    const chapter = screen.getByRole('treeitem', { name: /chapter.md/ });
+    fireEvent.click(chapter);
+    expect(chapter.getAttribute('data-selected')).toBe('true');
+
+    fireEvent.click(screen.getByRole('tree'));
+
+    expect(chapter.getAttribute('data-selected')).toBe('false');
+    expect(useStore.getState().deskSelectedPath).toBe('');
+  });
+
   it('sends context-menu deletes through the system trash action', async () => {
     useStore.setState({
       deskCurrentPath: '',
