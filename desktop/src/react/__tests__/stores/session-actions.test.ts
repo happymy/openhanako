@@ -170,6 +170,10 @@ function installStoreMethods() {
     const bySession = mockState.todosBySession as Record<string, unknown>;
     bySession[path] = todos;
   });
+  s.setInlineError = vi.fn((path: string, text: string) => {
+    const inlineErrors = mockState.inlineErrors as Record<string, string | null>;
+    inlineErrors[path] = text;
+  });
   s.appendItem = vi.fn((path: string, item: unknown) => {
     const chat = mockState.chatSessions as Record<string, { items: unknown[] }>;
     const entry = chat[path];
@@ -338,6 +342,28 @@ describe('session-actions', () => {
         }),
       );
       expect(mockState.workspaceFolders).toEqual(['/reference-a']);
+    });
+
+    it('surfaces the server error when pending session creation fails', async () => {
+      (globalThis.window as unknown as { t: (key: string) => string }).t = (key: string) =>
+        key === 'session.createFailed' ? 'Create session failed' : key;
+      Object.assign(mockState, {
+        pendingNewSession: true,
+        memoryEnabled: true,
+      });
+      mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'session skill snapshot failed' }, false));
+
+      await expect(ensureSession()).resolves.toBe(false);
+
+      expect(mockState.inlineErrors).toMatchObject({
+        '': 'Create session failed: session skill snapshot failed',
+      });
+      expect(mockState.addToast).toHaveBeenCalledWith(
+        'Create session failed: session skill snapshot failed',
+        'error',
+        6000,
+      );
+      expect(mockState.pendingNewSession).toBe(true);
     });
   });
 
