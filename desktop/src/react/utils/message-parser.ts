@@ -5,6 +5,8 @@
  * 供 React 组件和 history-builder 共用。
  */
 
+import { QUOTE_ORIGINAL_END, QUOTE_ORIGINAL_START } from './quoted-selection';
+
 // ── Mood 解析 ──
 
 const TAG_TO_YUAN: Record<string, string> = { mood: 'hanako', pulse: 'butter', reflect: 'ming' };
@@ -59,11 +61,33 @@ export function parseUserAttachments(content: string): ParsedAttachments {
   let deskContext: { dir: string; fileCount: number } | null = null;
   let quotedText: string | null = null;
   let inDeskBlock = false;
+  let pendingQuoteOriginal = false;
+  let inQuoteOriginal = false;
+  let quoteOriginalLines: string[] = [];
 
   for (const line of lines) {
+    if (inQuoteOriginal) {
+      if (line === QUOTE_ORIGINAL_END) {
+        quotedText = quoteOriginalLines.join('\n').trim();
+        quoteOriginalLines = [];
+        inQuoteOriginal = false;
+        pendingQuoteOriginal = false;
+      } else {
+        quoteOriginalLines.push(line);
+      }
+      continue;
+    }
+
+    if (pendingQuoteOriginal && line === QUOTE_ORIGINAL_START) {
+      inQuoteOriginal = true;
+      quoteOriginalLines = [];
+      continue;
+    }
+
     const deskMatch = line.match(/^\[当前书桌目录\]\s+(.+)$/);
     if (deskMatch) {
       inDeskBlock = true;
+      pendingQuoteOriginal = false;
       deskContext = { dir: deskMatch[1].trim(), fileCount: 0 };
       continue;
     }
@@ -80,11 +104,13 @@ export function parseUserAttachments(content: string): ParsedAttachments {
       const raw = quoteMatch[1];
       const titleMatch = raw.match(/^(.+?)（第\d/);
       quotedText = titleMatch ? titleMatch[1].trim() : raw.trim();
+      pendingQuoteOriginal = true;
       continue;
     }
 
     const attachedImageMatch = line.match(attachedImageRe);
     if (attachedImageMatch) {
+      pendingQuoteOriginal = false;
       const p = attachedImageMatch[1].trim();
       attachedImages.push({ path: p, name: baseName(p) });
       continue;
@@ -95,8 +121,10 @@ export function parseUserAttachments(content: string): ParsedAttachments {
       const isDir = m[1] === '目录';
       const p = m[2].trim();
       const name = baseName(p);
+      pendingQuoteOriginal = false;
       files.push({ path: p, name, isDirectory: isDir });
     } else {
+      pendingQuoteOriginal = false;
       textLines.push(line);
     }
   }

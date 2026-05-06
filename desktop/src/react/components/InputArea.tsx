@@ -18,6 +18,7 @@ import { ensureSession, loadSessions } from '../stores/session-actions';
 import { loadDeskFiles, toggleJianSidebar } from '../stores/desk-actions';
 import { getWebSocket } from '../services/websocket';
 import { collectUiContext } from '../utils/ui-context';
+import { formatQuotedSelectionForPrompt } from '../utils/quoted-selection';
 import type { ThinkingLevel } from '../stores/model-slice';
 import { SlashCommandMenu } from './input/SlashCommandMenu';
 import { InputStatusBars } from './input/InputStatusBars';
@@ -550,12 +551,7 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
       // 引用片段
       const qs = useStore.getState().quotedSelection;
       if (qs) {
-        let quoteStr: string;
-        if (qs.sourceFilePath && qs.lineStart != null && qs.lineEnd != null) {
-          quoteStr = `[引用片段] ${qs.sourceTitle}（第${qs.lineStart}-${qs.lineEnd}行，共${qs.charCount}字）路径: ${qs.sourceFilePath}`;
-        } else {
-          quoteStr = `[引用片段] ${qs.text}`;
-        }
+        const quoteStr = formatQuotedSelectionForPrompt(qs);
         finalText = finalText ? `${finalText}\n\n${quoteStr}` : quoteStr;
       }
 

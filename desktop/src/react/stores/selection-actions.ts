@@ -20,13 +20,18 @@ function captureCMSelection(previewItem: PreviewItem, view: EditorView): void {
     clearSelection();
     return;
   }
-  const text = view.state.sliceDoc(from, to).trim();
+  const rawText = view.state.sliceDoc(from, to);
+  const text = rawText.trim();
   if (!text) {
     clearSelection();
     return;
   }
-  const lineStart = view.state.doc.lineAt(from).number;
-  const lineEnd = view.state.doc.lineAt(to).number;
+  const leadingTrimmed = rawText.length - rawText.trimStart().length;
+  const trailingTrimmed = rawText.length - rawText.trimEnd().length;
+  const textStart = from + leadingTrimmed;
+  const textEnd = to - trailingTrimmed;
+  const lineStart = view.state.doc.lineAt(textStart).number;
+  const lineEnd = view.state.doc.lineAt(Math.max(textStart, textEnd - 1)).number;
 
   useStore.getState().setQuotedSelection({
     text,
