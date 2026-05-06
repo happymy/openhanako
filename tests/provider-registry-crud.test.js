@@ -128,6 +128,80 @@ describe("getCredentials", () => {
     expect(creds.api).toBe("openai-completions");
   });
 
+  it("OAuth provider 通过 authJsonKey 配置时仍用插件契约解析凭证", () => {
+    const authPath = path.join(tmpDir, "auth.json");
+    fs.writeFileSync(authPath, JSON.stringify({
+      "test-oauth": {
+        type: "oauth",
+        access: "oauth-access-token-abc",
+        refresh: "refresh-xyz",
+        expires: Date.now() + 3600_000,
+      },
+    }), "utf-8");
+
+    writeAddedModels({
+      "test-oauth": {
+        models: [{ id: "model-a" }],
+      },
+    });
+
+    const reg = new ProviderRegistry(tmpDir);
+    reg._plugins.clear();
+    reg._entries.clear();
+    reg._plugins.set("test-oauth-plugin", {
+      id: "test-oauth-plugin",
+      displayName: "Test OAuth",
+      authType: "oauth",
+      defaultBaseUrl: "https://api.test.com/v1",
+      defaultApi: "openai-completions",
+      authJsonKey: "test-oauth",
+    });
+
+    const creds = reg.getCredentials("test-oauth");
+    expect(creds).toEqual({
+      apiKey: "oauth-access-token-abc",
+      baseUrl: "https://api.test.com/v1",
+      api: "openai-completions",
+    });
+  });
+
+  it("OAuth provider 通过插件 ID 请求时能读取 authJsonKey 下的用户配置", () => {
+    const authPath = path.join(tmpDir, "auth.json");
+    fs.writeFileSync(authPath, JSON.stringify({
+      "test-oauth": {
+        type: "oauth",
+        access: "oauth-access-token-abc",
+        resourceUrl: "https://resource.test.com/v1",
+      },
+    }), "utf-8");
+
+    writeAddedModels({
+      "test-oauth": {
+        api: "openai-completions",
+        models: [{ id: "model-a" }],
+      },
+    });
+
+    const reg = new ProviderRegistry(tmpDir);
+    reg._plugins.clear();
+    reg._entries.clear();
+    reg._plugins.set("test-oauth-plugin", {
+      id: "test-oauth-plugin",
+      displayName: "Test OAuth",
+      authType: "oauth",
+      defaultBaseUrl: "",
+      defaultApi: "openai-completions",
+      authJsonKey: "test-oauth",
+    });
+
+    const creds = reg.getCredentials("test-oauth-plugin");
+    expect(creds).toEqual({
+      apiKey: "oauth-access-token-abc",
+      baseUrl: "https://resource.test.com/v1",
+      api: "openai-completions",
+    });
+  });
+
   it("API Key provider 不走 auth.json（即使 auth.json 有同名条目）", () => {
     const authPath = path.join(tmpDir, "auth.json");
     fs.writeFileSync(authPath, JSON.stringify({

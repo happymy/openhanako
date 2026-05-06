@@ -337,12 +337,13 @@ export class ProviderRegistry {
   get(providerId) {
     if (this._entries.size === 0) this.reload();
     const direct = this._entries.get(providerId);
-    if (direct) return direct;
+    if (direct?.isBuiltin) return direct;
     // 反向查找：providerId 可能是某个 OAuth provider 的 authJsonKey
     // 如 "openai-codex" → "openai-codex-oauth"
     for (const entry of this._entries.values()) {
       if (entry.authJsonKey === providerId && entry.id !== providerId) return entry;
     }
+    if (direct) return direct;
     return null;
   }
 
@@ -470,18 +471,28 @@ export class ProviderRegistry {
    */
   getCredentials(providerId) {
     const userConfig = this._loadAddedModels();
-    const uc = userConfig[providerId];
+    const entry = this.get(providerId);
+    const candidateIds = [];
+    const addCandidate = (id) => {
+      if (id && !candidateIds.includes(id)) candidateIds.push(id);
+    };
+    addCandidate(providerId);
+    addCandidate(entry?.id);
+    addCandidate(entry?.authJsonKey);
+
+    const configId = candidateIds.find(id => Object.prototype.hasOwnProperty.call(userConfig, id));
+    const uc = configId ? userConfig[configId] : null;
     if (!uc) return null;
 
-    const plugin = this._plugins.get(providerId);
+    const plugin = this._plugins.get(entry?.id || providerId);
     let apiKey = uc.api_key || "";
     let oauthBaseUrl = "";
 
     // OAuth provider: YAML 没有 api_key，从 auth.json 取 access token + resourceUrl
     if (!apiKey) {
-      const authType = uc.auth_type || plugin?.authType;
+      const authType = normalizeProviderAuthType(uc.auth_type || entry?.authType || plugin?.authType);
       if (authType === "oauth") {
-        const authJsonKey = plugin?.authJsonKey || providerId;
+        const authJsonKey = entry?.authJsonKey || plugin?.authJsonKey || providerId;
         const oauth = this._readOAuthEntry(authJsonKey);
         apiKey = oauth.token;
         oauthBaseUrl = oauth.resourceUrl;
@@ -490,8 +501,8 @@ export class ProviderRegistry {
 
     return {
       apiKey,
-      baseUrl: uc.base_url || oauthBaseUrl || plugin?.defaultBaseUrl || "",
-      api: uc.api || plugin?.defaultApi || "",
+      baseUrl: uc.base_url || oauthBaseUrl || entry?.baseUrl || plugin?.defaultBaseUrl || "",
+      api: uc.api || entry?.api || plugin?.defaultApi || "",
     };
   }
 
