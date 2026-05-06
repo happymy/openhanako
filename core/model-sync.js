@@ -6,11 +6,13 @@
  */
 
 import fs from "fs";
+import { getModel as getPiModel } from "@mariozechner/pi-ai";
 import { lookupKnown } from "../shared/known-models.js";
 import { normalizeVisionCapabilities, withThinkingFormatCompat } from "../shared/model-capabilities.js";
 import { providerCredentialAllowsMissingApiKey } from "../shared/provider-auth.js";
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
+const PI_BUILTIN_PROVIDER_REUSE = new Set(["kimi-coding"]);
 
 /**
  * 模型 ID → 人类可读名
@@ -33,6 +35,39 @@ function extractApiKey(entry) {
   return "";
 }
 
+function getModelId(modelEntry) {
+  return typeof modelEntry === "object" && modelEntry !== null ? modelEntry.id : modelEntry;
+}
+
+function getPiBuiltinModel(provider, modelId) {
+  if (!PI_BUILTIN_PROVIDER_REUSE.has(provider) || !modelId) return null;
+  try {
+    return getPiModel(provider, modelId) || null;
+  } catch {
+    return null;
+  }
+}
+
+function shouldReusePiBuiltinModel(provider, modelId, api) {
+  return api === "anthropic-messages" && !!getPiBuiltinModel(provider, modelId);
+}
+
+function buildModelOverride(modelEntry) {
+  if (typeof modelEntry !== "object" || modelEntry === null) return null;
+
+  const override = {};
+  if (modelEntry.name !== undefined) override.name = modelEntry.name;
+  if (modelEntry.context !== undefined) override.contextWindow = modelEntry.context;
+  if (modelEntry.contextWindow !== undefined) override.contextWindow = modelEntry.contextWindow;
+  if (modelEntry.maxOutput !== undefined) override.maxTokens = modelEntry.maxOutput;
+  if (modelEntry.maxTokens !== undefined) override.maxTokens = modelEntry.maxTokens;
+  const image = modelEntry.image ?? modelEntry.vision;
+  if (image !== undefined) override.input = image ? ["text", "image"] : ["text"];
+  if (modelEntry.reasoning !== undefined) override.reasoning = modelEntry.reasoning;
+
+  return Object.keys(override).length > 0 ? override : null;
+}
+
 /**
  * 构建单个模型的 Pi SDK 格式条目
  * @param {string|{id:string, name?:string, context?:number, maxOutput?:number}} modelEntry
@@ -40,8 +75,9 @@ function extractApiKey(entry) {
  */
 function buildModelEntry(modelEntry, provider, baseUrl = "", api = "openai-completions") {
   const isObj = typeof modelEntry === "object" && modelEntry !== null;
-  const id = isObj ? modelEntry.id : modelEntry;
+  const id = getModelId(modelEntry);
   const known = lookupKnown(provider, id);
+  const piBuiltin = getPiBuiltinModel(provider, id);
 
   // image modality 能力：用户设置 > known-models 词典 > 默认 false
   // 兼容读：migration #7 之前的旧数据用 vision 字段；两个版本后移除 vision fallback
@@ -60,6 +96,7 @@ function buildModelEntry(modelEntry, provider, baseUrl = "", api = "openai-compl
   if (maxOutput) entry.maxTokens = maxOutput;
 
   if (known?.quirks?.length) entry.quirks = known.quirks;
+  if (piBuiltin?.headers) entry.headers = { ...piBuiltin.headers };
 
   const rawVisionCapabilities = isObj && modelEntry.visionCapabilities !== undefined
     ? modelEntry.visionCapabilities
@@ -80,6 +117,16 @@ function buildModelEntry(modelEntry, provider, baseUrl = "", api = "openai-compl
   }
 
   return withThinkingFormatCompat(entry, { provider, api });
+}
+
+function filterChatModelEntries(provider, models) {
+  return models.filter(m => {
+    const isObj = typeof m === "object" && m !== null;
+    const id = getModelId(m);
+    const known = lookupKnown(provider, id);
+    const type = (isObj && m.type) || known?.type || "chat";
+    return type === "chat";
+  });
 }
 
 /**
@@ -132,19 +179,30 @@ export function syncModels(providers, opts = {}) {
     })) continue;
 
     const effectiveApiKey = apiKey || "local";
+    const effectiveApi = p.api || "openai-completions";
+    const chatModels = filterChatModelEntries(name, p.models);
+    const customModels = [];
+    const modelOverrides = {};
 
-    newProviders[name] = {
+    for (const modelEntry of chatModels) {
+      const id = getModelId(modelEntry);
+      if (shouldReusePiBuiltinModel(name, id, effectiveApi)) {
+        const override = buildModelOverride(modelEntry);
+        if (override) modelOverrides[id] = override;
+        continue;
+      }
+      customModels.push(buildModelEntry(modelEntry, name, p.base_url, effectiveApi));
+    }
+
+    const providerConfig = {
       baseUrl: p.base_url,
-      api: p.api || "openai-completions",
+      api: effectiveApi,
       apiKey: effectiveApiKey,
-      models: p.models.filter(m => {
-        const isObj = typeof m === "object" && m !== null;
-        const id = isObj ? m.id : m;
-        const known = lookupKnown(name, id);
-        const type = (isObj && m.type) || known?.type || "chat";
-        return type === "chat";
-      }).map(m => buildModelEntry(m, name, p.base_url, p.api || "openai-completions")),
     };
+    if (customModels.length > 0) providerConfig.models = customModels;
+    if (Object.keys(modelOverrides).length > 0) providerConfig.modelOverrides = modelOverrides;
+
+    newProviders[name] = providerConfig;
   }
 
   const newJson = { providers: newProviders };

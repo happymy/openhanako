@@ -200,6 +200,35 @@ describe("callText provider-compat routing", () => {
     ]);
   });
 
+  it("forwards model request headers on utility requests", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        content: [{ type: "text", text: "ok" }],
+      }),
+    });
+
+    await callText({
+      api: "anthropic-messages",
+      apiKey: "sk-test",
+      baseUrl: "https://api.kimi.com/coding",
+      model: {
+        id: "kimi-for-coding",
+        provider: "kimi-coding",
+        headers: { "User-Agent": "KimiCLI/1.5" },
+      },
+      messages: [{ role: "user", content: "hi" }],
+      timeoutMs: 5_000,
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers).toMatchObject({
+      "User-Agent": "KimiCLI/1.5",
+      "x-api-key": "sk-test",
+    });
+  });
+
   it("keeps callText string-compatible by default and returns usage only when requested", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce({

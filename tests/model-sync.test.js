@@ -360,19 +360,56 @@ describe("syncModels", () => {
     syncModels(providers, { modelsJsonPath });
 
     const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
-    const model = result.providers["kimi-coding"].models[0];
-    expect(model).toMatchObject({
-      id: "kimi-for-coding",
-      name: "Kimi for Coding",
-      contextWindow: 262144,
-      maxTokens: 32768,
-      input: ["text", "image"],
-      reasoning: true,
-      compat: {
-        supportsDeveloperRole: false,
-        thinkingFormat: "anthropic",
-      },
+    expect(result.providers["kimi-coding"]).toMatchObject({
+      baseUrl: "https://api.kimi.com/coding/",
+      api: "anthropic-messages",
+      apiKey: "sk-test",
     });
+    expect(result.providers["kimi-coding"].models).toBeUndefined();
+    expect(result.providers["kimi-coding"].modelOverrides).toBeUndefined();
+  });
+
+  it("preserves user metadata for Pi built-in Kimi Coding models as model overrides", async () => {
+    const syncModels = await loadSync();
+
+    const providers = {
+      "kimi-coding": {
+        base_url: "https://api.kimi.com/coding/",
+        api: "anthropic-messages",
+        api_key: "sk-test",
+        models: [{ id: "kimi-for-coding", name: "Kimi 自定义显示名", maxOutput: 16000, image: false }],
+      },
+    };
+
+    syncModels(providers, { modelsJsonPath });
+
+    const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
+    expect(result.providers["kimi-coding"].models).toBeUndefined();
+    expect(result.providers["kimi-coding"].modelOverrides["kimi-for-coding"]).toEqual({
+      name: "Kimi 自定义显示名",
+      maxTokens: 16000,
+      input: ["text"],
+    });
+  });
+
+  it("keeps Kimi OpenAI-compatible configs custom while reusing Pi request headers", async () => {
+    const syncModels = await loadSync();
+
+    const providers = {
+      "kimi-coding": {
+        base_url: "https://api.kimi.com/coding/v1",
+        api: "openai-completions",
+        api_key: "sk-test",
+        models: ["kimi-for-coding"],
+      },
+    };
+
+    syncModels(providers, { modelsJsonPath });
+
+    const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
+    const model = result.providers["kimi-coding"].models[0];
+    expect(model.id).toBe("kimi-for-coding");
+    expect(model.headers).toEqual({ "User-Agent": "KimiCLI/1.5" });
   });
 
   it("marks Anthropic-compatible reasoning models with anthropic thinking format", async () => {

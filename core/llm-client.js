@@ -179,6 +179,10 @@ export async function callText({
     };
   }
 
+  if (modelObj?.headers && typeof modelObj.headers === "object") {
+    headers = { ...modelObj.headers, ...headers };
+  }
+
   // Provider 兼容化（与 chat 路径共享 provider-compat）。
   // 把 callText opts 传入的 quirks 合入 model 对象，让 qwen.js 等子模块的
   // matches 能基于数据声明字段识别。modelObj 自身已有 quirks 时不覆盖。

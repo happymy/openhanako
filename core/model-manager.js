@@ -16,6 +16,7 @@ import { ExecutionRouter } from "./execution-router.js";
 import { findModel, parseModelRef } from "../shared/model-ref.js";
 import { isLocalBaseUrl } from "../shared/net-utils.js";
 import { syncModels } from "./model-sync.js";
+import { enrichModelFromKnownMetadata } from "./model-known-enrichment.js";
 
 export class ModelManager {
   /**
@@ -103,7 +104,7 @@ export class ModelManager {
       // 没有在 added-models.yaml 里的 provider → 全部放行（兼容未知来源）
       if (!allowed) return true;
       return allowed.has(m.id);
-    });
+    }).map(enrichModelFromKnownMetadata);
     return this._availableModels;
   }
 
