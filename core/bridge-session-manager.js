@@ -15,6 +15,7 @@ import { safeReadJSON } from "../shared/safe-fs.js";
 import { findModel } from "../shared/model-ref.js";
 import { teardownSessionResources } from "./session-teardown.js";
 import { requireVisionAuxiliaryEnabled } from "./vision-auxiliary-policy.js";
+import { SESSION_PERMISSION_MODES } from "./session-permission-mode.js";
 import { collectMediaItems } from "../lib/tools/media-details.js";
 import { materializeBridgeInboundFiles } from "../lib/session-files/bridge-inbound-files.js";
 
@@ -502,6 +503,9 @@ export class BridgeSessionManager {
   _buildOwnerSessionOpts(agent, mm, homeCwd, sessionPathRef = { current: null }) {
     const prefs = this._deps.getPreferences();
     const bridgeReadOnly = prefs?.bridge?.readOnly === true;
+    const bridgePermissionMode = bridgeReadOnly
+      ? SESSION_PERMISSION_MODES.READ_ONLY
+      : SESSION_PERMISSION_MODES.OPERATE;
     const agentToolsSnapshot = typeof agent.getToolsSnapshot === "function"
       ? agent.getToolsSnapshot({
         forceMemoryEnabled: agent.memoryMasterEnabled !== false,
@@ -512,7 +516,11 @@ export class BridgeSessionManager {
       : agent.tools;
     const { tools: baseTools, customTools: baseCustomTools } = this._deps.buildTools(
       homeCwd, agentToolsSnapshot,
-      { workspace: homeCwd, agentDir: agent.agentDir },
+      {
+        workspace: homeCwd,
+        agentDir: agent.agentDir,
+        getPermissionMode: () => bridgePermissionMode,
+      },
     );
 
     const bridgeTools = bridgeReadOnly

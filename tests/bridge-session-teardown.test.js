@@ -269,6 +269,72 @@ describe("BridgeSessionManager teardown", () => {
     expect(createAgentSessionMock.mock.calls[0][0].customTools.map((tool) => tool.name)).toContain("search_memory");
   });
 
+  it("owner bridge sessions derive permission mode from bridge read-only settings", async () => {
+    const agent = makeAgent(rootDir);
+    const buildTools = vi.fn(() => ({
+      tools: [],
+      customTools: [],
+    }));
+    const deps = {
+      ...makeDeps(agent),
+      getPreferences: () => ({ thinking_level: "medium", bridge: { readOnly: false } }),
+      buildTools,
+    };
+    const mgrPath = path.join(agent.sessionDir, "bridge", "owner", "s-permission.jsonl");
+    const manager = new BridgeSessionManager(deps);
+    sessionManagerCreateMock.mockReturnValue({ getSessionFile: () => mgrPath });
+
+    createAgentSessionMock.mockResolvedValue({
+      session: {
+        model: { input: ["text"] },
+        prompt: vi.fn(async () => {}),
+        subscribe: vi.fn(() => () => {}),
+        dispose: vi.fn(),
+        sessionManager: { getSessionFile: () => mgrPath },
+        extensionRunner: { hasHandlers: vi.fn(() => false) },
+      },
+    });
+
+    await manager.executeExternalMessage("hello", "bridge-k-permission", null, { agentId: "agent-a" });
+
+    expect(buildTools).toHaveBeenCalledOnce();
+    const buildOpts = buildTools.mock.calls[0][2];
+    expect(buildOpts.getPermissionMode()).toBe("operate");
+  });
+
+  it("owner bridge read-only sessions pass read-only permission mode to tool wrappers", async () => {
+    const agent = makeAgent(rootDir);
+    const buildTools = vi.fn(() => ({
+      tools: [],
+      customTools: [],
+    }));
+    const deps = {
+      ...makeDeps(agent),
+      getPreferences: () => ({ thinking_level: "medium", bridge: { readOnly: true } }),
+      buildTools,
+    };
+    const mgrPath = path.join(agent.sessionDir, "bridge", "owner", "s-read-only.jsonl");
+    const manager = new BridgeSessionManager(deps);
+    sessionManagerCreateMock.mockReturnValue({ getSessionFile: () => mgrPath });
+
+    createAgentSessionMock.mockResolvedValue({
+      session: {
+        model: { input: ["text"] },
+        prompt: vi.fn(async () => {}),
+        subscribe: vi.fn(() => () => {}),
+        dispose: vi.fn(),
+        sessionManager: { getSessionFile: () => mgrPath },
+        extensionRunner: { hasHandlers: vi.fn(() => false) },
+      },
+    });
+
+    await manager.executeExternalMessage("hello", "bridge-k-read-only", null, { agentId: "agent-a" });
+
+    expect(buildTools).toHaveBeenCalledOnce();
+    const buildOpts = buildTools.mock.calls[0][2];
+    expect(buildOpts.getPermissionMode()).toBe("read_only");
+  });
+
   it("owner bridge text-only model prepares images through the vision bridge", async () => {
     const agent = makeAgent(rootDir);
     const visionBridge = {

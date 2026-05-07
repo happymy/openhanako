@@ -1186,17 +1186,20 @@ export class HanaEngine {
     }
 
     const getSessionPath = opts.getSessionPath || (() => null);
+    const getPermissionMode = typeof opts.getPermissionMode === "function"
+      ? opts.getPermissionMode
+      : (sessionPath) => this.getSessionPermissionMode(sessionPath);
     result = {
       ...result,
       tools: wrapWithSessionPermission(result.tools, {
         getSessionPath,
-        getPermissionMode: (sessionPath) => this.getSessionPermissionMode(sessionPath),
+        getPermissionMode,
         getConfirmStore: () => this._confirmStore,
         emitEvent: (event, sessionPath) => this._emitEvent(event, sessionPath),
       }),
       customTools: wrapWithSessionPermission(result.customTools, {
         getSessionPath,
-        getPermissionMode: (sessionPath) => this.getSessionPermissionMode(sessionPath),
+        getPermissionMode,
         getConfirmStore: () => this._confirmStore,
         emitEvent: (event, sessionPath) => this._emitEvent(event, sessionPath),
       }),
