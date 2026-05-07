@@ -108,4 +108,65 @@ describe("createWin32Exec", () => {
 
     expect(spawnAndStream).not.toHaveBeenCalled();
   });
+
+  it("routes sandbox-enabled bash commands through the AppContainer helper with policy grants", async () => {
+    classifyWin32Command.mockReturnValue({ runner: "bash", reason: "complex-shell" });
+    const bundledShell = "C:\\Hanako\\resources\\git\\mingw64\\bin\\sh.exe";
+    const helper = "C:\\Hanako\\resources\\sandbox\\windows\\hana-win-sandbox.exe";
+    existsSync.mockImplementation((p) => p === bundledShell || p === helper);
+    spawnSync.mockImplementation((cmd, args) => {
+      if (cmd === bundledShell && args?.[0] === "-c") {
+        return { status: 0, stdout: "__hana_probe_ok__\n", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    });
+
+    const originalResourcesPath = process.resourcesPath;
+    Object.defineProperty(process, "resourcesPath", {
+      value: "C:\\Hanako\\resources",
+      configurable: true,
+    });
+
+    const createWin32Exec = await loadExecFactory();
+    const exec = createWin32Exec({
+      sandbox: {
+        helperPath: helper,
+        grants: {
+          readPaths: ["C:\\outside\\reference.md"],
+          writePaths: ["C:\\work"],
+        },
+      },
+    });
+
+    try {
+      await exec("ls && pwd", "C:\\work", {
+        onData: () => {},
+        signal: undefined,
+        timeout: 5,
+        env: { PATH: "C:\\Windows\\System32" },
+      });
+    } finally {
+      Object.defineProperty(process, "resourcesPath", {
+        value: originalResourcesPath,
+        configurable: true,
+      });
+    }
+
+    expect(spawnAndStream).toHaveBeenCalledWith(
+      helper,
+      expect.arrayContaining([
+        "--cwd",
+        "C:\\work",
+        "--grant-read",
+        "C:\\outside\\reference.md",
+        "--grant-write",
+        "C:\\work",
+        "--",
+        bundledShell,
+        "-c",
+        "ls && pwd",
+      ]),
+      expect.objectContaining({ cwd: "C:\\work" })
+    );
+  });
 });

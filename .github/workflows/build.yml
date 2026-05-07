@@ -57,6 +57,11 @@ jobs:
         run: |
           HANA_COMPUTER_USE_HELPER_ARCH=${{ matrix.arch }} node scripts/build-computer-use-helper.mjs ${{ matrix.arch }}
 
+      - name: Build Windows sandbox helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: node scripts/build-windows-sandbox-helper.mjs ${{ matrix.arch }}
+
       - name: Build client bundles (main + preload + renderer)
         run: npm run build:client
 

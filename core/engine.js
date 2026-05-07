@@ -77,9 +77,11 @@ import {
 } from "./llm-utils.js";
 import { debugLog } from "../lib/debug-log.js";
 import { createSandboxedTools } from "../lib/sandbox/index.js";
+import { externalReadPathsFromSessionFiles } from "../lib/sandbox/win32-policy.js";
 import { t } from "../server/i18n.js";
 import { CheckpointStore } from "../lib/checkpoint-store.js";
 import { assertAllToolsCategorized } from "../shared/tool-categories.js";
+import { workspaceRootsForSandbox } from "../shared/workspace-scope.js";
 import { wrapWithCheckpoint } from "../lib/checkpoint-wrapper.js";
 import { wrapWithSessionPermission } from "../lib/tools/session-permission-wrapper.js";
 import { TaskRegistry } from "../lib/task-registry.js";
@@ -1163,19 +1165,32 @@ export class HanaEngine {
 
     const effectiveAgentDir = opts.agentDir || this.agent.agentDir;
     const effectiveWorkspace = opts.workspace !== undefined ? opts.workspace : this.homeCwd;
+    const workspaceFolders = opts.workspaceFolders || [];
+    const getSessionPath = opts.getSessionPath || (() => null);
+    const getExternalReadPaths = () => {
+      const sessionPath = getSessionPath();
+      if (!sessionPath) return [];
+      const files = typeof this.listSessionFiles === "function"
+        ? this.listSessionFiles(sessionPath)
+        : [];
+      return externalReadPathsFromSessionFiles(files, {
+        workspaceRoots: workspaceRootsForSandbox(effectiveWorkspace, workspaceFolders),
+        hanakoHome: this.hanakoHome,
+      });
+    };
 
     let result = createSandboxedTools(cwd, allTools, {
       agentDir: effectiveAgentDir,
       workspace: effectiveWorkspace,
-      workspaceFolders: opts.workspaceFolders || [],
+      workspaceFolders,
       hanakoHome: this.hanakoHome,
       getSandboxEnabled: () => this._readPreferences().sandbox !== false,
+      getExternalReadPaths,
     });
 
     // Checkpoint wrapper (outside sandbox layer)
     const backupCfg = this._prefs.getFileBackup();
     if (backupCfg.enabled) {
-      const getSessionPath = opts.getSessionPath || (() => null);
       result = {
         ...result,
         tools: wrapWithCheckpoint(result.tools, {
@@ -1187,7 +1202,6 @@ export class HanaEngine {
       };
     }
 
-    const getSessionPath = opts.getSessionPath || (() => null);
     const getPermissionMode = typeof opts.getPermissionMode === "function"
       ? opts.getPermissionMode
       : (sessionPath) => this.getSessionPermissionMode(sessionPath);
