@@ -1,6 +1,7 @@
 import path from "path";
 import { describe, expect, it } from "vitest";
 import {
+  buildWindowsSandboxBatchCommand,
   buildWindowsSandboxCompileCommand,
   shouldBuildWindowsSandboxHelper,
   windowsSandboxHelperOutputDir,
@@ -29,5 +30,15 @@ describe("Windows sandbox helper build script", () => {
     expect(command).toContain("cl.exe");
     expect(command).toContain("userenv.lib");
     expect(command).toContain("advapi32.lib");
+  });
+
+  it("calls VsDevCmd.bat before cl.exe so cmd.exe treats the batch file as setup", () => {
+    const command = buildWindowsSandboxBatchCommand({
+      devCmd: "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\Common7\\Tools\\VsDevCmd.bat",
+      compileCommand: "cl.exe /nologo main.cpp",
+      arch: "x64",
+    });
+
+    expect(command).toBe('call "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\Common7\\Tools\\VsDevCmd.bat" -arch=x64 && cl.exe /nologo main.cpp');
   });
 });

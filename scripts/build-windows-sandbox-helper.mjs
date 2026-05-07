@@ -40,6 +40,13 @@ export function buildWindowsSandboxCompileCommand({ source, output } = {}) {
   ].join(" ");
 }
 
+export function buildWindowsSandboxBatchCommand({ devCmd, compileCommand, arch } = {}) {
+  if (!compileCommand) throw new Error("compileCommand is required");
+  if (!devCmd) return compileCommand;
+  const msvcArch = arch === "arm64" ? "arm64" : "x64";
+  return `call ${quoteCmd(devCmd)} -arch=${msvcArch} && ${compileCommand}`;
+}
+
 function findVsDevCmd() {
   const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
   const vswhere = path.join(programFilesX86, "Microsoft Visual Studio", "Installer", "vswhere.exe");
@@ -61,10 +68,7 @@ function findVsDevCmd() {
 
 function runCompile(command, { rootDir, arch }) {
   const devCmd = findVsDevCmd();
-  const msvcArch = arch === "arm64" ? "arm64" : "x64";
-  const fullCommand = devCmd
-    ? `${quoteCmd(devCmd)} -arch=${msvcArch} && ${command}`
-    : command;
+  const fullCommand = buildWindowsSandboxBatchCommand({ devCmd, compileCommand: command, arch });
   execFileSync("cmd.exe", ["/d", "/s", "/c", fullCommand], {
     cwd: rootDir,
     stdio: "inherit",
