@@ -23,9 +23,25 @@ import { readMessageLiveVersion } from './message-live-version';
 // ── 防竞争计数器 ──
 
 let _switchVersion = 0;
+let _switchAbortController: AbortController | null = null;
 
 function invalidateSessionSwitches(): void {
   _switchVersion += 1;
+  _switchAbortController?.abort();
+  _switchAbortController = null;
+  useStore.setState({ pendingSessionSwitchPath: null });
+}
+
+function isCurrentSwitch(version: number, path: string): boolean {
+  const state = useStore.getState();
+  return version === _switchVersion && state.pendingSessionSwitchPath === path;
+}
+
+function isAbortError(err: unknown): boolean {
+  return !!err && typeof err === 'object' && (
+    (err as { name?: string }).name === 'AbortError' ||
+    (err as { message?: string }).message === 'This operation was aborted'
+  );
 }
 
 async function resetDeskForSessionCwd(cwd?: string | null): Promise<void> {
@@ -183,7 +199,7 @@ export async function loadSessions(): Promise<void> {
     const s = useStore.getState();
     useStore.setState({ sessions });
 
-    if (sessions.length > 0 && !s.currentSessionPath && !s.pendingNewSession) {
+    if (sessions.length > 0 && !s.currentSessionPath && !s.pendingNewSession && !s.pendingSessionSwitchPath) {
       // 首次加载：走完整的 switchSession 确保后端同步 + 消息加载
       await switchSession(sessions[0].path);
     }
@@ -196,7 +212,16 @@ export async function loadSessions(): Promise<void> {
 
 export async function switchSession(path: string): Promise<void> {
   const s = useStore.getState();
-  if (path === s.currentSessionPath) return;
+  const myVersion = ++_switchVersion;
+  _switchAbortController?.abort();
+  _switchAbortController = null;
+
+  if (path === s.currentSessionPath && !s.pendingNewSession) {
+    useStore.setState({ pendingSessionSwitchPath: null });
+    return;
+  }
+
+  useStore.setState({ pendingSessionSwitchPath: path });
 
   // 关闭浮动面板
   const activePanel = useStore.getState().activePanel;
@@ -204,18 +229,21 @@ export async function switchSession(path: string): Promise<void> {
     useStore.getState().setActivePanel(null);
   }
 
-  const myVersion = ++_switchVersion;
+  const abortController = new AbortController();
+  _switchAbortController = abortController;
 
   try {
     const res = await hanaFetch('/api/sessions/switch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path, currentSessionPath: s.currentSessionPath }),
+      signal: abortController.signal,
     });
     const data = await res.json();
-    if (myVersion !== _switchVersion) return;
+    if (!isCurrentSwitch(myVersion, path)) return;
     if (data.error) {
       console.error('[session] switch failed:', data.error);
+      useStore.setState({ pendingSessionSwitchPath: null });
       showSessionSwitchError(path, data.error);
       return;
     }
@@ -254,6 +282,7 @@ export async function switchSession(path: string): Promise<void> {
     // 批量更新 store（切 currentSessionPath 切换对话内容；可见 desk/preview 状态由 workspace 激活流程恢复）
     useStore.setState({
       currentSessionPath: path,
+      pendingSessionSwitchPath: null,
       pendingNewSession: false,
       selectedFolder: null,
       workspaceFolders: Array.isArray(data.workspaceFolders) ? data.workspaceFolders : [],
@@ -268,6 +297,7 @@ export async function switchSession(path: string): Promise<void> {
     });
 
     await resetDeskForSessionCwd(data.cwd || null);
+    if (myVersion !== _switchVersion) return;
 
     // 同步浏览器状态到 keyed store（服务端返回当前 session 的 browser 状态）
     if (path) {
@@ -313,6 +343,7 @@ export async function switchSession(path: string): Promise<void> {
     const hasData = !!useStore.getState().chatSessions?.[path];
     if (!hasData) {
       await loadMessages(path);
+      if (myVersion !== _switchVersion) return;
     }
 
     // 切换会话后刷新 context ring
@@ -326,8 +357,16 @@ export async function switchSession(path: string): Promise<void> {
       console.warn('[session] context usage refresh skipped:', err);
     });
   } catch (err) {
+    if (myVersion !== _switchVersion || isAbortError(err)) return;
+    useStore.setState((state: Record<string, any>) => (
+      state.pendingSessionSwitchPath === path ? { pendingSessionSwitchPath: null } : {}
+    ));
     console.error('[session] switch failed:', err);
     showSessionSwitchError(path, errorMessage(err));
+  } finally {
+    if (_switchAbortController === abortController) {
+      _switchAbortController = null;
+    }
   }
 }
 
@@ -350,6 +389,7 @@ export async function createNewSession(): Promise<void> {
   useStore.setState({
     welcomeVisible: true,
     currentSessionPath: null,
+    pendingSessionSwitchPath: null,
     // 新 session 的默认 cwd 归 Agent home 所有；当前 deskBasePath 只是视图状态，
     // 不能反向污染下一次会话的执行目录和沙箱边界。
     selectedFolder: s.homeFolder || null,
@@ -420,6 +460,7 @@ export async function ensureSession(): Promise<boolean> {
     // 基础状态更新
     const patch: Record<string, any> = {
       pendingNewSession: false,
+      pendingSessionSwitchPath: null,
       selectedFolder: null,
       workspaceFolders: Array.isArray(data.workspaceFolders) ? data.workspaceFolders : [],
       selectedAgentId: null,

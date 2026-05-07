@@ -29,6 +29,7 @@ function SessionListInner() {
   const { t } = useI18n();
   const sessions = useStore(s => s.sessions);
   const currentSessionPath = useStore(s => s.currentSessionPath);
+  const pendingSessionSwitchPath = useStore(s => s.pendingSessionSwitchPath);
   const pendingNewSession = useStore(s => s.pendingNewSession);
   const agents = useStore(s => s.agents);
   const streamingSessions = useStore(s => s.streamingSessions);
@@ -50,6 +51,7 @@ function SessionListInner() {
   }
 
   const sections = buildSessionSections(sessions, { mode: 'time' });
+  const activeSessionPath = pendingSessionSwitchPath || currentSessionPath;
 
   return (
     <>
@@ -58,7 +60,7 @@ function SessionListInner() {
           <SessionItem
             key={s.path}
             session={s}
-            isActive={!pendingNewSession && s.path === currentSessionPath}
+            isActive={!pendingNewSession && s.path === activeSessionPath}
             isStreaming={streamingSessions.includes(s.path)}
             isPinned={!!s.pinnedAt}
             agents={agents}

@@ -18,6 +18,7 @@ const deskActionMocks = vi.hoisted(() => ({
 const mockState: MockState = {};
 const initialStateFactory = (): MockState => ({
   currentSessionPath: null,
+  pendingSessionSwitchPath: null,
   pendingNewSession: false,
   sessions: [] as Array<{ path: string }>,
   chatSessions: {} as Record<string, unknown>,
@@ -192,7 +193,7 @@ import { hanaFetch } from '../../hooks/use-hana-fetch';
 import { clearChat } from '../../stores/agent-actions';
 import { loadDeskFiles } from '../../stores/desk-actions';
 import { bumpMessageLiveVersion, clearMessageLiveVersion } from '../../stores/message-live-version';
-import { archiveSession, createNewSession, ensureSession, loadMessages, pinSession, switchSession } from '../../stores/session-actions';
+import { archiveSession, createNewSession, ensureSession, loadMessages, loadSessions, pinSession, switchSession } from '../../stores/session-actions';
 import { snapshotStreamBuffer } from '../../stores/stream-invalidator';
 
 const mockFetch = vi.mocked(hanaFetch);
@@ -502,7 +503,63 @@ describe('session-actions', () => {
     });
   });
 
+  describe('loadSessions 首次自动切换', () => {
+    it('已有 pending session 导航意图时，不用列表第一项覆盖它', async () => {
+      Object.assign(mockState, {
+        currentSessionPath: null,
+        pendingSessionSwitchPath: '/b',
+        pendingNewSession: false,
+      });
+      mockFetch.mockResolvedValueOnce(jsonResponse([
+        { path: '/a' },
+        { path: '/b' },
+      ]));
+
+      await loadSessions();
+
+      expect(mockState.sessions).toEqual([
+        { path: '/a' },
+        { path: '/b' },
+      ]);
+      expect(mockState.currentSessionPath).toBeNull();
+      expect(mockState.pendingSessionSwitchPath).toBe('/b');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('switchSession 的 hasData 语义（#405 直接回归）', () => {
+    it('点回已提交的当前 session 会取消在途切换，旧响应不能把焦点切走', async () => {
+      Object.assign(mockState, {
+        currentSessionPath: '/a',
+        chatSessions: {
+          '/b': { items: [{ type: 'message', data: { id: 'cached-b' } }], hasMore: false },
+        },
+      });
+
+      let resolveSwitchToB!: (r: Response) => void;
+      const switchToB = new Promise<Response>(resolve => { resolveSwitchToB = resolve; });
+      mockFetch.mockImplementationOnce(() => switchToB);
+
+      const pendingSwitch = switchSession('/b');
+      expect(mockState.pendingSessionSwitchPath).toBe('/b');
+
+      await switchSession('/a');
+      expect(mockState.pendingSessionSwitchPath).toBeNull();
+
+      resolveSwitchToB(jsonResponse({
+        ok: true,
+        agentId: null,
+        cwd: '/workspace-b',
+        currentModelId: null,
+        currentModelName: null,
+        currentModelProvider: null,
+      }));
+      await pendingSwitch;
+
+      expect(mockState.currentSessionPath).toBe('/a');
+      expect(deskActionMocks.activateWorkspaceDesk).not.toHaveBeenCalledWith('/workspace-b');
+    });
+
     it('surfaces the server error when switching to an old session fails', async () => {
       (globalThis.window as unknown as { t: (key: string) => string }).t = (key: string) =>
         key === 'session.switchFailed' ? 'Switch session failed' : key;

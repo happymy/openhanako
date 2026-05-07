@@ -3,6 +3,7 @@ import type { Session, SessionStream, TodoItem } from '../types';
 export interface SessionSlice {
   sessions: Session[];
   currentSessionPath: string | null;
+  pendingSessionSwitchPath: string | null;
   sessionStreams: Record<string, SessionStream>;
   pendingNewSession: boolean;
   memoryEnabled: boolean;
@@ -17,6 +18,7 @@ export interface SessionSlice {
   todosLiveVersionBySession: Record<string, number>;
   setSessions: (sessions: Session[]) => void;
   setCurrentSessionPath: (path: string | null) => void;
+  setPendingSessionSwitchPath: (path: string | null) => void;
   setSessionStream: (sessionPath: string, stream: SessionStream) => void;
   removeSessionStream: (sessionPath: string) => void;
   setPendingNewSession: (pending: boolean) => void;
@@ -31,6 +33,7 @@ export const createSessionSlice = (
 ): SessionSlice => ({
   sessions: [],
   currentSessionPath: null,
+  pendingSessionSwitchPath: null,
   sessionStreams: {},
   pendingNewSession: false,
   memoryEnabled: true,
@@ -39,6 +42,7 @@ export const createSessionSlice = (
   todosLiveVersionBySession: {},
   setSessions: (sessions) => set({ sessions }),
   setCurrentSessionPath: (path) => set({ currentSessionPath: path }),
+  setPendingSessionSwitchPath: (path) => set({ pendingSessionSwitchPath: path }),
   setSessionStream: (sessionPath, stream) =>
     set((s) => ({
       sessionStreams: { ...s.sessionStreams, [sessionPath]: stream },

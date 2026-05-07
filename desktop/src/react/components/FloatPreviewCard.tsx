@@ -101,8 +101,10 @@ export function FloatPreviewCard({
 function SessionListCard({ onAction }: { onAction: () => void }) {
   const sessions = useStore(s => s.sessions);
   const currentSessionPath = useStore(s => s.currentSessionPath);
+  const pendingSessionSwitchPath = useStore(s => s.pendingSessionSwitchPath);
   const agents = useStore(s => s.agents);
   const agentYuan = useStore(s => s.agentYuan);
+  const activeSessionPath = pendingSessionSwitchPath || currentSessionPath;
 
   if (sessions.length === 0) {
     return <div className="float-card-empty">{t('common.noChats')}</div>;
@@ -114,7 +116,7 @@ function SessionListCard({ onAction }: { onAction: () => void }) {
         {sessions.slice(0, 12).map((sess: any) => (
           <div
             key={sess.path}
-            className={`float-card-item${sess.path === currentSessionPath ? ' active' : ''}`}
+            className={`float-card-item${sess.path === activeSessionPath ? ' active' : ''}`}
             onClick={() => { onAction(); switchSession(sess.path); }}
           >
             <SessionAvatar sess={sess} agents={agents} agentYuan={agentYuan} />
