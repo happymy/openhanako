@@ -83,6 +83,18 @@ describe("known-models dictionary", () => {
     });
   });
 
+  it("declares the latest Doubao Seed 2.0 Lite visual metadata for Volcengine providers", () => {
+    const expected = {
+      name: "Doubao Seed 2.0 Lite",
+      context: 256000,
+      maxOutput: 128000,
+      image: true,
+      reasoning: true,
+    };
+    expect(lookupKnown("volcengine", "doubao-seed-2-0-lite-260428")).toMatchObject(expected);
+    expect(lookupKnown("volcengine-coding", "doubao-seed-2-0-lite-260428")).toMatchObject(expected);
+  });
+
   it("declares the stable Kimi for Coding model for Kimi Coding Plan", () => {
     expect(lookupKnown("kimi-coding", "kimi-for-coding")).toMatchObject({
       name: "Kimi for Coding",

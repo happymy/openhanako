@@ -883,7 +883,11 @@
       "addedModels": "Added models",
       "displayName": "Display name",
       "vision": "Vision",
-      "reasoning": "Reasoning"
+      "reasoning": "Reasoning",
+      "capability": {
+        "image": "Supports image input",
+        "reasoning": "Supports reasoning"
+      }
     },
     "memory": {
       "sectionTitle": "Memory",

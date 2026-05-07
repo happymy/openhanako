@@ -857,7 +857,11 @@
       "addedModels": "追加済みモデル",
       "displayName": "表示名",
       "vision": "ビジョン",
-      "reasoning": "推論"
+      "reasoning": "推論",
+      "capability": {
+        "image": "画像入力に対応",
+        "reasoning": "推論に対応"
+      }
     },
     "memory": {
       "sectionTitle": "記憶",

@@ -857,7 +857,11 @@
       "addedModels": "추가된 모델",
       "displayName": "표시 이름",
       "vision": "비전",
-      "reasoning": "추론"
+      "reasoning": "추론",
+      "capability": {
+        "image": "이미지 입력 지원",
+        "reasoning": "추론 지원"
+      }
     },
     "memory": {
       "sectionTitle": "기억",

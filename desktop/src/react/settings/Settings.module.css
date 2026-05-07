@@ -3141,6 +3141,7 @@ a.about-link:hover {
     gap: 6px;
     padding: 3px 6px;
     border-radius: var(--radius-input, 4px);
+    min-width: 0;
 }
 
 .pv-fav-item:hover { background: var(--accent-light); }
@@ -3159,6 +3160,21 @@ a.about-link:hover {
     font-size: 0.65rem;
     color: var(--text-muted);
     opacity: 0.6;
+    flex: 0 1 min(42%, 18rem);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pv-capability-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 13px;
+    height: 13px;
+    color: var(--text-muted);
+    opacity: 0.72;
     flex-shrink: 0;
 }
 

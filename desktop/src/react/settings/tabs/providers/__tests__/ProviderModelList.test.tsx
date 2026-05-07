@@ -9,6 +9,7 @@ import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({
   hanaFetch: vi.fn(),
+  lookupModelMeta: vi.fn((_id: unknown, _provider?: unknown): unknown => null),
 }));
 
 vi.mock('../../../api', () => ({
@@ -22,7 +23,7 @@ vi.mock('../../../../hooks/use-config', () => ({
 vi.mock('../../../helpers', () => ({
   t: (key: string) => key,
   formatContext: (n: number) => `${n}`,
-  lookupModelMeta: vi.fn(() => null),
+  lookupModelMeta: (id: unknown, provider?: unknown) => mocks.lookupModelMeta(id, provider),
 }));
 
 import { ProviderModelList } from '../ProviderModelList';
@@ -49,6 +50,7 @@ describe('ProviderModelList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.hanaFetch.mockResolvedValue(jsonResponse({ models: [{ id: 'kimi-for-coding' }] }));
+    mocks.lookupModelMeta.mockReturnValue(null);
     Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1200 });
     Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: 900 });
   });
@@ -107,5 +109,44 @@ describe('ProviderModelList', () => {
       top: '336px',
       width: '320px',
     });
+  });
+
+  it('shows image and reasoning capability icons after the added model id', () => {
+    mocks.lookupModelMeta.mockImplementation((id: unknown, provider: unknown) => {
+      if (id === 'doubao-seed-2-0-lite-260428' && provider === 'volcengine') {
+        return {
+          name: 'Doubao Seed 2.0 Lite',
+          image: true,
+          reasoning: true,
+          context: 256000,
+        };
+      }
+      return null;
+    });
+
+    render(
+      <ProviderModelList
+        providerId="volcengine"
+        summary={{
+          type: 'api-key',
+          auth_type: 'api-key',
+          display_name: 'Volcengine',
+          base_url: 'https://ark.cn-beijing.volces.com/api/v3',
+          api: 'openai-completions',
+          api_key: 'sk-test',
+          models: ['doubao-seed-2-0-lite-260428'],
+          custom_models: [],
+          has_credentials: true,
+          supports_oauth: false,
+          is_coding_plan: false,
+          can_delete: true,
+        }}
+        onRefresh={vi.fn(async () => {})}
+      />,
+    );
+
+    const id = screen.getByText('doubao-seed-2-0-lite-260428');
+    expect(id.nextElementSibling).toHaveAttribute('title', 'settings.api.capability.image');
+    expect(id.nextElementSibling?.nextElementSibling).toHaveAttribute('title', 'settings.api.capability.reasoning');
   });
 });

@@ -15,6 +15,29 @@ interface DiscoveredModel {
   maxOutput?: number | null;
 }
 
+type CapabilityKind = 'image' | 'reasoning';
+
+function CapabilityIcon({ kind }: { kind: CapabilityKind }) {
+  const label = t(`settings.api.capability.${kind}`);
+  return (
+    <span className={styles['pv-capability-icon']} title={label} aria-label={label}>
+      {kind === 'image' ? (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <path d="M21 15l-5-5L5 21" />
+        </svg>
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M9 18h6" />
+          <path d="M10 22h4" />
+          <path d="M12 2a7 7 0 0 0-4 12.74V16a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-1.26A7 7 0 0 0 12 2Z" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
 export function ProviderModelList({ providerId, summary, onRefresh }: {
   providerId: string;
   summary: ProviderSummary;
@@ -164,10 +187,14 @@ export function ProviderModelList({ providerId, summary, onRefresh }: {
           <div className={styles['pv-fav-list']}>
             {currentModelIds.map(mid => {
               const meta = lookupModelMeta(mid, providerId) || {};
+              const displayName = meta.displayName || meta.name || mid;
+              const showModelId = displayName !== mid;
               return (
                 <div key={mid} className={styles['pv-fav-item']}>
-                  <span className={styles['pv-fav-item-name']} title={mid}>{meta.displayName || meta.name || mid}</span>
-                  {(meta.displayName || meta.name) && meta.displayName !== mid && meta.name !== mid && <span className={styles['pv-fav-item-id']}>{mid}</span>}
+                  <span className={styles['pv-fav-item-name']} title={String(displayName)}>{displayName}</span>
+                  {showModelId && <span className={styles['pv-fav-item-id']} title={mid}>{mid}</span>}
+                  {meta.image === true && <CapabilityIcon kind="image" />}
+                  {meta.reasoning === true && <CapabilityIcon kind="reasoning" />}
                   {meta.context && <span className={styles['pv-model-ctx']}>{formatContext(meta.context)}</span>}
                   <div className={styles['pv-fav-item-actions']}>
                     <button
