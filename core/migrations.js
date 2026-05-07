@@ -21,6 +21,7 @@ import {
 import { SessionFileRegistry } from "../lib/session-files/session-file-registry.js";
 import { persistBrowserScreenshotFileSync } from "../lib/session-files/browser-screenshot-file.js";
 import { getInvalidProviderModelIds } from "../shared/provider-model-validation.js";
+import { normalizeThinkingLevelForModel } from "./session-thinking-level.js";
 
 // ── 迁移表 ──────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,8 @@ const migrations = {
   13: normalizeRecentLegacyCompatibilityState,
   // Gemini 3 工具调用需要 native Google 协议保留 thoughtSignature
   14: migrateGeminiOpenAICompatToNative,
+  // 旧 prompt snapshot 会话里无法证明 xhigh 支持的记录显式降级为 high
+  15: repairLegacySessionSidecarThinkingLevels,
 };
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -1259,6 +1262,130 @@ function migrateGeminiOpenAICompatToNative(ctx) {
   }
 
   log?.(`[migrations] #14: Gemini OpenAI compatibility configs migrated to native API (${patched})`);
+}
+
+function repairLegacySessionSidecarThinkingLevels(ctx) {
+  const metaPaths = collectAgentSessionMetaPaths(ctx.agentsDir);
+  let filesPatched = 0;
+  let entriesPatched = 0;
+
+  for (const metaPath of metaPaths) {
+    const patched = repairSessionMetaThinkingLevels(metaPath, ctx.log);
+    if (patched > 0) {
+      filesPatched++;
+      entriesPatched += patched;
+    }
+  }
+
+  ctx.log?.(`[migrations] #15: legacy session sidecars repaired (files=${filesPatched}, entries=${entriesPatched})`);
+}
+
+function collectAgentSessionMetaPaths(agentsDir) {
+  let agentDirs;
+  try {
+    agentDirs = fs.readdirSync(agentsDir, { withFileTypes: true }).filter(d => d.isDirectory());
+  } catch {
+    return [];
+  }
+
+  const out = [];
+  for (const dir of agentDirs) {
+    const metaPath = path.join(agentsDir, dir.name, "sessions", "session-meta.json");
+    try {
+      if (fs.statSync(metaPath).isFile()) out.push(metaPath);
+    } catch {
+      // Most agents will not have a sidecar before their first persisted session.
+    }
+  }
+  return out;
+}
+
+function repairSessionMetaThinkingLevels(metaPath, log) {
+  let raw;
+  try {
+    raw = fs.readFileSync(metaPath, "utf-8");
+  } catch {
+    return 0;
+  }
+
+  let meta;
+  try {
+    meta = JSON.parse(raw);
+  } catch (err) {
+    log?.(`[migrations] #15: skipped unreadable session-meta ${metaPath}: ${err.message}`);
+    return 0;
+  }
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return 0;
+
+  let patched = 0;
+  for (const [sessionFile, entry] of Object.entries(meta)) {
+    if (!shouldRepairLegacyPromptSnapshotThinkingLevel(entry)) continue;
+    const nextThinkingLevel = normalizeThinkingLevelForModel(entry.thinkingLevel, legacySessionMetaModelRef(entry));
+    if (nextThinkingLevel === entry.thinkingLevel) continue;
+    meta[sessionFile] = {
+      ...entry,
+      thinkingLevel: nextThinkingLevel,
+    };
+    patched++;
+  }
+
+  if (patched === 0) return 0;
+
+  backupSessionMetaBeforeV15(metaPath, raw, log);
+  const tmp = metaPath + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(meta, null, 2) + "\n", "utf-8");
+  fs.renameSync(tmp, metaPath);
+  return patched;
+}
+
+function shouldRepairLegacyPromptSnapshotThinkingLevel(entry) {
+  return entry
+    && typeof entry === "object"
+    && !Array.isArray(entry)
+    && entry.thinkingLevel === "xhigh"
+    && entry.promptSnapshot
+    && typeof entry.promptSnapshot === "object"
+    && !Array.isArray(entry.promptSnapshot);
+}
+
+function legacySessionMetaModelRef(entry) {
+  const legacyModel = entry?.model;
+  if (legacyModel && typeof legacyModel === "object" && !Array.isArray(legacyModel)) {
+    const id = typeof legacyModel.id === "string" ? legacyModel.id : "";
+    if (id) {
+      return {
+        id,
+        provider: typeof legacyModel.provider === "string" ? legacyModel.provider : undefined,
+        xhigh: legacyModel.xhigh === true,
+      };
+    }
+  }
+  if (typeof legacyModel === "string" && legacyModel.trim()) {
+    const raw = legacyModel.trim();
+    const slash = raw.indexOf("/");
+    if (slash > 0 && slash < raw.length - 1) {
+      return { provider: raw.slice(0, slash), id: raw.slice(slash + 1) };
+    }
+    return { id: raw };
+  }
+
+  const id = typeof entry?.modelId === "string" ? entry.modelId : "";
+  if (!id) return null;
+  return {
+    id,
+    provider: typeof entry.modelProvider === "string" ? entry.modelProvider : undefined,
+  };
+}
+
+function backupSessionMetaBeforeV15(metaPath, raw, log) {
+  const backupPath = `${metaPath}.pre-v15.bak`;
+  try {
+    fs.writeFileSync(backupPath, raw, { encoding: "utf-8", flag: "wx" });
+  } catch (err) {
+    if (err.code === "EEXIST") return;
+    log?.(`[migrations] #15: failed to write session-meta backup ${backupPath}: ${err.message}`);
+    throw err;
+  }
 }
 
 function modelIdOfMigrationEntry(entry) {

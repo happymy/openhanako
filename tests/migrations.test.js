@@ -10,7 +10,7 @@ import { runMigrations } from "../core/migrations.js";
 
 // ── 测试工具 ────────────────────────────────────────────────────────────────
 
-const LATEST_DATA_VERSION = 14;
+const LATEST_DATA_VERSION = 15;
 
 function makeTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "hana-migrations-"));
@@ -1293,6 +1293,104 @@ describe("migration #14: migrate Gemini OpenAI compatibility configs to native G
     expect(raw.providers["my-gemini"].api).toBe("google-generative-ai");
     expect(raw.providers["proxy-gemini"].base_url).toBe("https://proxy.example.com/v1/openai");
     expect(raw.providers["proxy-gemini"].api).toBe("openai-completions");
+  });
+});
+
+describe("migration #15: repair legacy session sidecar thinking levels", () => {
+  let tmpDir, agentsDir, userDir;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    agentsDir = path.join(tmpDir, "agents");
+    userDir = tmpDir;
+    fs.mkdirSync(agentsDir, { recursive: true });
+  });
+
+  afterEach(() => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+  function runMigration15(prefs) {
+    prefs.savePreferences({ _dataVersion: 14 });
+    runMigrations({
+      hanakoHome: tmpDir,
+      agentsDir,
+      prefs,
+      providerRegistry: makeRegistry([]),
+      log: () => {},
+    });
+  }
+
+  function writeSessionMeta(agentId, meta) {
+    const sessionDir = path.join(agentsDir, agentId, "sessions");
+    fs.mkdirSync(sessionDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(sessionDir, "session-meta.json"),
+      JSON.stringify(meta, null, 2) + "\n",
+      "utf-8",
+    );
+  }
+
+  function readSessionMeta(agentId) {
+    return JSON.parse(fs.readFileSync(path.join(agentsDir, agentId, "sessions", "session-meta.json"), "utf-8"));
+  }
+
+  it("downgrades prompt-snapshotted xhigh entries when xhigh support cannot be proven", () => {
+    const prefs = makePrefs(userDir);
+    const originalMeta = {
+      "legacy-xhigh.jsonl": {
+        thinkingLevel: "xhigh",
+        memoryEnabled: true,
+        workspaceFolders: ["/tmp/project"],
+        promptSnapshot: {
+          version: 1,
+          systemPrompt: "frozen prompt",
+          appendSystemPrompt: [],
+          skillsResult: { skills: [], diagnostics: [] },
+          agentsFilesResult: { agentsFiles: [] },
+        },
+      },
+      "known-xhigh-model.jsonl": {
+        thinkingLevel: "xhigh",
+        model: { id: "gpt-5.4-thinking", provider: "openai" },
+        promptSnapshot: {
+          version: 1,
+          systemPrompt: "frozen prompt",
+          appendSystemPrompt: [],
+          skillsResult: { skills: [], diagnostics: [] },
+          agentsFilesResult: { agentsFiles: [] },
+        },
+      },
+      "live-session.jsonl": {
+        thinkingLevel: "xhigh",
+      },
+      "already-high.jsonl": {
+        thinkingLevel: "high",
+        promptSnapshot: {
+          version: 1,
+          systemPrompt: "frozen prompt",
+          appendSystemPrompt: [],
+          skillsResult: { skills: [], diagnostics: [] },
+          agentsFilesResult: { agentsFiles: [] },
+        },
+      },
+    };
+    writeSessionMeta("hana", originalMeta);
+
+    runMigration15(prefs);
+
+    const meta = readSessionMeta("hana");
+    expect(meta["legacy-xhigh.jsonl"]).toMatchObject({
+      thinkingLevel: "high",
+      memoryEnabled: true,
+      workspaceFolders: ["/tmp/project"],
+    });
+    expect(meta["legacy-xhigh.jsonl"].promptSnapshot.systemPrompt).toBe("frozen prompt");
+    expect(meta["known-xhigh-model.jsonl"].thinkingLevel).toBe("xhigh");
+    expect(meta["live-session.jsonl"].thinkingLevel).toBe("xhigh");
+    expect(meta["already-high.jsonl"].thinkingLevel).toBe("high");
+
+    const backupPath = path.join(agentsDir, "hana", "sessions", "session-meta.json.pre-v15.bak");
+    expect(JSON.parse(fs.readFileSync(backupPath, "utf-8"))).toEqual(originalMeta);
+    expect(prefs.getPreferences()._dataVersion).toBe(LATEST_DATA_VERSION);
   });
 });
 
