@@ -10,7 +10,7 @@ import { runMigrations } from "../core/migrations.js";
 
 // ── 测试工具 ────────────────────────────────────────────────────────────────
 
-const LATEST_DATA_VERSION = 12;
+const LATEST_DATA_VERSION = 13;
 
 function makeTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "hana-migrations-"));
@@ -44,6 +44,7 @@ function makeRegistryWithModels(providers) {
   return {
     get(id) { return set.has(id) ? { id } : null; },
     getAllProvidersRaw() { return providers; },
+    getDefaultModels(id) { return providers?.[id]?.defaultModels || []; },
   };
 }
 
@@ -278,6 +279,119 @@ describe("migration #12: backfill legacy session files into sidecars", () => {
     ]);
     expect(files[0].filePath).toContain(path.join(tmpDir, "session-files"));
     expect(fs.existsSync(files[0].filePath)).toBe(true);
+  });
+});
+
+describe("migration #13: normalize recent legacy compatibility state", () => {
+  let tmpDir, agentsDir, userDir;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    agentsDir = path.join(tmpDir, "agents");
+    userDir = path.join(tmpDir, "user");
+    fs.mkdirSync(agentsDir, { recursive: true });
+  });
+
+  afterEach(() => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+  function runMigration13() {
+    const prefs = makePrefs(userDir);
+    prefs.savePreferences({ _dataVersion: 12 });
+    runMigrations({
+      hanakoHome: tmpDir,
+      agentsDir,
+      prefs,
+      providerRegistry: makeRegistryWithModels({
+        deepseek: {
+          models: ["deepseek-v4-pro", "deepseek-v4-flash"],
+          defaultModels: ["deepseek-v4-pro", "deepseek-v4-flash"],
+        },
+      }),
+      log: () => {},
+    });
+    return prefs;
+  }
+
+  function writeAddedModelsYaml(providers) {
+    fs.writeFileSync(
+      path.join(tmpDir, "added-models.yaml"),
+      YAML.dump({ providers }, { indent: 2, lineWidth: -1, sortKeys: false, quotingType: "\"" }),
+      "utf-8",
+    );
+  }
+
+  function readAddedModelsYaml() {
+    return YAML.load(fs.readFileSync(path.join(tmpDir, "added-models.yaml"), "utf-8"));
+  }
+
+  it("removes the reserved official DeepSeek provider id from legacy model lists", () => {
+    writeAddedModelsYaml({
+      deepseek: {
+        base_url: "https://api.deepseek.com/v1",
+        api_key: "sk-test",
+        models: ["deepseek", "deepseek-v4-pro", { id: "deepseek-v4-flash", reasoning: true }],
+      },
+      openrouter: {
+        base_url: "https://openrouter.ai/api/v1",
+        api_key: "sk-test",
+        models: ["deepseek"],
+      },
+    });
+
+    const prefs = runMigration13();
+
+    const raw = readAddedModelsYaml();
+    expect(raw.providers.deepseek.models).toEqual([
+      "deepseek-v4-pro",
+      { id: "deepseek-v4-flash", reasoning: true },
+    ]);
+    expect(raw.providers.openrouter.models).toEqual(["deepseek"]);
+    expect(prefs.getPreferences()._dataVersion).toBe(LATEST_DATA_VERSION);
+  });
+
+  it("seeds DeepSeek defaults when the reserved model id was the only legacy entry", () => {
+    writeAddedModelsYaml({
+      "deepseek-official-proxy": {
+        base_url: "https://api.deepseek.com/v1",
+        api_key: "sk-test",
+        models: [{ id: "deepseek" }],
+      },
+    });
+
+    runMigration13();
+
+    const raw = readAddedModelsYaml();
+    expect(raw.providers["deepseek-official-proxy"].models).toEqual([
+      "deepseek-v4-pro",
+      "deepseek-v4-flash",
+    ]);
+  });
+
+  it("makes legacy implicit memory master defaults explicit without overriding user choices", () => {
+    writeAgentConfig(agentsDir, "legacy", {
+      agent: { name: "Legacy" },
+      memory: { token_budget: 2500 },
+    });
+    writeAgentConfig(agentsDir, "explicit-off", {
+      agent: { name: "Explicit Off" },
+      memory: { enabled: false, token_budget: 1000 },
+    });
+    writeAgentConfig(agentsDir, "explicit-on", {
+      agent: { name: "Explicit On" },
+      memory: { enabled: true },
+    });
+
+    runMigration13();
+
+    expect(readAgentConfig(agentsDir, "legacy").memory).toEqual({
+      token_budget: 2500,
+      enabled: true,
+    });
+    expect(readAgentConfig(agentsDir, "explicit-off").memory).toEqual({
+      enabled: false,
+      token_budget: 1000,
+    });
+    expect(readAgentConfig(agentsDir, "explicit-on").memory).toEqual({ enabled: true });
   });
 });
 
