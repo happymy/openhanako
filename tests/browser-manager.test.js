@@ -110,6 +110,59 @@ describe("BrowserManager explicit sessionPath", () => {
     expect(manager._lruOrder).not.toContain(SP1);
   });
 
+  it("thumbnail fatal capture errors mark the session unavailable", async () => {
+    const manager = new BrowserManager();
+    manager._sessions.set(SP1, { running: true, url: "https://example.com", headless: false });
+    manager._lruOrder = [SP1];
+    manager._sendCmd = vi.fn().mockRejectedValue(
+      new Error("Current display surface not available for capture"),
+    );
+
+    const thumbnail = await manager.thumbnail(SP1);
+
+    expect(thumbnail).toBeNull();
+    expect(manager.isRunning(SP1)).toBe(false);
+    expect(manager.runningSessions).not.toContain(SP1);
+    expect(manager.sessionUnavailableReason(SP1)).toContain("display surface");
+    expect(manager._lruOrder).not.toContain(SP1);
+  });
+
+  it("does not send further commands for an unavailable browser session", async () => {
+    const manager = new BrowserManager();
+    manager._sessions.set(SP1, { running: true, url: "https://example.com", headless: false });
+    manager._sendCmd = vi.fn().mockRejectedValue(
+      new Error("Object has been destroyed"),
+    );
+
+    await manager.thumbnail(SP1);
+    manager._sendCmd.mockClear();
+
+    await expect(manager.snapshot(SP1)).rejects.toThrow(/浏览器实例已不可用|browser instance is unavailable/i);
+    expect(manager._sendCmd).not.toHaveBeenCalled();
+  });
+
+  it("launch() clears an unavailable stale view before creating a fresh browser", async () => {
+    const manager = new BrowserManager();
+    manager._sessions.set(SP1, { running: true, url: "https://example.com", headless: false });
+    manager._sendCmd = vi.fn().mockRejectedValue(
+      new Error("No browser instance for session /sessions/session-1.json"),
+    );
+
+    await manager.thumbnail(SP1);
+    manager._sendCmd.mockReset();
+    manager._sendCmd.mockResolvedValue({});
+
+    await manager.launch(SP1);
+
+    expect(manager._sendCmd).toHaveBeenNthCalledWith(1, "destroyView", { sessionPath: SP1 });
+    expect(manager._sendCmd).toHaveBeenNthCalledWith(2, "launch", {
+      sessionPath: SP1,
+      headless: false,
+    });
+    expect(manager.isRunning(SP1)).toBe(true);
+    expect(manager.sessionUnavailableReason(SP1)).toBeNull();
+  });
+
   it("getBrowserSessions() merges cold state with all running sessions", () => {
     const manager = new BrowserManager();
     manager._sessions.set(SP1, { running: true, url: "https://example.com", headless: false });

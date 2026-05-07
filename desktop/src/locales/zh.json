@@ -1540,6 +1540,7 @@
     "browserShown": "浏览器窗口已置前",
     "browserUnknownAction": "未知操作: {action}",
     "browserActionFailed": "浏览器操作失败: {msg}",
+    "browserSessionUnavailable": "这个会话的浏览器实例已不可用{reason}。请重新启动浏览器后再继续。",
     "skillNeedAbsolutePath": "需要绝对路径",
     "skillPathNotExists": "路径不存在",
     "skillMissingSkillMd": "文件夹中缺少 SKILL.md",

@@ -159,11 +159,21 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
       const browser = BrowserManager.instance();
       if (!browser.hasAnyRunning) { stopBrowserThumbPoll(); return; }
       await Promise.all(browser.runningSessions.map(async (sp) => {
+        const wasRunning = browser.isRunning(sp);
         const thumbnail = await browser.thumbnail(sp);
         if (thumbnail) {
           broadcast({ type: "browser_status", running: true, url: browser.currentUrl(sp), thumbnail, sessionPath: sp });
+        } else if (wasRunning && !browser.isRunning(sp)) {
+          broadcast({
+            type: "browser_status",
+            running: false,
+            url: browser.currentUrl(sp),
+            error: browser.sessionUnavailableReason?.(sp) || null,
+            sessionPath: sp,
+          });
         }
       }));
+      if (!browser.hasAnyRunning) stopBrowserThumbPoll();
     }, 30_000);
   }
   function stopBrowserThumbPoll() {

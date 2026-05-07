@@ -1490,6 +1490,7 @@
     "browserShown": "ブラウザウィンドウを前面に移動しました",
     "browserUnknownAction": "不明な操作: {action}",
     "browserActionFailed": "ブラウザ操作に失敗しました: {msg}",
+    "browserSessionUnavailable": "このセッションのブラウザインスタンスは利用できません{reason}。続行する前にブラウザを再起動してください。",
     "skillNeedAbsolutePath": "絶対パスが必要です",
     "skillPathNotExists": "パスが存在しません",
     "skillMissingSkillMd": "フォルダに SKILL.md がありません",

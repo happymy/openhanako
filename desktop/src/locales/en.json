@@ -1535,6 +1535,7 @@
     "browserShown": "Browser window brought to front",
     "browserUnknownAction": "Unknown action: {action}",
     "browserActionFailed": "Browser action failed: {msg}",
+    "browserSessionUnavailable": "The browser instance for this session is unavailable{reason}. Start the browser again before continuing.",
     "skillNeedAbsolutePath": "Absolute path required",
     "skillPathNotExists": "Path does not exist",
     "skillMissingSkillMd": "SKILL.md not found in folder",

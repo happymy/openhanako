@@ -1490,6 +1490,7 @@
     "browserShown": "瀏覽器視窗已置前",
     "browserUnknownAction": "未知操作: {action}",
     "browserActionFailed": "瀏覽器操作失敗: {msg}",
+    "browserSessionUnavailable": "這個會話的瀏覽器實例已不可用{reason}。請重新啟動瀏覽器後再繼續。",
     "skillNeedAbsolutePath": "需要絕對路徑",
     "skillPathNotExists": "路徑不存在",
     "skillMissingSkillMd": "資料夾中缺少 SKILL.md",

@@ -1415,7 +1415,16 @@ const SNAPSHOT_SCRIPT = `(function() {
 /** 按 sessionPath 查找 view，fallback 到当前活跃 view（兼容旧调用） */
 function _getViewForSession(sessionPath) {
   if (sessionPath && _browserViews.has(sessionPath)) {
-    return _browserViews.get(sessionPath);
+    const view = _browserViews.get(sessionPath);
+    if (_isBrowserViewDestroyed(view)) {
+      _forgetBrowserView(view, "destroyed");
+      return null;
+    }
+    return view;
+  }
+  if (_browserWebView && _isBrowserViewDestroyed(_browserWebView)) {
+    _forgetBrowserView(_browserWebView, "destroyed");
+    return null;
   }
   return _browserWebView;
 }
@@ -1429,6 +1438,81 @@ function _ensureBrowserForSession(sessionPath) {
 
 function _ensureBrowser() {
   return _ensureBrowserForSession(null);
+}
+
+const FATAL_BROWSER_HOST_ERROR_PATTERNS = [
+  /current display surface not available/i,
+  /display surface .*not available/i,
+  /object has been destroyed/i,
+  /no browser instance/i,
+  /render process gone/i,
+  /webcontents?.*destroy/i,
+  /web contents?.*destroy/i,
+  /target closed/i,
+];
+
+function _isFatalBrowserHostError(err) {
+  const msg = err instanceof Error ? err.message : String(err || "");
+  return FATAL_BROWSER_HOST_ERROR_PATTERNS.some((pattern) => pattern.test(msg));
+}
+
+function _isBrowserViewDestroyed(view) {
+  try {
+    return !view || !view.webContents || view.webContents.isDestroyed();
+  } catch {
+    return true;
+  }
+}
+
+function _forgetBrowserView(view, reason) {
+  if (!view) return;
+  const wasActive = view === _browserWebView;
+  if (wasActive && browserViewerWindow && !browserViewerWindow.isDestroyed()) {
+    try { browserViewerWindow.contentView.removeChildView(view); } catch {}
+  }
+  for (const [sp, candidate] of _browserViews) {
+    if (candidate === view) _browserViews.delete(sp);
+  }
+  try { if (!view.webContents.isDestroyed()) view.webContents.close(); } catch {}
+  if (wasActive) {
+    _browserWebView = null;
+    _currentBrowserSession = null;
+    if (browserViewerWindow && !browserViewerWindow.isDestroyed()) {
+      browserViewerWindow.webContents.send("browser-update", { running: false, reason });
+    }
+  }
+}
+
+function _bindBrowserViewLifecycle(view, sessionPath) {
+  const forget = (reason) => _forgetBrowserView(view, reason);
+  try {
+    view.webContents.once("destroyed", () => forget("destroyed"));
+    view.webContents.on("render-process-gone", (_event, details) => {
+      forget(`render-process-gone: ${details?.reason || "unknown"}`);
+    });
+  } catch {}
+  if (sessionPath && _isBrowserViewDestroyed(view)) forget("destroyed");
+}
+
+function _ensureLiveWebContents(view, sessionPath) {
+  if (_isBrowserViewDestroyed(view)) {
+    _forgetBrowserView(view, "destroyed");
+    throw new Error("Object has been destroyed" + (sessionPath ? ` for session ${sessionPath}` : ""));
+  }
+  return view.webContents;
+}
+
+async function _withLiveWebContents(sessionPath, fn) {
+  const view = _ensureBrowserForSession(sessionPath);
+  const wc = _ensureLiveWebContents(view, sessionPath);
+  try {
+    return await fn(wc, view);
+  } catch (err) {
+    if (_isFatalBrowserHostError(err)) {
+      _forgetBrowserView(view, err.message);
+    }
+    throw err;
+  }
 }
 
 function _delay(ms) {
@@ -1527,9 +1611,12 @@ async function handleBrowserCommand(cmd, params) {
     case "launch": {
       const sp = params.sessionPath || null;
       // 该 session 已有 view → 直接返回
-      if (sp && _browserViews.has(sp)) return {};
+      if (sp && _browserViews.has(sp)) {
+        const existingView = _getViewForSession(sp);
+        if (existingView) return {};
+      }
       // 无 sessionPath 且已有活跃 view → 直接返回（兼容旧调用）
-      if (!sp && _browserWebView) return {};
+      if (!sp && _browserWebView && !_isBrowserViewDestroyed(_browserWebView)) return {};
 
       const ses = session.fromPartition("persist:hana-browser");
       const view = new WebContentsView({
@@ -1567,6 +1654,7 @@ async function handleBrowserCommand(cmd, params) {
 
       // 卡片圆角
       view.setBorderRadius(10);
+      _bindBrowserViewLifecycle(view, sp);
 
       // 存入 Map
       if (sp) _browserViews.set(sp, view);
@@ -1598,7 +1686,7 @@ async function handleBrowserCommand(cmd, params) {
     // ── close ──（真正销毁指定 session 的浏览器实例）
     case "close": {
       const sp = params.sessionPath;
-      const view = sp ? _browserViews.get(sp) : _browserWebView;
+      const view = sp ? _getViewForSession(sp) : _browserWebView;
       if (view) {
         // 如果是当前活跃 view，从窗口移除
         if (view === _browserWebView) {
@@ -1608,7 +1696,7 @@ async function handleBrowserCommand(cmd, params) {
           _browserWebView = null;
           _currentBrowserSession = null;
         }
-        view.webContents.close();
+        try { if (!view.webContents.isDestroyed()) view.webContents.close(); } catch {}
         if (sp) _browserViews.delete(sp);
       }
       // 通知浮窗状态变化，但不自动隐藏（让用户自己决定关不关）
@@ -1621,7 +1709,7 @@ async function handleBrowserCommand(cmd, params) {
     // ── suspend ──（从窗口摘下来，但不销毁，页面状态完全保留）
     case "suspend": {
       const sp = params.sessionPath;
-      const view = sp ? _browserViews.get(sp) : _browserWebView;
+      const view = sp ? _getViewForSession(sp) : _browserWebView;
       if (view && view === _browserWebView) {
         // 只有当前活跃 view 需要从窗口摘下
         if (browserViewerWindow && !browserViewerWindow.isDestroyed()) {
@@ -1643,7 +1731,8 @@ async function handleBrowserCommand(cmd, params) {
       if (!sp || !_browserViews.has(sp)) {
         return { found: false };
       }
-      const view = _browserViews.get(sp);
+      const view = _getViewForSession(sp);
+      if (!view) return { found: false };
       _browserWebView = view;
       _currentBrowserSession = sp;
 
@@ -1666,137 +1755,141 @@ async function handleBrowserCommand(cmd, params) {
       if (!isAllowedBrowserUrl(params.url)) {
         throw new Error("Only http/https URLs are allowed");
       }
-      const view = _ensureBrowserForSession(params.sessionPath);
-      const wc = view.webContents;
-      const NAV_TIMEOUT = 30000;
-      await Promise.race([
-        wc.loadURL(params.url),
-        new Promise((_, reject) => setTimeout(() => {
-          try { wc.stop(); } catch {}
-          reject(new Error(`Navigation timed out after ${NAV_TIMEOUT / 1000}s: ${params.url}`));
-        }, NAV_TIMEOUT)),
-      ]);
-      await _delay(500);
-      const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
-      return { url: snap.currentUrl, title: snap.title, snapshot: snap.text };
+      return await _withLiveWebContents(params.sessionPath, async (wc) => {
+        const NAV_TIMEOUT = 30000;
+        await Promise.race([
+          wc.loadURL(params.url),
+          new Promise((_, reject) => setTimeout(() => {
+            try { wc.stop(); } catch {}
+            reject(new Error(`Navigation timed out after ${NAV_TIMEOUT / 1000}s: ${params.url}`));
+          }, NAV_TIMEOUT)),
+        ]);
+        await _delay(500);
+        const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
+        return { url: snap.currentUrl, title: snap.title, snapshot: snap.text };
+      });
     }
 
     // ── snapshot ──
     case "snapshot": {
-      const view = _ensureBrowserForSession(params.sessionPath);
-      const snap = await view.webContents.executeJavaScript(SNAPSHOT_SCRIPT);
-      return { currentUrl: snap.currentUrl, text: snap.text };
+      return await _withLiveWebContents(params.sessionPath, async (wc) => {
+        const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
+        return { currentUrl: snap.currentUrl, text: snap.text };
+      });
     }
 
     // ── screenshot ──
     case "screenshot": {
-      const view = _ensureBrowserForSession(params.sessionPath);
-      const img = await view.webContents.capturePage();
-      const jpeg = img.toJPEG(75);
-      return { base64: jpeg.toString("base64") };
+      return await _withLiveWebContents(params.sessionPath, async (wc) => {
+        const img = await wc.capturePage();
+        const jpeg = img.toJPEG(75);
+        return { base64: jpeg.toString("base64") };
+      });
     }
 
     // ── thumbnail ──
     case "thumbnail": {
-      const view = _ensureBrowserForSession(params.sessionPath);
-      const img = await view.webContents.capturePage();
-      const resized = img.resize({ width: 400 });
-      const jpeg = resized.toJPEG(60);
-      return { base64: jpeg.toString("base64") };
+      return await _withLiveWebContents(params.sessionPath, async (wc) => {
+        const img = await wc.capturePage();
+        const resized = img.resize({ width: 400 });
+        const jpeg = resized.toJPEG(60);
+        return { base64: jpeg.toString("base64") };
+      });
     }
 
     // ── click ──
     case "click": {
-      const view = _ensureBrowserForSession(params.sessionPath);
-      const wc = view.webContents;
-      const clickRef = Number(params.ref);
-      await wc.executeJavaScript(
-        "(function(){ var el = document.querySelector('[data-hana-ref=\"" + clickRef + "\"]');" +
-        " if (!el) throw new Error('Element [" + clickRef + "] not found');" +
-        " el.scrollIntoView({block:'center'}); el.click(); })()"
-      );
-      await _delay(800);
-      const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
-      return { currentUrl: snap.currentUrl, text: snap.text };
+      return await _withLiveWebContents(params.sessionPath, async (wc) => {
+        const clickRef = Number(params.ref);
+        await wc.executeJavaScript(
+          "(function(){ var el = document.querySelector('[data-hana-ref=\"" + clickRef + "\"]');" +
+          " if (!el) throw new Error('Element [" + clickRef + "] not found');" +
+          " el.scrollIntoView({block:'center'}); el.click(); })()"
+        );
+        await _delay(800);
+        const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
+        return { currentUrl: snap.currentUrl, text: snap.text };
+      });
     }
 
     // ── type ──
     case "type": {
-      const view = _ensureBrowserForSession(params.sessionPath);
-      const wc = view.webContents;
-      if (params.ref != null) {
-        const typeRef = Number(params.ref);
-        await wc.executeJavaScript(
-          "(function(){ var el = document.querySelector('[data-hana-ref=\"" + typeRef + "\"]');" +
-          " if (!el) throw new Error('Element [" + typeRef + "] not found');" +
-          " el.scrollIntoView({block:'center'}); el.focus();" +
-          " if (el.select) el.select(); })()"
-        );
-        await _delay(100);
-      }
-      await wc.insertText(params.text);
-      if (params.pressEnter) {
-        await _delay(100);
-        wc.sendInputEvent({ type: "keyDown", keyCode: "Return" });
-        wc.sendInputEvent({ type: "keyUp", keyCode: "Return" });
-        await _delay(800);
-      }
-      await _delay(300);
-      const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
-      return { currentUrl: snap.currentUrl, text: snap.text };
+      return await _withLiveWebContents(params.sessionPath, async (wc) => {
+        if (params.ref != null) {
+          const typeRef = Number(params.ref);
+          await wc.executeJavaScript(
+            "(function(){ var el = document.querySelector('[data-hana-ref=\"" + typeRef + "\"]');" +
+            " if (!el) throw new Error('Element [" + typeRef + "] not found');" +
+            " el.scrollIntoView({block:'center'}); el.focus();" +
+            " if (el.select) el.select(); })()"
+          );
+          await _delay(100);
+        }
+        await wc.insertText(params.text);
+        if (params.pressEnter) {
+          await _delay(100);
+          wc.sendInputEvent({ type: "keyDown", keyCode: "Return" });
+          wc.sendInputEvent({ type: "keyUp", keyCode: "Return" });
+          await _delay(800);
+        }
+        await _delay(300);
+        const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
+        return { currentUrl: snap.currentUrl, text: snap.text };
+      });
     }
 
     // ── scroll ──
     case "scroll": {
-      const view = _ensureBrowserForSession(params.sessionPath);
-      const wc = view.webContents;
-      const delta = (params.direction === "up" ? -1 : 1) * (params.amount || 3) * 300;
-      await wc.executeJavaScript("window.scrollBy({top:" + delta + ",behavior:'smooth'})");
-      await _delay(500);
-      const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
-      return { currentUrl: snap.currentUrl, text: snap.text };
+      return await _withLiveWebContents(params.sessionPath, async (wc) => {
+        const delta = (params.direction === "up" ? -1 : 1) * (params.amount || 3) * 300;
+        await wc.executeJavaScript("window.scrollBy({top:" + delta + ",behavior:'smooth'})");
+        await _delay(500);
+        const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
+        return { currentUrl: snap.currentUrl, text: snap.text };
+      });
     }
 
     // ── select ──
     case "select": {
-      const view = _ensureBrowserForSession(params.sessionPath);
-      const wc = view.webContents;
-      const selRef = Number(params.ref);
-      const safeValue = JSON.stringify(params.value);
-      await wc.executeJavaScript(
-        "(function(){ var el = document.querySelector('[data-hana-ref=\"" + selRef + "\"]');" +
-        " if (!el) throw new Error('Element [" + selRef + "] not found');" +
-        " el.value = " + safeValue + ";" +
-        " el.dispatchEvent(new Event('change',{bubbles:true})); })()"
-      );
-      await _delay(300);
-      const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
-      return { currentUrl: snap.currentUrl, text: snap.text };
+      return await _withLiveWebContents(params.sessionPath, async (wc) => {
+        const selRef = Number(params.ref);
+        const safeValue = JSON.stringify(params.value);
+        await wc.executeJavaScript(
+          "(function(){ var el = document.querySelector('[data-hana-ref=\"" + selRef + "\"]');" +
+          " if (!el) throw new Error('Element [" + selRef + "] not found');" +
+          " el.value = " + safeValue + ";" +
+          " el.dispatchEvent(new Event('change',{bubbles:true})); })()"
+        );
+        await _delay(300);
+        const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
+        return { currentUrl: snap.currentUrl, text: snap.text };
+      });
     }
 
     // ── pressKey ──
     case "pressKey": {
-      const view = _ensureBrowserForSession(params.sessionPath);
-      const wc = view.webContents;
-      const parts = params.key.split("+");
-      const keyCode = parts[parts.length - 1];
-      const modifiers = parts.slice(0, -1).map(function(m) { return m.toLowerCase(); });
-      const keyMap = { Enter: "Return", Escape: "Escape", Tab: "Tab", Backspace: "Backspace", Delete: "Delete", Space: "Space" };
-      const mappedKey = keyMap[keyCode] || keyCode;
-      wc.sendInputEvent({ type: "keyDown", keyCode: mappedKey, modifiers });
-      wc.sendInputEvent({ type: "keyUp", keyCode: mappedKey, modifiers });
-      await _delay(300);
-      const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
-      return { currentUrl: snap.currentUrl, text: snap.text };
+      return await _withLiveWebContents(params.sessionPath, async (wc) => {
+        const parts = params.key.split("+");
+        const keyCode = parts[parts.length - 1];
+        const modifiers = parts.slice(0, -1).map(function(m) { return m.toLowerCase(); });
+        const keyMap = { Enter: "Return", Escape: "Escape", Tab: "Tab", Backspace: "Backspace", Delete: "Delete", Space: "Space" };
+        const mappedKey = keyMap[keyCode] || keyCode;
+        wc.sendInputEvent({ type: "keyDown", keyCode: mappedKey, modifiers });
+        wc.sendInputEvent({ type: "keyUp", keyCode: mappedKey, modifiers });
+        await _delay(300);
+        const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
+        return { currentUrl: snap.currentUrl, text: snap.text };
+      });
     }
 
     // ── wait ──
     case "wait": {
-      const view = _ensureBrowserForSession(params.sessionPath);
-      const timeout = Math.min(params.timeout || 5000, 10000);
-      await _delay(timeout);
-      const snap = await view.webContents.executeJavaScript(SNAPSHOT_SCRIPT);
-      return { currentUrl: snap.currentUrl, text: snap.text };
+      return await _withLiveWebContents(params.sessionPath, async (wc) => {
+        const timeout = Math.min(params.timeout || 5000, 10000);
+        await _delay(timeout);
+        const snap = await wc.executeJavaScript(SNAPSHOT_SCRIPT);
+        return { currentUrl: snap.currentUrl, text: snap.text };
+      });
     }
 
     // ── evaluate ──
@@ -1805,16 +1898,17 @@ async function handleBrowserCommand(cmd, params) {
         throw new Error("Expression too long (max 10000 chars)");
       }
       console.log(`[browser:evaluate] ${params.expression.slice(0, 200)}${params.expression.length > 200 ? "..." : ""}`);
-      const view = _ensureBrowserForSession(params.sessionPath);
-      const result = await view.webContents.executeJavaScript(params.expression);
-      const serialized = typeof result === "string" ? result : JSON.stringify(result, null, 2);
-      return { value: serialized || "undefined" };
+      return await _withLiveWebContents(params.sessionPath, async (wc) => {
+        const result = await wc.executeJavaScript(params.expression);
+        const serialized = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+        return { value: serialized || "undefined" };
+      });
     }
 
     // ── show ──（按 sessionPath 切换显示的 view 并弹出窗口）
     case "show": {
       const sp = params.sessionPath;
-      const view = sp ? _browserViews.get(sp) : _browserWebView;
+      const view = sp ? _getViewForSession(sp) : _browserWebView;
       if (!view) return {};
 
       // 如果不是当前活跃 view，先切换
@@ -1851,7 +1945,8 @@ async function handleBrowserCommand(cmd, params) {
     case "destroyView": {
       const sp = params.sessionPath;
       if (sp && _browserViews.has(sp)) {
-        const view = _browserViews.get(sp);
+        const view = _getViewForSession(sp);
+        if (!view) return {};
         if (view === _browserWebView) {
           if (browserViewerWindow && !browserViewerWindow.isDestroyed()) {
             try { browserViewerWindow.contentView.removeChildView(view); } catch {}
@@ -1863,7 +1958,7 @@ async function handleBrowserCommand(cmd, params) {
             browserViewerWindow.hide();
           }
         }
-        view.webContents.close();
+        try { if (!view.webContents.isDestroyed()) view.webContents.close(); } catch {}
         _browserViews.delete(sp);
       }
       return {};

@@ -6,6 +6,7 @@ import { createBrowserTool } from "../lib/tools/browser-tool.js";
 import { extractBlocks } from "../server/block-extractors.js";
 
 const screenshotMock = vi.fn();
+const snapshotMock = vi.fn();
 const isRunningMock = vi.fn();
 const currentUrlMock = vi.fn();
 const thumbnailMock = vi.fn();
@@ -14,6 +15,7 @@ vi.mock("../lib/browser/browser-manager.js", () => ({
   BrowserManager: {
     instance: () => ({
       screenshot: screenshotMock,
+      snapshot: snapshotMock,
       isRunning: isRunningMock,
       currentUrl: currentUrlMock,
       thumbnail: thumbnailMock,
@@ -36,6 +38,7 @@ describe("browser screenshot vision adaptation", () => {
     vi.clearAllMocks();
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-browser-shot-"));
     screenshotMock.mockResolvedValue({ base64: "SCREENSHOT_BASE64", mimeType: "image/png" });
+    snapshotMock.mockResolvedValue("Page snapshot");
     isRunningMock.mockReturnValue(true);
     currentUrlMock.mockReturnValue("https://example.test/page");
     thumbnailMock.mockResolvedValue("THUMBNAIL_BASE64");
@@ -150,6 +153,27 @@ describe("browser screenshot vision adaptation", () => {
       visionAdapted: false,
       visionError: expect.stringContaining("does not support image input"),
     }));
+  });
+
+  it("returns browser status details when a session becomes unavailable", async () => {
+    const fatalError = new Error("这个会话的浏览器实例已不可用: Object has been destroyed。请重新启动浏览器后再继续。");
+    fatalError.browserFatal = true;
+    fatalError.code = "BROWSER_SESSION_UNAVAILABLE";
+    snapshotMock.mockRejectedValueOnce(fatalError);
+    isRunningMock.mockReturnValue(false);
+    const tool = createBrowserTool(() => "/tmp/session.jsonl");
+
+    const result = await tool.execute("call-1", { action: "snapshot" }, null, null, makeCtx());
+
+    expect(result.content[0]).toEqual(expect.objectContaining({ type: "text" }));
+    expect(result.details).toEqual(expect.objectContaining({
+      action: "snapshot",
+      fatal: true,
+      running: false,
+      url: "https://example.test/page",
+      error: expect.stringContaining("浏览器实例已不可用"),
+    }));
+    expect(thumbnailMock).not.toHaveBeenCalled();
   });
 
   it("allows text-only browser screenshots when auxiliary vision is enabled", async () => {
