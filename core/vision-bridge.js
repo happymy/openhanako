@@ -410,6 +410,65 @@ export class VisionBridge {
     return { text, images: undefined, visionNotes: notes };
   }
 
+  async prepareResources({ sessionPath, targetModel, userRequest, text, resources } = {}) {
+    if (!resources?.length) return { notes: [] };
+    if (!hasExplicitTextOnlyInput(targetModel)) return { notes: [] };
+
+    const config = this._resolveVisionConfig?.();
+    if (!config?.model) {
+      throw new Error("vision auxiliary model is required for image input with the current text-only model");
+    }
+    if (!modelSupportsImage(config.model)) {
+      throw new Error("vision auxiliary model must support image input");
+    }
+
+    const request = normalizeUserRequest(userRequest ?? text);
+    const notes = [];
+    for (let i = 0; i < resources.length; i++) {
+      const resource = resources[i];
+      const key = String(resource?.key || "").trim();
+      const img = resource?.image;
+      if (!key || !img) continue;
+
+      const existing = this._lookupNote(sessionPath, key);
+      if (existing?.note) {
+        notes.push({
+          key,
+          label: resource?.label || key,
+          note: existing.note,
+          reused: true,
+        });
+        continue;
+      }
+
+      const note = await this._analyzeImage(config, img, i, request);
+      const entry = {
+        note,
+        sessionPath: sessionPath || null,
+        imagePath: key,
+        userRequest: request,
+        visionModel: compactModelRef(config.model),
+        targetModel: compactModelRef(targetModel),
+        updatedAt: this._now(),
+      };
+      this._noteByPath.set(key, entry);
+      this._trimNoteCache();
+      if (sessionPath) this._persistNote(sessionPath, key, entry);
+      notes.push({
+        key,
+        label: resource?.label || key,
+        note,
+        reused: false,
+      });
+    }
+
+    return { notes };
+  }
+
+  lookupNote(sessionPath, imagePath) {
+    return this._lookupNote(sessionPath, imagePath);
+  }
+
   injectNotes(messages, sessionPath = null) {
     if (!Array.isArray(messages)) return { messages, injected: 0 };
     let injected = 0;

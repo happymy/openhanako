@@ -213,6 +213,8 @@ export class HanaEngine {
       isVisionAuxiliaryEnabled: () => this.isVisionAuxiliaryEnabled(),
       getHanakoHome: () => this.hanakoHome,
       registerSessionFile: (entry) => this.registerSessionFile(entry),
+      getSessionFile: (fileId, options) => this.getSessionFile(fileId, options),
+      getSessionFileByPath: (filePath, options) => this.getSessionFileByPath(filePath, options),
     });
 
     // ── Slash Command System ──

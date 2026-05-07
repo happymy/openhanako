@@ -595,7 +595,8 @@ export class Agent {
     const computerUseTools = this._isComputerUseAvailableForThisAgent()
       ? [this._getComputerUseTool()]
       : [];
-    const browserTool = isExplicitTextOnlyModel(options.model)
+    const auxiliaryVisionAvailable = this._cb?.getEngine?.()?.isVisionAuxiliaryEnabled?.() === true;
+    const browserTool = isExplicitTextOnlyModel(options.model) && !auxiliaryVisionAvailable
       ? this._browserToolNoScreenshot
       : this._browserTool;
     const legacyArtifactTools = options.includeLegacyArtifactTool === true

@@ -15,6 +15,7 @@ import { safeReadJSON } from "../shared/safe-fs.js";
 import { findModel } from "../shared/model-ref.js";
 import { teardownSessionResources } from "./session-teardown.js";
 import { requireVisionAuxiliaryEnabled } from "./vision-auxiliary-policy.js";
+import { adaptVisualContextMessages } from "./visual-context-pipeline.js";
 import { SESSION_PERMISSION_MODES } from "./session-permission-mode.js";
 import { collectMediaItems } from "../lib/tools/media-details.js";
 import { materializeBridgeInboundFiles } from "../lib/session-files/bridge-inbound-files.js";
@@ -24,7 +25,7 @@ function getSteerPrefix() {
   return isZh ? "（插话，无需 MOOD）\n" : "(Interjection, no MOOD needed)\n";
 }
 
-function withVisionExtension(resourceLoader, getBridge, getSessionPath, isEnabled, warn) {
+function withVisionExtension(resourceLoader, getBridge, getSessionPath, isEnabled, warn, resolveSessionFile) {
   return Object.create(resourceLoader, {
     getExtensions: {
       value: () => {
@@ -36,14 +37,24 @@ function withVisionExtension(resourceLoader, getBridge, getSessionPath, isEnable
             [
               "context",
               [
-                async (event) => {
+                async (event, ctx) => {
                   try {
                     if (isEnabled?.() !== true) return undefined;
                     const bridge = getBridge?.();
                     if (!bridge) return undefined;
-                    const { messages, injected } = bridge.injectNotes(event.messages, getSessionPath?.() || null);
-                    if (!injected) return undefined;
-                    return { messages };
+                    const sessionPath = getSessionPath?.() || null;
+                    const adapted = await adaptVisualContextMessages({
+                      messages: event.messages,
+                      sessionPath,
+                      targetModel: ctx?.model,
+                      visionBridge: bridge,
+                      isVisionAuxiliaryEnabled: () => isEnabled?.() === true,
+                      resolveSessionFile,
+                      warn,
+                    });
+                    const injectedNotes = bridge.injectNotes(adapted.messages, sessionPath);
+                    if (!adapted.injected && !injectedNotes.injected) return undefined;
+                    return { messages: injectedNotes.messages };
                   } catch (err) {
                     warn?.(`vision context injection failed: ${err?.message || err}`);
                     return undefined;
@@ -57,7 +68,7 @@ function withVisionExtension(resourceLoader, getBridge, getSessionPath, isEnable
           commands: new Map(),
           messageRenderers: new Map(),
         };
-        return { ...base, extensions: [...(base.extensions || []), extension] };
+        return { ...base, extensions: [extension, ...(base.extensions || [])] };
       },
     },
   });
@@ -291,6 +302,12 @@ export class BridgeSessionManager {
           () => sessionPathRef.current,
           () => this._deps.isVisionAuxiliaryEnabled?.() === true,
           (msg) => console.warn(`[bridge-session] ${msg}`),
+          ({ fileId, filePath, sessionPath }) => {
+            const lookupSessionPath = sessionPath || sessionPathRef.current || null;
+            if (fileId) return this._deps.getSessionFile?.(fileId, { sessionPath: lookupSessionPath });
+            if (filePath) return this._deps.getSessionFileByPath?.(filePath, { sessionPath: lookupSessionPath });
+            return null;
+          },
         );
 
         // 使用 agent 配置的模型，而非 defaultModel。
@@ -561,6 +578,12 @@ export class BridgeSessionManager {
       () => sessionPathRef.current,
       () => this._deps.isVisionAuxiliaryEnabled?.() === true,
       (msg) => console.warn(`[bridge-session] ${msg}`),
+      ({ fileId, filePath, sessionPath }) => {
+        const lookupSessionPath = sessionPath || sessionPathRef.current || null;
+        if (fileId) return this._deps.getSessionFile?.(fileId, { sessionPath: lookupSessionPath });
+        if (filePath) return this._deps.getSessionFileByPath?.(filePath, { sessionPath: lookupSessionPath });
+        return null;
+      },
     );
 
     return {

@@ -151,4 +151,40 @@ describe("browser screenshot vision adaptation", () => {
       visionError: expect.stringContaining("does not support image input"),
     }));
   });
+
+  it("allows text-only browser screenshots when auxiliary vision is enabled", async () => {
+    const registerSessionFile = vi.fn(({ sessionPath, filePath, label, origin, storageKind }) => ({
+      id: "sf_text_only_browser_shot",
+      fileId: "sf_text_only_browser_shot",
+      sessionPath,
+      filePath,
+      label,
+      displayName: label,
+      filename: path.basename(filePath),
+      ext: "png",
+      mime: "image/png",
+      kind: "image",
+      size: 8,
+      origin,
+      storageKind,
+      status: "available",
+      missingAt: null,
+    }));
+    const tool = createBrowserTool(() => "/tmp/session.jsonl", {
+      getSessionModel: () => ({ id: "deepseek-v4-pro", provider: "deepseek", input: ["text"] }),
+      isVisionAuxiliaryEnabled: () => true,
+      getHanakoHome: () => tmpDir,
+      registerSessionFile,
+    });
+
+    const result = await tool.execute("call-1", { action: "screenshot" }, null, null, makeCtx());
+
+    expect(screenshotMock).toHaveBeenCalledOnce();
+    expect(result.content).toEqual([
+      { type: "image", data: "SCREENSHOT_BASE64", mimeType: "image/png" },
+    ]);
+    expect(result.details.media.items).toEqual([
+      expect.objectContaining({ type: "session_file", fileId: "sf_text_only_browser_shot", kind: "image" }),
+    ]);
+  });
 });

@@ -52,6 +52,7 @@ import { configureProcessPiSdkEnv, ensureHanaPiSdkDirs, resolveHanakoHome } from
 // upgrade handler below (WsTransport needs raw ws .on()/.off() methods)
 import { ConfirmStore } from "../lib/confirm-store.js";
 import { DeferredResultStore } from "../lib/deferred-result-store.js";
+import { normalizeDeferredResolveResult } from "../lib/deferred-result-payload.js";
 import { createDeferredResultExtension } from "../lib/extensions/deferred-result-ext.js";
 import { createCompactionGuardExtension } from "../lib/extensions/compaction-guard-ext.js";
 import { Hub } from "../hub/index.js";
@@ -192,8 +193,8 @@ hub.eventBus.handle("deferred:register", ({ taskId, sessionPath, meta }) => {
   deferredResultStore.defer(taskId, sessionPath, meta);
   return { ok: true, sessionPath };
 });
-hub.eventBus.handle("deferred:resolve", ({ taskId, result, files }) => {
-  deferredResultStore.resolve(taskId, result ?? files);
+hub.eventBus.handle("deferred:resolve", ({ taskId, result, files, sessionFiles }) => {
+  deferredResultStore.resolve(taskId, normalizeDeferredResolveResult({ result, files, sessionFiles }));
   return { ok: true };
 });
 hub.eventBus.handle("deferred:fail", ({ taskId, reason, error }) => {

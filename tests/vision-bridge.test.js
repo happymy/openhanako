@@ -111,6 +111,46 @@ describe("VisionBridge", () => {
     expect(injected.messages[0].content[0].text).toContain(VISION_CONTEXT_END);
   });
 
+  it("persists and restores resource-key vision notes for tool-produced images", async () => {
+    const dir = makeTempDir();
+    const sessionPath = path.join(dir, "session.jsonl");
+    const resourceKey = "visual-resource:browser-shot-1";
+    const { bridge, callText } = makeBridge();
+
+    const prepared = await bridge.prepareResources({
+      sessionPath,
+      targetModel: { id: "deepseek-chat", provider: "deepseek", input: ["text"] },
+      userRequest: "review the browser screenshot",
+      resources: [{
+        key: resourceKey,
+        label: "browser screenshot",
+        image,
+      }],
+    });
+
+    expect(callText).toHaveBeenCalledTimes(1);
+    expect(prepared.notes).toEqual([
+      expect.objectContaining({
+        key: resourceKey,
+        label: "browser screenshot",
+        note: expect.stringContaining("image_overview"),
+      }),
+    ]);
+
+    const restored = new VisionBridge({
+      resolveVisionConfig: () => null,
+      callText: vi.fn(),
+    });
+    const entry = restored.lookupNote(sessionPath, resourceKey);
+
+    expect(entry).toMatchObject({
+      imagePath: resourceKey,
+      note: expect.stringContaining("image_overview"),
+      visionModel: { id: "qwen-vl", provider: "dashscope" },
+      targetModel: { id: "deepseek-chat", provider: "deepseek" },
+    });
+  });
+
   it("bounds the in-memory note cache while keeping evicted notes recoverable from sidecar", async () => {
     const dir = makeTempDir();
     const firstSession = path.join(dir, "first.jsonl");

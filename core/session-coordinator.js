@@ -28,6 +28,7 @@ import { isActiveSessionPath } from "./message-utils.js";
 import { formatWorkspaceScopePrompt, normalizeWorkspaceScope } from "../shared/workspace-scope.js";
 import { getProviderPromptPatches } from "./provider-prompt-patches.js";
 import { requireVisionAuxiliaryEnabled } from "./vision-auxiliary-policy.js";
+import { adaptVisualContextMessages } from "./visual-context-pipeline.js";
 import {
   normalizeSessionThinkingLevel,
   normalizeThinkingLevelForModel,
@@ -419,9 +420,23 @@ export class SessionCoordinator {
                 const bridge = engine?.getVisionBridge?.();
                 if (!bridge) return undefined;
                 const sp = ctx.sessionManager?.getSessionFile?.();
-                const { messages, injected } = bridge.injectNotes(event.messages, sp);
-                if (!injected) return undefined;
-                return { messages };
+                const adapted = await adaptVisualContextMessages({
+                  messages: event.messages,
+                  sessionPath: sp,
+                  targetModel: ctx?.model,
+                  visionBridge: bridge,
+                  isVisionAuxiliaryEnabled: () => engine.isVisionAuxiliaryEnabled?.() === true,
+                  resolveSessionFile: ({ fileId, filePath, sessionPath }) => {
+                    const lookupSessionPath = sessionPath || sp || null;
+                    if (fileId) return engine.getSessionFile?.(fileId, { sessionPath: lookupSessionPath });
+                    if (filePath) return engine.getSessionFileByPath?.(filePath, { sessionPath: lookupSessionPath });
+                    return null;
+                  },
+                  warn: (msg) => log.warn(msg),
+                });
+                const injectedNotes = bridge.injectNotes(adapted.messages, sp);
+                if (!adapted.injected && !injectedNotes.injected) return undefined;
+                return { messages: injectedNotes.messages };
               } catch (err) {
                 log.warn(`vision context injection failed: ${err?.message || err}`);
                 return undefined;
@@ -446,7 +461,7 @@ export class SessionCoordinator {
           const base = baseResourceLoader.getExtensions?.() ?? { extensions: [], errors: [] };
           return {
             ...base,
-            extensions: [...(base.extensions || []), visionAuxiliaryExtension],
+            extensions: [visionAuxiliaryExtension, ...(base.extensions || [])],
           };
         },
       },
