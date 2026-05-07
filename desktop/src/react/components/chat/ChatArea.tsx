@@ -191,30 +191,31 @@ const Panel = memo(function Panel({ path, active }: { path: string; active: bool
 
   return (
     <div
-      ref={ref}
-      className={styles.sessionPanel}
+      className={styles.sessionShell}
       style={{
         visibility: active ? 'visible' : 'hidden',
         zIndex: active ? 1 : 0,
         pointerEvents: active ? 'auto' : 'none',
       }}
     >
-      <div ref={contentRef} className={styles.sessionMessages}>
-        {hasMore && (
-          <div className={styles.loadMoreHint}>
-            {loadingMore ? '...' : ''}
-          </div>
-        )}
-        <ChatTranscript
-          items={items}
-          sessionPath={path}
-          agentId={sessionAgentId}
-          registerMessageElement={registerMessageElement}
-        />
-        {isSessionStreaming && (
-          <div className={styles.typingIndicator} />
-        )}
-        <div className={styles.sessionFooter} />
+      <div ref={ref} className={styles.sessionPanel}>
+        <div ref={contentRef} className={styles.sessionMessages}>
+          {hasMore && (
+            <div className={styles.loadMoreHint}>
+              {loadingMore ? '...' : ''}
+            </div>
+          )}
+          <ChatTranscript
+            items={items}
+            sessionPath={path}
+            agentId={sessionAgentId}
+            registerMessageElement={registerMessageElement}
+          />
+          {isSessionStreaming && (
+            <div className={styles.typingIndicator} />
+          )}
+          <div className={styles.sessionFooter} />
+        </div>
       </div>
       <ChatTimelineNavigator
         anchors={timelineAnchors}
@@ -229,7 +230,7 @@ const Panel = memo(function Panel({ path, active }: { path: string; active: bool
 
 // ── ScrollToBottom 按钮 ──
 
-let _scrollBtn = { el: null as HTMLElement | null, visible: false, listeners: [] as (() => void)[] };
+const _scrollBtn = { el: null as HTMLElement | null, visible: false, listeners: [] as (() => void)[] };
 
 function ScrollToBottomBtn() {
   const [visible, setVisible] = useState(false);

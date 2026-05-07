@@ -13,7 +13,7 @@ describe('chat bottom overlay layout', () => {
     const styleSource = read('components/chat/Chat.module.css');
 
     expect(styleSource).toMatch(
-      /\.sessionPanel\s*\{[\s\S]*bottom:\s*calc\(var\(--input-card-h,\s*0px\)\s*\/\s*2\s*\+\s*var\(--space-lg\)\);/,
+      /\.sessionShell\s*\{[\s\S]*bottom:\s*calc\(var\(--input-card-h,\s*0px\)\s*\/\s*2\s*\+\s*var\(--space-lg\)\);/,
     );
   });
 
@@ -24,7 +24,22 @@ describe('chat bottom overlay layout', () => {
       /--chat-scrollbar-bottom-inset:\s*calc\(var\(--input-card-h,\s*0px\)\s*\/\s*2\);/,
     );
     expect(styleSource).toMatch(
-      /\.sessionPanel::\-webkit\-scrollbar\-track\s*\{[\s\S]*margin-bottom:\s*var\(--chat-scrollbar-bottom-inset\);/,
+      /\.sessionPanel::-webkit-scrollbar-track\s*\{[\s\S]*margin-bottom:\s*var\(--chat-scrollbar-bottom-inset\);/,
+    );
+  });
+
+  it('keeps the timeline navigator outside the scroll container so it floats while messages scroll', () => {
+    const chatAreaSource = read('components/chat/ChatArea.tsx');
+    const styleSource = read('components/chat/Chat.module.css');
+
+    expect(chatAreaSource).toMatch(
+      /<div[\s\S]*className=\{styles\.sessionShell\}[\s\S]*<div[\s\S]*className=\{styles\.sessionPanel\}[\s\S]*<\/div>\s*<ChatTimelineNavigator/,
+    );
+    expect(styleSource).toMatch(
+      /\.sessionShell\s*\{[\s\S]*position:\s*absolute;[\s\S]*overflow:\s*hidden;/,
+    );
+    expect(styleSource).toMatch(
+      /\.timelineNav\s*\{[\s\S]*position:\s*absolute;/,
     );
   });
 
