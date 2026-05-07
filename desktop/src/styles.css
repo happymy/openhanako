@@ -20,6 +20,9 @@
     --radius-input: 4px;        /* input / select / textarea / ghost button / sdw / mdw */
     --radius-card: 10px;        /* SettingsSection body / skill-list-item 首尾 / tool-caps 首尾 */
     --border-width: 1px;        /* 表单控件 / section body 边框粗细 */
+    --link: var(--accent, #537D96);
+    --link-hover: var(--accent-hover, var(--link));
+    --link-rgb: var(--accent-rgb, 83, 125, 150);
 
     /* 动效 */
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -1044,14 +1047,15 @@ html[data-platform="linux"] .tb-toggle-right {
 
 /* 链接 */
 .md-content a {
-    color: var(--accent);
+    color: var(--link);
     text-decoration: none;
-    border-bottom: 1px solid rgba(var(--accent-rgb), 0.3);
-    transition: border-color 0.2s;
+    border-bottom: 1px solid rgba(var(--link-rgb), 0.35);
+    transition: color 0.2s, border-color 0.2s;
 }
 
 .md-content a:hover {
-    border-color: var(--accent);
+    color: var(--link-hover);
+    border-color: var(--link-hover);
 }
 
 /* 标题（助手消息里偶尔用到） */

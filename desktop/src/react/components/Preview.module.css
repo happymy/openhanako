@@ -358,9 +358,9 @@
 }
 
 :global(.cm-link-text) {
-    color: var(--accent);
+    color: var(--link);
     text-decoration: underline;
-    text-decoration-color: var(--accent);
+    text-decoration-color: rgba(var(--link-rgb), 0.55);
     text-underline-offset: 2px;
 }
 
