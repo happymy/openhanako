@@ -7,8 +7,6 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, type Ref } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
 import { useStore } from '../stores';
 import { selectPreviewItems, selectActiveTabId } from '../stores/preview-slice';
 import { isImageFile } from '../utils/format';
@@ -26,10 +24,11 @@ import { InputContextRow } from './input/InputContextRow';
 import { InputControlBar } from './input/InputControlBar';
 import type { PermissionMode } from './input/PlanModeButton';
 import { SessionConfirmationPrompt } from './input/SessionConfirmationPrompt';
-import { SkillBadge } from './input/extensions/skill-badge';
 import { serializeEditor } from '../utils/editor-serializer';
 import { useSkillSlashItems } from '../hooks/use-slash-items';
 import { notifyPasteUploadFailure } from '../utils/paste-upload-feedback';
+import { extractPlainUrlPaste } from '../utils/plain-url-paste';
+import { createInputEditorExtensions } from './input/input-editor-extensions';
 import {
   evaluateChatImageSendPreflight,
   notifyTextModelImageBlocked,
@@ -172,18 +171,7 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
 
   // ── TipTap editor ──
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: false,
-        blockquote: false,
-        codeBlock: false,
-        horizontalRule: false,
-        dropcursor: false,
-        gapcursor: false,
-      }),
-      Placeholder.configure({ placeholder }),
-      SkillBadge,
-    ],
+    extensions: createInputEditorExtensions(placeholder),
     editorProps: {
       attributes: {
         class: styles['input-box'],
@@ -422,9 +410,15 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
         }
       };
       reader.readAsDataURL(file);
-      break;
+      return;
     }
-  }, [addAttachedFile, t]);
+
+    const plainUrlPaste = extractPlainUrlPaste(e.clipboardData);
+    if (plainUrlPaste && editor) {
+      e.preventDefault();
+      editor.commands.insertContent(plainUrlPaste);
+    }
+  }, [addAttachedFile, editor, t]);
 
   // ── Load thinking level once server port is ready + listen for plan mode sync ──
   const serverPort = useStore(s => s.serverPort);
