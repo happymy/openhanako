@@ -100,6 +100,8 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
   const agentYuan = useStore(s => s.agentYuan);
   const thinkingLevel = useStore(s => s.thinkingLevel);
   const setThinkingLevel = useStore(s => s.setThinkingLevel);
+  const addToast = useStore(s => s.addToast);
+  const removeToast = useStore(s => s.removeToast);
 
   const globalModelInfo = useMemo(() => models.find(m => m.isCurrent), [models]);
   const sessionModel = useStore(s => s.currentSessionPath ? s.sessionModelsByPath[s.currentSessionPath] : undefined);
@@ -235,25 +237,17 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
 
   // ── 斜杠命令 ──
 
-  const showSlashResult = useCallback((text: string, type: 'success' | 'error') => {
-    setSlashBusy(null);
-    setSlashResult({ text, type });
-    setTimeout(() => setSlashResult(null), 3000);
-  }, []);
-
-  const diaryFn = useCallback(
-    executeDiary(t, showSlashResult, setSlashBusy, () => { editor?.commands.clearContent(); }, setSlashMenuOpen),
-    [t, showSlashResult, editor],
-  );
+  const diaryFn = useCallback(() => {
+    executeDiary(t, addToast, removeToast, () => { editor?.commands.clearContent(); }, setSlashMenuOpen)();
+  }, [t, addToast, removeToast, editor]);
   const xingFn = useCallback(async () => {
     editor?.commands.clearContent();
     setSlashMenuOpen(false);
     await sendAsUser(XING_PROMPT);
   }, [sendAsUser, editor]);
-  const compactFn = useCallback(
-    executeCompact(setSlashBusy, () => { editor?.commands.clearContent(); }, setSlashMenuOpen),
-    [editor],
-  );
+  const compactFn = useCallback(async () => {
+    await executeCompact(setSlashBusy, () => { editor?.commands.clearContent(); }, setSlashMenuOpen)();
+  }, [editor]);
 
   const skillItems = useSkillSlashItems();
 

@@ -75,28 +75,45 @@ export function resolveSlashSubmitSelection({
 
 // ── Command Executors ──
 
+type ToastType = 'success' | 'error' | 'info' | 'warning';
+type AddToast = (
+  text: string,
+  type?: ToastType,
+  duration?: number,
+  opts?: { persistent?: boolean; dedupeKey?: string },
+) => number | null;
+type RemoveToast = (id: number) => void;
+
 export function executeDiary(
   t: (key: string) => string,
-  showResult: (text: string, type: 'success' | 'error') => void,
-  setBusy: (name: string | null) => void,
+  addToast: AddToast,
+  removeToast: RemoveToast,
   setInput: (text: string) => void,
   setMenuOpen: (open: boolean) => void,
-): () => Promise<void> {
-  return async () => {
-    setBusy('diary');
+): () => void {
+  return () => {
     setInput('');
     setMenuOpen(false);
-    try {
-      const res = await hanaFetch('/api/diary/write', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        showResult(data.error || t('slash.diaryFailed'), 'error');
-        return;
+    const progressToastId = addToast(t('slash.diaryBusy'), 'info', 0, {
+      persistent: true,
+      dedupeKey: 'slash-diary-progress',
+    });
+
+    void (async () => {
+      try {
+        const res = await hanaFetch('/api/diary/write', { method: 'POST' });
+        const data = await res.json();
+        if (progressToastId !== null) removeToast(progressToastId);
+        if (!res.ok || data.error) {
+          addToast(data.error || t('slash.diaryFailed'), 'error', 6000);
+          return;
+        }
+        addToast(t('slash.diaryDone'), 'success', 5000);
+      } catch {
+        if (progressToastId !== null) removeToast(progressToastId);
+        addToast(t('slash.diaryFailed'), 'error', 6000);
       }
-      showResult(t('slash.diaryDone'), 'success');
-    } catch {
-      showResult(t('slash.diaryFailed'), 'error');
-    }
+    })();
   };
 }
 
@@ -157,7 +174,7 @@ export function executeSlashViaWs(
 
 export function buildSlashCommands(
   t: (key: string) => string,
-  executeDiaryFn: () => Promise<void>,
+  executeDiaryFn: () => Promise<void> | void,
   executeXingFn: () => Promise<void>,
   executeCompactFn: () => Promise<void>,
   slashViaWsFactory?: (cmd: string) => () => Promise<void>,

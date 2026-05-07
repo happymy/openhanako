@@ -1289,7 +1289,7 @@ export class HanaEngine {
     const resolvedModel = this._models.resolveModelWithCredentials(diaryModelId);
     // 写日记是用户主动触发的「读历史」功能，必须参考记忆，
     // 跟「在对话中潜移默化带入记忆」的 master 开关无关。所以不查 memoryMasterEnabled。
-    // 但 per-session 开关要尊重：关了记忆开关的对话不进日记。
+    // per-session 开关只决定缺摘要时是否写回 summaries；关闭时仍可为本次日记临时压缩。
     const agent = this.agent;
     return writeDiary({
       summaryManager: agent.summaryManager,
@@ -1302,10 +1302,19 @@ export class HanaEngine {
       agentName: agent.agentName,
       cwd: this.homeCwd || process.cwd(),
       activityStore: this.activityStore,
-      todayMdPath: agent.todayMdPath,
-      isSessionMemoryEnabled: (sessionId) => {
-        const sessionPath = path.join(agent.sessionDir, `${sessionId}.jsonl`);
+      sessionDir: agent.sessionDir,
+      isSessionMemoryEnabledForPath: (sessionPath) => {
         return agent.isSessionMemoryEnabledFor(sessionPath);
+      },
+      getCompactionAuth: async (model) => {
+        const auth = await this._models.modelRegistry.getApiKeyAndHeaders(model);
+        if (!auth.ok) {
+          throw new Error(`Auth failed for model ${model.id}: ${auth.error}`);
+        }
+        if (!auth.apiKey) {
+          throw new Error(`No API key for provider ${model.provider}`);
+        }
+        return { apiKey: auth.apiKey, headers: auth.headers };
       },
     });
   }
