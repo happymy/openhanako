@@ -29,6 +29,15 @@ describe("handle + request", () => {
     expect(r).toEqual({ sent: "feishu" });
   });
 
+  it("global SKIP symbol lets SDK handlers pass to next handler", async () => {
+    bus.handle("bridge:send", async () => Symbol.for("hana.event-bus.skip"));
+    bus.handle("bridge:send", async () => ({ sent: true }));
+
+    const r = await bus.request("bridge:send", { platform: "telegram" });
+
+    expect(r).toEqual({ sent: true });
+  });
+
   it("all handlers SKIP throws BusNoHandlerError", async () => {
     bus.handle("x:y", async () => EventBus.SKIP);
     await expect(bus.request("x:y", {})).rejects.toThrow(/no handler/i);

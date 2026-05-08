@@ -176,6 +176,8 @@ export const { name, description, parameters, execute } = tool;
 工具需要交付文件时，使用 `toolCtx.stageFile()` 把本地文件登记成当前 session 的 `SessionFile`，并直接复用它返回的 `mediaItem`：
 
 ```js
+import { createMediaDetails } from "@hana/plugin-runtime";
+
 const staged = toolCtx.stageFile({
   sessionPath: toolCtx.sessionPath,
   filePath: "/path/to/image.png",
@@ -184,11 +186,7 @@ const staged = toolCtx.stageFile({
 
 return {
   content: [{ type: "text", text: "已生成图片" }],
-  details: {
-    media: {
-      items: [staged.mediaItem],
-    },
-  },
+  details: createMediaDetails([staged]),
 };
 ```
 
@@ -538,6 +536,8 @@ export default definePlugin({
 也可以继续使用传统 class 形式：
 
 ```js
+import { HANA_BUS_SKIP } from "@hana/plugin-runtime";
+
 export default class MyPlugin {
   async onload() {
     // ctx 由 PluginManager 注入：
@@ -552,7 +552,7 @@ export default class MyPlugin {
     // register() 注册的资源在卸载时自动清理（逆序）
     this.register(
       this.ctx.bus.handle("bridge:send", async (payload) => {
-        if (payload.platform !== "feishu") return EventBus.SKIP;
+        if (payload.platform !== "feishu") return HANA_BUS_SKIP;
         await this.sendToFeishu(payload);
         return { sent: true };
       })
@@ -571,36 +571,41 @@ export default class MyPlugin {
 
 ## 总线通信（bus.request / bus.handle）
 
-Plugin 间通信通过 EventBus 的请求-响应机制。`bus.handle` 需要 full-access 权限，`bus.request` 所有插件都可以用。
+Plugin 间通信通过 EventBus 的请求-响应机制。`bus.handle` 需要 full-access 权限，`bus.request` 所有插件都可以用。新插件建议用 `@hana/plugin-runtime` 的 `defineBusHandler()`、`requestBus()` 和 `HANA_BUS_SKIP`，这样 handler 类型、请求参数和链式跳过语义都来自 SDK，而不是手写约定。
 
 ```js
+import { defineBusHandler, HANA_BUS_SKIP, requestBus } from "@hana/plugin-runtime";
+
 // Plugin A（full-access）: 注册能力
-this.register(
-  this.ctx.bus.handle("bridge:send", async (payload) => {
-    if (payload.platform !== "telegram") return EventBus.SKIP;
+const bridgeSend = defineBusHandler({
+  type: "bridge:send",
+  async handle(payload) {
+    if (payload.platform !== "telegram") return HANA_BUS_SKIP;
     await telegramBot.send(payload.chatId, payload.text);
     return { sent: true };
-  })
-);
+  },
+});
+
+this.register(this.ctx.bus.handle(bridgeSend.type, (payload) => bridgeSend.handle(payload, this.ctx)));
 
 // Plugin B（任意权限）: 调用能力
 if (this.ctx.bus.hasHandler("bridge:send")) {
-  const result = await this.ctx.bus.request("bridge:send", {
+  const result = await requestBus(this.ctx, "bridge:send", {
     platform: "telegram",
     chatId: "123",
     text: "Hello",
-  });
+  }, { timeout: 5000 });
 }
 ```
 
 **命名规范**：`领域:动作`，冒号分隔。如 `bridge:send`、`memory:query`、`timer:schedule`。
 
-**SKIP 链**：同一事件类型可以注册多个 handler。系统按注册顺序调用，直到某个 handler 返回非 `EventBus.SKIP` 的值。返回 `EventBus.SKIP` 表示"我不处理，交给下一个"：
+**SKIP 链**：同一事件类型可以注册多个 handler。系统按注册顺序调用，直到某个 handler 返回非 `HANA_BUS_SKIP` 的值。返回 `HANA_BUS_SKIP` 表示"我不处理，交给下一个"：
 
 ```js
 this.register(
   this.ctx.bus.handle("bridge:send", async (payload) => {
-    if (payload.platform !== "telegram") return EventBus.SKIP;
+    if (payload.platform !== "telegram") return HANA_BUS_SKIP;
     await telegramBot.send(payload.chatId, payload.text);
     return { sent: true };
   })

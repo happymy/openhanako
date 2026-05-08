@@ -176,6 +176,8 @@ export const { name, description, parameters, execute } = tool;
 When a tool needs to deliver files, first stage the local file as a `SessionFile` for the current session, then return the staged media item through `details.media.items`:
 
 ```js
+import { createMediaDetails } from "@hana/plugin-runtime";
+
 const staged = toolCtx.stageFile({
   sessionPath: toolCtx.sessionPath,
   filePath: "/path/to/image.png",
@@ -184,11 +186,7 @@ const staged = toolCtx.stageFile({
 
 return {
   content: [{ type: "text", text: "Image generated" }],
-  details: {
-    media: {
-      items: [staged.mediaItem],
-    },
-  },
+  details: createMediaDetails([staged]),
 };
 ```
 
@@ -538,6 +536,8 @@ export default definePlugin({
 The traditional class form is still supported:
 
 ```js
+import { HANA_BUS_SKIP } from "@hana/plugin-runtime";
+
 export default class MyPlugin {
   async onload() {
     // ctx is injected by PluginManager:
@@ -552,7 +552,7 @@ export default class MyPlugin {
     // Resources registered via register() are auto-cleaned on unload (reverse order)
     this.register(
       this.ctx.bus.handle("bridge:send", async (payload) => {
-        if (payload.platform !== "feishu") return EventBus.SKIP;
+        if (payload.platform !== "feishu") return HANA_BUS_SKIP;
         await this.sendToFeishu(payload);
         return { sent: true };
       })
@@ -571,36 +571,41 @@ export default class MyPlugin {
 
 ## Bus Communication (bus.request / bus.handle)
 
-Inter-plugin communication uses EventBus request-response. `bus.handle` requires full-access permission; `bus.request` is available to all plugins.
+Inter-plugin communication uses EventBus request-response. `bus.handle` requires full-access permission; `bus.request` is available to all plugins. New plugins should use `defineBusHandler()`, `requestBus()`, and `HANA_BUS_SKIP` from `@hana/plugin-runtime` so handler types, request arguments, and chained skip semantics come from the SDK instead of hand-written conventions.
 
 ```js
+import { defineBusHandler, HANA_BUS_SKIP, requestBus } from "@hana/plugin-runtime";
+
 // Plugin A (full-access): register a capability
-this.register(
-  this.ctx.bus.handle("bridge:send", async (payload) => {
-    if (payload.platform !== "telegram") return EventBus.SKIP;
+const bridgeSend = defineBusHandler({
+  type: "bridge:send",
+  async handle(payload) {
+    if (payload.platform !== "telegram") return HANA_BUS_SKIP;
     await telegramBot.send(payload.chatId, payload.text);
     return { sent: true };
-  })
-);
+  },
+});
+
+this.register(this.ctx.bus.handle(bridgeSend.type, (payload) => bridgeSend.handle(payload, this.ctx)));
 
 // Plugin B (any permission): call the capability
 if (this.ctx.bus.hasHandler("bridge:send")) {
-  const result = await this.ctx.bus.request("bridge:send", {
+  const result = await requestBus(this.ctx, "bridge:send", {
     platform: "telegram",
     chatId: "123",
     text: "Hello",
-  });
+  }, { timeout: 5000 });
 }
 ```
 
 **Naming convention**: `domain:action`, colon-separated. E.g. `bridge:send`, `memory:query`, `timer:schedule`.
 
-**SKIP chain**: Multiple handlers can be registered for the same event type. The system calls them in registration order until one returns a value other than `EventBus.SKIP`. Returning `EventBus.SKIP` means "I don't handle this, pass it on":
+**SKIP chain**: Multiple handlers can be registered for the same event type. The system calls them in registration order until one returns a value other than `HANA_BUS_SKIP`. Returning `HANA_BUS_SKIP` means "I don't handle this, pass it on":
 
 ```js
 this.register(
   this.ctx.bus.handle("bridge:send", async (payload) => {
-    if (payload.platform !== "telegram") return EventBus.SKIP;
+    if (payload.platform !== "telegram") return HANA_BUS_SKIP;
     await telegramBot.send(payload.chatId, payload.text);
     return { sent: true };
   })

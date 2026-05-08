@@ -2,9 +2,58 @@ export type MaybePromise<T> = T | Promise<T>;
 
 export type JsonSchema = Record<string, unknown>;
 
+export const HANA_BUS_SKIP = Symbol.for('hana.event-bus.skip');
+
 export interface HanaToolResult {
   content?: Array<Record<string, unknown>>;
   details?: Record<string, unknown>;
+}
+
+export interface HanaSessionFile {
+  id?: string | null;
+  fileId?: string | null;
+  sessionPath?: string | null;
+  filePath?: string;
+  realPath?: string;
+  displayName?: string;
+  filename?: string;
+  label?: string;
+  ext?: string | null;
+  mime?: string;
+  size?: number;
+  kind?: string;
+  isDirectory?: boolean;
+  origin?: string;
+  operations?: unknown[];
+  createdAt?: number | string;
+  storageKind?: string;
+  status?: string;
+  missingAt?: number | string | null;
+  [key: string]: unknown;
+}
+
+export interface HanaSessionFileMediaItem {
+  type: 'session_file';
+  fileId: string;
+  sessionPath?: string | null;
+  filePath?: string;
+  label?: string;
+  mime?: string;
+  size?: number;
+  kind?: string;
+  [key: string]: unknown;
+}
+
+export interface HanaStagedSessionFile {
+  file?: HanaSessionFile | null;
+  sessionFile?: HanaSessionFile | null;
+  mediaItem: HanaSessionFileMediaItem;
+}
+
+export interface HanaMediaDetails {
+  media: {
+    items: HanaSessionFileMediaItem[];
+  };
 }
 
 export interface HanaToolContext {
@@ -15,8 +64,8 @@ export interface HanaToolContext {
   bus: HanaEventBus;
   config: HanaPluginConfigStore;
   log: HanaPluginLogger;
-  registerSessionFile?: (input: Record<string, unknown>) => unknown;
-  stageFile?: (input: Record<string, unknown>) => unknown;
+  registerSessionFile?: (input: Record<string, unknown>) => HanaSessionFile;
+  stageFile?: (input: Record<string, unknown>) => HanaStagedSessionFile;
   [key: string]: unknown;
 }
 
@@ -84,6 +133,23 @@ export interface HanaPluginLogger {
   error(...args: unknown[]): void;
 }
 
+export interface HanaBusHandlerContext {
+  pluginId: string;
+  bus: HanaEventBus;
+  config?: HanaPluginConfigStore;
+  log?: HanaPluginLogger;
+  [key: string]: unknown;
+}
+
+export interface HanaBusHandlerDefinition<
+  Payload = unknown,
+  Result = unknown,
+  Context extends HanaBusHandlerContext = HanaBusHandlerContext,
+> {
+  type: string;
+  handle(payload: Payload, ctx: Context): MaybePromise<Result>;
+}
+
 export interface HanaPluginContext {
   pluginId: string;
   pluginDir: string;
@@ -92,7 +158,8 @@ export interface HanaPluginContext {
   config: HanaPluginConfigStore;
   log: HanaPluginLogger;
   registerTool?: (tool: HanaToolDefinition) => () => void;
-  registerSessionFile?: (input: Record<string, unknown>) => unknown;
+  registerSessionFile?: (input: Record<string, unknown>) => HanaSessionFile;
+  stageFile?: (input: Record<string, unknown>) => HanaStagedSessionFile;
   [key: string]: unknown;
 }
 
@@ -135,6 +202,57 @@ export function defineProvider<T extends HanaProviderDefinition>(definition: T):
   return definition;
 }
 
+export function defineBusHandler<
+  Payload = unknown,
+  Result = unknown,
+  Context extends HanaBusHandlerContext = HanaBusHandlerContext,
+>(
+  definition: HanaBusHandlerDefinition<Payload, Result, Context>,
+): HanaBusHandlerDefinition<Payload, Result, Context> {
+  return { ...definition };
+}
+
+export function requestBus<Result = unknown, Payload = unknown>(
+  ctx: { bus?: Pick<HanaEventBus, 'request'> | null },
+  type: string,
+  payload?: Payload,
+  options?: Record<string, unknown>,
+): Promise<Result> {
+  if (!ctx.bus || typeof ctx.bus.request !== 'function') {
+    throw new Error('plugin bus request unavailable');
+  }
+  return ctx.bus.request<Result>(type, payload, options);
+}
+
+export function sessionFileToMediaItem(file: HanaSessionFile): HanaSessionFileMediaItem {
+  const fileId = firstText(file.fileId, file.id);
+  if (!fileId) {
+    throw new Error('SessionFile media item requires id or fileId');
+  }
+
+  const item: HanaSessionFileMediaItem = {
+    type: 'session_file',
+    fileId,
+  };
+  assignDefined(item, 'sessionPath', file.sessionPath);
+  assignDefined(item, 'filePath', file.filePath);
+  assignDefined(item, 'label', firstText(file.label, file.displayName, file.filename));
+  assignDefined(item, 'mime', file.mime);
+  assignDefined(item, 'size', file.size);
+  assignDefined(item, 'kind', file.kind);
+  return item;
+}
+
+type HanaMediaInput = HanaSessionFile | HanaSessionFileMediaItem | HanaStagedSessionFile;
+
+export function createMediaDetails(items: HanaMediaInput[]): HanaMediaDetails {
+  return {
+    media: {
+      items: items.map(normalizeMediaItem),
+    },
+  };
+}
+
 export function defineExtension<Pi = unknown>(factory: HanaExtensionFactory<Pi>): HanaExtensionFactory<Pi> {
   return factory;
 }
@@ -152,4 +270,51 @@ export function definePlugin(lifecycle: HanaPluginLifecycle): new () => HanaPlug
       await lifecycle.onunload?.(this.ctx);
     }
   };
+}
+
+function normalizeMediaItem(input: HanaMediaInput): HanaSessionFileMediaItem {
+  if (isRecord(input) && isRecord(input.mediaItem)) {
+    return normalizeSessionFileMediaItem(input.mediaItem);
+  }
+  if (isRecord(input) && input.type === 'session_file') {
+    return normalizeSessionFileMediaItem(input);
+  }
+  if (isRecord(input)) {
+    return sessionFileToMediaItem(input);
+  }
+  throw new Error('media details item must be a SessionFile, staged file, or session_file media item');
+}
+
+function normalizeSessionFileMediaItem(input: Record<string, unknown>): HanaSessionFileMediaItem {
+  if (input.type !== 'session_file') {
+    throw new Error('media details item must be a session_file media item');
+  }
+  const fileId = firstText(input.fileId);
+  if (!fileId) {
+    throw new Error('SessionFile media item requires fileId');
+  }
+  return {
+    ...input,
+    type: 'session_file',
+    fileId,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function firstText(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.length > 0) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function assignDefined(target: Record<string, unknown>, key: string, value: unknown): void {
+  if (value !== undefined && value !== null) {
+    target[key] = value;
+  }
 }

@@ -33,3 +33,56 @@ export default definePlugin({
 ```
 
 Static `tools/*.js` and `commands/*.js` still use Hana's named export loader today. Lifecycle plugins can already use `export default definePlugin(...)` because the host expects a default class-compatible value.
+
+## EventBus helpers
+
+```ts
+import { defineBusHandler, HANA_BUS_SKIP, requestBus } from '@hana/plugin-runtime';
+
+export const bridgeSend = defineBusHandler<
+  { platform: string; text: string },
+  { sent: boolean } | typeof HANA_BUS_SKIP
+>({
+  type: 'bridge:send',
+  async handle(payload) {
+    if (payload.platform !== 'telegram') return HANA_BUS_SKIP;
+    return { sent: true };
+  },
+});
+
+export default definePlugin({
+  async onload(ctx, { register }) {
+    register(ctx.bus.handle(bridgeSend.type, (payload) => bridgeSend.handle(payload as any, ctx as any)));
+
+    await requestBus(ctx, 'session:send', { text: 'Plugin loaded' }, { timeout: 5000 });
+  },
+});
+```
+
+`HANA_BUS_SKIP` is the shared skip sentinel used by the host `EventBus.SKIP`, so SDK-authored handlers can participate in chained handlers without importing host internals.
+
+## SessionFile media helpers
+
+```ts
+import { createMediaDetails, defineTool } from '@hana/plugin-runtime';
+
+export const renderImage = defineTool({
+  name: 'render_image',
+  description: 'Render an image',
+  async execute(_input, ctx) {
+    const staged = ctx.stageFile?.({
+      sessionPath: ctx.sessionPath,
+      filePath: '/absolute/path/to/image.png',
+      label: 'image.png',
+    });
+    if (!staged) throw new Error('stageFile unavailable');
+
+    return {
+      content: [{ type: 'text', text: 'Image generated' }],
+      details: createMediaDetails([staged]),
+    };
+  },
+});
+```
+
+Use `stageFile()` for plugin-generated local files. `createMediaDetails()` normalizes staged files, existing `session_file` media items, and serialized `SessionFile` records into the `details.media.items` shape consumed by desktop, Bridge, and future mobile clients.

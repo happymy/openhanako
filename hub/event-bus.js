@@ -110,7 +110,7 @@ export class EventBus {
     this._sessionIndex.clear();
   }
 
-  static SKIP = Symbol("BUS_SKIP");
+  static SKIP = Symbol.for("hana.event-bus.skip");
 
   /**
    * 注册请求处理器
