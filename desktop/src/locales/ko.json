@@ -1675,7 +1675,7 @@
       "launchFailedBody": "Hanako v{version}\n\n{detail}\n\n상세 로그 저장 위치:\n{logPath}\n\n이 스크린샷이나 로그 파일을 개발자에게 보내주세요.",
       "serverRestartFailed": "Hanako v{version}\n\nServer가 충돌 후 재시작에 실패했어요.\n{error}\n\n앱을 다시 시작해 주세요.",
       "serverMultipleCrash": "Hanako v{version}\n\nServer가 여러 번 충돌했어요 ({reason}).\n\n앱을 다시 시작해 주세요.",
-      "serverStartTimeout": "Server 시작 시간 초과 (60초)",
+      "serverStartTimeout": "Server 시작 시간 초과",
       "serverKilledBySignal": "Server가 시그널로 종료되었어요 ({signal})",
       "serverExitedWithCode": "Server가 종료되었어요. 코드: {code}",
       "serverFilesNotReady": "자동 업데이트가 방금 완료되었고, 새 버전 파일이 아직 디스크에 쓰이고 있어요 ({missing} 없음). {waited}초 동안 기다렸지만 준비되지 않았어요. 잠시 후 Hanako를 다시 시작해 주세요.",

@@ -1726,7 +1726,7 @@
       "launchFailedBody": "Hanako v{version}\n\n{detail}\n\n详细日志已保存到：\n{logPath}\n\n请将此截图或日志文件发送给开发者。",
       "serverRestartFailed": "Hanako v{version}\n\nServer 崩溃后重启失败。\n{error}\n\n请重新启动应用。",
       "serverMultipleCrash": "Hanako v{version}\n\nServer 多次崩溃 ({reason})。\n\n请重新启动应用。",
-      "serverStartTimeout": "Server 启动超时（60s）",
+      "serverStartTimeout": "Server 启动超时",
       "serverKilledBySignal": "Server 被信号终止 ({signal})",
       "serverExitedWithCode": "Server 退出，code: {code}",
       "serverFilesNotReady": "自动更新刚完成，新版本文件还在落地（缺少 {missing}），已等待 {waited}s 仍未就绪。请稍后重新启动 Hanako。",

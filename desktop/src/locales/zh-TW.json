@@ -1675,7 +1675,7 @@
       "launchFailedBody": "Hanako v{version}\n\n{detail}\n\n詳細日誌已儲存至：\n{logPath}\n\n請將此截圖或日誌檔案傳送給開發者。",
       "serverRestartFailed": "Hanako v{version}\n\nServer 崩潰後重新啟動失敗。\n{error}\n\n請重新啟動應用程式。",
       "serverMultipleCrash": "Hanako v{version}\n\nServer 多次崩潰 ({reason})。\n\n請重新啟動應用程式。",
-      "serverStartTimeout": "Server 啟動逾時（60秒）",
+      "serverStartTimeout": "Server 啟動逾時",
       "serverKilledBySignal": "Server 被訊號終止 ({signal})",
       "serverExitedWithCode": "Server 已結束，code: {code}",
       "serverFilesNotReady": "自動更新剛完成，新版本檔案仍在寫入磁碟（缺少 {missing}），已等待 {waited} 秒仍未就緒。請稍後重新啟動 Hanako。",

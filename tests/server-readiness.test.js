@@ -14,6 +14,7 @@ import {
   isModuleResolutionError,
   CRITICAL_BUNDLED_EXTERNALS,
   CRITICAL_BUNDLED_FILES,
+  shouldKeepWaitingForServerInfo,
 } from "../desktop/src/shared/server-readiness.cjs";
 
 let tmp;
@@ -160,5 +161,49 @@ describe("isModuleResolutionError", () => {
       "[stderr] Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'ws' imported from D:\\1\\openHanako\\resources\\server\\bundle\\index.js\n",
     ];
     expect(isModuleResolutionError(real)).toBe("ws");
+  });
+});
+
+describe("shouldKeepWaitingForServerInfo", () => {
+  it("continues past the first deadline when a live child is still producing startup output", () => {
+    expect(shouldKeepWaitingForServerInfo({
+      nowMs: 61_000,
+      startedAtMs: 0,
+      firstDeadlineMs: 60_000,
+      lastProgressAtMs: 55_000,
+      childAlive: true,
+    })).toBe(true);
+  });
+
+  it("stops after the first deadline when the live child has gone quiet", () => {
+    expect(shouldKeepWaitingForServerInfo({
+      nowMs: 61_000,
+      startedAtMs: 0,
+      firstDeadlineMs: 60_000,
+      lastProgressAtMs: 10_000,
+      childAlive: true,
+      progressGraceMs: 45_000,
+    })).toBe(false);
+  });
+
+  it("stops after the first deadline when no startup output was ever observed", () => {
+    expect(shouldKeepWaitingForServerInfo({
+      nowMs: 61_000,
+      startedAtMs: 0,
+      firstDeadlineMs: 60_000,
+      lastProgressAtMs: null,
+      childAlive: true,
+    })).toBe(false);
+  });
+
+  it("stops at the absolute startup wait limit even if output keeps arriving", () => {
+    expect(shouldKeepWaitingForServerInfo({
+      nowMs: 301_000,
+      startedAtMs: 0,
+      firstDeadlineMs: 60_000,
+      lastProgressAtMs: 300_000,
+      childAlive: true,
+      maxWaitMs: 300_000,
+    })).toBe(false);
   });
 });

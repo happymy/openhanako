@@ -103,6 +103,15 @@ describe("server startup diagnostics contract", () => {
     expect(serverSource).toContain("[server] ③ 跳过启动期 session 创建");
   });
 
+  it("keeps waiting after the first server-info deadline while startup output is still progressing", () => {
+    const mainSource = fs.readFileSync(path.join(root, "desktop", "main.cjs"), "utf-8");
+
+    expect(mainSource).toContain("shouldKeepWaitingForServerInfo");
+    expect(mainSource).toContain("_lastServerProgressAtMs");
+    expect(mainSource).toContain("getLastProgressAtMs");
+    expect(mainSource).not.toContain('timeout = 60000');
+  });
+
   it("keeps bridge platform dependencies out of the server readiness path", () => {
     const serverSource = fs.readFileSync(path.join(root, "server", "index.js"), "utf-8");
     const bridgeRouteSource = fs.readFileSync(path.join(root, "server", "routes", "bridge.js"), "utf-8");

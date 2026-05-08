@@ -342,6 +342,7 @@ function migrateSetupComplete() {
 // 收集 server 的 stdout/stderr 用于崩溃诊断
 let _serverLogs = [];
 let _lastServerSpawn = null;
+let _lastServerProgressAtMs = null;
 
 function isPidAliveForDiagnostics(pid) {
   if (!pid) return false;
@@ -386,14 +387,22 @@ async function waitForProcessExit(proc, pid, timeoutMs) {
 const {
   ensureServerFilesReady,
   isModuleResolutionError,
+  SERVER_INFO_FIRST_WAIT_MS,
+  shouldKeepWaitingForServerInfo,
 } = require("./src/shared/server-readiness.cjs");
 
 /**
  * 轮询 server-info.json 等待 server 就绪
  */
-function pollServerInfo(infoPath, { timeout = 60000, interval = 200, process: proc } = {}) {
+function pollServerInfo(infoPath, {
+  timeout = SERVER_INFO_FIRST_WAIT_MS,
+  interval = 200,
+  process: proc,
+  getLastProgressAtMs = () => null,
+} = {}) {
   return new Promise((resolve, reject) => {
-    const deadline = Date.now() + timeout;
+    const startedAtMs = Date.now();
+    const deadline = startedAtMs + timeout;
     let exited = false;
 
     if (proc) {
@@ -413,8 +422,18 @@ function pollServerInfo(infoPath, { timeout = 60000, interval = 200, process: pr
 
     const check = async () => {
       if (exited) return;
-      if (Date.now() > deadline) {
-        reject(new Error(mt("dialog.serverStartTimeout", null, "Server start timed out (60s)")));
+      const nowMs = Date.now();
+      const childAlive = proc
+        ? !hasChildExitObserved(proc) && isPidAliveForDiagnostics(proc.pid)
+        : false;
+      if (!shouldKeepWaitingForServerInfo({
+        nowMs,
+        startedAtMs,
+        firstDeadlineMs: deadline,
+        lastProgressAtMs: getLastProgressAtMs(),
+        childAlive,
+      })) {
+        reject(new Error(mt("dialog.serverStartTimeout", null, "Server start timed out")));
         return;
       }
       try {
@@ -544,6 +563,7 @@ async function startServer() {
  */
 async function _spawnServerOnce(serverInfoPath) {
   _serverLogs = [];
+  _lastServerProgressAtMs = null;
 
   const serverEnv = { ...withHanaPiSdkEnv(process.env, hanakoHome), HANA_HOME: hanakoHome };
 
@@ -634,12 +654,14 @@ async function _spawnServerOnce(serverInfoPath) {
   // 捕获 stdout/stderr 到 buffer（打包后 console 不可见，崩溃时需要这些信息）
   serverProcess.stdout?.on("data", (chunk) => {
     const text = chunk.toString();
+    _lastServerProgressAtMs = Date.now();
     try { process.stdout.write(text); } catch {}
     _serverLogs.push(text);
     if (_serverLogs.length > 500) _serverLogs.splice(0, _serverLogs.length - 500);
   });
   serverProcess.stderr?.on("data", (chunk) => {
     const text = chunk.toString();
+    _lastServerProgressAtMs = Date.now();
     try { process.stderr.write(text); } catch {}
     _serverLogs.push("[stderr] " + text);
     if (_serverLogs.length > 500) _serverLogs.splice(0, _serverLogs.length - 500);
@@ -647,8 +669,8 @@ async function _spawnServerOnce(serverInfoPath) {
 
   // 等待 server ready（通过轮询 server-info.json）
   const info = await pollServerInfo(serverInfoPath, {
-    timeout: 60000,
     process: serverProcess,
+    getLastProgressAtMs: () => _lastServerProgressAtMs,
   });
   serverPort = info.port;
   serverToken = info.token;

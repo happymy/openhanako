@@ -1675,7 +1675,7 @@
       "launchFailedBody": "Hanako v{version}\n\n{detail}\n\n詳細ログの保存先：\n{logPath}\n\nこのスクリーンショットまたはログファイルを開発者にお送りください。",
       "serverRestartFailed": "Hanako v{version}\n\nServer がクラッシュし、再起動に失敗しました。\n{error}\n\nアプリケーションを再起動してください。",
       "serverMultipleCrash": "Hanako v{version}\n\nServer が複数回クラッシュしました ({reason})。\n\nアプリケーションを再起動してください。",
-      "serverStartTimeout": "Server の起動がタイムアウトしました（60秒）",
+      "serverStartTimeout": "Server の起動がタイムアウトしました",
       "serverKilledBySignal": "Server がシグナルで終了しました ({signal})",
       "serverExitedWithCode": "Server が終了しました。コード: {code}",
       "serverFilesNotReady": "自動アップデートが完了したばかりで、新バージョンのファイルがまだディスクに書き込まれていません（{missing} が見つかりません）。{waited} 秒待機しましたが完了しませんでした。しばらくしてから Hanako を再起動してください。",

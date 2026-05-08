@@ -28,6 +28,9 @@ const CRITICAL_BUNDLED_FILES = [
 ];
 
 const DEFAULT_BACKOFF_MS = [200, 500, 1000, 2000, 4000, 8000];
+const SERVER_INFO_FIRST_WAIT_MS = 60_000;
+const SERVER_INFO_PROGRESS_GRACE_MS = 90_000;
+const SERVER_INFO_MAX_WAIT_MS = 5 * 60_000;
 
 /**
  * 校验打包模式下 server/node_modules/ 中关键 external 包是否齐全。
@@ -98,9 +101,41 @@ function isModuleResolutionError(stderrLogs) {
   return null;
 }
 
+/**
+ * Server readiness has two clocks:
+ * - firstDeadlineMs: the normal fast-path deadline.
+ * - maxWaitMs/progressGraceMs: the slow-start guard for Windows update/cold-start cases.
+ *
+ * After the first deadline, a live child may keep initializing only if it has
+ * produced recent output. This keeps slow imports from being misreported as a
+ * launch failure while still bounding truly stuck processes.
+ */
+function shouldKeepWaitingForServerInfo({
+  nowMs,
+  startedAtMs,
+  firstDeadlineMs,
+  lastProgressAtMs,
+  childAlive,
+  progressGraceMs = SERVER_INFO_PROGRESS_GRACE_MS,
+  maxWaitMs = SERVER_INFO_MAX_WAIT_MS,
+}) {
+  if (!Number.isFinite(nowMs) || !Number.isFinite(startedAtMs) || !Number.isFinite(firstDeadlineMs)) {
+    return false;
+  }
+  if (nowMs <= firstDeadlineMs) return true;
+  if (!childAlive) return false;
+  if (nowMs - startedAtMs >= maxWaitMs) return false;
+  if (!Number.isFinite(lastProgressAtMs)) return false;
+  return nowMs - lastProgressAtMs <= progressGraceMs;
+}
+
 module.exports = {
   CRITICAL_BUNDLED_FILES,
   CRITICAL_BUNDLED_EXTERNALS,
+  SERVER_INFO_FIRST_WAIT_MS,
+  SERVER_INFO_PROGRESS_GRACE_MS,
+  SERVER_INFO_MAX_WAIT_MS,
   ensureServerFilesReady,
   isModuleResolutionError,
+  shouldKeepWaitingForServerInfo,
 };
