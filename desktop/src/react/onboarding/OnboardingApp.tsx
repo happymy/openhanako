@@ -30,6 +30,7 @@ export function OnboardingApp({ preview, skipToTutorial }: OnboardingAppProps) {
 
   const [toastMsg, setToastMsg] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localeLoadSeq = useRef(0);
 
   const hanaFetch: HanaFetch = useCallback((path, opts = {}) => {
     const headers: Record<string, string> = { ...(opts.headers as Record<string, string>) };
@@ -49,10 +50,20 @@ export function OnboardingApp({ preview, skipToTutorial }: OnboardingAppProps) {
     setStep(index);
   }, []);
 
-  const onLocaleChange = useCallback((loc: string) => {
+  const onLocaleChange = useCallback(async (loc: string) => {
+    const seq = localeLoadSeq.current + 1;
+    localeLoadSeq.current = seq;
     setLocale(loc);
     setI18nReady(false);
-    requestAnimationFrame(() => setI18nReady(true));
+    try {
+      await i18n.load(loc);
+    } catch (err) {
+      console.error('[onboarding] locale load failed:', err);
+    } finally {
+      if (localeLoadSeq.current === seq) {
+        setI18nReady(true);
+      }
+    }
   }, []);
 
   const onProviderReady = useCallback((name: string, url: string, api: string, key: string) => {

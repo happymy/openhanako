@@ -15,7 +15,7 @@ interface LocaleStepProps {
   initialLocale: string;
   goToStep: (index: number) => void;
   showError: (msg: string) => void;
-  onLocaleChange: (locale: string) => void;
+  onLocaleChange: (locale: string) => Promise<void>;
 }
 
 export function LocaleStep({
@@ -27,8 +27,7 @@ export function LocaleStep({
   const changeLocale = useCallback(async (loc: string) => {
     if (locale === loc) return;
     setLocale(loc);
-    onLocaleChange(loc);
-    await i18n.load(loc);
+    await onLocaleChange(loc);
   }, [locale, onLocaleChange]);
 
   const onNext = useCallback(async () => {
