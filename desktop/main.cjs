@@ -8,12 +8,13 @@
  * 4. 关闭 splash，显示主窗口
  * 5. 优雅关闭
  */
-const { app, BrowserWindow, WebContentsView, globalShortcut, ipcMain, dialog, session, shell, nativeTheme, Tray, Menu, nativeImage, systemPreferences, Notification, webContents } = require("electron");
+const { app, BrowserWindow, WebContentsView, globalShortcut, ipcMain, dialog, session, shell, nativeTheme, Tray, Menu, nativeImage, systemPreferences, Notification, webContents, screen } = require("electron");
 const os = require("os");
 const path = require("path");
 const { spawn, execFile } = require("child_process");
 const fs = require("fs");
 const { pathToFileURL } = require("url");
+const { PNG } = require("pngjs");
 const { initAutoUpdater, checkForUpdatesAuto, setMainWindow: setUpdaterMainWindow, setUpdateChannel, installDownloadedUpdate } = require("./auto-updater.cjs");
 const { createFileWatchRegistry } = require("./file-watch-registry.cjs");
 const { readTextFileSnapshot, writeTextFileIfUnchanged } = require("./file-text-io.cjs");
@@ -2066,7 +2067,51 @@ const SCREENSHOT_THEMES = {
   "sakura-light-desktop":    { width: 880, backgroundColor: "#8ABDCE" },
 };
 
+const SCREENSHOT_CAPTURE_SCALE = 2;
 const SCREENSHOT_MAX_SEGMENT = 4000;
+const SCREENSHOT_SEGMENT_SCREEN_MARGIN = 96;
+
+function resolveScreenshotMaxSegmentHeight(screenApi) {
+  let workAreaHeight = null;
+  try {
+    const display = screenApi?.getPrimaryDisplay?.();
+    const height = display?.workArea?.height || display?.bounds?.height;
+    if (Number.isFinite(height) && height > 0) {
+      workAreaHeight = Math.floor(height);
+    }
+  } catch { /* keep default cap */ }
+
+  if (!workAreaHeight) return SCREENSHOT_MAX_SEGMENT;
+
+  const stableHeight = workAreaHeight - SCREENSHOT_SEGMENT_SCREEN_MARGIN;
+  const cappedHeight = stableHeight > 0 ? stableHeight : workAreaHeight;
+  return Math.max(1, Math.min(SCREENSHOT_MAX_SEGMENT, cappedHeight));
+}
+
+function stitchScreenshotSegments(segments, scale) {
+  const parts = segments.map((seg) => PNG.sync.read(seg.toPNG({ scaleFactor: scale })));
+  if (parts.length === 0) {
+    throw new Error("No screenshot segments captured");
+  }
+
+  const width = parts[0].width;
+  let height = 0;
+  for (const part of parts) {
+    if (part.width !== width) {
+      throw new Error(`Screenshot segment width changed during capture: expected ${width}px, got ${part.width}px`);
+    }
+    height += part.height;
+  }
+
+  const full = new PNG({ width, height });
+  let yOffset = 0;
+  for (const part of parts) {
+    part.data.copy(full.data, yOffset * width * 4);
+    yOffset += part.height;
+  }
+
+  return PNG.sync.write(full);
+}
 
 let _screenshotWin = null;
 
@@ -2233,7 +2278,7 @@ function buildScreenshotHTML(payload) {
 
 async function screenshotCapture(htmlContent, width) {
   const offscreen = getScreenshotWindow();
-  const scale = 2;
+  const scale = SCREENSHOT_CAPTURE_SCALE;
 
   offscreen.setSize(width, 100);
 
@@ -2259,8 +2304,9 @@ async function screenshotCapture(htmlContent, width) {
     `);
 
     let pngBuffer;
+    const maxSegmentHeight = resolveScreenshotMaxSegmentHeight(screen);
 
-    if (totalHeight <= SCREENSHOT_MAX_SEGMENT) {
+    if (totalHeight <= maxSegmentHeight) {
       offscreen.setSize(width, totalHeight);
       await new Promise(r => setTimeout(r, 200));
       const image = await offscreen.webContents.capturePage({ x: 0, y: 0, width, height: totalHeight }, { stayHidden: true });
@@ -2269,7 +2315,7 @@ async function screenshotCapture(htmlContent, width) {
       const segments = [];
       let captured = 0;
       while (captured < totalHeight) {
-        const segH = Math.min(SCREENSHOT_MAX_SEGMENT, totalHeight - captured);
+        const segH = Math.min(maxSegmentHeight, totalHeight - captured);
         offscreen.setSize(width, segH);
         await offscreen.webContents.executeJavaScript(`window.scrollTo(0, ${captured})`);
         await new Promise(r => setTimeout(r, 300));
@@ -2278,35 +2324,7 @@ async function screenshotCapture(htmlContent, width) {
         captured += segH;
       }
 
-      const actualWidth = width * scale;
-      const actualTotalHeight = totalHeight * scale;
-      const fullBitmap = Buffer.alloc(actualWidth * actualTotalHeight * 4);
-      let yOffset = 0;
-
-      for (const seg of segments) {
-        const bitmap = seg.toBitmap({ scaleFactor: scale });
-        const partRowBytes = actualWidth * 4;
-        if (bitmap.length % partRowBytes !== 0) {
-          throw new Error(`Unexpected screenshot segment bitmap size: ${bitmap.length} bytes for row ${partRowBytes}`);
-        }
-        const partHeight = bitmap.length / partRowBytes;
-        const rowsToCopy = Math.min(partHeight, actualTotalHeight - yOffset);
-        for (let row = 0; row < rowsToCopy; row++) {
-          bitmap.copy(
-            fullBitmap,
-            (yOffset + row) * partRowBytes,
-            row * partRowBytes,
-            row * partRowBytes + partRowBytes
-          );
-        }
-        yOffset += rowsToCopy;
-      }
-
-      const fullImage = nativeImage.createFromBitmap(fullBitmap, {
-        width: actualWidth,
-        height: actualTotalHeight,
-      });
-      pngBuffer = fullImage.toPNG();
+      pngBuffer = stitchScreenshotSegments(segments, scale);
     }
 
     return pngBuffer;

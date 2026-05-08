@@ -33,8 +33,19 @@ describe("screenshot pipeline", () => {
     const mainSource = fs.readFileSync(path.join(root, "desktop", "main.cjs"), "utf-8");
 
     expect(mainSource).toContain("image.toPNG({ scaleFactor: scale })");
-    expect(mainSource).toContain("seg.toBitmap({ scaleFactor: scale })");
-    expect(mainSource).toContain("bitmap.length % partRowBytes");
+    expect(mainSource).toContain("PNG.sync.read(seg.toPNG({ scaleFactor: scale }))");
+    expect(mainSource).not.toContain("Unexpected screenshot segment bitmap size");
+    expect(mainSource).not.toContain("bitmap.length % partRowBytes");
+  });
+
+  it("caps long screenshot segments to the current screen work area", () => {
+    const mainSource = fs.readFileSync(path.join(root, "desktop", "main.cjs"), "utf-8");
+
+    expect(mainSource).toContain("resolveScreenshotMaxSegmentHeight(screen)");
+    expect(mainSource).toContain("if (totalHeight <= maxSegmentHeight)");
+    expect(mainSource).toContain("const segH = Math.min(maxSegmentHeight, totalHeight - captured)");
+    expect(mainSource).not.toContain("if (totalHeight <= SCREENSHOT_MAX_SEGMENT)");
+    expect(mainSource).not.toContain("const segH = Math.min(SCREENSHOT_MAX_SEGMENT, totalHeight - captured)");
   });
 
   it("paints a deterministic page background before PNG export", () => {
