@@ -78,6 +78,46 @@ class StreamBufferManager {
     return buf;
   }
 
+  private hasTurnState(buf: Buffer): boolean {
+    return !!(
+      buf.messageId ||
+      buf.textAcc ||
+      buf.thinkingAcc ||
+      buf.moodAcc ||
+      buf.inThinking ||
+      buf.inMood ||
+      buf.inCard ||
+      buf.cardAttrs ||
+      buf.cardDescAcc
+    );
+  }
+
+  private resetTurnState(buf: Buffer): void {
+    if (buf.flushTimer) {
+      clearTimeout(buf.flushTimer);
+      buf.flushTimer = null;
+    }
+    buf.textAcc = '';
+    buf.thinkingAcc = '';
+    buf.moodAcc = '';
+    buf.inThinking = false;
+    buf.inMood = false;
+    buf.inCard = false;
+    buf.cardAttrs = null;
+    buf.cardDescAcc = '';
+    buf.messageId = null;
+  }
+
+  private finishBufferTurn(buf: Buffer): void {
+    if (this.hasTurnState(buf)) {
+      this.flush(buf);
+    } else if (buf.flushTimer) {
+      clearTimeout(buf.flushTimer);
+      buf.flushTimer = null;
+    }
+    this.resetTurnState(buf);
+  }
+
   /** 确保 store 中已存在当前 turn 绑定的 assistant message */
   private ensureMessage(buf: Buffer): void {
     const store = useStore.getState();
@@ -342,20 +382,23 @@ class StreamBufferManager {
         break;
 
       case 'turn_end':
-        this.flush(buf);
-        // 清理 buffer
-        buf.textAcc = '';
-        buf.thinkingAcc = '';
-        buf.moodAcc = '';
-        buf.inThinking = false;
-        buf.inMood = false;
-        buf.inCard = false;
-        buf.cardAttrs = null;
-        buf.cardDescAcc = '';
-        buf.messageId = null;
+        this.finishBufferTurn(buf);
         break;
 
     }
+  }
+
+  /** 服务端确认新 turn 开始：释放任何遗留的本地 turn 绑定。 */
+  beginTurn(sessionPath: string): void {
+    const buf = this.getBuffer(sessionPath);
+    this.finishBufferTurn(buf);
+  }
+
+  /** 服务端确认当前 turn 结束或被中止：flush 可见内容，然后释放 turn-local 绑定。 */
+  finishTurn(sessionPath: string): void {
+    const buf = this.buffers.get(sessionPath);
+    if (!buf) return;
+    this.finishBufferTurn(buf);
   }
 
   /** 清理指定 session 的 buffer */

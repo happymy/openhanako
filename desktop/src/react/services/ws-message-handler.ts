@@ -561,8 +561,13 @@ export function handleServerMessage(msg: any): void {
     }
 
     case 'status': {
+      const sp = msg.sessionPath || null;
+      if (sp) {
+        if (msg.isStreaming) streamBufferManager.beginTurn(sp);
+        else streamBufferManager.finishTurn(sp);
+      }
       // streamingSessions 维护 + 焦点 UI 占位一并由 applyStreamingStatus 处理
-      applyStreamingStatus(msg.isStreaming, msg.sessionPath || null);
+      applyStreamingStatus(msg.isStreaming, sp);
       break;
     }
   }
