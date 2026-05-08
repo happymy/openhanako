@@ -5,7 +5,7 @@ import { hanaFetch } from '../../api';
 import { invalidateConfigCache } from '../../../hooks/use-config';
 import { t } from '../../helpers';
 import { useAnchoredDropdown } from '../../hooks/useAnchoredDropdown';
-import { SelectWidget } from '../../widgets/SelectWidget';
+import { SelectWidget } from '@/ui';
 import styles from '../../Settings.module.css';
 
 interface Props {

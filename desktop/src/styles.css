@@ -18,7 +18,7 @@
     --radius-lg: 16px;
 
     /* 主题可覆盖的抽象 token（默认值和现有视觉一致；主题 CSS 可 override） */
-    --radius-input: 4px;        /* input / select / textarea / ghost button / sdw / mdw */
+    --radius-input: 4px;        /* input / select widget / textarea / ghost button / media dropdown */
     --radius-card: 10px;        /* SettingsSection body / skill-list-item 首尾 / tool-caps 首尾 */
     --border-width: 1px;        /* 表单控件 / section body 边框粗细 */
     --link: var(--accent, #537D96);
@@ -2763,7 +2763,7 @@ body.resizing .jian-sidebar-inner {
     align-items: center;
     justify-content: center;
     background: rgba(0, 0, 0, 0.35);
-    animation: fade-in var(--duration-fast) ease;
+    animation: hana-fade-in var(--duration-fast) ease;
 }
 .hana-warning-box {
     width: 420px;
@@ -3102,10 +3102,10 @@ html[data-platform="linux"] .onboarding {
 .custom-field .ob-input {
     width: 100%;
 }
-.custom-field select.ob-input {
-    appearance: none;
-    -webkit-appearance: none;
-    cursor: pointer;
+
+.ob-select-widget {
+    width: 100%;
+    max-width: none;
 }
 
 /* ── API key row ── */
@@ -3499,10 +3499,6 @@ html[data-platform="linux"] .onboarding {
     font-size: 0.72rem;
     color: var(--text-muted);
 }
-.ob-utility-section .sdw {
-    max-width: 100%;
-}
-
 /* ── Workspace step ── */
 .ob-workspace-card {
     width: 100%;

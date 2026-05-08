@@ -3,7 +3,7 @@ import { useSettingsStore, type ProviderSummary } from '../../store';
 import { hanaFetch } from '../../api';
 import { invalidateConfigCache } from '../../../hooks/use-config';
 import { t, API_FORMAT_OPTIONS } from '../../helpers';
-import { SelectWidget } from '../../widgets/SelectWidget';
+import { SelectWidget } from '@/ui';
 import { KeyInput } from '../../widgets/KeyInput';
 import { getApiKeySavePlan } from './api-key-save-plan';
 import styles from '../../Settings.module.css';
@@ -166,6 +166,7 @@ export function ApiKeyCredentials({ providerId, summary, providerConfig, isPrese
         <span className={styles['pv-cred-label']}>{t('settings.providers.apiType')}</span>
         <div className={styles['pv-cred-select-wrapper']}>
           <SelectWidget
+            className={styles['pv-cred-select']}
             options={API_FORMAT_OPTIONS}
             value={api || ''}
             onChange={async (val) => {

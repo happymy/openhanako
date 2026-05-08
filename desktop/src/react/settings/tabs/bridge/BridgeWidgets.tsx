@@ -3,7 +3,7 @@
  */
 import React, { useState } from 'react';
 import { t } from '../../helpers';
-import { SelectWidget } from '../../widgets/SelectWidget';
+import { SelectWidget } from '@/ui';
 import styles from '../../Settings.module.css';
 
 // ── Types ──

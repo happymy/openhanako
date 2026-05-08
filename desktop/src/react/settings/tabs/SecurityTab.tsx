@@ -4,7 +4,7 @@ import { autoSaveConfig, t } from '../helpers';
 import { hanaFetch } from '../api';
 import { loadSettingsConfig } from '../actions';
 import { Toggle } from '../widgets/Toggle';
-import { SelectWidget } from '../widgets/SelectWidget';
+import { SelectWidget } from '@/ui';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
 import { ExpandableRow } from '../components/ExpandableRow';

@@ -13,7 +13,7 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'siz
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'secondary', size = 'md', loading, iconLeft, iconRight, disabled, className, children, ...rest },
+  { variant = 'secondary', size = 'md', loading, iconLeft, iconRight, disabled, className, children, type = 'button', ...rest },
   ref,
 ) {
   const cls = [
@@ -24,7 +24,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   ].filter(Boolean).join(' ');
 
   return (
-    <button ref={ref} className={cls} disabled={disabled || loading} {...rest}>
+    <button ref={ref} type={type} className={cls} disabled={disabled || loading} {...rest}>
       {loading ? <span className={styles.spinner} aria-hidden /> : iconLeft}
       {children}
       {!loading && iconRight}

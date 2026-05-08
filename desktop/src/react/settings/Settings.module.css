@@ -34,13 +34,10 @@
 :global(body.paper-texture) .model-capsule-input,
 :global(body.paper-texture) .settings-input,
 :global(body.paper-texture) .settings-textarea,
-:global(body.paper-texture) .settings-select,
 :global(body.paper-texture) .settings-folder-browse,
 :global(body.paper-texture) .settings-folder-clear,
 :global(body.paper-texture) .capability-row,
 :global(body.paper-texture) .skills-list-item,
-:global(body.paper-texture) .sdw-trigger,
-:global(body.paper-texture) .sdw-popup,
 :global(body.paper-texture) .cml-picker,
 :global(body.paper-texture) .cml-picker-group,
 :global(body.paper-texture) .cml-edit-panel-input,
@@ -911,12 +908,12 @@
     letter-spacing: 0.02em;
 }
 
-.model-capsule .sdw {
+.model-capsule-select {
     flex: 1;
     min-width: 0;
 }
 
-.model-capsule .sdw-trigger {
+.model-capsule-trigger {
     border: none;
     border-radius: 0;
     background: transparent;
@@ -1660,33 +1657,6 @@
 .settings-key-toggle:hover {
     color: var(--accent);
     background: var(--accent-light);
-}
-
-/* Select */
-/* Native select：高度/字号/padding 与 .settings-input + .sdw-trigger 对齐
-   右 padding 留 2rem 给下拉箭头 */
-.settings-select {
-    font-family: inherit;
-    font-size: 0.85rem;
-    line-height: 1.5;
-    color: var(--text);
-    background-color: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-input, 4px);
-    padding: 0.45rem 2rem 0.45rem 0.65rem;
-    outline: none;
-    cursor: pointer;
-    appearance: none;
-    background-image: var(--select-arrow);
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-    transition: border-color var(--duration-slow) var(--ease-out);
-    width: 100%;
-    max-width: 200px;
-}
-
-.settings-select:focus {
-    border-color: var(--accent);
 }
 
 /* Theme cards */
@@ -3021,7 +2991,10 @@ a.about-link:hover {
     min-width: 0;
 }
 
-.pv-cred-select-wrapper .select-widget { font-size: 0.78rem; }
+.pv-cred-select {
+    flex: 1;
+    max-width: none;
+}
 
 .pv-verify-btn {
     font-family: inherit;
@@ -4372,147 +4345,6 @@ a.about-link:hover {
 }
 
 /* ========================================
-   轻量下拉组件（SDW = Simple Dropdown Widget）
-   ======================================== */
-.sdw {
-    position: relative;
-    max-width: 220px;
-}
-
-.sdw-trigger {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    font-family: inherit;
-    font-size: 0.85rem;
-    line-height: 1.5;
-    color: var(--text);
-    background-color: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-input, 4px);
-    padding: 0.45rem 0.65rem;
-    cursor: pointer;
-    text-align: left;
-    transition: border-color var(--duration-slow) var(--ease-out);
-}
-
-.sdw-trigger:hover,
-.sdw-trigger:focus {
-    border-color: var(--accent);
-}
-
-.sdw-trigger:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.sdw-value {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-    min-width: 0;
-}
-
-.sdw-placeholder {
-    color: var(--text-muted);
-}
-
-.sdw-arrow {
-    flex-shrink: 0;
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    margin-left: var(--space-sm);
-    transition: transform var(--duration-slow);
-}
-
-.sdw.open .sdw-arrow {
-    transform: rotate(180deg);
-}
-
-.sdw-popup {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    width: 100%;
-    min-width: 180px;
-    max-height: 240px;
-    background-color: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-input, 4px);
-    z-index: 60;
-    margin-top: 4px;
-    overflow-y: auto;
-    flex-direction: column;
-    animation: hana-fade-up var(--duration-fast) var(--ease-out);
-    padding: var(--space-xs) 0;
-}
-
-.sdw.open .sdw-popup {
-    display: flex;
-}
-
-/* Portal 版：挂在 body 上，position/top/left 由 JS 计算 */
-.sdw-popup.sdw-popup-fixed {
-    display: flex;
-    position: fixed;
-    top: auto;
-    left: auto;
-    margin-top: 0;
-}
-
-/* 选项：padding 和字号对齐 .sdw-trigger，保证"展开的高度 = 收起的高度" */
-.sdw-option {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    width: 100%;
-    padding: 0.45rem 0.65rem;
-    font-family: inherit;
-    font-size: 0.9rem;
-    color: var(--text-light);
-    background: none;
-    border: none;
-    cursor: pointer;
-    text-align: left;
-    transition: background var(--duration-fast);
-}
-
-.sdw-option:hover {
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.sdw-option.selected {
-    color: var(--accent);
-    font-weight: 600;
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.sdw-option.disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.sdw-option.disabled:hover {
-    background: none;
-}
-
-.sdw-group-header {
-    padding: 0.35rem 0.65rem 0.15rem;
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    letter-spacing: 0.03em;
-    user-select: none;
-}
-
-/* 供应商 tab 内的 SDW 取消宽度限制 */
-.providers-left .sdw {
-    max-width: 100%;
-}
-
-/* ========================================
    主模型列表（CML = Chat Model List）
    ======================================== */
 
@@ -5371,6 +5203,18 @@ a.about-link:hover {
     color: var(--accent);
 }
 
+.bridge-agent-arrow {
+    flex-shrink: 0;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-left: var(--space-sm);
+    transition: transform var(--duration-slow);
+}
+
+.bridge-agent-arrow.open {
+    transform: rotate(180deg);
+}
+
 /* ============================================================
    Overlay 防 titlebar drag 吞点击
    ------------------------------------------------------------
@@ -5396,7 +5240,7 @@ a.about-link:hover {
 .memory-confirm-card,
 .memory-action-dropdown,
 .memory-more-popup,
-.sdw-popup,
+:global([data-select-widget-popup]),
 .cml-combo-dropdown,
 .mdw-popup,
 .settings-toast {

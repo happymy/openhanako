@@ -221,6 +221,7 @@ function App() {
           className={`tb-toggle tb-toggle-left${sidebarOpen ? ' active' : ''}`}
           id="tbToggleLeft"
           title={t('sidebar.toggle')}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => { hideFloat(); toggleSidebar(); }}
           onMouseEnter={(e) => showFloat('left', e.currentTarget)}
           onMouseLeave={scheduleFloatHide}
@@ -237,6 +238,7 @@ function App() {
               className={`tb-toggle tb-toggle-right${jianOpen ? ' active' : ''}`}
               id="tbToggleRight"
               title={currentTab === 'channels' ? t('channel.info') : t('sidebar.jian')}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => { hideFloat(); toggleJianSidebar(); }}
               onMouseEnter={(e) => showFloat('right', e.currentTarget)}
               onMouseLeave={scheduleFloatHide}

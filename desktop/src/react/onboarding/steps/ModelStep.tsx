@@ -3,8 +3,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { SelectWidget } from '../../settings/widgets/SelectWidget';
-import type { SelectOption } from '../../settings/widgets/SelectWidget';
+import { SelectWidget } from '@/ui';
+import type { SelectOption } from '@/ui';
 import { Toggle } from '../../settings/widgets/Toggle';
 import { lookupReferenceModelMeta } from '../../utils/model-metadata';
 import { loadModels as loadModelsAction, saveModel as saveModelAction } from '../onboarding-actions';
@@ -391,6 +391,7 @@ export function ModelStep({
             <span className="ob-utility-hint">{t('onboarding.model.utilityHint')}</span>
           </div>
           <SelectWidget
+            className="ob-select-widget"
             options={modelSelectOptions}
             value={selectedUtility}
             onChange={setSelectedUtility}
@@ -404,6 +405,7 @@ export function ModelStep({
             <span className="ob-utility-hint">{t('onboarding.model.utilityLargeHint')}</span>
           </div>
           <SelectWidget
+            className="ob-select-widget"
             options={modelSelectOptions}
             value={selectedUtilityLarge}
             onChange={setSelectedUtilityLarge}

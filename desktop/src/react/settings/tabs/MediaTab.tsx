@@ -5,7 +5,7 @@ import { t } from '../helpers';
 import { MediaProviderDetail } from './media/MediaProviderDetail';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
-import { SelectWidget } from '../widgets/SelectWidget';
+import { SelectWidget } from '@/ui';
 import styles from '../Settings.module.css';
 
 interface MediaProvider {

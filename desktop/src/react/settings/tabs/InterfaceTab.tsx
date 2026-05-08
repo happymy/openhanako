@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useSettingsStore } from '../store';
 import { t, VALID_THEMES, autoSaveConfig } from '../helpers';
-import { SelectWidget } from '../widgets/SelectWidget';
+import { SelectWidget } from '@/ui';
 import { Toggle } from '../widgets/Toggle';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';

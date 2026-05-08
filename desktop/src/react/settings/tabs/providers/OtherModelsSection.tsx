@@ -5,7 +5,7 @@ import {
   t, lookupModelMeta, formatContext, autoSaveGlobalModels,
 } from '../../helpers';
 import { loadSettingsConfig } from '../../actions';
-import { SelectWidget } from '../../widgets/SelectWidget';
+import { SelectWidget } from '@/ui';
 import { ModelWidget } from '../../widgets/ModelWidget';
 import { KeyInput } from '../../widgets/KeyInput';
 import { Toggle } from '../../widgets/Toggle';

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSettingsStore } from '../store';
 import { hanaFetch } from '../api';
 import { t, autoSaveConfig } from '../helpers';
-import { SelectWidget } from '../widgets/SelectWidget';
+import { SelectWidget } from '@/ui';
 import { browseAgent, switchToAgent, loadSettingsConfig, loadAgents } from '../actions';
 import { AgentCardStack } from './agent/AgentCardStack';
 import { YuanSelector } from './agent/YuanSelector';
@@ -187,6 +187,8 @@ export function AgentTab() {
           <div className={styles['model-capsule']}>
             <span className={styles['model-capsule-label']}>{t('settings.agent.chatModel')}</span>
             <SelectWidget
+              className={styles['model-capsule-select']}
+              triggerClassName={styles['model-capsule-trigger']}
               options={modelOptions}
               value={currentModel}
               onChange={async (refKey) => {

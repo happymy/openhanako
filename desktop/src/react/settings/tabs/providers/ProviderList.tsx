@@ -3,7 +3,7 @@ import { useSettingsStore } from '../../store';
 import { hanaFetch } from '../../api';
 import { t, API_FORMAT_OPTIONS } from '../../helpers';
 import { loadSettingsConfig } from '../../actions';
-import { SelectWidget } from '../../widgets/SelectWidget';
+import { SelectWidget } from '@/ui';
 import { KeyInput } from '../../widgets/KeyInput';
 import styles from '../../Settings.module.css';
 

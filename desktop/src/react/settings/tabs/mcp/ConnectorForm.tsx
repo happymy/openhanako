@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { t } from '../../helpers';
 import styles from '../../Settings.module.css';
-import { SelectWidget } from '../../widgets/SelectWidget';
+import { SelectWidget } from '@/ui';
 import { parseKeyValueLines, serializeKeyValueLines } from './mcp-config';
 import type { McpAuthType, McpConnector, McpConnectorInput, McpTransport } from './types';
 
