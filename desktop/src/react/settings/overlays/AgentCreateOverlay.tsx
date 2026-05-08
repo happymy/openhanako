@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSettingsStore } from '../store';
 import { hanaFetch } from '../api';
 import { t } from '../helpers';
 import { switchToAgent } from '../actions';
+import { Overlay } from '../../ui';
 import styles from '../Settings.module.css';
 
 export function AgentCreateOverlay() {
@@ -24,7 +25,7 @@ export function AgentCreateOverlay() {
     return () => window.removeEventListener('hana-show-agent-create', handler);
   }, []);
 
-  const close = () => setVisible(false);
+  const close = useCallback(() => setVisible(false), []);
 
   const create = async () => {
     if (creating) return;
@@ -50,14 +51,20 @@ export function AgentCreateOverlay() {
     }
   };
 
-  if (!visible) return null;
-
   const types = t('yuan.types') || {};
   const entries = Object.entries(types) as [string, any][];
 
   return (
-    <div className={`${styles['agent-create-overlay']} ${styles['visible']}`} onClick={(e) => { if (!creating && e.target === e.currentTarget) close(); }}>
-      <div className={styles['agent-create-card']} aria-busy={creating || undefined}>
+    <Overlay
+      open={visible}
+      onClose={close}
+      backdrop="blur"
+      closeOnBackdrop={!creating}
+      closeOnEsc={!creating}
+      zIndex={110}
+      className={styles['agent-create-card']}
+      disableContainerAnimation
+    >
         <h3 className={styles['agent-create-title']}>{t('settings.agent.createTitle')}</h3>
         <div className={styles['settings-form-field']}>
           <input
@@ -116,7 +123,6 @@ export function AgentCreateOverlay() {
             {creating ? t('settings.agent.creating') : t('settings.agent.confirm')}
           </button>
         </div>
-      </div>
-    </div>
+    </Overlay>
   );
 }
