@@ -387,8 +387,12 @@ import { hana } from '@hana/plugin-sdk';
 
 hana.ready();
 hana.ui.resize({ height: 320 });
-await hana.host.request('toast.show', { message: 'Refreshed', type: 'success' });
+await hana.toast.show({ message: 'Refreshed', type: 'success' });
+await hana.external.open('https://example.com');
+await hana.clipboard.writeText('Copied text');
 ```
+
+The lower-level `hana.host.request(type, payload)` remains available for future or experimental capabilities. Prefer typed helpers for stable capabilities.
 
 For compatibility, the host still accepts the legacy handshake:
 

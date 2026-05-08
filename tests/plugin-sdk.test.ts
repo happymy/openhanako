@@ -137,4 +137,112 @@ describe('plugin SDK', () => {
       details: { capability: 'external.open' },
     } satisfies Partial<HanaPluginError>);
   });
+
+  it('wraps toast.show as a typed host request helper', async () => {
+    const parentWindow = makeParentWindow();
+    const sdk = createHanaPluginSdk({
+      parentWindow,
+      targetWindow: window,
+      targetOrigin: 'http://127.0.0.1:3210',
+      idFactory: () => 'toast-1',
+      requestTimeoutMs: 1000,
+    });
+
+    const pending = sdk.toast.show({ message: 'Saved', type: 'success', duration: 3000 });
+
+    expect(parentWindow.postMessage).toHaveBeenCalledWith({
+      protocol: PLUGIN_UI_PROTOCOL,
+      version: PLUGIN_UI_PROTOCOL_VERSION,
+      id: 'toast-1',
+      kind: 'request',
+      type: PLUGIN_UI_CAPABILITY.TOAST_SHOW,
+      payload: { message: 'Saved', type: 'success', duration: 3000 },
+    }, 'http://127.0.0.1:3210');
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        protocol: PLUGIN_UI_PROTOCOL,
+        version: PLUGIN_UI_PROTOCOL_VERSION,
+        id: 'toast-1',
+        kind: 'response',
+        type: PLUGIN_UI_CAPABILITY.TOAST_SHOW,
+        payload: { shown: true },
+      },
+      origin: 'http://127.0.0.1:3210',
+      source: parentWindow,
+    }));
+
+    await expect(pending).resolves.toEqual({ shown: true });
+  });
+
+  it('wraps external.open string input as a typed host request helper', async () => {
+    const parentWindow = makeParentWindow();
+    const sdk = createHanaPluginSdk({
+      parentWindow,
+      targetWindow: window,
+      targetOrigin: 'http://127.0.0.1:3210',
+      idFactory: () => 'external-1',
+      requestTimeoutMs: 1000,
+    });
+
+    const pending = sdk.external.open('https://example.com/docs');
+
+    expect(parentWindow.postMessage).toHaveBeenCalledWith({
+      protocol: PLUGIN_UI_PROTOCOL,
+      version: PLUGIN_UI_PROTOCOL_VERSION,
+      id: 'external-1',
+      kind: 'request',
+      type: PLUGIN_UI_CAPABILITY.EXTERNAL_OPEN,
+      payload: { url: 'https://example.com/docs' },
+    }, 'http://127.0.0.1:3210');
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        protocol: PLUGIN_UI_PROTOCOL,
+        version: PLUGIN_UI_PROTOCOL_VERSION,
+        id: 'external-1',
+        kind: 'response',
+        type: PLUGIN_UI_CAPABILITY.EXTERNAL_OPEN,
+        payload: { opened: true },
+      },
+      origin: 'http://127.0.0.1:3210',
+      source: parentWindow,
+    }));
+
+    await expect(pending).resolves.toEqual({ opened: true });
+  });
+
+  it('wraps clipboard.writeText string input as a typed host request helper', async () => {
+    const parentWindow = makeParentWindow();
+    const sdk = createHanaPluginSdk({
+      parentWindow,
+      targetWindow: window,
+      targetOrigin: 'http://127.0.0.1:3210',
+      idFactory: () => 'clipboard-1',
+      requestTimeoutMs: 1000,
+    });
+
+    const pending = sdk.clipboard.writeText('copy me');
+
+    expect(parentWindow.postMessage).toHaveBeenCalledWith({
+      protocol: PLUGIN_UI_PROTOCOL,
+      version: PLUGIN_UI_PROTOCOL_VERSION,
+      id: 'clipboard-1',
+      kind: 'request',
+      type: PLUGIN_UI_CAPABILITY.CLIPBOARD_WRITE_TEXT,
+      payload: { text: 'copy me' },
+    }, 'http://127.0.0.1:3210');
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        protocol: PLUGIN_UI_PROTOCOL,
+        version: PLUGIN_UI_PROTOCOL_VERSION,
+        id: 'clipboard-1',
+        kind: 'response',
+        type: PLUGIN_UI_CAPABILITY.CLIPBOARD_WRITE_TEXT,
+        payload: { written: true },
+      },
+      origin: 'http://127.0.0.1:3210',
+      source: parentWindow,
+    }));
+
+    await expect(pending).resolves.toEqual({ written: true });
+  });
 });

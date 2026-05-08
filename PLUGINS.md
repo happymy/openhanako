@@ -387,8 +387,12 @@ import { hana } from '@hana/plugin-sdk';
 
 hana.ready();
 hana.ui.resize({ height: 320 });
-await hana.host.request('toast.show', { message: '已刷新', type: 'success' });
+await hana.toast.show({ message: '已刷新', type: 'success' });
+await hana.external.open('https://example.com');
+await hana.clipboard.writeText('复制内容');
 ```
+
+底层仍保留 `hana.host.request(type, payload)`，用于未来 capability 或实验能力；稳定能力优先使用 typed helper。
 
 为兼容旧插件，宿主仍接受原始握手消息：
 

@@ -21,6 +21,30 @@ export interface HanaPluginRequestOptions {
   timeoutMs?: number;
 }
 
+export type HanaToastType = 'success' | 'error' | 'info' | 'warning';
+
+export interface HanaToastShowInput {
+  message: string;
+  type?: HanaToastType;
+  duration?: number;
+}
+
+export interface HanaToastShowResult {
+  shown: boolean;
+}
+
+export type HanaExternalOpenInput = string | { url: string };
+
+export interface HanaExternalOpenResult {
+  opened: boolean;
+}
+
+export type HanaClipboardWriteTextInput = string | { text: string };
+
+export interface HanaClipboardWriteTextResult {
+  written: boolean;
+}
+
 export interface HanaPluginSdkOptions {
   parentWindow?: Window;
   targetWindow?: Window;
@@ -44,6 +68,18 @@ export interface HanaPluginSdk {
       payload?: unknown,
       options?: HanaPluginRequestOptions,
     ): Promise<T>;
+  };
+  toast: {
+    show(input: HanaToastShowInput, options?: HanaPluginRequestOptions): Promise<HanaToastShowResult>;
+  };
+  external: {
+    open(input: HanaExternalOpenInput, options?: HanaPluginRequestOptions): Promise<HanaExternalOpenResult>;
+  };
+  clipboard: {
+    writeText(
+      input: HanaClipboardWriteTextInput,
+      options?: HanaPluginRequestOptions,
+    ): Promise<HanaClipboardWriteTextResult>;
   };
 }
 
@@ -106,6 +142,14 @@ function isTrustedHostEvent(event: MessageEvent, parentWindow: Window, targetOri
   if (event.source !== parentWindow) return false;
   if (targetOrigin !== '*' && event.origin !== targetOrigin) return false;
   return true;
+}
+
+function externalOpenPayload(input: HanaExternalOpenInput): { url: string } {
+  return typeof input === 'string' ? { url: input } : input;
+}
+
+function clipboardWriteTextPayload(input: HanaClipboardWriteTextInput): { text: string } {
+  return typeof input === 'string' ? { text: input } : input;
 }
 
 export function createHanaPluginSdk(options: HanaPluginSdkOptions = {}): HanaPluginSdk {
@@ -233,6 +277,25 @@ export function createHanaPluginSdk(options: HanaPluginSdkOptions = {}): HanaPlu
     host: {
       request,
     },
+    toast: {
+      show(input: HanaToastShowInput, options?: HanaPluginRequestOptions) {
+        return request<HanaToastShowResult>(PLUGIN_UI_CAPABILITY.TOAST_SHOW, input, options);
+      },
+    },
+    external: {
+      open(input: HanaExternalOpenInput, options?: HanaPluginRequestOptions) {
+        return request<HanaExternalOpenResult>(PLUGIN_UI_CAPABILITY.EXTERNAL_OPEN, externalOpenPayload(input), options);
+      },
+    },
+    clipboard: {
+      writeText(input: HanaClipboardWriteTextInput, options?: HanaPluginRequestOptions) {
+        return request<HanaClipboardWriteTextResult>(
+          PLUGIN_UI_CAPABILITY.CLIPBOARD_WRITE_TEXT,
+          clipboardWriteTextPayload(input),
+          options,
+        );
+      },
+    },
   };
 }
 
@@ -267,6 +330,21 @@ export const hana: HanaPluginSdk = {
       options?: HanaPluginRequestOptions,
     ) {
       return getSingleton().host.request<T>(type, payload, options);
+    },
+  },
+  toast: {
+    show(input: HanaToastShowInput, options?: HanaPluginRequestOptions) {
+      return getSingleton().toast.show(input, options);
+    },
+  },
+  external: {
+    open(input: HanaExternalOpenInput, options?: HanaPluginRequestOptions) {
+      return getSingleton().external.open(input, options);
+    },
+  },
+  clipboard: {
+    writeText(input: HanaClipboardWriteTextInput, options?: HanaPluginRequestOptions) {
+      return getSingleton().clipboard.writeText(input, options);
     },
   },
 };
