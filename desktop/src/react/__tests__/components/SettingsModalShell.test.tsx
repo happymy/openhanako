@@ -109,7 +109,7 @@ describe('SettingsModalShell', () => {
 
     // 退场动画结束后卡片应从 DOM 移除
     act(() => {
-      vi.advanceTimersByTime(200);
+      vi.advanceTimersByTime(150);
     });
 
     expect(screen.queryByTestId('settings-modal-overlay')).not.toBeInTheDocument();
@@ -128,7 +128,7 @@ describe('SettingsModalShell', () => {
     expect(screen.getByTestId('settings-modal-overlay')).toHaveAttribute('data-state', 'closing');
 
     act(() => {
-      vi.advanceTimersByTime(200);
+      vi.advanceTimersByTime(150);
     });
 
     expect(useStore.getState().settingsModal).toEqual({
@@ -150,7 +150,7 @@ describe('SettingsModalShell', () => {
     expect(screen.getByTestId('settings-modal-overlay')).toHaveAttribute('data-state', 'closing');
 
     act(() => {
-      vi.advanceTimersByTime(200);
+      vi.advanceTimersByTime(150);
     });
 
     expect(useStore.getState().settingsModal).toEqual({

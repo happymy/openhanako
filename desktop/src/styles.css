@@ -27,7 +27,7 @@
 
     /* 动效 · 时长（三档：所有 transition / 短动画归到这三档） */
     --duration-instant: 0.1s;       /* 瞬：hover、关闭、退场、撤销 */
-    --duration-fast:    0.2s;       /* 快：默认（按钮、面板、focus、状态切换）*/
+    --duration-fast:    0.15s;      /* 快：默认（按钮、面板、focus、状态切换）*/
     --duration-slow:    0.3s;       /* 慢：模态、大块进场、强调动作 */
 
     /* 动效 · 缓动 */
