@@ -704,7 +704,7 @@ html[data-platform="linux"] .tb-toggle-right {
     border-radius: var(--radius-md);
     padding: var(--space-xs);
     box-shadow: 0 4px 16px var(--shadow);
-    animation: dropdown-in 0.2s var(--ease-out);
+    animation: hana-fade-up 0.2s var(--ease-out);
 }
 
 
@@ -2088,11 +2088,6 @@ html[data-platform="linux"] .tb-toggle-right {
 
 /* (输入区子组件样式已迁移到 InputArea.module.css) */
 
-@keyframes dropdown-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
 /* ═══════════════════════════════════════
    笺（jian）右侧 sidebar
    ═══════════════════════════════════════ */
@@ -2793,7 +2788,7 @@ body.resizing .jian-sidebar-inner {
     border-radius: var(--radius-lg);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
     padding: 1.6rem 1.8rem 1.3rem;
-    animation: dropdown-in 0.25s var(--ease-out);
+    animation: hana-fade-up 0.25s var(--ease-out);
 }
 .hana-warning-title {
     font-size: 1rem;
@@ -2904,15 +2899,11 @@ html[data-platform="linux"] .onboarding {
     width: 100%;
     max-width: 440px;
     flex: 1;
-    animation: obFadeIn 0.3s ease-out;
+    --slide-y: 10px;
+    animation: hana-fade-up 0.3s ease-out;
 }
 .onboarding-step.active {
     display: flex;
-}
-
-@keyframes obFadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Typography ── */

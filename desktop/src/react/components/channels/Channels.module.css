@@ -630,7 +630,7 @@
     width: 440px;
     max-width: 90vw;
     box-shadow: 0 12px 48px var(--shadow);
-    animation: dropdown-in 0.2s var(--ease-out);
+    animation: hana-fade-up 0.2s var(--ease-out);
 }
 
 .createTitle {

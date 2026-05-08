@@ -48,7 +48,7 @@
     box-shadow: 0 4px 16px var(--shadow);
     z-index: 100;
     padding: 4px;
-    animation: dropdown-in 0.15s var(--ease-out);
+    animation: hana-fade-up 0.15s var(--ease-out);
 }
 
 .dropdownItem {

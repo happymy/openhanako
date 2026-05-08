@@ -601,7 +601,7 @@
     width: 440px;
     max-width: 90vw;
     box-shadow: 0 12px 48px var(--shadow);
-    animation: dropdown-in 0.2s var(--ease-out);
+    animation: hana-fade-up 0.2s var(--ease-out);
 }
 
 .agent-create-title {
@@ -719,7 +719,7 @@
     width: 320px;
     max-width: 90vw;
     box-shadow: 0 12px 48px var(--shadow);
-    animation: dropdown-in 0.2s var(--ease-out);
+    animation: hana-fade-up 0.2s var(--ease-out);
 }
 
 .agent-delete-step.hidden {
@@ -2113,12 +2113,7 @@
 
 .settings-tab-content.active {
     display: block;
-    animation: tab-fade-in 0.2s var(--ease-out);
-}
-
-@keyframes tab-fade-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to   { opacity: 1; transform: translateY(0); }
+    animation: hana-fade-up 0.2s var(--ease-out);
 }
 
 /* ── About Tab ── */
@@ -3962,7 +3957,7 @@ a.about-link:hover {
     z-index: 60;
     margin-bottom: 4px;
     overflow: hidden;
-    animation: dropdown-in 0.2s var(--ease-out);
+    animation: hana-fade-up 0.2s var(--ease-out);
 }
 
 .memory-action-dropdown.open .memory-more-popup {
@@ -4466,7 +4461,7 @@ a.about-link:hover {
     margin-top: 4px;
     overflow-y: auto;
     flex-direction: column;
-    animation: dropdown-in 0.2s var(--ease-out);
+    animation: hana-fade-up 0.2s var(--ease-out);
     padding: var(--space-xs) 0;
 }
 
@@ -4590,7 +4585,7 @@ a.about-link:hover {
     z-index: 60;
     overflow: hidden;
     flex-direction: column;
-    animation: dropdown-in 0.2s var(--ease-out);
+    animation: hana-fade-up 0.2s var(--ease-out);
 }
 
 .cml-picker.open {
@@ -4812,7 +4807,7 @@ a.about-link:hover {
     border-top: none;
     padding: var(--space-sm) var(--space-md);
     background: var(--overlay-subtle);
-    animation: dropdown-in 0.2s var(--ease-out);
+    animation: hana-fade-up 0.2s var(--ease-out);
 }
 
 .cml-edit-panel-columns {
@@ -4892,7 +4887,7 @@ a.about-link:hover {
 
 .cml-combo-dropdown.open {
     display: block;
-    animation: dropdown-in 0.15s var(--ease-out);
+    animation: hana-fade-up 0.15s var(--ease-out);
 }
 
 .cml-combo-option {
@@ -5049,7 +5044,7 @@ a.about-link:hover {
     margin-top: 4px;
     overflow: hidden;
     flex-direction: column;
-    animation: dropdown-in 0.2s var(--ease-out);
+    animation: hana-fade-up 0.2s var(--ease-out);
 }
 
 .mdw-popup.open {

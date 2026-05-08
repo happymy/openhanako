@@ -38,15 +38,15 @@
 
 /* ── Fade + Slide Y ──
    旧名：obFadeIn(10px), msgIn(8px), dropdown-in(4px), tab-fade-in(4px)
-   统一为 hana-fade-up，位移量通过 --slide-y 控制   */
+   统一为 hana-fade-up，位移量通过 --slide-y 控制（默认 4px，最常见的 dropdown 场景）  */
 @keyframes hana-fade-up {
-    from { opacity: 0; transform: translateY(var(--slide-y, 8px)); }
+    from { opacity: 0; transform: translateY(var(--slide-y, 4px)); }
     to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes hana-fade-down {
     from { opacity: 1; transform: translateY(0); }
-    to   { opacity: 0; transform: translateY(var(--slide-y, 8px)); }
+    to   { opacity: 0; transform: translateY(var(--slide-y, 4px)); }
 }
 
 

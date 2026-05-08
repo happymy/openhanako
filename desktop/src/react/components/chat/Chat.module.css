@@ -9,7 +9,8 @@
 .messageGroup {
     display: flex;
     flex-direction: column;
-    animation: msgIn 0.3s var(--ease-out);
+    --slide-y: 8px;
+    animation: hana-fade-up 0.3s var(--ease-out);
 }
 
 .messageGroup:first-child .avatarRow {
@@ -77,11 +78,6 @@
 
 .message + .message {
     margin-top: var(--space-xs);
-}
-
-@keyframes msgIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
 }
 
 /* 用户消息 */
@@ -1089,7 +1085,8 @@
     line-height: 0.6;
     letter-spacing: 0.08em;
     color: var(--accent);
-    animation: msgIn 0.3s var(--ease-out);
+    --slide-y: 8px;
+    animation: hana-fade-up 0.3s var(--ease-out);
 }
 
 .typingIndicator::after {
