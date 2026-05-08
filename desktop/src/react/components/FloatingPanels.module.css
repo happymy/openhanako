@@ -34,21 +34,11 @@
     border-radius: var(--radius-lg, 12px);
     box-shadow: 0 8px 32px var(--shadow), 0 2px 8px rgba(0,0,0,0.04);
     overflow: hidden;
-    animation: floatSlideIn 0.25s var(--ease-out) both;
-}
-
-@keyframes floatSlideIn {
-    from { opacity: 0; transform: translateX(-20px) scale(0.97); }
-    to   { opacity: 1; transform: translateX(0) scale(1); }
+    animation: hana-slide-in-left 0.25s var(--ease-out) both;
 }
 
 .floatingPanelClosing .floatingPanelInner {
-    animation: floatSlideOut 0.08s ease-in forwards;
-}
-
-@keyframes floatSlideOut {
-    from { opacity: 1; transform: translateX(0) scale(1); }
-    to   { opacity: 0; transform: translateX(-12px) scale(0.97); }
+    animation: hana-slide-out-left 0.08s ease-in forwards;
 }
 
 .floatingPanelHeader {

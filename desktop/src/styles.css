@@ -1519,12 +1519,12 @@ html[data-platform="linux"] .tb-toggle-right {
     box-shadow: 0 8px 32px rgba(0,0,0,0.12);
     display: flex;
     flex-direction: column;
-    animation: floatSlideIn 0.12s ease-out;
+    animation: hana-slide-in-left 0.12s ease-out;
     overflow: hidden;
 }
 
 .devtools-panel.closing .devtools-inner {
-    animation: floatSlideOut 0.08s ease-in forwards;
+    animation: hana-slide-out-left 0.08s ease-in forwards;
 }
 
 .devtools-buttons {
@@ -1779,12 +1779,7 @@ html[data-platform="linux"] .tb-toggle-right {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    animation: svSlideIn 0.15s ease-out;
-}
-
-@keyframes svSlideIn {
-    from { opacity: 0; transform: scale(0.96) translateY(8px); }
-    to   { opacity: 1; transform: scale(1) translateY(0); }
+    animation: hana-scale-in 0.15s ease-out;
 }
 
 .sv-topbar {

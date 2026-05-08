@@ -564,7 +564,7 @@
     min-height: 260px;
     max-height: 400px;
     overflow-y: auto;
-    animation: cwdPanelIn 0.18s ease-out;
+    animation: hana-slide-in-top 0.18s ease-out;
     transform-origin: top right;
     transition: border-color 0.15s;
 }
@@ -629,18 +629,8 @@
     white-space: nowrap;
 }
 
-@keyframes cwdPanelIn {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
 .cwdPanelWrap.closing .cwdPanel {
-    animation: cwdPanelOut 0.08s ease-in forwards;
-}
-
-@keyframes cwdPanelOut {
-    from { opacity: 1; transform: translateY(0); }
-    to   { opacity: 0; transform: translateY(-6px); }
+    animation: hana-slide-out-top 0.08s ease-in forwards;
 }
 
 .cwdEmpty {
