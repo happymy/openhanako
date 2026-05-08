@@ -2649,10 +2649,6 @@ body.resizing .jian-sidebar-inner {
 }
 
 /* ── 浏览器浮动状态卡片 ── */
-@keyframes browserCardSlideDown {
-    from { transform: translateY(-110%); opacity: 0; }
-    to   { transform: translateY(0);     opacity: 1; }
-}
 .browser-floating-card {
     position: absolute;
     top: calc(44px + 0.5em);
@@ -2671,7 +2667,7 @@ body.resizing .jian-sidebar-inner {
     cursor: pointer;
     transition: box-shadow 0.2s;
     -webkit-app-region: no-drag;
-    animation: browserCardSlideDown 0.35s var(--ease-out) both;
+    animation: hana-card-slide-down 0.35s var(--ease-out) both;
 }
 .browser-floating-right {
     display: flex;
