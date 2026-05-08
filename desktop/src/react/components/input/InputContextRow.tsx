@@ -11,11 +11,13 @@ interface Props {
   removeAttachedFile: (index: number) => void;
   hasQuotedSelection: boolean;
   sessionTodos: TodoItem[];
+  onCompleteTodos?: () => void;
+  completingTodos?: boolean;
 }
 
 /** 输入框上方的上下文行：附件、引用、Todo */
 export const InputContextRow = memo(function InputContextRow({
-  attachedFiles, removeAttachedFile, hasQuotedSelection, sessionTodos,
+  attachedFiles, removeAttachedFile, hasQuotedSelection, sessionTodos, onCompleteTodos, completingTodos,
 }: Props) {
   if (attachedFiles.length === 0 && !hasQuotedSelection && sessionTodos.length === 0) return null;
 
@@ -25,7 +27,7 @@ export const InputContextRow = memo(function InputContextRow({
         {attachedFiles.length > 0 && <AttachedFilesBar files={attachedFiles} onRemove={removeAttachedFile} />}
         <QuotedSelectionCard />
       </div>
-      <TodoDisplay todos={sessionTodos} />
+      <TodoDisplay todos={sessionTodos} onCompleteAll={onCompleteTodos} completing={completingTodos} />
     </div>
   );
 });

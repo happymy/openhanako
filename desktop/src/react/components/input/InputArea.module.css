@@ -531,6 +531,37 @@
     opacity: 0.9;
 }
 
+.todo-bar-complete {
+    position: absolute;
+    top: -0.45rem;
+    right: -0.45rem;
+    width: 1rem;
+    height: 1rem;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.78);
+    border-radius: 50%;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10);
+    z-index: 11;
+    -webkit-app-region: no-drag;
+}
+
+.todo-bar-complete:hover {
+    color: var(--text);
+    border-color: var(--overlay-light);
+}
+
+.todo-bar-complete:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
 .todo-bar-icon {
     font-size: 0.7rem;
     line-height: 1;

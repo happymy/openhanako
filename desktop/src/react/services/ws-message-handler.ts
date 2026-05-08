@@ -27,7 +27,7 @@ import {
   updateSessionStreamMeta,
 } from './stream-resume';
 import { TODO_TOOL_NAMES, type TodoToolName } from '../utils/todo-constants';
-import { migrateLegacyTodos } from '../utils/todo-compat';
+import { applyTodoLifecycle, migrateLegacyTodos } from '../utils/todo-compat';
 import { renderMarkdown } from '../utils/markdown';
 import { bumpMessageLiveVersion } from '../stores/message-live-version';
 
@@ -79,6 +79,20 @@ function hasOptimisticCurrentSession(): boolean {
   const sessionPath = state.currentSessionPath;
   if (!sessionPath) return false;
   return !!state.sessions.find((s: any) => s.path === sessionPath && s._optimistic);
+}
+
+function applyTodoToolEnd(msg: any): void {
+  if (msg.type !== 'tool_end' || !TODO_TOOL_NAMES.includes(msg.name as TodoToolName)) return;
+  const sp = msg.sessionPath;
+  if (!sp) {
+    console.warn('[ws] tool_end(todo) missing sessionPath, skipping');
+    return;
+  }
+  const todos = applyTodoLifecycle(migrateLegacyTodos(msg.details as { todos?: unknown[] } | null));
+  useStore.getState().setSessionTodosForPath(sp, todos);
+  // bump 版本：若 loadMessages 正在 fetch 旧快照，回来时会发现
+  // 版本号变了，主动跳过 hydrate 写入，避免覆盖本次 live 状态。
+  useStore.getState().bumpTodosLiveVersion(sp);
 }
 
 function isKnownChatSession(sessionPath: string, state = useStore.getState()): boolean {
@@ -213,6 +227,7 @@ export function handleServerMessage(msg: any): void {
       streamBufferManager.handle(msg);
     }
     dispatchStreamKey(msg.sessionPath, msg);
+    applyTodoToolEnd(msg);
     applyToolEndSessionFile(msg);
     return;
   }
@@ -231,18 +246,7 @@ export function handleServerMessage(msg: any): void {
       }
     }
     // tool_end 后更新 todo（兼容新旧工具名 + 新旧格式）
-    if (msg.type === 'tool_end' && TODO_TOOL_NAMES.includes(msg.name as TodoToolName)) {
-      const sp = msg.sessionPath;
-      if (!sp) {
-        console.warn('[ws] tool_end(todo) missing sessionPath, skipping');
-      } else {
-        const todos = migrateLegacyTodos(msg.details as { todos?: unknown[] } | null);
-        useStore.getState().setSessionTodosForPath(sp, todos);
-        // bump 版本：若 loadMessages 正在 fetch 旧快照，回来时会发现
-        // 版本号变了，主动跳过 hydrate 写入，避免覆盖本次 live 状态。
-        useStore.getState().bumpTodosLiveVersion(sp);
-      }
-    }
+    applyTodoToolEnd(msg);
     if (msg.type === 'tool_end') {
       applyToolEndSessionFile(msg);
     }
@@ -292,6 +296,14 @@ export function handleServerMessage(msg: any): void {
           thumbnail: bThumbnail,
         });
       }
+      break;
+    }
+
+    case 'todo_update': {
+      const sp = msg.sessionPath;
+      if (!sp) { console.warn('[ws] event missing sessionPath:', msg.type); break; }
+      useStore.getState().setSessionTodosForPath(sp, Array.isArray(msg.todos) ? msg.todos : []);
+      useStore.getState().bumpTodosLiveVersion(sp);
       break;
     }
 

@@ -17,6 +17,7 @@ import {
   migrateLegacyTodos,
   extractLatestTodos,
   extractLatestTodosFromEntries,
+  extractLatestTodoSnapshot,
 } from "../lib/tools/todo-compat.js";
 
 describe("migrateLegacyTodos", () => {
@@ -223,6 +224,94 @@ describe("extractLatestTodos", () => {
     ];
     const result = extractLatestTodos(messages);
     expect(result).toEqual([]);
+  });
+
+  it("全 completed 的 todo group 按 Claude 生命周期移除", () => {
+    const messages = [
+      {
+        role: "toolResult",
+        toolName: "todo_write",
+        details: {
+          todos: [
+            { content: "read", activeForm: "reading", status: "completed" },
+            { content: "write", activeForm: "writing", status: "completed" },
+          ],
+        },
+      },
+    ];
+
+    expect(extractLatestTodos(messages)).toEqual([]);
+    expect(extractLatestTodoSnapshot(messages)).toEqual({
+      todos: [
+        { content: "read", activeForm: "reading", status: "completed" },
+        { content: "write", activeForm: "writing", status: "completed" },
+      ],
+      removed: true,
+      source: "tool",
+    });
+  });
+
+  it("用户完成事件覆盖旧 todo 快照并移除当前面板", () => {
+    const messages = [
+      {
+        role: "toolResult",
+        toolName: "todo_write",
+        details: {
+          todos: [
+            { content: "old", activeForm: "doing old", status: "in_progress" },
+          ],
+        },
+      },
+      {
+        role: "custom",
+        customType: "hana.todo_state",
+        details: {
+          action: "complete_all",
+          removed: true,
+          todos: [
+            { content: "old", activeForm: "doing old", status: "completed" },
+          ],
+        },
+      },
+    ];
+
+    expect(extractLatestTodos(messages)).toEqual([]);
+    expect(extractLatestTodoSnapshot(messages)).toMatchObject({
+      todos: [
+        { content: "old", activeForm: "doing old", status: "completed" },
+      ],
+      removed: true,
+      source: "user",
+    });
+  });
+
+  it("用户完成事件之后的新 todo_write 会重新成为当前 active todo", () => {
+    const messages = [
+      {
+        role: "custom",
+        customType: "hana.todo_state",
+        details: {
+          action: "complete_all",
+          removed: true,
+          todos: [
+            { content: "old", activeForm: "doing old", status: "completed" },
+          ],
+        },
+      },
+      {
+        role: "toolResult",
+        toolName: "todo_write",
+        details: {
+          todos: [
+            { content: "new", activeForm: "doing new", status: "pending" },
+          ],
+        },
+      },
+    ];
+
+    expect(extractLatestTodos(messages)).toEqual([
+      { content: "new", activeForm: "doing new", status: "pending" },
+    ]);
   });
 
   it("坏快照（details 缺失）跳过继续向前找到合法快照", () => {

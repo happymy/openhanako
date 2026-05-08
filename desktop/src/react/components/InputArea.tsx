@@ -202,6 +202,7 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
   const [fileMentionQuery, setFileMentionQuery] = useState('');
   const [fileMentionSearchResults, setFileMentionSearchResults] = useState<DeskSearchResult[]>([]);
   const [fileMentionBusy, setFileMentionBusy] = useState(false);
+  const [completingTodos, setCompletingTodos] = useState(false);
 
   useEffect(() => {
     if (pendingSessionConfirmation) {
@@ -881,6 +882,26 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
     loadDeskFiles('', slashResult.deskDir);
   }, [slashResult?.deskDir]);
 
+  const handleCompleteTodos = useCallback(async () => {
+    const path = currentSessionPath;
+    if (!path || completingTodos || sessionTodos.length === 0) return;
+    setCompletingTodos(true);
+    try {
+      await hanaFetch('/api/sessions/todos/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      });
+      useStore.getState().setSessionTodosForPath(path, []);
+      useStore.getState().bumpTodosLiveVersion(path);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      addToast(message, 'error', 6000);
+    } finally {
+      setCompletingTodos(false);
+    }
+  }, [addToast, completingTodos, currentSessionPath, sessionTodos.length]);
+
   return (
     <>
       <InputStatusBars
@@ -897,6 +918,8 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
         removeAttachedFile={removeAttachedFile}
         hasQuotedSelection={!!quotedSelection}
         sessionTodos={sessionTodos}
+        onCompleteTodos={handleCompleteTodos}
+        completingTodos={completingTodos}
       />
       <div className={styles['slash-menu-anchor']} ref={slashMenuRef}>
         {slashMenuOpen && filteredCommands.length > 0 && (

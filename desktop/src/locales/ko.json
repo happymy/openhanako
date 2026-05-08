@@ -112,7 +112,8 @@
     "screenshotSaved": "작업 디렉터리의 「截图」 폴더에 스크린샷이 저장되었습니다",
     "screenshotFailed": "스크린샷 저장 실패",
     "selectedCount": "{count}개 선택됨",
-    "allDone": "모두 완료"
+    "allDone": "모두 완료",
+    "completeAndDismiss": "완료하고 닫기"
   },
   "chat": {
     "send": "보내기",

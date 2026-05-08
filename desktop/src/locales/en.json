@@ -113,7 +113,8 @@
     "screenshotSaved": "Screenshot saved to the \"截图\" folder in your working directory",
     "screenshotFailed": "Screenshot save failed",
     "selectedCount": "{count} selected",
-    "allDone": "All done"
+    "allDone": "All done",
+    "completeAndDismiss": "Complete and dismiss"
   },
   "chat": {
     "send": "Send",

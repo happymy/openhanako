@@ -45,7 +45,15 @@ function pickPreview(todos: TodoItem[], allDoneText: string): string {
   return allDoneText;
 }
 
-export function TodoDisplay({ todos }: { todos: TodoItem[] }) {
+export function TodoDisplay({
+  todos,
+  onCompleteAll,
+  completing = false,
+}: {
+  todos: TodoItem[];
+  onCompleteAll?: () => void;
+  completing?: boolean;
+}) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
 
@@ -72,7 +80,22 @@ export function TodoDisplay({ todos }: { todos: TodoItem[] }) {
           })}
         </div>
       )}
-      <button className={styles['todo-bar-trigger']} onClick={() => setOpen(!open)}>
+      {onCompleteAll && (
+        <button
+          type="button"
+          className={styles['todo-bar-complete']}
+          aria-label={t('common.completeAndDismiss')}
+          title={t('common.completeAndDismiss')}
+          disabled={completing}
+          onClick={(event) => {
+            event.stopPropagation();
+            onCompleteAll();
+          }}
+        >
+          ×
+        </button>
+      )}
+      <button type="button" className={styles['todo-bar-trigger']} onClick={() => setOpen(!open)}>
         <span className={styles['todo-bar-icon']}>☑</span>
         <span className={styles['todo-bar-preview']}>{preview}</span>
         <span className={styles['todo-bar-count']}>

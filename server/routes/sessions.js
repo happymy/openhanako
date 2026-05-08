@@ -20,7 +20,12 @@ import {
   isValidSessionPath,
   isActiveSessionPath,
 } from "../../core/message-utils.js";
-import { loadLatestTodosFromSessionFile } from "../../lib/tools/todo-compat.js";
+import {
+  loadLatestTodosFromSessionFile,
+  loadLatestTodoSnapshotFromSessionFile,
+} from "../../lib/tools/todo-compat.js";
+import { SessionManager } from "../../lib/pi-sdk/index.js";
+import { TODO_STATE_CUSTOM_TYPE } from "../../lib/tools/todo-constants.js";
 import { mergeWorkspaceHistory } from "../../shared/workspace-history.js";
 import {
   deleteSessionFileSidecarSync,
@@ -45,6 +50,22 @@ async function pathExists(filePath) {
     return false;
   }
 }
+
+function completeTodoItems(todos) {
+  return (Array.isArray(todos) ? todos : []).map((todo) => ({
+    ...todo,
+    status: "completed",
+  }));
+}
+
+function getWritableSessionManager(engine, sessionPath) {
+  const liveSession = engine.getSessionByPath?.(sessionPath);
+  if (liveSession?.sessionManager) return liveSession.sessionManager;
+  return SessionManager.open(sessionPath, path.dirname(sessionPath));
+}
+
+const TODO_COMPLETE_MESSAGE =
+  "[Hana Todo] The user marked the current todo list as completed and removed it from the session UI. Treat every item in that list as completed. Create a new todo list only if new work needs tracking.";
 
 export function createSessionsRoute(engine) {
   const route = new Hono();
@@ -340,6 +361,49 @@ export function createSessionsRoute(engine) {
       const todos = await loadLatestTodosFromSessionFile(queryPath);
 
       return c.json({ messages, blocks: slicedBlocks, todos, hasMore, sessionFiles });
+    } catch (err) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  route.post("/sessions/todos/complete", async (c) => {
+    try {
+      const body = await safeJson(c);
+      const sessionPath = body?.path;
+      if (!sessionPath) {
+        return c.json({ error: t("error.missingParam", { param: "path" }) }, 400);
+      }
+      if (!isValidSessionPath(sessionPath, engine.agentsDir) || !isActiveSessionPath(sessionPath, engine.agentsDir)) {
+        return c.json({ error: "Invalid session path" }, 403);
+      }
+      try {
+        await fs.access(sessionPath);
+      } catch {
+        return c.json({ error: t("error.sessionNotFound") }, 404);
+      }
+      if (engine.isSessionStreaming?.(sessionPath)) {
+        return c.json({ error: "Cannot complete todos while session is streaming" }, 409);
+      }
+
+      const snapshot = await loadLatestTodoSnapshotFromSessionFile(sessionPath);
+      const completedTodos = completeTodoItems(snapshot?.todos || []);
+      if (!snapshot?.removed && completedTodos.length > 0) {
+        const manager = getWritableSessionManager(engine, sessionPath);
+        manager.appendCustomMessageEntry(
+          TODO_STATE_CUSTOM_TYPE,
+          TODO_COMPLETE_MESSAGE,
+          false,
+          {
+            action: "complete_all",
+            source: "user",
+            removed: true,
+            todos: completedTodos,
+          },
+        );
+      }
+
+      engine.emitEvent?.({ type: "todo_update", todos: [] }, sessionPath);
+      return c.json({ ok: true, todos: [] });
     } catch (err) {
       return c.json({ error: err.message }, 500);
     }

@@ -112,7 +112,8 @@
     "screenshotSaved": "スクリーンショットを作業ディレクトリの「截图」フォルダに保存しました",
     "screenshotFailed": "スクリーンショットの保存に失敗しました",
     "selectedCount": "{count} 件選択中",
-    "allDone": "すべて完了"
+    "allDone": "すべて完了",
+    "completeAndDismiss": "完了して閉じる"
   },
   "chat": {
     "send": "送信",

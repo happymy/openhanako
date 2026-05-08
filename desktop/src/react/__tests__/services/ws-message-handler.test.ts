@@ -214,6 +214,52 @@ describe('ws-message-handler session-scoped desktop events', () => {
     ]);
   });
 
+  it('todo_write 全部 completed 时按生命周期移除当前 session todo', () => {
+    useStore.setState({
+      currentSessionPath: '/session/a.jsonl',
+      todosBySession: {
+        '/session/a.jsonl': [{ content: 'old', activeForm: 'doing old', status: 'in_progress' }],
+      },
+      todosLiveVersionBySession: {},
+    } as never);
+
+    handleServerMessage({
+      type: 'tool_end',
+      sessionPath: '/session/a.jsonl',
+      name: 'todo_write',
+      success: true,
+      details: {
+        todos: [
+          { content: 'old', activeForm: 'doing old', status: 'completed' },
+        ],
+      },
+    });
+
+    expect(useStore.getState().todosBySession['/session/a.jsonl']).toEqual([]);
+    expect(useStore.getState().todosLiveVersionBySession['/session/a.jsonl']).toBe(1);
+  });
+
+  it('todo_update 事件按 sessionPath 更新 keyed todos', () => {
+    useStore.setState({
+      currentSessionPath: '/session/a.jsonl',
+      todosBySession: {
+        '/session/a.jsonl': [{ content: 'a', activeForm: 'doing a', status: 'pending' }],
+        '/session/b.jsonl': [{ content: 'b', activeForm: 'doing b', status: 'pending' }],
+      },
+    } as never);
+
+    handleServerMessage({
+      type: 'todo_update',
+      sessionPath: '/session/b.jsonl',
+      todos: [],
+    });
+
+    expect(useStore.getState().todosBySession['/session/a.jsonl']).toEqual([
+      { content: 'a', activeForm: 'doing a', status: 'pending' },
+    ]);
+    expect(useStore.getState().todosBySession['/session/b.jsonl']).toEqual([]);
+  });
+
   it('bridge_rc_attached / detached 直接补丁 sessions 列表上的接管态', () => {
     handleServerMessage({
       type: 'bridge_rc_attached',
