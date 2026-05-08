@@ -9,6 +9,7 @@ describe("Linux preview build configuration", () => {
 
     expect(pkg.scripts["dist:linux"]).toMatch(/electron-builder --linux/);
     expect(pkg.build.linux.target).toEqual(expect.arrayContaining(["AppImage", "deb"]));
+    expect(pkg.build.linux.maintainer).toMatch(/^.+ <.+@.+>$/);
     expect(pkg.build.linux.artifactName).toContain("Linux");
     expect(workflow).toContain("ubuntu-latest");
     expect(workflow).toContain("dist/*.AppImage");

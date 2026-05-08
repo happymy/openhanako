@@ -1,6 +1,6 @@
 {
   "name": "hanako",
-  "version": "0.162.0",
+  "version": "0.162.1",
   "type": "module",
   "description": "Hanako - a personal AI agent with memory and soul",
   "license": "Apache-2.0",
@@ -213,6 +213,7 @@
         "AppImage",
         "deb"
       ],
+      "maintainer": "liliMozi <liliMozi@users.noreply.github.com>",
       "category": "Utility",
       "icon": "desktop/src/icon.png",
       "artifactName": "${productName}-${version}-Linux-${arch}.${ext}"
