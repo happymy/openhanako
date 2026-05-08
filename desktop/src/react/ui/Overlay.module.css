@@ -24,7 +24,7 @@
 /* ── 进出动画 ── */
 
 .enter {
-    animation: hana-fade-in var(--duration-normal) var(--ease-out);
+    animation: hana-fade-in var(--duration-slow) var(--ease-out);
 }
 
 .exit {
@@ -40,7 +40,7 @@
 }
 
 .container-enter {
-    animation: hana-scale-in var(--duration-normal) var(--ease-out);
+    animation: hana-scale-in var(--duration-slow) var(--ease-out);
 }
 
 .container-exit {

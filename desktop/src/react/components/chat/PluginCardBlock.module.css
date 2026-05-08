@@ -8,7 +8,7 @@
 .iframe {
   display: block;
   border: none;
-  transition: opacity 0.2s ease, width 0.15s ease, height 0.15s ease;
+  transition: opacity var(--duration-fast) ease, width var(--duration-fast) ease, height var(--duration-fast) ease;
 }
 .title {
   padding: 0.35rem 0.5rem 0.2rem;

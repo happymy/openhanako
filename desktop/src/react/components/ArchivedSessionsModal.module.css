@@ -52,7 +52,7 @@
   font-size: 22px;
   line-height: 1;
   color: var(--text-muted, rgba(0, 0, 0, 0.55));
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) ease;
 }
 .closeBtn:hover {
   color: var(--text, rgba(0, 0, 0, 0.85));
@@ -102,7 +102,7 @@
   font-size: 0.78rem;
   color: var(--text, inherit);
   font-family: inherit;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) ease;
 }
 
 .cleanupBtns button:hover,
@@ -141,7 +141,7 @@
   gap: var(--space-md);
   padding: 0.72rem var(--space-md);
   background: var(--bg-card, #fff);
-  transition: background-color 0.15s ease;
+  transition: background-color var(--duration-fast) ease;
 }
 
 .row + .row {
@@ -189,7 +189,7 @@
   font-size: 0.78rem;
   color: var(--text, inherit);
   font-family: inherit;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;
 }
 
 @media (max-width: 720px) {

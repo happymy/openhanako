@@ -1,6 +1,6 @@
 .overlay {
-  --settings-modal-open-dur: 250ms;
-  --settings-modal-close-dur: 150ms;
+  --settings-modal-open-dur: var(--duration-slow);
+  --settings-modal-close-dur: var(--duration-fast);
   --settings-modal-scale: 0.96;
   --settings-modal-ease: cubic-bezier(0.22, 1, 0.36, 1);
   position: fixed;

@@ -73,8 +73,8 @@
     background: var(--tab-slider-bg, var(--bg-card));
     box-shadow: var(--tab-slider-shadow, 0 1px 3px var(--shadow));
     transform: translateX(var(--right-workspace-tab-slider-offset));
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform var(--duration-slow) cubic-bezier(0.4, 0, 0.2, 1),
+                width var(--duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .tab {
@@ -90,7 +90,7 @@
     font-size: 0.7rem;
     font-weight: 400;
     cursor: pointer;
-    transition: color 0.2s var(--ease-out);
+    transition: color var(--duration-fast) var(--ease-out);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -155,7 +155,7 @@
     font-size: 0.65rem;
     line-height: 1;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: background var(--duration-fast), color var(--duration-fast);
     white-space: nowrap;
 }
 
@@ -283,7 +283,7 @@
     align-items: center;
     gap: 2px;
     opacity: 0;
-    transition: opacity 0.12s var(--ease-out);
+    transition: opacity var(--duration-instant) var(--ease-out);
 }
 
 .fileRow:hover .fileActions,
@@ -326,7 +326,7 @@
 
 .jianDrawer {
     --right-workspace-jian-open-dur: 400ms;
-    --right-workspace-jian-close-dur: 350ms;
+    --right-workspace-jian-close-dur: var(--duration-slow);
     --right-workspace-jian-ease: cubic-bezier(0.22, 1, 0.36, 1);
     position: absolute;
     left: var(--space-sm);

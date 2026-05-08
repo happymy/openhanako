@@ -8,7 +8,7 @@ import styles from './SettingsModalShell.module.css';
 
 declare function t(key: string, vars?: Record<string, string | number>): string;
 
-const CLOSE_ANIMATION_MS = 150;
+const CLOSE_ANIMATION_MS = 200;  // 对齐 --duration-fast（0.2s）
 type VisualState = 'opening' | 'open' | 'closing';
 
 export function SettingsModalShell() {

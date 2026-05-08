@@ -99,21 +99,20 @@ describe('SettingsModalShell', () => {
     render(<SettingsModalShell />);
     fireEvent.click(screen.getByRole('button', { name: '返回' }));
 
+    // 新实现：点击后 store 立即变 open=false，但卡片仍渲染并播退场动画
     expect(screen.getByRole('dialog', { name: '设置' })).toBeInTheDocument();
     expect(screen.getByTestId('settings-modal-overlay')).toHaveAttribute('data-state', 'closing');
-    expect(useStore.getState().settingsModal).toEqual({
-      open: true,
-      activeTab: 'work',
-    });
-
-    act(() => {
-      vi.advanceTimersByTime(150);
-    });
-
     expect(useStore.getState().settingsModal).toEqual({
       open: false,
       activeTab: 'work',
     });
+
+    // 退场动画结束后卡片应从 DOM 移除
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(screen.queryByTestId('settings-modal-overlay')).not.toBeInTheDocument();
   });
 
   it('closes on Escape after the close animation', async () => {
@@ -129,7 +128,7 @@ describe('SettingsModalShell', () => {
     expect(screen.getByTestId('settings-modal-overlay')).toHaveAttribute('data-state', 'closing');
 
     act(() => {
-      vi.advanceTimersByTime(150);
+      vi.advanceTimersByTime(200);
     });
 
     expect(useStore.getState().settingsModal).toEqual({
@@ -151,7 +150,7 @@ describe('SettingsModalShell', () => {
     expect(screen.getByTestId('settings-modal-overlay')).toHaveAttribute('data-state', 'closing');
 
     act(() => {
-      vi.advanceTimersByTime(150);
+      vi.advanceTimersByTime(200);
     });
 
     expect(useStore.getState().settingsModal).toEqual({

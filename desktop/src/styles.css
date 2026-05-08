@@ -25,12 +25,10 @@
     --link-hover: var(--accent-hover, var(--link));
     --link-rgb: var(--accent-rgb, 83, 125, 150);
 
-    /* 动效 · 时长 */
-    --duration-instant: 0.1s;
-    --duration-fast:    0.15s;
-    --duration-normal:  0.25s;
-    --duration-slow:    0.4s;
-    --duration: 0.3s;               /* 旧 token，保留兼容 */
+    /* 动效 · 时长（三档：所有 transition / 短动画归到这三档） */
+    --duration-instant: 0.1s;       /* 瞬：hover、关闭、退场、撤销 */
+    --duration-fast:    0.2s;       /* 快：默认（按钮、面板、focus、状态切换）*/
+    --duration-slow:    0.3s;       /* 慢：模态、大块进场、强调动作 */
 
     /* 动效 · 缓动 */
     --ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
@@ -240,7 +238,7 @@ option,
     background: transparent;
     color: var(--text-light, #888);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s, opacity 0.2s;
+    transition: background var(--duration-fast), color var(--duration-fast), opacity var(--duration-fast);
     opacity: 0.8;
 }
 
@@ -310,7 +308,7 @@ html[data-platform="linux"] .tb-toggle-right {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.1s;
+    transition: background var(--duration-instant);
 }
 
 .wc-btn:hover {
@@ -336,7 +334,7 @@ html[data-platform="linux"] .tb-toggle-right {
     padding: 6px;
     opacity: 0;
     transform: translateY(-4px);
-    transition: opacity 0.15s, transform 0.15s;
+    transition: opacity var(--duration-fast), transform var(--duration-fast);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -363,7 +361,7 @@ html[data-platform="linux"] .tb-toggle-right {
     display: flex;
     align-items: center;
     gap: 8px;
-    transition: background 0.1s;
+    transition: background var(--duration-instant);
 }
 
 .float-card-item:hover {
@@ -423,7 +421,7 @@ html[data-platform="linux"] .tb-toggle-right {
     color: var(--text-muted);
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: color 0.1s, background 0.1s;
+    transition: color var(--duration-instant), background var(--duration-instant);
     text-align: center;
 }
 
@@ -484,7 +482,7 @@ html[data-platform="linux"] .tb-toggle-right {
     border-radius: var(--radius-sm);
     resize: vertical;
     outline: none;
-    transition: border-color 0.15s;
+    transition: border-color var(--duration-fast);
 }
 
 .float-card-jian-input:focus {
@@ -528,8 +526,8 @@ html[data-platform="linux"] .tb-toggle-right {
     border-right: 1px solid var(--overlay-light);
     padding-top: 40px; /* 给 titlebar 留空间 */
     overflow: hidden;
-    transition: width 0.28s var(--ease-out),
-                border-color 0.28s var(--ease-out);
+    transition: width var(--duration-slow) var(--ease-out),
+                border-color var(--duration-slow) var(--ease-out);
     z-index: 10;
 }
 
@@ -546,7 +544,7 @@ html[data-platform="linux"] .tb-toggle-right {
     min-width: var(--sidebar-width);
     height: 100%;
     opacity: 1;
-    transition: opacity 0.18s var(--ease-out);
+    transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .sidebar.collapsed .sidebar-inner {
@@ -601,7 +599,7 @@ html[data-platform="linux"] .tb-toggle-right {
     border-radius: var(--radius-sm);
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     -webkit-app-region: no-drag;
 }
 
@@ -625,7 +623,7 @@ html[data-platform="linux"] .tb-toggle-right {
     background: none;
     border: none;
     cursor: pointer;
-    transition: all 0.15s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     flex-shrink: 0;
 }
 
@@ -665,7 +663,7 @@ html[data-platform="linux"] .tb-toggle-right {
     flex-shrink: 0;
     margin-left: auto;
     background: rgba(0,0,0,0.08);
-    transition: background 0.3s ease;
+    transition: background var(--duration-slow) ease;
 }
 .sidebar-bridge-dot.connected {
     background: rgba(120,180,120,0.5);
@@ -704,7 +702,7 @@ html[data-platform="linux"] .tb-toggle-right {
     border-radius: var(--radius-md);
     padding: var(--space-xs);
     box-shadow: 0 4px 16px var(--shadow);
-    animation: hana-fade-up 0.2s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
 
 
@@ -721,7 +719,7 @@ html[data-platform="linux"] .tb-toggle-right {
     margin-bottom: 2px;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: background var(--duration-fast), color var(--duration-fast);
     border: none;
     background: none;
     width: 100%;
@@ -796,7 +794,7 @@ html[data-platform="linux"] .tb-toggle-right {
     border-radius: 6px;
     font-size: 12px;
     opacity: 0;
-    transition: opacity 0.3s, transform 0.3s;
+    transition: opacity var(--duration-slow), transform var(--duration-slow);
     z-index: 9999;
     pointer-events: none;
 }
@@ -836,7 +834,7 @@ html[data-platform="linux"] .tb-toggle-right {
     background: var(--overlay-medium);
     cursor: pointer;
     position: relative;
-    transition: background 0.25s;
+    transition: background var(--duration-slow);
     flex-shrink: 0;
     padding: 0;
 }
@@ -850,7 +848,7 @@ html[data-platform="linux"] .tb-toggle-right {
     height: 14px;
     border-radius: 3px;
     background: #fff;
-    transition: transform 0.25s;
+    transition: transform var(--duration-slow);
 }
 
 .hana-toggle:hover {
@@ -1003,7 +1001,7 @@ html[data-platform="linux"] .tb-toggle-right {
     padding: 0.15rem 0.45rem;
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.2s, color 0.2s, border-color 0.2s;
+    transition: opacity var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast);
 }
 
 .md-content pre:hover .copy-btn {
@@ -1145,7 +1143,7 @@ html[data-platform="linux"] .tb-toggle-right {
     color: var(--link);
     text-decoration: none;
     border-bottom: 1px solid rgba(var(--link-rgb), 0.35);
-    transition: color 0.2s, border-color 0.2s;
+    transition: color var(--duration-fast), border-color var(--duration-fast);
 }
 
 .md-content a:hover {
@@ -1254,7 +1252,7 @@ html[data-platform="linux"] .tb-toggle-right {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     white-space: nowrap;
 }
 
@@ -1347,7 +1345,7 @@ html[data-platform="linux"] .tb-toggle-right {
     overflow: hidden;
     border: 2.5px solid var(--bg-card);
     box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.08);
-    transition: border-color 0.2s var(--ease-out), transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
+    transition: border-color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
     background-color: var(--bg-card);
 }
 
@@ -1377,7 +1375,7 @@ html[data-platform="linux"] .tb-toggle-right {
     color: var(--text-muted);
     white-space: nowrap;
     margin-top: 4px;
-    transition: color 0.15s var(--ease-out);
+    transition: color var(--duration-fast) var(--ease-out);
 }
 
 .bridge-agent-row-item.selected .bridge-agent-row-name {
@@ -1395,7 +1393,7 @@ html[data-platform="linux"] .tb-toggle-right {
     color: var(--text-muted);
     cursor: pointer;
     opacity: 0.7;
-    transition: opacity 0.2s;
+    transition: opacity var(--duration-fast);
 }
 
 .bridge-help-link:hover {
@@ -1454,7 +1452,7 @@ html[data-platform="linux"] .tb-toggle-right {
     color: var(--text-muted);
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 
 .bridge-tutorial-close:hover {
@@ -1519,12 +1517,12 @@ html[data-platform="linux"] .tb-toggle-right {
     box-shadow: 0 8px 32px rgba(0,0,0,0.12);
     display: flex;
     flex-direction: column;
-    animation: hana-slide-in-left 0.12s ease-out;
+    animation: hana-slide-in-left var(--duration-instant) ease-out;
     overflow: hidden;
 }
 
 .devtools-panel.closing .devtools-inner {
-    animation: hana-slide-out-left 0.08s ease-in forwards;
+    animation: hana-slide-out-left var(--duration-instant) ease-in forwards;
 }
 
 .devtools-buttons {
@@ -1548,7 +1546,7 @@ html[data-platform="linux"] .tb-toggle-right {
     font-family: inherit;
     font-size: 0.76rem;
     cursor: pointer;
-    transition: background 0.12s, border-color 0.12s;
+    transition: background var(--duration-instant), border-color var(--duration-instant);
     user-select: none;
 }
 
@@ -1606,7 +1604,7 @@ html[data-platform="linux"] .tb-toggle-right {
     border-bottom: 2px solid transparent;
     padding: 6px 0;
     cursor: pointer;
-    transition: color 0.12s, border-color 0.12s;
+    transition: color var(--duration-instant), border-color var(--duration-instant);
 }
 
 .devtools-tab:hover {
@@ -1665,7 +1663,7 @@ html[data-platform="linux"] .tb-toggle-right {
 .devtools-act-item {
     padding: 8px 10px;
     border-bottom: 1px solid var(--border);
-    transition: background 0.12s;
+    transition: background var(--duration-instant);
 }
 
 .devtools-act-item:hover { background: var(--overlay-light); }
@@ -1765,7 +1763,7 @@ html[data-platform="linux"] .tb-toggle-right {
     display: flex;
     align-items: center;
     justify-content: center;
-    animation: hana-fade-in 0.15s ease-out;
+    animation: hana-fade-in var(--duration-fast) ease-out;
 }
 
 .sv-container {
@@ -1779,7 +1777,7 @@ html[data-platform="linux"] .tb-toggle-right {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    animation: hana-scale-in 0.15s ease-out;
+    animation: hana-scale-in var(--duration-fast) ease-out;
 }
 
 .sv-topbar {
@@ -1802,7 +1800,7 @@ html[data-platform="linux"] .tb-toggle-right {
     border-radius: 6px;
     cursor: pointer;
     color: var(--text-muted);
-    transition: background 0.12s, color 0.12s;
+    transition: background var(--duration-instant), color var(--duration-instant);
     flex-shrink: 0;
 }
 
@@ -1845,7 +1843,7 @@ html[data-platform="linux"] .tb-toggle-right {
     background: var(--bg);
     color: var(--text);
     cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
+    transition: background var(--duration-fast), border-color var(--duration-fast);
 }
 
 .sv-btn:hover {
@@ -1887,7 +1885,7 @@ html[data-platform="linux"] .tb-toggle-right {
     font-size: 13px;
     color: var(--text);
     cursor: pointer;
-    transition: background 0.12s;
+    transition: background var(--duration-instant);
     user-select: none;
 }
 
@@ -1989,7 +1987,7 @@ html[data-platform="linux"] .tb-toggle-right {
     background: var(--text);
     color: var(--bg);
     opacity: 0;
-    transition: opacity 0.3s;
+    transition: opacity var(--duration-slow);
     pointer-events: none;
 }
 
@@ -2005,7 +2003,7 @@ html[data-platform="linux"] .tb-toggle-right {
     padding: var(--space-md);
     margin-bottom: var(--space-md);
     background: var(--bg-card, var(--bg));
-    transition: border-color 0.15s;
+    transition: border-color var(--duration-fast);
 }
 
 .bridge-card-header {
@@ -2091,7 +2089,7 @@ html[data-platform="linux"] .tb-toggle-right {
     flex-direction: column;
     padding-top: 40px;
     overflow: hidden;
-    transition: width 0.28s var(--ease-out);
+    transition: width var(--duration-slow) var(--ease-out);
     z-index: 10;
 }
 
@@ -2132,7 +2130,7 @@ html[data-platform="linux"] .tb-toggle-right {
 .resize-handle-right {
     right: -2px;
     width: 6px;
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 .resize-handle-right:hover,
 .resize-handle-right.active {
@@ -2156,7 +2154,7 @@ html[data-platform="linux"] .tb-toggle-right {
         transparent 100%
     );
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
     pointer-events: none;
     -webkit-mask-image: linear-gradient(to bottom,
         transparent 0%, transparent 15%, black 25%, black 75%, transparent 85%, transparent 100%
@@ -2270,7 +2268,7 @@ body.resizing .jian-sidebar-inner {
     font-size: 0.72rem;
     color: var(--text);
     cursor: pointer;
-    transition: background 0.1s;
+    transition: background var(--duration-instant);
     white-space: nowrap;
 }
 
@@ -2369,7 +2367,7 @@ body.resizing .jian-sidebar-inner {
     border-radius: 8px;
     font-size: 13px;
     opacity: 0;
-    transition: opacity 0.3s, transform 0.3s;
+    transition: opacity var(--duration-slow), transform var(--duration-slow);
     z-index: 9999;
     pointer-events: none;
     box-shadow: 0 8px 28px rgba(0,0,0,0.12);
@@ -2433,7 +2431,7 @@ body.resizing .jian-sidebar-inner {
     font-size: 0.7rem;
     color: var(--text-muted);
     opacity: 0.6;
-    transition: opacity var(--duration);
+    transition: opacity var(--duration-slow);
     z-index: 50;
 }
 
@@ -2447,7 +2445,7 @@ body.resizing .jian-sidebar-inner {
     height: 6px;
     border-radius: 50%;
     background: var(--coral);
-    transition: background var(--duration);
+    transition: background var(--duration-slow);
 }
 
 .connection-status.connected .status-dot {
@@ -2665,9 +2663,9 @@ body.resizing .jian-sidebar-inner {
     align-items: center;
     gap: 12px;
     cursor: pointer;
-    transition: box-shadow 0.2s;
+    transition: box-shadow var(--duration-fast);
     -webkit-app-region: no-drag;
-    animation: hana-card-slide-down 0.35s var(--ease-out) both;
+    animation: hana-card-slide-down var(--duration-slow) var(--ease-out) both;
 }
 .browser-floating-right {
     display: flex;
@@ -2693,7 +2691,7 @@ body.resizing .jian-sidebar-inner {
     border-radius: 6px;
     padding: 0;
     opacity: 0;
-    transition: opacity 0.15s, background 0.15s, color 0.15s;
+    transition: opacity var(--duration-fast), background var(--duration-fast), color var(--duration-fast);
 }
 .browser-floating-card:hover .browser-floating-close {
     opacity: 1;
@@ -2748,7 +2746,7 @@ body.resizing .jian-sidebar-inner {
     border-radius: 8px;
     border: 1px solid var(--border);
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: opacity var(--duration-fast);
 }
 .browser-screenshot img:hover {
     opacity: 0.9;
@@ -2765,7 +2763,7 @@ body.resizing .jian-sidebar-inner {
     align-items: center;
     justify-content: center;
     background: rgba(0, 0, 0, 0.35);
-    animation: fade-in 0.2s ease;
+    animation: fade-in var(--duration-fast) ease;
 }
 .hana-warning-box {
     width: 420px;
@@ -2774,7 +2772,7 @@ body.resizing .jian-sidebar-inner {
     border-radius: var(--radius-lg);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
     padding: 1.6rem 1.8rem 1.3rem;
-    animation: hana-fade-up 0.25s var(--ease-out);
+    animation: hana-fade-up var(--duration-slow) var(--ease-out);
 }
 .hana-warning-title {
     font-size: 1rem;
@@ -2807,7 +2805,7 @@ body.resizing .jian-sidebar-inner {
     border-radius: var(--radius-md);
     border: none;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: background var(--duration-fast), color var(--duration-fast);
 }
 .hana-warning-cancel {
     background: var(--bg-secondary);
@@ -2858,7 +2856,7 @@ body.resizing .jian-sidebar-inner {
     width: 7px; height: 7px;
     border-radius: 50%;
     background: var(--border);
-    transition: background 0.3s, transform 0.3s;
+    transition: background var(--duration-slow), transform var(--duration-slow);
 }
 .onboarding-dot.active {
     background: var(--accent);
@@ -2886,7 +2884,7 @@ html[data-platform="linux"] .onboarding {
     max-width: 440px;
     flex: 1;
     --slide-y: 10px;
-    animation: hana-fade-up 0.3s ease-out;
+    animation: hana-fade-up var(--duration-slow) ease-out;
 }
 .onboarding-step.active {
     display: flex;
@@ -2932,7 +2930,7 @@ html[data-platform="linux"] .onboarding {
     border-radius: var(--radius-md, 8px);
     border: none;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all var(--duration-fast);
 }
 .ob-btn-primary {
     background: var(--accent);
@@ -2959,7 +2957,7 @@ html[data-platform="linux"] .onboarding {
     background-color: var(--bg-card);
     color: var(--text);
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color var(--duration-fast);
     width: 100%;
     box-sizing: border-box;
 }
@@ -2991,7 +2989,7 @@ html[data-platform="linux"] .onboarding {
     font-size: 0.8rem;
     color: var(--text);
     text-align: center;
-    transition: all 0.2s;
+    transition: all var(--duration-fast);
     user-select: none;
 }
 .provider-card:hover {
@@ -3148,7 +3146,7 @@ html[data-platform="linux"] .onboarding {
     background-color: var(--bg-card);
     color: var(--text);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all var(--duration-fast);
 }
 .ob-test-btn:hover { border-color: var(--accent); }
 .ob-test-btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -3177,7 +3175,7 @@ html[data-platform="linux"] .onboarding {
     color: var(--text);
     cursor: pointer;
     border-bottom: 1px solid var(--overlay-subtle, rgba(0,0,0,0.04));
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 .model-item:last-child { border-bottom: none; }
 .model-item:hover { background: var(--accent-bg, rgba(139,115,85,0.04)); }
@@ -3631,7 +3629,7 @@ html[data-platform="linux"] .onboarding {
     font-family: inherit;
     font-size: 0.82rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all var(--duration-fast);
 }
 .ob-locale-btn:hover {
     border-color: var(--accent);
@@ -3654,7 +3652,7 @@ html[data-platform="linux"] .onboarding {
     color: white;
     cursor: pointer;
     margin-top: auto;
-    transition: opacity 0.2s;
+    transition: opacity var(--duration-fast);
 }
 .ob-finish-btn:hover { opacity: 0.9; }
 .ob-finish-btn:disabled {
@@ -3694,7 +3692,7 @@ html[data-platform="linux"] .onboarding {
     font-size: 0.78rem;
     color: var(--text-muted);
     text-align: center;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .yuan-chip:hover {
@@ -3763,7 +3761,7 @@ html[data-platform="linux"] .onboarding {
     align-items: flex-start;
     padding: 0 0.8rem;
     font-family: inherit;
-    transition: all 0.25s var(--ease-out);
+    transition: all var(--duration-slow) var(--ease-out);
 }
 
 .yuan-kong-banner:hover {

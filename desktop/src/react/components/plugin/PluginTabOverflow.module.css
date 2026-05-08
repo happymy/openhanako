@@ -16,7 +16,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    transition: color 0.2s var(--ease-out), background 0.15s;
+    transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast);
     flex-shrink: 0;
 }
 
@@ -42,7 +42,7 @@
     box-shadow: 0 4px 16px var(--shadow);
     z-index: 100;
     padding: 4px;
-    animation: hana-fade-up 0.15s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
 
 .dropdownItem {
@@ -60,7 +60,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: background 0.1s, color 0.1s;
+    transition: background var(--duration-instant), color var(--duration-instant);
 }
 
 .dropdownItem:hover {
@@ -102,7 +102,7 @@
     color: var(--text-muted);
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.1s, color 0.1s, background 0.1s;
+    transition: opacity var(--duration-instant), color var(--duration-instant), background var(--duration-instant);
 }
 
 .dropdownRow:hover .pinBtn {

@@ -230,7 +230,7 @@
     font-size: 0.85rem;
     color: var(--text-light);
     cursor: pointer;
-    transition: color 0.15s;
+    transition: color var(--duration-fast);
     width: 100%;
     text-align: left;
 }
@@ -241,7 +241,7 @@
 
 .expandableChevron {
     display: inline-block;
-    transition: transform 0.2s ease;
+    transition: transform var(--duration-fast) ease;
     font-size: 1rem;
     color: var(--text-muted);
 }
@@ -280,7 +280,7 @@
     font-family: inherit;
     font-size: 0.9rem;
     text-align: right;
-    transition: border-color var(--duration) var(--ease-out);
+    transition: border-color var(--duration-slow) var(--ease-out);
 }
 
 .numberInputField:focus {

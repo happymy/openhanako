@@ -34,11 +34,11 @@
     border-radius: var(--radius-lg, 12px);
     box-shadow: 0 8px 32px var(--shadow), 0 2px 8px rgba(0,0,0,0.04);
     overflow: hidden;
-    animation: hana-slide-in-left 0.25s var(--ease-out) both;
+    animation: hana-slide-in-left var(--duration-slow) var(--ease-out) both;
 }
 
 .floatingPanelClosing .floatingPanelInner {
-    animation: hana-slide-out-left 0.08s ease-in forwards;
+    animation: hana-slide-out-left var(--duration-instant) ease-in forwards;
 }
 
 .floatingPanelHeader {
@@ -64,7 +64,7 @@
     cursor: pointer;
     padding: 4px;
     border-radius: var(--radius-sm);
-    transition: color 0.15s, background 0.15s;
+    transition: color var(--duration-fast), background var(--duration-fast);
     display: flex;
     align-items: center;
 }
@@ -106,7 +106,7 @@
     font-size: 0.75rem;
     padding: 3px 6px;
     border-radius: var(--radius-sm);
-    transition: color 0.15s, background 0.15s;
+    transition: color var(--duration-fast), background var(--duration-fast);
 }
 
 .floatingPanelBack:hover {
@@ -219,7 +219,7 @@
     cursor: pointer;
     margin-left: auto;
     margin-right: var(--space-sm);
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    transition: color var(--duration-fast), border-color var(--duration-fast), background var(--duration-fast);
     white-space: nowrap;
 }
 
@@ -261,7 +261,7 @@
     border: 1px solid var(--overlay-light);
     border-radius: var(--radius-md);
     background: var(--bg);
-    transition: border-color 0.15s;
+    transition: border-color var(--duration-fast);
     font-family: inherit;
 }
 
@@ -362,7 +362,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: color var(--duration), border-color var(--duration);
+    transition: color var(--duration-slow), border-color var(--duration-slow);
 }
 
 .autoModelPill:hover,
@@ -373,7 +373,7 @@
 
 .autoModelArrow {
     font-size: 0.5rem;
-    transition: transform var(--duration);
+    transition: transform var(--duration-slow);
 }
 
 .autoModelOpen .autoModelArrow {
@@ -425,7 +425,7 @@
     gap: 2px;
     flex-shrink: 0;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
 }
 
 .autoItem:hover .autoItemActions {
@@ -441,7 +441,7 @@
     border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
-    transition: color 0.15s, background 0.15s;
+    transition: color var(--duration-fast), background var(--duration-fast);
 }
 
 .autoItemBtn:hover {
@@ -467,7 +467,7 @@
     border: 1px solid var(--overlay-light);
     border-radius: var(--radius-md);
     padding: var(--space-md);
-    transition: border-color 0.15s, box-shadow 0.15s;
+    transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
     background: var(--bg-card, var(--bg));
 }
 
@@ -546,7 +546,7 @@
     color: var(--accent);
     font-size: 0.68rem;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
 }
 
 .actCard:hover .actCardViewHint {
@@ -592,7 +592,7 @@
     font-size: 0.72rem;
     padding: 3px 10px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 
 .readonlyBackBtn:hover {
@@ -628,7 +628,7 @@
     cursor: pointer;
     font-size: 0.78rem;
     color: var(--text);
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .bridgeAgentBtn:hover {
@@ -684,7 +684,7 @@
     font-size: 0.78rem;
     color: var(--text);
     text-align: left;
-    transition: background 0.1s;
+    transition: background var(--duration-instant);
 }
 
 .bridgeAgentMenuItem:hover {
@@ -713,7 +713,7 @@
     border: none;
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: color 0.15s, background 0.15s;
+    transition: color var(--duration-fast), background var(--duration-fast);
 }
 
 .bridgeTab:hover {
@@ -765,7 +765,7 @@
     gap: var(--space-sm);
     padding: 8px 12px;
     cursor: pointer;
-    transition: background 0.12s;
+    transition: background var(--duration-instant);
 }
 
 .bridgeContactItem:hover {
@@ -979,7 +979,7 @@
     color: var(--text-muted);
     font-size: 0.8rem;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .bridgeOverlayBtn:hover {

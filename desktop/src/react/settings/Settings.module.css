@@ -85,7 +85,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    transition: background 0.15s var(--ease-out), color 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
+    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
     -webkit-app-region: no-drag;
 }
 
@@ -136,7 +136,7 @@
     background: none;
     border: none;
     cursor: pointer;
-    transition: all 0.15s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     letter-spacing: 0.02em;
     display: flex;
     align-items: center;
@@ -200,7 +200,7 @@
     background: none;
     border: none;
     cursor: pointer;
-    transition: color 0.2s var(--ease-out);
+    transition: color var(--duration-fast) var(--ease-out);
     padding: 0.2rem 0;
     flex-shrink: 0;
     -webkit-app-region: no-drag;
@@ -225,7 +225,7 @@
     inset: 0;
     z-index: 1990;
     background-color: var(--bg);
-    transition: opacity 0.25s var(--ease-out);
+    transition: opacity var(--duration-slow) var(--ease-out);
 }
 
 :global(body.paper-texture) :global(.settings-loading-mask) {
@@ -305,7 +305,7 @@
     border-radius: var(--radius-input, 4px);
     display: flex;
     align-items: center;
-    transition: color 0.15s;
+    transition: color var(--duration-fast);
 }
 .settings-icon-btn:hover { color: var(--text-primary); }
 .settings-icon-btn:disabled { opacity: 0.4; cursor: default; }
@@ -358,7 +358,7 @@
     display: flex;
     justify-content: flex-start;
     align-items: flex-end;
-    transition: width 0.35s var(--ease-out) 0.8s;
+    transition: width var(--duration-slow) var(--ease-out) 0.8s;
 }
 
 .agent-cards:hover {
@@ -402,9 +402,9 @@
     left: 0;
     transform: translateX(var(--compact-offset)) rotate(var(--rot-tight, 0deg)) translateY(var(--lift, 0px));
     z-index: var(--z, 0);
-    transition: transform 0.35s var(--ease-out) 0.8s,
-                transform-origin 0.35s var(--ease-out) 0.8s,
-                filter 0.2s var(--ease-out);
+    transition: transform var(--duration-slow) var(--ease-out) 0.8s,
+                transform-origin var(--duration-slow) var(--ease-out) 0.8s,
+                filter var(--duration-fast) var(--ease-out);
 }
 
 .agent-card.dragging {
@@ -424,9 +424,9 @@
     overflow: hidden;
     border: 2.5px solid var(--bg-card);
     box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.08);
-    transition: border-color 0.2s var(--ease-out),
-                box-shadow 0.2s var(--ease-out),
-                transform 0.2s var(--ease-out);
+    transition: border-color var(--duration-fast) var(--ease-out),
+                box-shadow var(--duration-fast) var(--ease-out),
+                transform var(--duration-fast) var(--ease-out);
     background-color: var(--bg-card);
 }
 
@@ -466,7 +466,7 @@
     border-radius: 50%;
     background: rgba(0, 0, 0, 0.35);
     opacity: 0;
-    transition: opacity 0.2s var(--ease-out);
+    transition: opacity var(--duration-fast) var(--ease-out);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -491,7 +491,7 @@
     color: var(--text-muted);
     margin-top: var(--name-gap);
     opacity: 0;
-    transition: opacity 0.2s var(--ease-out);
+    transition: opacity var(--duration-fast) var(--ease-out);
     pointer-events: none;
     white-space: nowrap;
 }
@@ -527,9 +527,9 @@
     justify-content: center;
     color: var(--accent);
     background: transparent;
-    transition: border-color 0.2s var(--ease-out),
-                color 0.2s var(--ease-out),
-                box-shadow 0.2s var(--ease-out);
+    transition: border-color var(--duration-fast) var(--ease-out),
+                color var(--duration-fast) var(--ease-out),
+                box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .agent-card-add:hover {
@@ -557,9 +557,9 @@
     line-height: 1.3;
     opacity: 0.68;
     padding: calc(var(--space-xs) * 0.5) var(--space-sm);
-    transition: background 0.15s var(--ease-out),
-                color 0.15s var(--ease-out),
-                opacity 0.15s var(--ease-out);
+    transition: background var(--duration-fast) var(--ease-out),
+                color var(--duration-fast) var(--ease-out),
+                opacity var(--duration-fast) var(--ease-out);
 }
 
 .agent-card-action:hover {
@@ -601,7 +601,7 @@
     width: 440px;
     max-width: 90vw;
     box-shadow: 0 12px 48px var(--shadow);
-    animation: hana-fade-up 0.2s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
 
 .agent-create-title {
@@ -626,7 +626,7 @@
     font-family: inherit;
     font-size: 0.82rem;
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .agent-create-cancel {
@@ -678,7 +678,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .agent-delete-btn:hover {
@@ -719,7 +719,7 @@
     width: 320px;
     max-width: 90vw;
     box-shadow: 0 12px 48px var(--shadow);
-    animation: hana-fade-up 0.2s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
 
 .agent-delete-step.hidden {
@@ -759,7 +759,7 @@
     font-family: inherit;
     font-size: 0.82rem;
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .agent-delete-cancel {
@@ -792,7 +792,7 @@
     border-radius: 50%;
     overflow: hidden;
     cursor: pointer;
-    transition: transform 0.2s var(--ease-out);
+    transition: transform var(--duration-fast) var(--ease-out);
 }
 
 .avatar-upload:hover {
@@ -828,7 +828,7 @@
     inset: 0;
     background: rgba(0, 0, 0, 0.35);
     opacity: 0;
-    transition: opacity 0.2s var(--ease-out);
+    transition: opacity var(--duration-fast) var(--ease-out);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1026,7 +1026,7 @@
     border-radius: var(--radius-input, 4px);
     padding: 0.45rem 0.65rem;
     outline: none;
-    transition: border-color var(--duration) var(--ease-out);
+    transition: border-color var(--duration-slow) var(--ease-out);
     width: 100%;
 }
 
@@ -1058,7 +1058,7 @@
 :global(.hana-toggle-label) {
     font-size: 0.78rem;
     color: var(--text-muted);
-    transition: color 0.15s;
+    transition: color var(--duration-fast);
 }
 
 :global(.hana-toggle.on) + :global(.hana-toggle-label),
@@ -1084,7 +1084,7 @@
     color: var(--text-muted);
     font-size: 0.75rem;
     cursor: pointer;
-    transition: all var(--duration) var(--ease-out);
+    transition: all var(--duration-slow) var(--ease-out);
 }
 
 .skills-add-btn:hover {
@@ -1116,7 +1116,7 @@
 .skills-system-summary::before {
     content: "▸ ";
     display: inline;
-    transition: transform var(--duration);
+    transition: transform var(--duration-slow);
 }
 
 .skills-system-details[open] > .skills-system-summary::before {
@@ -1145,7 +1145,7 @@
     color: var(--text-muted);
     font-size: 0.82rem;
     cursor: pointer;
-    transition: border-color 0.15s, background 0.15s, color 0.15s;
+    transition: border-color var(--duration-fast), background var(--duration-fast), color var(--duration-fast);
     user-select: none;
 }
 
@@ -1230,7 +1230,7 @@
     padding: 0.65rem var(--space-md);
     background-color: var(--bg-card);
     cursor: pointer;
-    transition: background-color 0.15s;
+    transition: background-color var(--duration-fast);
 }
 
 .skills-list-item + .skills-list-item {
@@ -1325,7 +1325,7 @@
     cursor: pointer;
     border-radius: var(--radius-input, 4px);
     opacity: 0;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 
 .skills-list-item:hover .skill-card-delete {
@@ -1422,7 +1422,7 @@
     opacity: 0;
     padding: 2px;
     border-radius: 3px;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
     flex-shrink: 0;
 }
 
@@ -1450,7 +1450,7 @@
     border: none;
     cursor: pointer;
     text-align: left;
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .compat-drawer-header:hover:not(.disabled) {
@@ -1464,7 +1464,7 @@
 
 .compat-drawer-chevron {
     flex-shrink: 0;
-    transition: transform 0.2s;
+    transition: transform var(--duration-fast);
 }
 
 .compat-drawer-chevron.open {
@@ -1502,7 +1502,7 @@
 .compat-drawer-skills {
     padding: 0 0.65rem 0.5rem 1.8rem;
     overflow: hidden;
-    animation: hana-expand 0.2s ease-out;
+    animation: hana-expand var(--duration-fast) ease-out;
 }
 
 .compat-drawer-skills .skills-list-item {
@@ -1527,7 +1527,7 @@
     color: var(--text-muted);
     font-size: 0.72rem;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 
 .compat-add-path:hover {
@@ -1587,7 +1587,7 @@
     background-color: var(--bg-card);
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all var(--duration-fast) ease;
 }
 
 .settings-folder-browse:hover,
@@ -1617,7 +1617,7 @@
     min-height: 120px;
     max-height: 400px;
     line-height: 1.65;
-    transition: border-color var(--duration) var(--ease-out);
+    transition: border-color var(--duration-slow) var(--ease-out);
 }
 
 .settings-textarea:focus {
@@ -1653,7 +1653,7 @@
     font-size: 0.7rem;
     padding: 0.15rem 0.3rem;
     border-radius: 3px;
-    transition: color 0.2s, background 0.2s;
+    transition: color var(--duration-fast), background var(--duration-fast);
 }
 
 .settings-key-toggle:hover {
@@ -1677,7 +1677,7 @@
     background-image: var(--select-arrow);
     background-repeat: no-repeat;
     background-position: right 8px center;
-    transition: border-color var(--duration) var(--ease-out);
+    transition: border-color var(--duration-slow) var(--ease-out);
     width: 100%;
     max-width: 200px;
 }
@@ -1706,7 +1706,7 @@
     border-radius: var(--radius-card, 10px);
     cursor: pointer;
     text-align: center;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     font-family: inherit;
     min-height: 72px;
     overflow: hidden;
@@ -1929,7 +1929,7 @@
     border: 1.5px solid var(--accent);
     border-radius: var(--radius-card, 10px);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     letter-spacing: 0.02em;
     box-shadow: 0 2px 8px var(--shadow);
 }
@@ -1958,7 +1958,7 @@
     border: 1px solid rgba(var(--accent-rgb), 0.25);
     border-radius: var(--radius-card, 10px);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     letter-spacing: 0.02em;
     box-shadow: 0 2px 8px var(--shadow);
 }
@@ -1995,7 +1995,7 @@
     border: none;
     border-radius: var(--radius-input, 4px);
     cursor: pointer;
-    transition: background 0.15s var(--ease-out);
+    transition: background var(--duration-fast) var(--ease-out);
     letter-spacing: 0.02em;
 }
 
@@ -2027,7 +2027,7 @@
     border: none;
     border-right: 1px solid var(--border);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 
 .thinking-level-option:last-child {
@@ -2055,7 +2055,7 @@
     border: 1.5px solid var(--accent);
     border-radius: var(--radius-card, 10px);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .search-verify-btn:hover {
@@ -2108,7 +2108,7 @@
 
 .settings-tab-content.active {
     display: block;
-    animation: hana-fade-up 0.2s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
 
 /* ── About Tab ── */
@@ -2165,7 +2165,7 @@
     border: 1px solid var(--overlay-medium, rgba(0,0,0,0.12));
     border-radius: 2px;
     cursor: pointer;
-    transition: color 0.2s, border-color 0.2s;
+    transition: color var(--duration-fast), border-color var(--duration-fast);
 }
 
 .about-check-update-btn:hover {
@@ -2203,7 +2203,7 @@ a.about-link {
     align-items: center;
     gap: 4px;
     opacity: 0.85;
-    transition: opacity 0.2s;
+    transition: opacity var(--duration-fast);
 }
 
 a.about-link:hover {
@@ -2288,7 +2288,7 @@ a.about-link:hover {
     gap: var(--space-sm);
     padding: 0.45rem var(--space-md);
     border-bottom: 1px solid var(--overlay-light);
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .provider-item:last-child {
@@ -2322,7 +2322,7 @@ a.about-link:hover {
     align-items: center;
     gap: 2px;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
     flex-shrink: 0;
 }
 
@@ -2342,7 +2342,7 @@ a.about-link:hover {
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.82rem;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .provider-item-action:hover {
@@ -2381,7 +2381,7 @@ a.about-link:hover {
     border: none;
     border-radius: var(--radius-card, 10px);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     letter-spacing: 0.02em;
 }
 
@@ -2458,7 +2458,7 @@ a.about-link:hover {
     cursor: pointer;
     padding: 0 4px;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
 }
 
 .oauth-custom-model-item:hover .oauth-custom-model-remove { opacity: 1; }
@@ -2528,7 +2528,7 @@ a.about-link:hover {
     border: 1px solid var(--border);
     border-radius: var(--radius-input, 4px);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
     flex-shrink: 0;
 }
 
@@ -2573,7 +2573,7 @@ a.about-link:hover {
     border: none;
     border-radius: var(--radius-input, 4px);
     cursor: pointer;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
     flex-shrink: 0;
 }
 
@@ -2605,7 +2605,7 @@ a.about-link:hover {
     border-radius: var(--radius-input, 4px);
     cursor: pointer;
     user-select: all;
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .oauth-user-code:hover {
@@ -2683,7 +2683,7 @@ a.about-link:hover {
     font-family: inherit;
     font-size: 0.82rem;
     color: var(--text-secondary);
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
     width: 100%;
 }
 
@@ -2764,7 +2764,7 @@ a.about-link:hover {
     flex-direction: column;
     padding: var(--space-md) var(--space-lg) var(--space-lg);
     overflow-y: auto;
-    animation: hana-fade-in 0.18s var(--ease-out);
+    animation: hana-fade-in var(--duration-fast) var(--ease-out);
 }
 
 .pv-add-overlay-header {
@@ -2787,7 +2787,7 @@ a.about-link:hover {
     cursor: pointer;
     padding: 4px 8px;
     border-radius: var(--radius-input, 4px);
-    transition: background 0.15s var(--ease-out), color 0.15s var(--ease-out);
+    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 }
 
 .pv-add-overlay-back:hover {
@@ -2845,7 +2845,7 @@ a.about-link:hover {
 .pv-add-overlay .pv-add-form-btn {
     font-size: 0.85rem;
     padding: 8px 18px;
-    transition: background 0.15s var(--ease-out), opacity 0.15s var(--ease-out);
+    transition: background var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out);
 }
 
 .pv-add-overlay .pv-add-form-btn:hover {
@@ -2885,7 +2885,7 @@ a.about-link:hover {
     border: none;
     border-radius: var(--radius-input, 4px);
     cursor: pointer;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
 }
 
 .pv-setup-activate-btn:hover { opacity: 0.85; }
@@ -3004,7 +3004,7 @@ a.about-link:hover {
     color: var(--text-muted);
     cursor: pointer;
     flex-shrink: 0;
-    transition: all 0.2s;
+    transition: all var(--duration-fast);
 }
 
 .pv-cred-conn-icon:hover { color: var(--accent); border-color: var(--accent); }
@@ -3030,7 +3030,7 @@ a.about-link:hover {
     border-radius: var(--radius-input, 4px);
     cursor: pointer;
     white-space: nowrap;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
 }
 
 .pv-verify-btn:hover { opacity: 0.85; }
@@ -3046,7 +3046,7 @@ a.about-link:hover {
     border: 1px solid var(--accent);
     border-radius: var(--radius-input, 4px);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 
 .pv-verify-connection-btn:hover {
@@ -3147,7 +3147,7 @@ a.about-link:hover {
     align-items: center;
     gap: 2px;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
     flex-shrink: 0;
 }
 
@@ -3250,7 +3250,7 @@ a.about-link:hover {
     cursor: pointer;
     padding: 0 10px;
     white-space: nowrap;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 
 .pv-fetch-btn-inline:hover { color: var(--accent); border-color: var(--accent); }
@@ -3285,7 +3285,7 @@ a.about-link:hover {
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 .pv-tool-test-btn:hover { color: var(--accent); border-color: var(--accent); }
 .pv-tool-test-btn.ok { color: #3a7d44; border-color: #3a7d44; }
@@ -3307,7 +3307,7 @@ a.about-link:hover {
     border: 1px solid var(--border);
     border-radius: var(--radius-input, 4px);
     cursor: pointer;
-    transition: border-color 0.15s;
+    transition: border-color var(--duration-fast);
 }
 
 .pv-model-dropdown-trigger:hover { border-color: var(--accent); }
@@ -3354,7 +3354,7 @@ a.about-link:hover {
     border: none;
     cursor: pointer;
     text-align: left;
-    transition: background 0.1s;
+    transition: background var(--duration-instant);
 }
 
 .pv-model-dropdown-option:hover { background: var(--accent-light); }
@@ -3482,7 +3482,7 @@ a.about-link:hover {
     align-items: center;
     flex-shrink: 0;
     opacity: 0.4;
-    transition: opacity 0.15s, color 0.15s;
+    transition: opacity var(--duration-fast), color var(--duration-fast);
 }
 
 .pv-model-star:hover { opacity: 1; }
@@ -3509,7 +3509,7 @@ a.about-link:hover {
     align-items: center;
     gap: 2px;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
     flex-shrink: 0;
 }
 
@@ -3558,7 +3558,7 @@ a.about-link:hover {
     cursor: pointer;
     padding: 3px 10px;
     opacity: 0.6;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
     white-space: nowrap;
 }
 
@@ -3634,7 +3634,7 @@ a.about-link:hover {
     gap: var(--space-sm);
     padding: 0.45rem var(--space-md);
     border-bottom: 1px solid var(--overlay-light);
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .pin-item:last-child {
@@ -3665,7 +3665,7 @@ a.about-link:hover {
     align-items: center;
     gap: 2px;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
     flex-shrink: 0;
 }
 
@@ -3685,7 +3685,7 @@ a.about-link:hover {
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.82rem;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .pin-item-action.delete:hover {
@@ -3721,7 +3721,7 @@ a.about-link:hover {
     border: none;
     border-radius: var(--radius-card, 10px);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     flex-shrink: 0;
 }
 
@@ -3752,7 +3752,7 @@ a.about-link:hover {
     border-radius: var(--radius-card, 10px);
     box-shadow: 0 1px 4px var(--shadow);
     padding: 0.6rem var(--space-md) 0.5rem;
-    transition: box-shadow 0.2s var(--ease-out);
+    transition: box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .exp-block:hover {
@@ -3779,7 +3779,7 @@ a.about-link:hover {
     align-items: center;
     gap: 2px;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
     flex-shrink: 0;
 }
 
@@ -3798,7 +3798,7 @@ a.about-link:hover {
     border-radius: var(--radius-input, 4px);
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .exp-block-action:hover {
@@ -3853,7 +3853,7 @@ a.about-link:hover {
     max-height: 300px;
     line-height: 1.65;
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color var(--duration-fast);
 }
 
 .exp-block-editor:focus {
@@ -3887,7 +3887,7 @@ a.about-link:hover {
     background: var(--bg-card, var(--bg));
     color: var(--text);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -3919,7 +3919,7 @@ a.about-link:hover {
 
 .memory-more-arrow {
     flex-shrink: 0;
-    transition: transform var(--duration);
+    transition: transform var(--duration-slow);
 }
 
 .memory-action-dropdown.open .memory-more-arrow {
@@ -3938,7 +3938,7 @@ a.about-link:hover {
     z-index: 60;
     margin-bottom: 4px;
     overflow: hidden;
-    animation: hana-fade-up 0.2s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
 
 .memory-action-dropdown.open .memory-more-popup {
@@ -3954,7 +3954,7 @@ a.about-link:hover {
     color: var(--text);
     cursor: pointer;
     text-align: left;
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .memory-more-option:hover {
@@ -4012,7 +4012,7 @@ a.about-link:hover {
     background: var(--bg-card, var(--bg));
     color: var(--text);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .memory-confirm-cancel:hover {
@@ -4027,7 +4027,7 @@ a.about-link:hover {
     background: var(--coral);
     color: white;
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .memory-confirm-danger:hover {
@@ -4042,7 +4042,7 @@ a.about-link:hover {
     background: var(--accent);
     color: white;
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .memory-confirm-primary:hover {
@@ -4101,7 +4101,7 @@ a.about-link:hover {
     font-size: 0.9rem;
     cursor: pointer;
     border-radius: var(--radius-input, 4px);
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 
 .memory-viewer-close:hover {
@@ -4137,7 +4137,7 @@ a.about-link:hover {
     padding: 2px 8px;
     cursor: pointer;
     opacity: 0.7;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
 }
 
 .compiled-clear-btn:hover {
@@ -4285,7 +4285,7 @@ a.about-link:hover {
     font-size: 0.9rem;
     cursor: pointer;
     border-radius: var(--radius-input, 4px);
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 
 .crop-close:hover {
@@ -4347,7 +4347,7 @@ a.about-link:hover {
     border-radius: var(--radius-card, 10px);
     border: none;
     cursor: pointer;
-    transition: all 0.15s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .crop-btn-cancel {
@@ -4390,7 +4390,7 @@ a.about-link:hover {
     padding: 0.45rem 0.65rem;
     cursor: pointer;
     text-align: left;
-    transition: border-color var(--duration) var(--ease-out);
+    transition: border-color var(--duration-slow) var(--ease-out);
 }
 
 .sdw-trigger:hover,
@@ -4420,7 +4420,7 @@ a.about-link:hover {
     font-size: 0.9rem;
     color: var(--text-muted);
     margin-left: var(--space-sm);
-    transition: transform var(--duration);
+    transition: transform var(--duration-slow);
 }
 
 .sdw.open .sdw-arrow {
@@ -4442,7 +4442,7 @@ a.about-link:hover {
     margin-top: 4px;
     overflow-y: auto;
     flex-direction: column;
-    animation: hana-fade-up 0.2s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
     padding: var(--space-xs) 0;
 }
 
@@ -4473,7 +4473,7 @@ a.about-link:hover {
     border: none;
     cursor: pointer;
     text-align: left;
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .sdw-option:hover {
@@ -4543,7 +4543,7 @@ a.about-link:hover {
     border: none;
     border-radius: var(--radius-card, 10px);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .cml-add-btn:hover {
@@ -4566,7 +4566,7 @@ a.about-link:hover {
     z-index: 60;
     overflow: hidden;
     flex-direction: column;
-    animation: hana-fade-up 0.2s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
 
 .cml-picker.open {
@@ -4617,7 +4617,7 @@ a.about-link:hover {
     border: none;
     cursor: pointer;
     text-align: left;
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .cml-picker-option:hover {
@@ -4731,7 +4731,7 @@ a.about-link:hover {
     cursor: pointer;
     padding: 0.1rem 0.25rem;
     border-radius: var(--radius-input, 4px);
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
     line-height: 1;
     opacity: 0;
 }
@@ -4755,7 +4755,7 @@ a.about-link:hover {
     cursor: pointer;
     padding: 0.1rem 0.25rem;
     border-radius: var(--radius-input, 4px);
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
     line-height: 1;
     opacity: 0;
 }
@@ -4774,7 +4774,7 @@ a.about-link:hover {
     cursor: pointer;
     padding: 0.1rem 0.25rem;
     border-radius: var(--radius-input, 4px);
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
     line-height: 1;
     opacity: 0;
 }
@@ -4788,7 +4788,7 @@ a.about-link:hover {
     border-top: none;
     padding: var(--space-sm) var(--space-md);
     background: var(--overlay-subtle);
-    animation: hana-fade-up 0.2s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
 
 .cml-edit-panel-columns {
@@ -4820,7 +4820,7 @@ a.about-link:hover {
     padding: 0.25rem 0.45rem;
     outline: none;
     box-shadow: 0 1px 3px var(--shadow);
-    transition: box-shadow var(--duration);
+    transition: box-shadow var(--duration-slow);
     box-sizing: border-box;
 }
 
@@ -4844,7 +4844,7 @@ a.about-link:hover {
     color: var(--text-muted);
     cursor: pointer;
     box-shadow: 0 1px 3px var(--shadow);
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .cml-combo-toggle:hover {
@@ -4868,7 +4868,7 @@ a.about-link:hover {
 
 .cml-combo-dropdown.open {
     display: block;
-    animation: hana-fade-up 0.15s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
 
 .cml-combo-option {
@@ -4883,7 +4883,7 @@ a.about-link:hover {
     background: none;
     color: var(--text);
     cursor: pointer;
-    transition: background 0.1s;
+    transition: background var(--duration-instant);
 }
 
 .cml-combo-option:hover {
@@ -4912,7 +4912,7 @@ a.about-link:hover {
     background: var(--overlay-subtle);
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 
 .cml-edit-panel-btn:hover {
@@ -4981,7 +4981,7 @@ a.about-link:hover {
     padding: 0.45rem 0.65rem;
     cursor: pointer;
     text-align: left;
-    transition: border-color var(--duration) var(--ease-out);
+    transition: border-color var(--duration-slow) var(--ease-out);
 }
 
 .mdw-trigger:hover,
@@ -5002,7 +5002,7 @@ a.about-link:hover {
     font-size: 0.7rem;
     color: var(--text-muted);
     margin-left: var(--space-sm);
-    transition: transform var(--duration);
+    transition: transform var(--duration-slow);
 }
 
 .mdw-popup.open ~ .mdw-trigger .mdw-arrow,
@@ -5025,7 +5025,7 @@ a.about-link:hover {
     margin-top: 4px;
     overflow: hidden;
     flex-direction: column;
-    animation: hana-fade-up 0.2s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
 
 .mdw-popup.open {
@@ -5079,7 +5079,7 @@ a.about-link:hover {
     border: none;
     cursor: pointer;
     text-align: left;
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .mdw-option:hover {
@@ -5096,7 +5096,7 @@ a.about-link:hover {
     font-size: 0.8rem;
     color: var(--text-muted);
     cursor: pointer;
-    transition: color 0.15s;
+    transition: color var(--duration-fast);
     width: 1.2em;
     text-align: center;
     line-height: 1;
@@ -5159,7 +5159,7 @@ a.about-link:hover {
     background: var(--overlay-light);
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
 }
 
 .mdw-custom-confirm:hover {
@@ -5264,7 +5264,7 @@ a.about-link:hover {
   text-align: left;
   font-family: inherit;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
+  transition: transform var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .ss-layout-card:hover {

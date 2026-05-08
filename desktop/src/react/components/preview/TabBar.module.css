@@ -34,7 +34,7 @@
     white-space: nowrap;
     max-width: 160px;
     flex-shrink: 0;
-    transition: color 0.12s, background 0.12s, border-color 0.12s, box-shadow 0.12s;
+    transition: color var(--duration-instant), background var(--duration-instant), border-color var(--duration-instant), box-shadow var(--duration-instant);
 }
 
 .tab:hover {
@@ -67,7 +67,7 @@
     opacity: 0.35;
     flex-shrink: 0;
     border-radius: calc(var(--radius-md) - 2px);
-    transition: opacity 0.12s, background 0.12s, color 0.12s;
+    transition: opacity var(--duration-instant), background var(--duration-instant), color var(--duration-instant);
 }
 
 .tabClose:hover {
@@ -95,7 +95,7 @@
     align-items: center;
     justify-content: center;
     opacity: 0.5;
-    transition: opacity 0.12s, background 0.12s;
+    transition: opacity var(--duration-instant), background var(--duration-instant);
 }
 
 .closePanel:hover {

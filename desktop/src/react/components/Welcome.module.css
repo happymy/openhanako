@@ -20,7 +20,7 @@
     box-shadow: 0 4px 16px var(--shadow);
     margin-bottom: var(--space-xs);
     cursor: pointer;
-    transition: box-shadow 0.15s;
+    transition: box-shadow var(--duration-fast);
 }
 
 .welcomeAvatar:hover {
@@ -48,7 +48,7 @@
     border: none;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     -webkit-app-region: no-drag;
     opacity: 0.8;
 }
@@ -103,7 +103,7 @@
 
 .folderSelectWrapShowHistory .folderHistory {
     display: block;
-    animation: hana-folder-history-in 0.15s var(--ease-out);
+    animation: hana-folder-history-in var(--duration-fast) var(--ease-out);
 }
 
 .folderHistoryItem {
@@ -114,7 +114,7 @@
     font-size: 0.75rem;
     color: var(--text);
     cursor: pointer;
-    transition: background 0.1s;
+    transition: background var(--duration-instant);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -184,7 +184,7 @@
     font-size: 0.75rem;
     color: var(--text-muted);
     cursor: pointer;
-    transition: background 0.1s;
+    transition: background var(--duration-instant);
 }
 
 .folderHistoryBrowse:hover {
@@ -206,7 +206,7 @@
     border: none;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     -webkit-app-region: no-drag;
     opacity: 0.8;
 }
@@ -262,7 +262,7 @@
     font-family: inherit;
     font-size: 0.78rem;
     color: var(--text-muted);
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
     -webkit-app-region: no-drag;
 }
 

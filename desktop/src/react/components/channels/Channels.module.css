@@ -22,8 +22,8 @@
     border-radius: var(--radius-sm);
     background: var(--tab-slider-bg, var(--bg-card));
     box-shadow: var(--tab-slider-shadow, 0 1px 3px var(--shadow));
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform var(--duration-slow) cubic-bezier(0.4, 0, 0.2, 1),
+                width var(--duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 0;
 }
 
@@ -39,7 +39,7 @@
     font-size: 0.78rem;
     font-weight: 500;
     cursor: pointer;
-    transition: color 0.2s var(--ease-out);
+    transition: color var(--duration-fast) var(--ease-out);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -165,7 +165,7 @@
     margin-bottom: 1px;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .channelItem:hover {
@@ -326,7 +326,7 @@
     cursor: pointer;
     padding: 4px;
     border-radius: var(--radius-sm);
-    transition: background 0.15s, color 0.15s;
+    transition: background var(--duration-fast), color var(--duration-fast);
 }
 
 .channelHeaderActionBtn:hover {
@@ -519,7 +519,7 @@
     cursor: pointer;
     font-size: 13px;
     color: var(--text-primary);
-    transition: background 0.1s;
+    transition: background var(--duration-instant);
 }
 
 .channelMentionItem:hover,
@@ -562,7 +562,7 @@
     overflow-y: auto;
     scrollbar-width: none;
     line-height: 1.5;
-    transition: border-color 0.15s;
+    transition: border-color var(--duration-fast);
 }
 
 .channelInputBox::-webkit-scrollbar {
@@ -584,9 +584,9 @@
     border: 1px solid var(--accent);
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all var(--duration) var(--ease-out);
+    transition: all var(--duration-slow) var(--ease-out);
     flex-shrink: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
 }
 
 .channelSendBtn:disabled {
@@ -630,7 +630,7 @@
     width: 440px;
     max-width: 90vw;
     box-shadow: 0 12px 48px var(--shadow);
-    animation: hana-fade-up 0.2s var(--ease-out);
+    animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
 
 .createTitle {
@@ -663,7 +663,7 @@
     padding: 0.45rem 0.65rem;
     outline: none;
     box-shadow: 0 1px 3px var(--shadow);
-    transition: box-shadow var(--duration) var(--ease-out);
+    transition: box-shadow var(--duration-slow) var(--ease-out);
     width: 100%;
 }
 
@@ -690,7 +690,7 @@
     font-family: inherit;
     font-size: 0.82rem;
     cursor: pointer;
-    transition: all 0.2s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .createCancel {
@@ -730,7 +730,7 @@
     font-family: var(--font-ui);
     font-size: 0.78rem;
     cursor: pointer;
-    transition: all 0.15s var(--ease-out);
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .channelCreateMemberChip:hover {

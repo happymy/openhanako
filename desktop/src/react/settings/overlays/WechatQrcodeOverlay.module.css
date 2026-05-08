@@ -34,7 +34,7 @@
   padding: 4px;
   color: var(--text-secondary);
   opacity: 0.6;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--duration-fast) ease;
 }
 
 .closeBtn:hover {

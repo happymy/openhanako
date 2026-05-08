@@ -16,7 +16,7 @@
     margin-bottom: 1px;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: background var(--duration-fast), color var(--duration-fast);
     -webkit-app-region: no-drag;
     border: none;
     background: none;
@@ -91,7 +91,7 @@
     color: var(--text-muted);
     cursor: pointer;
     opacity: 0;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
     z-index: 1;
 }
 
@@ -124,7 +124,7 @@
     color: var(--text-muted);
     cursor: pointer;
     opacity: 0;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
     z-index: 1;
 }
 
@@ -173,7 +173,7 @@
     color: var(--danger);
     cursor: pointer;
     opacity: 0;
-    transition: all 0.15s;
+    transition: all var(--duration-fast);
     z-index: 1;
 }
 

@@ -151,7 +151,7 @@ export function AgentCardStack({ agents, selectedId, currentAgentId, onSelect, o
             } else {
               c.style.transform = `translateX(${positions[ci]}px) rotate(0deg)`;
             }
-            c.style.transition = 'transform 0.2s var(--ease-out)';
+            c.style.transition = 'transform var(--duration-fast) var(--ease-out)';
           });
 
           dropIdx = newIdx;

@@ -40,7 +40,7 @@ export function Overlay({
   zIndex = 1000,
   className,
   backdropClassName,
-  duration = 250,
+  duration = 300,
   disableContainerAnimation = false,
 }: OverlayProps) {
   const { mounted, stage } = useAnimatePresence(open, { duration });

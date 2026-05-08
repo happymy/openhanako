@@ -12,8 +12,8 @@
     border-left: 1px solid var(--overlay-light);
     padding-top: 48px;
     overflow: hidden;
-    transition: width 0.28s var(--ease-out),
-                border-color 0.28s var(--ease-out);
+    transition: width var(--duration-slow) var(--ease-out),
+                border-color var(--duration-slow) var(--ease-out);
     z-index: 10;
 }
 
@@ -30,7 +30,7 @@
     height: 100%;
     min-height: 0;
     opacity: 1;
-    transition: opacity 0.18s var(--ease-out);
+    transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .previewPanelCollapsed .previewPanelInner {
@@ -241,7 +241,7 @@
     color: #fff;
     font-size: 0.88rem;
     cursor: pointer;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast);
 }
 
 .previewPanelBody :global(.preview-file-open-btn):hover {

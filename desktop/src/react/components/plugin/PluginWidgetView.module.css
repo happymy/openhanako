@@ -14,7 +14,7 @@
   height: 100%;
   border: none;
   border-radius: var(--radius-lg);
-  transition: opacity 0.2s ease;
+  transition: opacity var(--duration-fast) ease;
 }
 .overlay {
   position: absolute;
