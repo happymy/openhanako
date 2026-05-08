@@ -6,7 +6,18 @@ import globals from 'globals';
 export default [
   // Global ignores — must be a standalone config object with only `ignores`
   {
-    ignores: ['node_modules/', 'dist/', 'dist-renderer/', '**/*.cjs'],
+    ignores: [
+      'node_modules/',
+      '**/dist/**',
+      'dist-server/**',
+      'dist-server-bundle/**',
+      'dist-computer-use/**',
+      'dist-sandbox/**',
+      'desktop/dist-renderer/**',
+      'desktop/native/**/.build/**',
+      '.cache/**',
+      '**/*.cjs',
+    ],
   },
 
   js.configs.recommended,
@@ -32,9 +43,19 @@ export default [
     },
   },
 
-  // Server-side JS files
+  // Node-side JS files
   {
-    files: ['server/**/*.js'],
+    files: [
+      'core/**/*.js',
+      'hub/**/*.js',
+      'index.js',
+      'lib/**/*.js',
+      'plugins/**/*.js',
+      'scripts/**/*.{js,mjs}',
+      'server/**/*.js',
+      'shared/**/*.js',
+      'tests/**/*.{js,ts,tsx}',
+    ],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -44,9 +65,36 @@ export default [
     },
   },
 
+  // Vitest files mix Node helpers with jsdom/browser primitives.
+  {
+    files: ['tests/**/*.{js,ts,tsx}'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
+    },
+  },
+
+  // Browser package TypeScript files
+  {
+    files: [
+      'packages/plugin-sdk/src/**/*.ts',
+      'packages/plugin-components/src/**/*.{ts,tsx}',
+    ],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+      },
+    },
+  },
+
   // TypeScript/React frontend files
   {
-    files: ['desktop/src/**/*.{ts,tsx}'],
+    files: [
+      'desktop/src/**/*.{ts,tsx}',
+      'packages/plugin-components/src/**/*.{ts,tsx}',
+    ],
     plugins: {
       'react-hooks': reactHooks,
     },
@@ -85,6 +133,7 @@ export default [
       'no-empty': 'warn',
       'prefer-const': 'warn',
       'no-useless-escape': 'warn',
+      '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     },
   },

@@ -71,9 +71,8 @@ describe("sessions route", () => {
       })),
       getAgent: vi.fn(() => ({ agentName: "Hana" })),
       agentIdFromSessionPath: vi.fn((sp) => {
-        const p = require("path");
-        const rel = p.relative("/tmp/agents", sp);
-        return rel.split(p.sep)[0] || null;
+        const rel = path.relative("/tmp/agents", sp);
+        return rel.split(path.sep)[0] || null;
       }),
     };
 
@@ -253,9 +252,8 @@ describe("sessions route", () => {
       agentsDir: "/tmp/agents",
       deferredResults: null,
       agentIdFromSessionPath: vi.fn((sp) => {
-        const p = require("path");
-        const rel = p.relative("/tmp/agents", sp);
-        return rel.split(p.sep)[0] || null;
+        const rel = path.relative("/tmp/agents", sp);
+        return rel.split(path.sep)[0] || null;
       }),
       getAgent: vi.fn((id) => (id === "hanako" ? { agentName: "Hanako" } : null)),
     };

@@ -89,6 +89,9 @@ describe('plugin runtime SDK', () => {
 
     instance.ctx = ctx as any;
     instance.register = register;
+    if (!instance.onload || !instance.onunload) {
+      throw new Error('definePlugin must create lifecycle methods');
+    }
     await instance.onload();
     await instance.onunload();
 
