@@ -460,6 +460,23 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
     );
   });
 
+  it("passes parent session files as read-only scopes to isolated execution", async () => {
+    const captureExecute = makeExecuteIsolated({ replyText: "ok", error: null, sessionPath: "/test/child.jsonl" });
+    const tool = createSubagentTool(makeDeps({
+      executeIsolated: captureExecute,
+      getDeferredStore: () => mockStore,
+    }));
+
+    await tool.execute("call_1", { task: "读取 parent 附件" }, null, null, mockCtx("/test/parent.jsonl"));
+
+    expect(captureExecute).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        fileReadSessionPaths: ["/test/parent.jsonl"],
+      }),
+    );
+  });
+
   // 9. unknown agent returns error without calling executeIsolated
   it("returns error when agent id is unknown", async () => {
     const noopExecute = vi.fn();

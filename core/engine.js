@@ -1172,11 +1172,22 @@ export class HanaEngine {
     const effectiveWorkspace = opts.workspace !== undefined ? opts.workspace : this.homeCwd;
     const workspaceFolders = opts.workspaceFolders || [];
     const getSessionPath = opts.getSessionPath || (() => null);
+    const fileReadSessionPaths = Array.isArray(opts.fileReadSessionPaths)
+      ? opts.fileReadSessionPaths.filter((sp) => typeof sp === "string" && sp.trim())
+      : [];
     const getExternalReadPaths = () => {
-      const sessionPath = getSessionPath();
-      if (!sessionPath) return [];
+      const sessionPaths = [];
+      const seenSessionPaths = new Set();
+      const addSessionPath = (sp) => {
+        if (!sp || seenSessionPaths.has(sp)) return;
+        seenSessionPaths.add(sp);
+        sessionPaths.push(sp);
+      };
+      addSessionPath(getSessionPath());
+      for (const sp of fileReadSessionPaths) addSessionPath(sp);
+      if (!sessionPaths.length) return [];
       const files = typeof this.listSessionFiles === "function"
-        ? this.listSessionFiles(sessionPath)
+        ? sessionPaths.flatMap((sp) => this.listSessionFiles(sp))
         : [];
       return externalReadPathsFromSessionFiles(files, {
         workspaceRoots: workspaceRootsForSandbox(effectiveWorkspace, workspaceFolders),

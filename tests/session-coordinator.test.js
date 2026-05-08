@@ -1327,6 +1327,7 @@ describe("SessionCoordinator", () => {
     const buildTools = vi.fn((_cwd, customTools) => ({ tools: [], customTools }));
     const homeCwd = path.join(tempDir, "agent-home");
     const inheritedCwd = path.join(tempDir, "inherited-session-cwd");
+    const parentSessionPath = path.join(tempDir, "agents", "hana", "sessions", "parent.jsonl");
     const agent = {
       id: "hana",
       agentDir: path.join(tempDir, "agents", "hana"),
@@ -1377,7 +1378,10 @@ describe("SessionCoordinator", () => {
       listAgents: () => [],
     });
 
-    await coordinator.executeIsolated("background check", { cwd: inheritedCwd });
+    await coordinator.executeIsolated("background check", {
+      cwd: inheritedCwd,
+      fileReadSessionPaths: [parentSessionPath],
+    });
 
     expect(buildTools).toHaveBeenCalledWith(
       inheritedCwd,
@@ -1385,6 +1389,8 @@ describe("SessionCoordinator", () => {
       expect.objectContaining({
         agentDir: agent.agentDir,
         workspace: inheritedCwd,
+        getSessionPath: expect.any(Function),
+        fileReadSessionPaths: [parentSessionPath],
       }),
     );
   });

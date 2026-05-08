@@ -1922,6 +1922,7 @@ export class SessionCoordinator {
    * opts:
    *   agentId, cwd, model, persist (string 目录路径 | falsy),
    *   toolFilter, builtinFilter, signal,
+   *   fileReadSessionPaths (string[] = parent session SessionFile scopes inherited as read-only),
    *   subagentContext (true = 走 subagent 专用 prompt：跳过记忆三段和团队名单),
    *   emitEvents (true 时将 session 事件转发到 EventBus),
    *   onSessionReady (sessionPath => void) 回调，session 创建后、prompt 执行前触发
@@ -1959,6 +1960,9 @@ export class SessionCoordinator {
         primaryCwd: execCwd,
         workspaceFolders: inheritedWorkspaceFolders,
       });
+      const fileReadSessionPaths = Array.isArray(opts.fileReadSessionPaths)
+        ? opts.fileReadSessionPaths.filter((sp) => typeof sp === "string" && sp.trim())
+        : [];
       const models = this._d.getModels();
       // migration #5 之后 models.chat 必为 {id, provider}；旧裸字符串/缺 provider 对象视为未配置
       const agentPreferredRef = targetAgent.config?.models?.chat;
@@ -1999,6 +2003,8 @@ export class SessionCoordinator {
           agentDir: targetAgent.agentDir,
           workspace: execCwd,
           workspaceFolders: execWorkspaceScope.workspaceFolders,
+          getSessionPath: () => tempSessionMgr?.getSessionFile?.() || null,
+          fileReadSessionPaths,
           getPermissionMode: () => SESSION_PERMISSION_MODES.OPERATE,
         },
       );

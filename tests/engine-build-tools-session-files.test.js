@@ -60,4 +60,59 @@ describe("HanaEngine.buildTools session external sandbox grants", () => {
     const sandboxOpts = createSandboxedTools.mock.calls[0][2];
     expect(sandboxOpts.getExternalReadPaths()).toEqual([fs.realpathSync(externalFile)]);
   });
+
+  it("includes inherited parent session files in read-only sandbox inputs", () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hana-engine-sandbox-parent-files-"));
+    const hanakoHome = path.join(tempRoot, "hana-home");
+    const agentDir = path.join(hanakoHome, "agents", "hana");
+    const workspace = path.join(tempRoot, "workspace");
+    const childExternal = path.join(tempRoot, "outside", "child.md");
+    const parentExternal = path.join(tempRoot, "outside", "parent.md");
+    const parentWorkspaceFile = path.join(workspace, "owned-by-workspace.md");
+    for (const file of [childExternal, parentExternal, parentWorkspaceFile]) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, "x");
+    }
+    fs.mkdirSync(agentDir, { recursive: true });
+    const childSessionPath = path.join(agentDir, "subagent-sessions", "child.jsonl");
+    const parentSessionPath = path.join(agentDir, "sessions", "parent.jsonl");
+
+    const engine = Object.create(HanaEngine.prototype);
+    engine.hanakoHome = hanakoHome;
+    engine.getAgent = vi.fn(() => ({ id: "hana", agentDir, tools: [] }));
+    engine._pluginManager = null;
+    engine._prefs = { getFileBackup: () => ({ enabled: false }) };
+    engine._readPreferences = () => ({ sandbox: true });
+    engine._confirmStore = null;
+    engine._emitEvent = vi.fn();
+    engine.getSessionPermissionMode = vi.fn(() => "operate");
+    engine._agentMgr = { agent: { id: "hana", agentDir, tools: [] } };
+    engine.listSessionFiles = vi.fn((sessionPath) => {
+      if (sessionPath === childSessionPath) {
+        return [
+          { filePath: childExternal, realPath: fs.realpathSync(childExternal), storageKind: "external", status: "available" },
+        ];
+      }
+      if (sessionPath === parentSessionPath) {
+        return [
+          { filePath: parentExternal, realPath: fs.realpathSync(parentExternal), storageKind: "external", status: "available" },
+          { filePath: parentWorkspaceFile, realPath: fs.realpathSync(parentWorkspaceFile), storageKind: "external", status: "available" },
+        ];
+      }
+      return [];
+    });
+
+    engine.buildTools(workspace, [], {
+      agentDir,
+      workspace,
+      getSessionPath: () => childSessionPath,
+      fileReadSessionPaths: [parentSessionPath],
+    });
+
+    const sandboxOpts = createSandboxedTools.mock.calls[0][2];
+    expect(sandboxOpts.getExternalReadPaths()).toEqual([
+      fs.realpathSync(childExternal),
+      fs.realpathSync(parentExternal),
+    ]);
+  });
 });
