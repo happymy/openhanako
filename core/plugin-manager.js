@@ -6,6 +6,11 @@ import { freshImport } from "./fresh-import.js";
 const KNOWN_CONTRIBUTION_DIRS = [
   "tools", "routes", "skills", "agents", "commands", "providers",
 ];
+const KNOWN_UI_HOST_CAPABILITIES = new Set([
+  "external.open",
+  "clipboard.writeText",
+  "sessionFile.open",
+]);
 const DEFAULT_PLUGIN_LOAD_TIMEOUT_MS = 15_000;
 
 class PluginLoadTimeoutError extends Error {
@@ -27,6 +32,24 @@ function semverGte(a, b) {
     if ((pa[i] || 0) < (pb[i] || 0)) return false;
   }
   return true;
+}
+
+function normalizeUiHostCapabilities(raw, pluginId) {
+  if (!Array.isArray(raw)) return [];
+  const result = [];
+  const seen = new Set();
+  for (const item of raw) {
+    if (typeof item !== "string" || item.trim() === "") continue;
+    const capability = item.trim();
+    if (!KNOWN_UI_HOST_CAPABILITIES.has(capability)) {
+      console.warn(`[plugin-manager] plugin "${pluginId}" declares unknown UI host capability "${capability}", ignoring`);
+      continue;
+    }
+    if (seen.has(capability)) continue;
+    seen.add(capability);
+    result.push(capability);
+  }
+  return result;
 }
 
 export class PluginManager {
@@ -121,6 +144,7 @@ export class PluginManager {
     const name = manifest?.name || dirName;
     const version = manifest?.version || "0.0.0";
     const description = manifest?.description || "";
+    const uiHostCapabilities = normalizeUiHostCapabilities(manifest?.ui?.hostCapabilities, id);
     const contributions = [];
     for (const dir of KNOWN_CONTRIBUTION_DIRS) {
       if (fs.existsSync(path.join(pluginDir, dir))) contributions.push(dir);
@@ -129,7 +153,7 @@ export class PluginManager {
     if (fs.existsSync(path.join(pluginDir, "index.js"))) contributions.push("lifecycle");
     const trust = manifest?.trust === "full-access" ? "full-access" : "restricted";
     const hidden = !!manifest?.hidden;
-    return { id, name, version, description, pluginDir, manifest, contributions, trust, hidden };
+    return { id, name, version, description, pluginDir, manifest, contributions, trust, hidden, uiHostCapabilities };
   }
 
   async loadAll() {
@@ -604,6 +628,7 @@ export class PluginManager {
       title: page.title || entry.id,
       icon: page.icon || null,
       route: page.route,
+      hostCapabilities: [...(entry.uiHostCapabilities || [])],
     });
   }
 
@@ -624,6 +649,7 @@ export class PluginManager {
       title: widget.title || entry.id,
       icon: widget.icon || null,
       route: widget.route,
+      hostCapabilities: [...(entry.uiHostCapabilities || [])],
     });
   }
 
@@ -943,6 +969,14 @@ export class PluginManager {
   getPages() { return [...this._pages]; }
   getWidgets() { return [...this._widgets]; }
   getSettingsTabs() { return [...this._settingsTabs]; }
+  getUiHostCapabilityGrants() {
+    return [...this._plugins.values()]
+      .filter(entry => entry.status === "loaded" && Array.isArray(entry.uiHostCapabilities) && entry.uiHostCapabilities.length > 0)
+      .map(entry => ({
+        pluginId: entry.id,
+        hostCapabilities: [...entry.uiHostCapabilities],
+      }));
+  }
 
   getPlugin(id) { return this._plugins.get(id) || null; }
   listPlugins() { return [...this._plugins.values()]; }

@@ -3,6 +3,7 @@ import type { PluginPageInfo, PluginWidgetInfo } from '../types';
 export interface PluginUiSlice {
   pluginPages: PluginPageInfo[];
   pluginWidgets: PluginWidgetInfo[];
+  pluginUiHostCapabilities: Record<string, string[]>;
   tabOrder: string[];
   pinnedWidgets: string[];
   hiddenPluginTabs: string[];
@@ -10,6 +11,7 @@ export interface PluginUiSlice {
 
   setPluginPages(pages: PluginPageInfo[]): void;
   setPluginWidgets(widgets: PluginWidgetInfo[]): void;
+  setPluginUiHostCapabilities(grants: Record<string, string[]>): void;
   setTabOrder(order: string[]): void;
   setPinnedWidgets(ids: string[]): void;
   setHiddenPluginTabs(ids: string[]): void;
@@ -21,6 +23,7 @@ export const createPluginUiSlice = (
 ): PluginUiSlice => ({
   pluginPages: [],
   pluginWidgets: [],
+  pluginUiHostCapabilities: {},
   tabOrder: [],
   pinnedWidgets: [],
   hiddenPluginTabs: [],
@@ -28,6 +31,7 @@ export const createPluginUiSlice = (
 
   setPluginPages: (pages) => set({ pluginPages: pages }),
   setPluginWidgets: (widgets) => set({ pluginWidgets: widgets }),
+  setPluginUiHostCapabilities: (grants) => set({ pluginUiHostCapabilities: grants }),
   setTabOrder: (order) => set({ tabOrder: order }),
   setPinnedWidgets: (ids) => set({ pinnedWidgets: ids }),
   setHiddenPluginTabs: (ids) => set({ hiddenPluginTabs: ids }),

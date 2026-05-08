@@ -228,6 +228,7 @@ export function createPluginsRoute(engine) {
       title: p.title,
       icon: p.icon,
       routeUrl: `/api/plugins/${p.pluginId}${p.route}`,
+      hostCapabilities: Array.isArray(p.hostCapabilities) ? p.hostCapabilities : [],
     }));
     return c.json(pages);
   });
@@ -240,8 +241,15 @@ export function createPluginsRoute(engine) {
       title: w.title,
       icon: w.icon,
       routeUrl: `/api/plugins/${w.pluginId}${w.route}`,
+      hostCapabilities: Array.isArray(w.hostCapabilities) ? w.hostCapabilities : [],
     }));
     return c.json(widgets);
+  });
+
+  route.get("/plugins/ui-host-capabilities", (c) => {
+    const pm = engine.pluginManager;
+    if (!pm) return c.json([]);
+    return c.json(pm.getUiHostCapabilityGrants?.() || []);
   });
 
   route.get("/plugins/settings-tabs", (c) => {

@@ -173,6 +173,7 @@ export interface PluginPageInfo {
   title: string | Record<string, string>;
   icon: string | null;
   routeUrl: string;
+  hostCapabilities: string[];
 }
 
 export interface PluginWidgetInfo {
@@ -180,6 +181,12 @@ export interface PluginWidgetInfo {
   title: string | Record<string, string>;
   icon: string | null;
   routeUrl: string;
+  hostCapabilities: string[];
+}
+
+export interface PluginUiHostCapabilityGrant {
+  pluginId: string;
+  hostCapabilities: string[];
 }
 
 // ── Platform API 类型声明 ──

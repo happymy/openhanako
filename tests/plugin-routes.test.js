@@ -208,6 +208,66 @@ describe("plugin management API", () => {
     });
   });
 
+  describe("GET /plugins UI contributions", () => {
+    it("serializes page and widget UI host capability grants", async () => {
+      const engine = mockEngine({
+        pm: {
+          getPages: () => [{
+            pluginId: "demo",
+            title: "Demo",
+            icon: null,
+            route: "/page",
+            hostCapabilities: ["external.open"],
+          }],
+          getWidgets: () => [{
+            pluginId: "demo",
+            title: "Demo Widget",
+            icon: null,
+            route: "/widget",
+            hostCapabilities: ["clipboard.writeText"],
+          }],
+        },
+      });
+      const app = createApp(engine);
+
+      const pagesRes = await app.request("/api/plugins/pages");
+      const widgetsRes = await app.request("/api/plugins/widgets");
+
+      expect(await pagesRes.json()).toEqual([{
+        pluginId: "demo",
+        title: "Demo",
+        icon: null,
+        routeUrl: "/api/plugins/demo/page",
+        hostCapabilities: ["external.open"],
+      }]);
+      expect(await widgetsRes.json()).toEqual([{
+        pluginId: "demo",
+        title: "Demo Widget",
+        icon: null,
+        routeUrl: "/api/plugins/demo/widget",
+        hostCapabilities: ["clipboard.writeText"],
+      }]);
+    });
+
+    it("serializes plugin-level UI host capability grants for card surfaces", async () => {
+      const engine = mockEngine({
+        pm: {
+          getUiHostCapabilityGrants: () => [
+            { pluginId: "demo", hostCapabilities: ["external.open"] },
+          ],
+        },
+      });
+      const app = createApp(engine);
+
+      const res = await app.request("/api/plugins/ui-host-capabilities");
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([
+        { pluginId: "demo", hostCapabilities: ["external.open"] },
+      ]);
+    });
+  });
+
   describe("PUT /plugins/settings", () => {
     it("calls setFullAccess and returns plugin list", async () => {
       const setFn = vi.fn().mockResolvedValue();

@@ -1,24 +1,50 @@
 import { useStore } from './index';
 import { hanaFetch } from '../hooks/use-hana-fetch';
-import type { PluginPageInfo, PluginWidgetInfo } from '../types';
+import type { PluginPageInfo, PluginUiHostCapabilityGrant, PluginWidgetInfo } from '../types';
+
+function collectPluginUiHostCapabilities(
+  pages: PluginPageInfo[],
+  widgets: PluginWidgetInfo[],
+  grants: PluginUiHostCapabilityGrant[],
+): Record<string, string[]> {
+  const byPlugin: Record<string, string[]> = {};
+  const add = (pluginId: string, hostCapabilities: string[] | undefined) => {
+    if (!pluginId || !Array.isArray(hostCapabilities)) return;
+    const set = new Set(byPlugin[pluginId] || []);
+    for (const capability of hostCapabilities) {
+      if (typeof capability === 'string' && capability.trim()) set.add(capability);
+    }
+    byPlugin[pluginId] = [...set];
+  };
+  for (const page of pages) add(page.pluginId, page.hostCapabilities);
+  for (const widget of widgets) add(widget.pluginId, widget.hostCapabilities);
+  for (const grant of grants) add(grant.pluginId, grant.hostCapabilities);
+  return byPlugin;
+}
 
 /** Fetch plugin pages and widgets from backend, update store. */
 export async function refreshPluginUI(): Promise<void> {
   try {
     let pages: PluginPageInfo[] = [];
     let widgets: PluginWidgetInfo[] = [];
+    let hostCapabilityGrants: PluginUiHostCapabilityGrant[] = [];
 
     // hanaFetch throws on non-2xx, so wrap each call individually
-    const [pagesResult, widgetsResult] = await Promise.allSettled([
+    const [pagesResult, widgetsResult, grantsResult] = await Promise.allSettled([
       hanaFetch('/api/plugins/pages').then(r => r.json()),
       hanaFetch('/api/plugins/widgets').then(r => r.json()),
+      hanaFetch('/api/plugins/ui-host-capabilities').then(r => r.json()),
     ]);
     if (pagesResult.status === 'fulfilled') pages = pagesResult.value;
     if (widgetsResult.status === 'fulfilled') widgets = widgetsResult.value;
+    if (grantsResult.status === 'fulfilled' && Array.isArray(grantsResult.value)) {
+      hostCapabilityGrants = grantsResult.value;
+    }
 
     const s = useStore.getState();
     s.setPluginPages(pages);
     s.setPluginWidgets(widgets);
+    s.setPluginUiHostCapabilities(collectPluginUiHostCapabilities(pages, widgets, hostCapabilityGrants));
 
     // If current tab is a removed plugin tab, switch to chat
     const currentTab = s.currentTab;

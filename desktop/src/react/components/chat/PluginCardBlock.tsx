@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { hanaUrl } from '../../hooks/use-hana-fetch';
 import { usePluginIframe } from '../../hooks/use-plugin-iframe';
+import { useStore } from '../../stores';
 import type { PluginCardDetails } from '../../types';
 import s from './PluginCardBlock.module.css';
 import { DEFAULT_THEME } from '../../../shared/theme-registry.cjs';
@@ -12,6 +13,7 @@ interface Props {
 
 const MAX_W = 400;
 const MAX_H = 600;
+const EMPTY_CAPABILITY_GRANTS: readonly string[] = [];
 
 function parseRatio(raw?: string): number {
   if (!raw) return 0;
@@ -21,6 +23,7 @@ function parseRatio(raw?: string): number {
 
 export function PluginCardBlock({ card, agentId }: Props) {
   const [error, setError] = useState(false);
+  const capabilityGrants = useStore(st => st.pluginUiHostCapabilities[card.pluginId] ?? EMPTY_CAPABILITY_GRANTS);
 
   // Compute initial size from aspectRatio hint; 0 means unknown
   const ratio = parseRatio(card.aspectRatio);
@@ -43,6 +46,7 @@ export function PluginCardBlock({ card, agentId }: Props) {
     pluginId: card.pluginId,
     agentId,
     slot: 'card',
+    capabilityGrants,
     initialSize: { width: defaultW, height: defaultH },
     readyOnTimeout: true,
   });

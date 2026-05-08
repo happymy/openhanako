@@ -380,11 +380,36 @@ Declare in `manifest.json` under `contributes`:
 - Hovering over the tab shows the plugin's full name (tooltip)
 - When there are more than 5 tabs, extras are collapsed into an overflow dropdown menu; users can drag to reorder
 
-Plugin pages are rendered via iframe. The plugin must send a handshake signal after loading:
+Plugin pages are rendered via iframe. New plugins should use `@hana/plugin-sdk` for handshake and host requests:
+
+```js
+import { hana } from '@hana/plugin-sdk';
+
+hana.ready();
+hana.ui.resize({ height: 320 });
+await hana.host.request('toast.show', { message: 'Refreshed', type: 'success' });
+```
+
+For compatibility, the host still accepts the legacy handshake:
 
 ```js
 window.parent.postMessage({ type: 'ready' }, '*');
 ```
+
+The host accepts messages only from the current iframe window and matching origin. SDK requests go through the capability registry. Current built-in capabilities include `toast.show` (no grant required), `external.open` (grant required), and `clipboard.writeText` (grant required).
+
+Grant-required iframe host capabilities must be declared in the manifest:
+
+```json
+{
+  "manifestVersion": 1,
+  "ui": {
+    "hostCapabilities": ["external.open", "clipboard.writeText"]
+  }
+}
+```
+
+Sensitive capabilities that are not declared return `CAPABILITY_DENIED`. Unknown capability names are ignored at load time; `toast.show` does not need to be declared.
 
 The host appends `hana-theme` and `hana-css` query parameters to the iframe URL. Plugins can optionally reference the theme CSS for visual consistency:
 
@@ -440,17 +465,22 @@ Bundled built-in plugins can register a native settings page shown in the settin
 Most plugins don't need a manifest. Only required for:
 
 - Declaring `trust: "full-access"` for full permissions
+- Declaring iframe UI host capabilities (`ui.hostCapabilities`)
 - Configuration schema (JSON Schema declarations)
 - Plugin metadata (name, version, description for the management UI)
 - Soft dependency declarations
 
 ```json
 {
+  "manifestVersion": 1,
   "id": "my-plugin",
   "name": "My Plugin",
   "version": "1.0.0",
   "description": "What this plugin does",
   "trust": "full-access",
+  "ui": {
+    "hostCapabilities": ["external.open"]
+  },
   "contributes": {
     "configuration": { ... }
   },

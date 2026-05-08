@@ -27,6 +27,7 @@ export function PluginPageView({ pluginId }: Props) {
     pluginId,
     agentId,
     slot: 'page',
+    capabilityGrants: page?.hostCapabilities ?? [],
   });
 
   useEffect(() => {

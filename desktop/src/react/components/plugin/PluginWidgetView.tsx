@@ -27,6 +27,7 @@ export function PluginWidgetView({ pluginId }: Props) {
     pluginId,
     agentId,
     slot: 'widget',
+    capabilityGrants: widget?.hostCapabilities ?? [],
   });
 
   if (!widget) {
