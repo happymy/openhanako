@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 
 /**
  * CSP 集中管理：
@@ -146,7 +147,7 @@ function copyLegacyFiles(): Plugin {
       const outDir = path.resolve(__dirname, 'desktop/dist-renderer');
 
       const dirs = ['lib', 'modules', 'themes', 'assets', 'locales'];
-      const files = ['styles.css'];
+      const files = ['styles.css', 'animations.css'];
 
       for (const dir of dirs) {
         const src = path.join(srcDir, dir);
@@ -181,6 +182,18 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'desktop/src/react'),
+    },
+  },
+  css: {
+    modules: {
+      // hana-* 是 animations.css 全局 keyframe 命名空间，不要被 CSS Modules hash 化。
+      // 否则模块文件里的 animation: hana-popout 会变成 animation: _hana-popout_xxxx，
+      // 跟全局 @keyframes hana-popout 对不上，浏览器静默忽略，动画完全不会播。
+      generateScopedName(name: string, filename: string): string {
+        if (name.startsWith('hana-')) return name;
+        const hash = crypto.createHash('md5').update(filename + '|' + name).digest('hex').slice(0, 5);
+        return `_${name}_${hash}`;
+      },
     },
   },
   build: {
