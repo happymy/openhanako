@@ -15,6 +15,7 @@
     "paths": {
       "@hana/plugin-protocol": ["packages/plugin-protocol/src/index.ts"],
       "@hana/plugin-sdk": ["packages/plugin-sdk/src/index.ts"],
+      "@hana/plugin-runtime": ["packages/plugin-runtime/src/index.ts"],
       "@/*": ["desktop/src/react/*"]
     }
   },

@@ -149,6 +149,27 @@ export async function execute(input, toolCtx) {  // required
 
 - Automatically namespaced: `pluginId_name` (e.g. `my-plugin_search`)
 - Restricted plugins' `toolCtx.bus` only has `emit/subscribe/request`, not `handle`
+- New plugins can use `defineTool()` from `@hana/plugin-runtime` for types and default parameters. The current static `tools/*.js` loader still reads named exports.
+
+```js
+import { defineTool } from '@hana/plugin-runtime';
+
+const tool = defineTool({
+  name: "search",
+  description: "Search project data",
+  parameters: {
+    type: "object",
+    properties: { query: { type: "string" } },
+    required: ["query"]
+  },
+  async execute(input, ctx) {
+    ctx.log.info("search", input.query);
+    return `results for ${input.query}`;
+  }
+});
+
+export const { name, description, parameters, execute } = tool;
+```
 
 #### Media Delivery
 
@@ -499,6 +520,22 @@ Without a manifest, `id` is derived from the directory name, other fields defaul
 ## Stateful Plugins (Lifecycle) ⚡ full-access
 
 If a plugin needs persistent connections, scheduled tasks, or bus handlers, create `index.js`:
+
+New plugins should use `definePlugin()` from `@hana/plugin-runtime`. It returns a class-compatible value for the current PluginManager:
+
+```js
+import { definePlugin } from '@hana/plugin-runtime';
+
+export default definePlugin({
+  async onload(ctx, { register }) {
+    register(ctx.bus.handle("bridge:send", async (payload) => {
+      return { sent: true, payload };
+    }));
+  },
+});
+```
+
+The traditional class form is still supported:
 
 ```js
 export default class MyPlugin {

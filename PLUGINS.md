@@ -149,6 +149,27 @@ export async function execute(input, toolCtx) {  // 必须
 
 - 自动加命名空间前缀：`pluginId_name`（如 `my-plugin_search`）
 - restricted 插件的 `toolCtx.bus` 只有 `emit/subscribe/request`，没有 `handle`
+- 新插件可以使用 `@hana/plugin-runtime` 的 `defineTool()` 获得类型和默认参数；当前静态 `tools/*.js` loader 仍读取命名导出。
+
+```js
+import { defineTool } from '@hana/plugin-runtime';
+
+const tool = defineTool({
+  name: "search",
+  description: "Search project data",
+  parameters: {
+    type: "object",
+    properties: { query: { type: "string" } },
+    required: ["query"]
+  },
+  async execute(input, ctx) {
+    ctx.log.info("search", input.query);
+    return `results for ${input.query}`;
+  }
+});
+
+export const { name, description, parameters, execute } = tool;
+```
 
 #### 媒体交付
 
@@ -499,6 +520,22 @@ Widget 同样通过 iframe 渲染，需要发送 `ready` 握手信号。
 ## 有状态 Plugin（生命周期）⚡ full-access
 
 如果 plugin 需要持久连接、定时任务或 bus handler，创建 `index.js`：
+
+新插件建议使用 `@hana/plugin-runtime` 的 `definePlugin()`。它会返回兼容当前 PluginManager 的 class：
+
+```js
+import { definePlugin } from '@hana/plugin-runtime';
+
+export default definePlugin({
+  async onload(ctx, { register }) {
+    register(ctx.bus.handle("bridge:send", async (payload) => {
+      return { sent: true, payload };
+    }));
+  },
+});
+```
+
+也可以继续使用传统 class 形式：
 
 ```js
 export default class MyPlugin {
