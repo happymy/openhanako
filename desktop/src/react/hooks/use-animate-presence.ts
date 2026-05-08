@@ -6,7 +6,7 @@ interface Options {
   duration?: number;
 }
 
-const DEFAULT_DURATION = 300;  // 对齐 --duration-slow（0.3s）
+const DEFAULT_DURATION = 250;  // 对齐 --duration-slow（0.25s）
 
 /**
  * 管理"先播退出动画、再 unmount"的生命周期。
@@ -17,7 +17,7 @@ const DEFAULT_DURATION = 300;  // 对齐 --duration-slow（0.3s）
  * @returns stage   'enter' | 'idle' | 'exit'
  *
  * 用法：
- *   const { mounted, stage } = useAnimatePresence(open, { duration: 300 });
+ *   const { mounted, stage } = useAnimatePresence(open, { duration: 250 });
  *   if (!mounted) return null;
  *   return <div className={stage === 'enter' ? 'hana-fade-in' : stage === 'exit' ? 'hana-fade-out' : ''}>
  */
