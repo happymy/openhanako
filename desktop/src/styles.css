@@ -683,13 +683,8 @@ html[data-platform="linux"] .tb-toggle-right {
     display: none;
 }
 
-@keyframes globe-spin {
-    0% { transform: rotateY(0deg); }
-    100% { transform: rotateY(360deg); }
-}
-
 .browser-bg-globe {
-    animation: globe-spin 3s linear infinite;
+    animation: hana-globe-spin 3s linear infinite;
 }
 
 /* (旧 sidebar-toggle-wrap / jian-toggle-wrap 已移至 titlebar toggle 按钮) */
