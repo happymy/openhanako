@@ -380,11 +380,23 @@ export const defaultApi = "openai-completions";
 - 悬停 tab 时显示插件全名（tooltip）
 - Tab 超过 5 个时自动折叠到 overflow 下拉菜单，用户可拖拽排序
 
-插件页面通过 iframe 渲染，需要在加载完成后发送握手信号：
+插件页面通过 iframe 渲染。新插件建议使用 `@hana/plugin-sdk` 发送握手和宿主请求：
+
+```js
+import { hana } from '@hana/plugin-sdk';
+
+hana.ready();
+hana.ui.resize({ height: 320 });
+await hana.host.request('toast.show', { message: '已刷新', type: 'success' });
+```
+
+为兼容旧插件，宿主仍接受原始握手消息：
 
 ```js
 window.parent.postMessage({ type: 'ready' }, '*');
 ```
+
+宿主只接受来自当前 iframe window 且 origin 匹配的消息。SDK 请求会经过 capability registry；当前内置能力包括 `toast.show`（无需授权）、`external.open`（需要授权）和 `clipboard.writeText`（需要授权）。
 
 宿主会在 iframe URL 上附加 `hana-theme` 和 `hana-css` 参数，插件可选择引用主题 CSS 以保持视觉一致：
 

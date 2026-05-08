@@ -40,6 +40,8 @@ export function PluginCardBlock({ card, agentId }: Props) {
     return `${base}${sep}agentId=${encodeURIComponent(agentId || '')}&hana-theme=${encodeURIComponent(theme)}&hana-css=${encodeURIComponent(cssUrl)}`;
   }, [card.pluginId, card.route, isIframe, agentId]);
   const { iframeRef, status, size } = usePluginIframe(isIframe ? src : null, {
+    pluginId: card.pluginId,
+    agentId,
     slot: 'card',
     initialSize: { width: defaultW, height: defaultH },
     readyOnTimeout: true,

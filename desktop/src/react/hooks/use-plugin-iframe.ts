@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { DEFAULT_PLUGIN_UI_CAPABILITIES } from '../plugin-ui/capabilities';
 import {
   clampPluginIframeSize,
   getPluginIframeOrigin,
+  handlePluginUiRequest,
   isTrustedPluginIframeMessage,
   parsePluginIframeHostMessage,
+  type PluginUiCapability,
   type PluginIframeSize,
   type PluginIframeStatus,
   type PluginUiSlot,
@@ -17,16 +20,26 @@ function isAllowedPluginNavigationTab(tab: string): tab is TabType {
 }
 
 interface UsePluginIframeOptions {
+  pluginId?: string;
+  agentId?: string | null;
   slot?: PluginUiSlot;
   initialSize?: PluginIframeSize;
   readyOnTimeout?: boolean;
+  capabilities?: readonly PluginUiCapability[];
+  capabilityGrants?: readonly string[];
 }
+
+const EMPTY_CAPABILITY_GRANTS: readonly string[] = [];
 
 export function usePluginIframe(routeUrl: string | null, options: UsePluginIframeOptions = {}) {
   const {
+    pluginId = 'unknown-plugin',
+    agentId = null,
     slot = 'page',
     initialSize,
     readyOnTimeout = false,
+    capabilities = DEFAULT_PLUGIN_UI_CAPABILITIES,
+    capabilityGrants = EMPTY_CAPABILITY_GRANTS,
   } = options;
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<PluginIframeStatus>('loading');
@@ -70,6 +83,26 @@ export function usePluginIframe(routeUrl: string | null, options: UsePluginIfram
           return next;
         });
       }
+      if (message.kind === 'request') {
+        const iframe = iframeRef.current;
+        if (!iframe?.contentWindow || !expectedOrigin) return;
+        const iframeWindow = iframe.contentWindow;
+        void handlePluginUiRequest({
+          message: message.message,
+          context: {
+            pluginId,
+            slot,
+            routeUrl,
+            origin: expectedOrigin,
+            iframeWindow,
+            agentId,
+            grantedCapabilities: new Set(capabilityGrants),
+          },
+          capabilities,
+        }).then(response => {
+          iframeWindow.postMessage(response, expectedOrigin);
+        });
+      }
     };
 
     window.addEventListener('message', onMessage);
@@ -83,6 +116,10 @@ export function usePluginIframe(routeUrl: string | null, options: UsePluginIfram
     routeUrl,
     expectedOrigin,
     slot,
+    pluginId,
+    agentId,
+    capabilities,
+    capabilityGrants,
     initialSize?.width,
     initialSize?.height,
     resetHandshakeTimeout,

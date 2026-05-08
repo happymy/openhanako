@@ -1,6 +1,10 @@
 import {
   PLUGIN_UI_CAPABILITY,
+  PLUGIN_UI_ERROR_CODE,
+  PLUGIN_UI_PROTOCOL,
+  PLUGIN_UI_PROTOCOL_VERSION,
   parsePluginUiMessage,
+  type PluginUiMessage,
 } from '@hana/plugin-protocol';
 
 export type PluginIframeStatus = 'loading' | 'ready' | 'error';
@@ -11,10 +15,33 @@ export interface PluginIframeSize {
   height?: number;
 }
 
+export interface PluginUiRequestContext {
+  pluginId: string;
+  slot: PluginUiSlot;
+  routeUrl: string;
+  origin: string;
+  iframeWindow: Window;
+  agentId?: string | null;
+  grantedCapabilities: ReadonlySet<string>;
+}
+
+export type PluginUiPayloadValidationResult =
+  | { ok: true; value: unknown }
+  | { ok: false; error: string };
+
+export interface PluginUiCapability {
+  name: string;
+  allowedSlots: readonly PluginUiSlot[];
+  requiresGrant: boolean;
+  validatePayload(payload: unknown): PluginUiPayloadValidationResult;
+  handle(ctx: PluginUiRequestContext, payload: unknown): Promise<unknown>;
+}
+
 export type PluginIframeHostMessage =
   | { kind: 'ready' }
   | { kind: 'navigate-tab'; tab: string }
-  | { kind: 'resize'; size: PluginIframeSize };
+  | { kind: 'resize'; size: PluginIframeSize }
+  | { kind: 'request'; message: PluginUiMessage };
 
 const CARD_MIN_WIDTH = 50;
 const CARD_MAX_WIDTH = 400;
@@ -76,6 +103,7 @@ export function parsePluginIframeHostMessage(data: unknown): PluginIframeHostMes
   if (!parsed.ok) return null;
 
   const message = parsed.value;
+  if (message.kind === 'request') return { kind: 'request', message };
   if (message.kind !== 'event') return null;
 
   if (message.type === 'hana.ready') return { kind: 'ready' };
@@ -88,6 +116,96 @@ export function parsePluginIframeHostMessage(data: unknown): PluginIframeHostMes
   }
 
   return null;
+}
+
+function createPluginUiResponse(message: PluginUiMessage, payload: unknown): PluginUiMessage {
+  const response: PluginUiMessage = {
+    protocol: PLUGIN_UI_PROTOCOL,
+    version: PLUGIN_UI_PROTOCOL_VERSION,
+    id: message.id,
+    kind: 'response',
+    type: message.type,
+  };
+  if (payload !== undefined) response.payload = payload;
+  return response;
+}
+
+function createPluginUiError(
+  message: PluginUiMessage,
+  code: string,
+  errorMessage: string,
+  details?: unknown,
+): PluginUiMessage {
+  const response: PluginUiMessage = {
+    protocol: PLUGIN_UI_PROTOCOL,
+    version: PLUGIN_UI_PROTOCOL_VERSION,
+    id: message.id,
+    kind: 'error',
+    type: message.type,
+    error: {
+      code,
+      message: errorMessage,
+    },
+  };
+  if (details !== undefined && response.error) response.error.details = details;
+  return response;
+}
+
+export async function handlePluginUiRequest({
+  message,
+  context,
+  capabilities,
+}: {
+  message: PluginUiMessage;
+  context: PluginUiRequestContext;
+  capabilities: readonly PluginUiCapability[];
+}): Promise<PluginUiMessage> {
+  const capability = capabilities.find(item => item.name === message.type);
+  if (!capability) {
+    return createPluginUiError(
+      message,
+      PLUGIN_UI_ERROR_CODE.UNKNOWN_TYPE,
+      `Unknown Plugin UI capability: ${message.type}.`,
+    );
+  }
+
+  if (!capability.allowedSlots.includes(context.slot)) {
+    return createPluginUiError(
+      message,
+      PLUGIN_UI_ERROR_CODE.SLOT_DENIED,
+      `Plugin UI capability "${message.type}" is not allowed in ${context.slot} slots.`,
+      { slot: context.slot },
+    );
+  }
+
+  if (capability.requiresGrant && !context.grantedCapabilities.has(capability.name)) {
+    return createPluginUiError(
+      message,
+      PLUGIN_UI_ERROR_CODE.CAPABILITY_DENIED,
+      `Plugin UI capability "${message.type}" has not been granted.`,
+      { capability: capability.name },
+    );
+  }
+
+  const validation = capability.validatePayload(message.payload);
+  if (!validation.ok) {
+    return createPluginUiError(
+      message,
+      PLUGIN_UI_ERROR_CODE.BAD_MESSAGE,
+      validation.error,
+    );
+  }
+
+  try {
+    const payload = await capability.handle(context, validation.value);
+    return createPluginUiResponse(message, payload);
+  } catch (err) {
+    return createPluginUiError(
+      message,
+      PLUGIN_UI_ERROR_CODE.HOST_ERROR,
+      err instanceof Error ? err.message : 'Plugin UI host capability failed.',
+    );
+  }
 }
 
 export function clampPluginIframeSize(
