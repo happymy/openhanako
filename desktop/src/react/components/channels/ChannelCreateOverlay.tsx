@@ -8,6 +8,7 @@ import { useI18n } from '../../hooks/use-i18n';
 import { hanaUrl } from '../../hooks/use-hana-fetch';
 import { createChannel } from '../../stores/channel-actions';
 import { yuanFallbackAvatar } from '../../utils/agent-helpers';
+import { Overlay } from '../../ui';
 import styles from './Channels.module.css';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- catch(err: any) 提取 message */
@@ -75,12 +76,6 @@ export function ChannelCreateOverlay() {
     setVisible(false);
   }, [setVisible]);
 
-  const handleOverlayClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      setVisible(false);
-    }
-  }, [setVisible]);
-
   const handleSubmit = useCallback(async () => {
     if (creating) return;
     if (!name.trim()) {
@@ -111,16 +106,15 @@ export function ChannelCreateOverlay() {
     }
   }, [creating, name, selectedMembers, intro, setVisible]);
 
-  const handleNameKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') handleCancel();
-  }, [handleCancel]);
-
   return (
-    <div
-      className={`${styles.createOverlay}${visible ? ` ${styles.createOverlayVisible}` : ''}`}
-      onClick={handleOverlayClick}
+    <Overlay
+      open={visible}
+      onClose={handleCancel}
+      backdrop="blur"
+      zIndex={110}
+      className={styles.createCard}
+      disableContainerAnimation
     >
-      <div className={styles.createCard}>
         <h3 className={styles.createTitle}>{t('channel.createTitle')}</h3>
         <div className={styles.createField}>
           <label className={styles.createFieldLabel}>{t('channel.createName')}</label>
@@ -132,7 +126,6 @@ export function ChannelCreateOverlay() {
             autoComplete="off"
             value={name}
             onChange={(e) => { setName(e.target.value); setNameError(false); }}
-            onKeyDown={handleNameKeyDown}
             style={nameError ? { outline: '1.5px solid var(--danger, #c44)' } : undefined}
           />
         </div>
@@ -182,7 +175,6 @@ export function ChannelCreateOverlay() {
             {t('channel.createConfirm')}
           </button>
         </div>
-      </div>
-    </div>
+    </Overlay>
   );
 }
