@@ -1,9 +1,10 @@
-import React, { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { useSettingsStore } from '../store';
 import { hanaFetch } from '../api';
 import { t } from '../helpers';
 import { renderMarkdown } from '../../utils/markdown';
 import { useMermaidDiagrams } from '../../hooks/use-mermaid-diagrams';
+import { Overlay } from '../../ui';
 import styles from '../Settings.module.css';
 
 export function CompiledMemoryViewer() {
@@ -44,13 +45,17 @@ export function CompiledMemoryViewer() {
     }
   };
 
-  const close = () => setVisible(false);
-
-  if (!visible) return null;
+  const close = useCallback(() => setVisible(false), []);
 
   return (
-    <div className={`${styles['memory-viewer-overlay']} ${styles['visible']}`} onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
-      <div className={styles['memory-viewer']}>
+    <Overlay
+      open={visible}
+      onClose={close}
+      backdrop="blur"
+      zIndex={100}
+      className={styles['memory-viewer']}
+      disableContainerAnimation
+    >
         <div className={styles['memory-viewer-header']}>
           <h3 className={styles['memory-viewer-title']}>{t('settings.memory.compiled')}</h3>
           <div className={styles['memory-viewer-header-actions']}>
@@ -73,7 +78,6 @@ export function CompiledMemoryViewer() {
             <div className="memory-viewer-empty">{t('settings.memory.compiledEmpty')}</div>
           )}
         </div>
-      </div>
-    </div>
+    </Overlay>
   );
 }
