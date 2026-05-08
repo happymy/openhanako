@@ -1,4 +1,5 @@
 @import url('./themes/new-warm-paper-fonts.css');
+@import url('./animations.css');
 
 /* ========================================
    设计系统 · 结构 Token（主题无关）
@@ -24,9 +25,17 @@
     --link-hover: var(--accent-hover, var(--link));
     --link-rgb: var(--accent-rgb, 83, 125, 150);
 
-    /* 动效 */
-    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-    --duration: 0.3s;
+    /* 动效 · 时长 */
+    --duration-instant: 0.1s;
+    --duration-fast:    0.15s;
+    --duration-normal:  0.25s;
+    --duration-slow:    0.4s;
+    --duration: 0.3s;               /* 旧 token，保留兼容 */
+
+    /* 动效 · 缓动 */
+    --ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in:       cubic-bezier(0.7, 0, 0.84, 0);
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
     /* 字体默认值：主题 CSS 可 override */
     --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
