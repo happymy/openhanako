@@ -1999,6 +1999,7 @@ export class SessionCoordinator {
           agentDir: targetAgent.agentDir,
           workspace: execCwd,
           workspaceFolders: execWorkspaceScope.workspaceFolders,
+          getPermissionMode: () => SESSION_PERMISSION_MODES.OPERATE,
         },
       );
 
