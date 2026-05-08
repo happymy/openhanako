@@ -1765,12 +1765,7 @@ html[data-platform="linux"] .tb-toggle-right {
     display: flex;
     align-items: center;
     justify-content: center;
-    animation: svFadeIn 0.15s ease-out;
-}
-
-@keyframes svFadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+    animation: hana-fade-in 0.15s ease-out;
 }
 
 .sv-container {

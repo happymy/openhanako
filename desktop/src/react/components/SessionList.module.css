@@ -197,12 +197,7 @@
     border-radius: 50%;
     background: var(--accent, #b89a7a);
     flex-shrink: 0;
-    animation: sessionBreathing 2s ease-in-out infinite;
-}
-
-@keyframes sessionBreathing {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 1; }
+    animation: hana-pulse 2s ease-in-out infinite;
 }
 
 /* 浏览器标记 */

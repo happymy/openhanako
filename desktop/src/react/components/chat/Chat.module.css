@@ -1178,7 +1178,9 @@
 }
 
 .subagent-running .subagentAvatar {
-    animation: subagentPulse 2s ease-in-out infinite;
+    --pulse-lo: 1;
+    --pulse-hi: 0.6;
+    animation: hana-pulse 2s ease-in-out infinite;
 }
 
 .subagentStatus {
@@ -1222,11 +1224,6 @@
 
 .subagent-aborted .subagentStatus {
     color: var(--text-muted);
-}
-
-@keyframes subagentPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
 }
 
 .subagentAvatar {
