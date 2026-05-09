@@ -71,6 +71,9 @@ export function createPluginsRoute(engine) {
     return plugins.map(p => ({
       id: p.id, name: p.name, version: p.version,
       description: p.description, status: p.status,
+      activationState: p.activationState || null,
+      activationEvents: Array.isArray(p.activationEvents) ? p.activationEvents : [],
+      activationError: p.activationError || null,
       source: p.source || "community", trust: p.trust || "restricted",
       contributions: p.contributions,
       error: p.error || null,
@@ -333,6 +336,13 @@ export function createPluginsRoute(engine) {
     const pluginId = c.req.param("pluginId");
     const pluginApp = engine.pluginManager?.getRouteApp(pluginId);
     if (!pluginApp) return c.json({ error: `Plugin "${pluginId}" not found` }, 404);
+    const url = new URL(c.req.url);
+    const prefix = `/plugins/${pluginId}`;
+    const prefixIndex = url.pathname.indexOf(prefix);
+    const subPath = prefixIndex !== -1
+      ? url.pathname.slice(prefixIndex + prefix.length) || "/"
+      : "/";
+    await engine.pluginManager?.activatePluginRoute?.(pluginId, subPath);
     const agent = resolveAgent(engine, c);
     const agentId = agent?.id || null;
     return proxyToPlugin(c, pluginApp, pluginId, agentId);

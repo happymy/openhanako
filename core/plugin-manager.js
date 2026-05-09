@@ -53,6 +53,22 @@ function normalizeUiHostCapabilities(raw, pluginId) {
   return result;
 }
 
+function normalizeActivationEvents(raw, hasLifecycle) {
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map((item) => String(item).trim()).filter(Boolean))];
+  }
+  return hasLifecycle ? ["onStartup"] : [];
+}
+
+function activationMatches(events = [], reason = {}) {
+  const event = reason.event || "";
+  if (!event) return false;
+  if (events.includes("*") || events.includes(event)) return true;
+  if (event.startsWith("onToolCall:") && events.includes("onToolCall")) return true;
+  if (event.startsWith("onBusRequest:") && events.includes("onBusRequest")) return true;
+  return false;
+}
+
 export class PluginManager {
   /**
    * @param {{ pluginsDirs: string[], dataDir: string, bus: object }} opts
@@ -154,17 +170,19 @@ export class PluginManager {
       if (fs.existsSync(path.join(pluginDir, dir))) contributions.push(dir);
     }
     if (fs.existsSync(path.join(pluginDir, "extensions"))) contributions.push("extensions");
-    if (fs.existsSync(path.join(pluginDir, "index.js"))) contributions.push("lifecycle");
+    const hasLifecycle = fs.existsSync(path.join(pluginDir, "index.js"));
+    if (hasLifecycle) contributions.push("lifecycle");
     const trust = manifest?.trust === "full-access" ? "full-access" : "restricted";
     const hidden = !!manifest?.hidden;
-    return { id, name, version, description, pluginDir, manifest, contributions, trust, hidden, uiHostCapabilities, configSchema };
+    const activationEvents = normalizeActivationEvents(manifest?.activationEvents, hasLifecycle);
+    return { id, name, version, description, pluginDir, manifest, contributions, trust, hidden, uiHostCapabilities, configSchema, activationEvents, hasLifecycle };
   }
 
   async loadAll() {
     const descriptors = this._scanned.length > 0 ? this._scanned : this.scan();
     const disabledList = this._preferencesManager?.getDisabledPlugins() || [];
     for (const desc of descriptors) {
-      const entry = { ...desc, status: "loading", instance: null, _disposables: [] };
+      const entry = { ...desc, status: "loading", activationState: "inactive", activationReason: null, instance: null, _disposables: [] };
 
       // builtin 插件不受 disabled 列表和全权开关约束，始终加载
       if (desc.source !== "builtin" && disabledList.includes(desc.id)) {
@@ -320,10 +338,22 @@ export class PluginManager {
       this._assertActiveLoad(entry, loadToken);
       await this._runLoadStageIf(entry, !!entry.manifest?.contributes?.settingsTab, "settings tab", () => this._loadSettingsTab(entry));
 
-      // Lifecycle (index.js)
-      const indexPath = path.join(entry.pluginDir, "index.js");
-      if (fs.existsSync(indexPath)) {
+      if (activationMatches(entry.activationEvents, { event: "onStartup" })) {
         this._assertActiveLoad(entry, loadToken);
+        await this._activatePluginEntry(entry, { event: "onStartup" }, loadToken);
+      }
+    }
+  }
+
+  async _activatePluginEntry(entry, reason = {}, loadToken = entry._loadToken) {
+    if (!entry.hasLifecycle || entry.activationState === "activated") return entry;
+    if (entry._activationPromise) return entry._activationPromise;
+
+    entry.activationState = "activating";
+    entry.activationReason = reason;
+    const run = async () => {
+      try {
+        const indexPath = path.join(entry.pluginDir, "index.js");
         const mod = await this._runLoadStage(entry, "lifecycle import", () => freshImport(indexPath));
         const PluginClass = mod.default;
         if (PluginClass && typeof PluginClass === "function") {
@@ -355,8 +385,37 @@ export class PluginManager {
             await this._runLoadStage(entry, "lifecycle onload", () => instance.onload());
           }
         }
+        entry.activationState = "activated";
+        entry.activationError = null;
+        return entry;
+      } catch (err) {
+        entry.activationState = "failed";
+        entry.activationError = err.message;
+        throw err;
+      } finally {
+        entry._activationPromise = null;
       }
-    }
+    };
+
+    entry._activationPromise = this._withLoadTimeout(entry, run(), `activation ${reason.event || "manual"}`);
+    return entry._activationPromise;
+  }
+
+  async activatePlugin(pluginId, reason = {}) {
+    const entry = this._plugins.get(pluginId);
+    if (!entry) throw new Error(`Plugin "${pluginId}" not found`);
+    if (!activationMatches(entry.activationEvents, reason)) return entry;
+    return this._activatePluginEntry(entry, reason);
+  }
+
+  async activatePluginRoute(pluginId, routePath) {
+    const entry = this._plugins.get(pluginId);
+    if (!entry) return null;
+    const page = this._pages.find((item) => item.pluginId === pluginId && item.route === routePath);
+    const widget = this._widgets.find((item) => item.pluginId === pluginId && item.route === routePath);
+    if (page) return this.activatePlugin(pluginId, { event: "onPageOpen", route: routePath });
+    if (widget) return this.activatePlugin(pluginId, { event: "onWidgetOpen", route: routePath });
+    return entry;
   }
 
   // ── Task 5: Tool loader ──────────────────────────────────────────────────
@@ -379,6 +438,7 @@ export class PluginManager {
           ...(mod.promptSnippet ? { promptSnippet: mod.promptSnippet } : {}),
           ...(mod.promptGuidelines ? { promptGuidelines: mod.promptGuidelines } : {}),
           execute: async (_toolCallId, params, runtimeCtx) => {
+            await this.activatePlugin(entry.id, { event: `onToolCall:${mod.name}`, toolName: mod.name });
             // 优先从 Pi SDK runtime ctx 获取 sessionPath，fallback 到焦点回调（过渡期）
             const sessionPath = runtimeCtx?.sessionManager?.getSessionFile?.()
               || this._getSessionPath?.();
@@ -775,7 +835,7 @@ export class PluginManager {
       desc.source = "community";
       const disabledList = this._preferencesManager?.getDisabledPlugins() || [];
 
-      const entry = { ...desc, status: "loading", instance: null, _disposables: [] };
+      const entry = { ...desc, status: "loading", activationState: "inactive", activationReason: null, instance: null, _disposables: [] };
       this._plugins.set(desc.id, entry);
 
       if (disabledList.includes(desc.id)) {
@@ -934,6 +994,8 @@ export class PluginManager {
       }
       entry._disposables = [];
     }
+    entry.instance = null;
+    entry.activationState = entry.hasLifecycle ? "inactive" : "none";
 
     // 2. 清理静态贡献（文件约定加载的 tools、commands 等）
     this._tools = this._tools.filter(t => t._pluginId !== pluginId);

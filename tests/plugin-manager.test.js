@@ -163,6 +163,88 @@ describe("loadAll", () => {
     expect(pm.getPlugin("static-only").instance).toBeNull();
   });
 
+  it("keeps lifecycle inactive until matching tool activation event", async () => {
+    const dir = path.join(pluginsDir, "lazy-tool");
+    fs.mkdirSync(path.join(dir, "tools"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({
+      id: "lazy-tool",
+      name: "Lazy Tool",
+      version: "1.0.0",
+      activationEvents: ["onToolCall:run"],
+    }));
+    fs.writeFileSync(path.join(dir, "index.js"), `
+      export default class LazyTool {
+        async onload() { globalThis.__lazyToolActivated = true; }
+      }
+    `);
+    fs.writeFileSync(path.join(dir, "tools", "run.js"), `
+      export const name = "run";
+      export const description = "Run lazy tool";
+      export const parameters = {};
+      export async function execute() { return "ok"; }
+    `);
+    const pm = new PluginManager({ pluginsDir, dataDir, bus: await makeBus() });
+    pm.scan();
+    await pm.loadAll();
+
+    expect(pm.getPlugin("lazy-tool").activationState).toBe("inactive");
+    expect(globalThis.__lazyToolActivated).toBeUndefined();
+
+    await pm.getAllTools()[0].execute("call", {}, {});
+
+    expect(globalThis.__lazyToolActivated).toBe(true);
+    expect(pm.getPlugin("lazy-tool").activationState).toBe("activated");
+    delete globalThis.__lazyToolActivated;
+  });
+
+  it("defaults old lifecycle plugins to onStartup activation", async () => {
+    const dir = path.join(pluginsDir, "legacy-lifecycle");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "index.js"), `
+      export default class LegacyLifecycle {
+        async onload() { globalThis.__legacyLifecycleActivated = true; }
+      }
+    `);
+    const pm = new PluginManager({ pluginsDir, dataDir, bus: await makeBus() });
+    pm.scan();
+    await pm.loadAll();
+
+    expect(pm.getPlugin("legacy-lifecycle").activationEvents).toEqual(["onStartup"]);
+    expect(pm.getPlugin("legacy-lifecycle").activationState).toBe("activated");
+    expect(globalThis.__legacyLifecycleActivated).toBe(true);
+    delete globalThis.__legacyLifecycleActivated;
+  });
+
+  it("activates page plugins on page route open", async () => {
+    const dir = path.join(pluginsDir, "lazy-page");
+    fs.mkdirSync(path.join(dir, "routes"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({
+      id: "lazy-page",
+      name: "Lazy Page",
+      version: "1.0.0",
+      activationEvents: ["onPageOpen"],
+      contributes: { page: { title: "Lazy Page", route: "/page" } },
+    }));
+    fs.writeFileSync(path.join(dir, "index.js"), `
+      export default class LazyPage {
+        async onload() { globalThis.__lazyPageActivated = true; }
+      }
+    `);
+    fs.writeFileSync(path.join(dir, "routes", "page.js"), `
+      export function register(app) { app.get("/page", (c) => c.text("ok")); }
+    `);
+    const pm = new PluginManager({ pluginsDir, dataDir, bus: await makeBus() });
+    pm.scan();
+    await pm.loadAll();
+
+    expect(pm.getPlugin("lazy-page").activationState).toBe("inactive");
+    await pm.activatePluginRoute("lazy-page", "/page");
+
+    expect(pm.getPlugin("lazy-page").activationState).toBe("activated");
+    expect(globalThis.__lazyPageActivated).toBe(true);
+    delete globalThis.__lazyPageActivated;
+  });
+
   it("stores ctx on entry after loading", async () => {
     const dir = path.join(pluginsDir, "ctx-test");
     fs.mkdirSync(path.join(dir, "tools"), { recursive: true });

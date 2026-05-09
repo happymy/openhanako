@@ -551,6 +551,7 @@ Widget 同样通过 iframe 渲染，需要发送 `ready` 握手信号。
   "version": "1.0.0",
   "description": "What this plugin does",
   "trust": "full-access",
+  "activationEvents": ["onToolCall:search"],
   "ui": {
     "hostCapabilities": ["external.open"]
   },
@@ -568,6 +569,32 @@ Widget 同样通过 iframe 渲染，需要发送 `ready` 握手信号。
 ## 有状态 Plugin（生命周期）⚡ full-access
 
 如果 plugin 需要持久连接、定时任务或 bus handler，创建 `index.js`：
+
+`index.js` 不一定会在 app 启动时立刻执行。新插件可以在 `manifest.json` 里声明 `activationEvents`，让生命周期按需启动：
+
+| 事件 | 触发时机 |
+|------|----------|
+| `onStartup` | 插件加载时立刻执行 `onload()` |
+| `onPageOpen` | 用户打开插件页面 route |
+| `onWidgetOpen` | 用户打开插件 widget route |
+| `onToolCall` | 插件任意静态 tool 被调用 |
+| `onToolCall:name` | 指定静态 tool 被调用 |
+| `onBusRequest` | 预留给 bus 请求触发 |
+| `onBusRequest:type` | 预留给指定 bus 能力请求触发 |
+| `*` | 任意已知触发原因 |
+
+没有声明 `activationEvents` 的老插件保持兼容：只要存在 `index.js`，默认等价于 `["onStartup"]`。新插件建议按能力声明最小激活条件，避免 app 启动时把所有长连接、任务和 handler 一次性拉起来。
+
+```json
+{
+  "id": "lazy-search",
+  "trust": "full-access",
+  "activationEvents": ["onToolCall:search"],
+  "contributes": {
+    "page": { "title": "Search", "route": "/search" }
+  }
+}
+```
 
 新插件建议使用 `@hana/plugin-runtime` 的 `definePlugin()`。它会返回兼容当前 PluginManager 的 class：
 
