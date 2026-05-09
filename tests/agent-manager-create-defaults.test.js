@@ -213,14 +213,14 @@ describe("AgentManager.createAgent default skills.enabled", () => {
     expect(cfg.desk.heartbeat_interval).toBe(31);
   });
 
-  it("defaults the memory master switch to disabled for newly created agents", async () => {
+  it("defaults the memory master switch to enabled for newly created agents", async () => {
     skillsMock._allSkills = [];
 
     const { id: newId } = await mgr.createAgent({ name: "QuietMemoryAgent", yuan: "hanako" });
 
     const cfgPath = path.join(agentsDir, newId, "config.yaml");
     const cfg = YAML.load(fs.readFileSync(cfgPath, "utf-8"));
-    expect(cfg.memory.enabled).toBe(false);
+    expect(cfg.memory.enabled).toBe(true);
   });
 
   it("includes each agent memory master state in the agent list", async () => {

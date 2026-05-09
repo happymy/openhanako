@@ -310,7 +310,7 @@ export class AgentManager {
     config.agent = { ...(config.agent || {}), name: name.trim(), yuan: yuanType };
     config.memory = {
       ...(config.memory || {}),
-      enabled: false,
+      enabled: true,
     };
     config.desk = {
       ...(config.desk || {}),

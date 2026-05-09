@@ -65,6 +65,14 @@
     "unpin": "Unpin",
     "pinFailed": "Failed to pin session",
     "unpinFailed": "Failed to unpin session",
+    "archive": "Archive",
+    "summary": {
+      "title": "Session Summary",
+      "open": "Session Summary",
+      "loading": "Loading summary…",
+      "empty": "No summary yet",
+      "loadFailed": "Failed to load summary"
+    },
     "archived": {
       "entry": "Archived Chats",
       "title": "Archived Chats",

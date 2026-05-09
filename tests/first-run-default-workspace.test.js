@@ -40,7 +40,7 @@ describe("first run default workspace", () => {
     vi.resetModules();
   });
 
-  it("seeds hanako with the desktop OH-WorkSpace and disabled patrol defaults", async () => {
+  it("seeds hanako with the desktop OH-WorkSpace, enabled memory, and disabled patrol defaults", async () => {
     const { ensureFirstRun } = await import("../core/first-run.js");
 
     ensureFirstRun(hanakoHome, productDir);
@@ -53,6 +53,6 @@ describe("first run default workspace", () => {
     expect(cfg.desk.home_folder).toBe(workspace);
     expect(cfg.desk.heartbeat_enabled).toBe(false);
     expect(cfg.desk.heartbeat_interval).toBe(31);
-    expect(cfg.memory.enabled).toBe(false);
+    expect(cfg.memory.enabled).toBe(true);
   });
 });

@@ -35,6 +35,7 @@ export interface Session {
   agentName: string | null;
   cwd: string | null;
   pinnedAt?: string | null;
+  hasSummary?: boolean;
   rcAttachment?: {
     sessionKey: string;
     platform: string;

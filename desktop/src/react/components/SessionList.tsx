@@ -5,7 +5,8 @@
  * 通过 portal 渲染到 #sessionList，从 Zustand sessions 状态驱动。
  */
 
-import { Fragment, memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from '../stores';
 import { hanaFetch, hanaUrl } from '../hooks/use-hana-fetch';
 import { useI18n } from '../hooks/use-i18n';
@@ -14,6 +15,8 @@ import { switchSession, archiveSession, renameSession, pinSession } from '../sto
 import type { Session, Agent } from '../types';
 import { yuanFallbackAvatar } from '../utils/agent-helpers';
 import { buildSessionSections } from './session-sections';
+import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
+import { renderMarkdown } from '../utils/markdown';
 import styles from './SessionList.module.css';
 
 
@@ -109,7 +112,10 @@ const SessionItem = memo(function SessionItem({ session: s, isActive, isStreamin
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [summaryPreviewPosition, setSummaryPreviewPosition] = useState<{ x: number; y: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const hasSummary = s.hasSummary === true;
 
   const handleClick = useCallback(() => {
     if (editing) return;
@@ -126,11 +132,15 @@ const SessionItem = memo(function SessionItem({ session: s, isActive, isStreamin
     pinSession(s.path, !isPinned);
   }, [s.path, isPinned]);
 
-  const startRename = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
+  const beginRename = useCallback(() => {
     setEditValue(s.title || s.firstMessage || '');
     setEditing(true);
   }, [s.title, s.firstMessage]);
+
+  const startRename = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    beginRename();
+  }, [beginRename]);
 
   const commitRename = useCallback(() => {
     const trimmed = editValue.trim();
@@ -149,6 +159,13 @@ const SessionItem = memo(function SessionItem({ session: s, isActive, isStreamin
       setEditing(false);
     }
   }, [commitRename]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSummaryPreviewPosition(null);
+    setMenuPosition({ x: e.clientX, y: e.clientY });
+  }, []);
 
   // Auto-focus input when editing starts
   useEffect(() => {
@@ -169,80 +186,272 @@ const SessionItem = memo(function SessionItem({ session: s, isActive, isStreamin
   const rcLabel = s.rcAttachment ? `${formatRcPlatform(s.rcAttachment.platform)} 接管中` : null;
 
   return (
-    <button
-      className={`${styles.sessionItem}${isActive ? ` ${styles.sessionItemActive}` : ''}`}
-      data-session-path={s.path}
-      onClick={handleClick}
-    >
-      <div className={styles.sessionItemHeader}>
-        {s.agentId && (
-          <AgentBadge agentId={s.agentId} agentName={s.agentName} agents={agents} />
-        )}
-        {isStreaming && <span className={styles.sessionStreamingDot} />}
-        {editing ? (
-          <input
-            ref={inputRef}
-            className={styles.sessionRenameInput}
-            value={editValue}
-            onChange={e => setEditValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={commitRename}
-            onClick={e => e.stopPropagation()}
-          />
-        ) : (
-          <div className={styles.sessionItemTitle}>
-            {s.title || s.firstMessage || t('session.untitled')}
+    <>
+      <button
+        className={`${styles.sessionItem}${isActive ? ` ${styles.sessionItemActive}` : ''}${hasSummary ? '' : ` ${styles.sessionItemSummaryEmpty}`}`}
+        data-session-path={s.path}
+        data-summary-state={hasSummary ? 'ready' : 'empty'}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+      >
+        <div className={styles.sessionItemHeader}>
+          {s.agentId && (
+            <AgentBadge agentId={s.agentId} agentName={s.agentName} agents={agents} />
+          )}
+          {isStreaming && <span className={styles.sessionStreamingDot} />}
+          {editing ? (
+            <input
+              ref={inputRef}
+              className={styles.sessionRenameInput}
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={commitRename}
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <div className={styles.sessionItemTitle}>
+              {s.title || s.firstMessage || t('session.untitled')}
+            </div>
+          )}
+        </div>
+
+        {!editing && (
+          <div className={styles.sessionPinBtn} title={t(isPinned ? 'session.unpin' : 'session.pin')} onClick={handlePin}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 17v5" />
+              <path d="M5 17h14" />
+              <path d="M7 3h10l-2 9H9L7 3z" />
+              <path d="M9 12l-2 5h10l-2-5" />
+            </svg>
           </div>
         )}
-      </div>
 
-      {!editing && (
-        <div className={styles.sessionPinBtn} title={t(isPinned ? 'session.unpin' : 'session.pin')} onClick={handlePin}>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 17v5" />
-            <path d="M5 17h14" />
-            <path d="M7 3h10l-2 9H9L7 3z" />
-            <path d="M9 12l-2 5h10l-2-5" />
+        {!editing && (
+          <div className={styles.sessionRenameBtn} title={t('session.rename')} onClick={startRename}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+            </svg>
+          </div>
+        )}
+
+        <div className={styles.sessionArchiveBtn} title={t('session.archive')} onClick={handleArchive}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="21 8 21 21 3 21 3 8" />
+            <rect x="1" y="3" width="22" height="5" />
+            <line x1="10" y1="12" x2="14" y2="12" />
           </svg>
         </div>
-      )}
 
-      {!editing && (
-        <div className={styles.sessionRenameBtn} title={t('session.rename')} onClick={startRename}>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-          </svg>
+        <div className={styles.sessionItemMeta}>
+          {parts.join(' · ')}
         </div>
-      )}
 
-      <div className={styles.sessionArchiveBtn} title="Archive" onClick={handleArchive}>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="21 8 21 21 3 21 3 8" />
-          <rect x="1" y="3" width="22" height="5" />
-          <line x1="10" y1="12" x2="14" y2="12" />
-        </svg>
+        {rcLabel && (
+          <div className={styles.sessionRcBadge}>
+            {rcLabel}
+          </div>
+        )}
+
+        {browserUrl && (
+          <span className={styles.sessionBrowserBadge} title={browserUrl}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+          </span>
+        )}
+      </button>
+      {menuPosition && (
+        <SessionContextMenu
+          session={s}
+          isPinned={isPinned}
+          position={menuPosition}
+          onClose={() => setMenuPosition(null)}
+          onRename={beginRename}
+          onShowSummary={(position) => setSummaryPreviewPosition(position)}
+        />
+      )}
+      {summaryPreviewPosition && (
+        <SessionSummaryPreviewCard
+          session={s}
+          position={summaryPreviewPosition}
+          onClose={() => setSummaryPreviewPosition(null)}
+        />
+      )}
+    </>
+  );
+});
+
+interface SessionSummaryResponse {
+  hasSummary?: boolean;
+  summary?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+type SummaryState =
+  | { status: 'loading'; text: null }
+  | { status: 'ready'; text: string }
+  | { status: 'empty'; text: null }
+  | { status: 'error'; text: null };
+
+const SessionContextMenu = memo(function SessionContextMenu({
+  session,
+  isPinned,
+  position,
+  onClose,
+  onRename,
+  onShowSummary,
+}: {
+  session: Session;
+  isPinned: boolean;
+  position: { x: number; y: number };
+  onClose: () => void;
+  onRename: () => void;
+  onShowSummary: (position: { x: number; y: number }) => void;
+}) {
+  const { t } = useI18n();
+  const items = useMemo<ContextMenuItem[]>(() => [
+    {
+      label: t('session.summary.open'),
+      action: () => onShowSummary(position),
+    },
+    { divider: true },
+    {
+      label: t(isPinned ? 'session.unpin' : 'session.pin'),
+      action: () => pinSession(session.path, !isPinned),
+    },
+    {
+      label: t('session.rename'),
+      action: onRename,
+    },
+    {
+      label: t('session.archive'),
+      danger: true,
+      action: () => archiveSession(session.path),
+    },
+  ], [isPinned, onRename, onShowSummary, position, session.path, t]);
+
+  return (
+    <ContextMenu
+      items={items}
+      position={position}
+      onClose={onClose}
+    />
+  );
+});
+
+const SessionSummaryPreviewCard = memo(function SessionSummaryPreviewCard({
+  session,
+  position,
+  onClose,
+}: {
+  session: Session;
+  position: { x: number; y: number };
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [summaryState, setSummaryState] = useState<SummaryState>(
+    session.hasSummary === true
+      ? { status: 'loading', text: null }
+      : { status: 'empty', text: null },
+  );
+
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    let { x, y } = position;
+    if (x + rect.width > window.innerWidth) x = Math.max(4, window.innerWidth - rect.width - 4);
+    if (y + rect.height > window.innerHeight) y = Math.max(4, window.innerHeight - rect.height - 4);
+    card.style.left = x + 'px';
+    card.style.top = y + 'px';
+  }, [position, summaryState]);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (cardRef.current?.contains(e.target as Node)) return;
+      onClose();
+    };
+    const handleContextMenu = (e: MouseEvent) => {
+      if (cardRef.current?.contains(e.target as Node)) return;
+      onClose();
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClick, true);
+      document.addEventListener('contextmenu', handleContextMenu, true);
+      document.addEventListener('keydown', handleKeyDown);
+    });
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClick, true);
+      document.removeEventListener('contextmenu', handleContextMenu, true);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  useEffect(() => {
+    if (session.hasSummary !== true) {
+      setSummaryState({ status: 'empty', text: null });
+      return;
+    }
+
+    let cancelled = false;
+    setSummaryState({ status: 'loading', text: null });
+    hanaFetch(`/api/sessions/summary?path=${encodeURIComponent(session.path)}`)
+      .then(res => res.json())
+      .then((data: SessionSummaryResponse) => {
+        if (cancelled) return;
+        const summary = typeof data.summary === 'string' ? data.summary.trim() : '';
+        if (data.hasSummary && summary) {
+          setSummaryState({ status: 'ready', text: summary });
+        } else {
+          setSummaryState({ status: 'empty', text: null });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSummaryState({ status: 'error', text: null });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session.path, session.hasSummary]);
+
+  const summaryHtml = useMemo(() => (
+    summaryState.status === 'ready' ? renderMarkdown(summaryState.text) : ''
+  ), [summaryState]);
+
+  return createPortal(
+    <div
+      ref={cardRef}
+      className={styles.sessionSummaryCard}
+      style={{ left: position.x, top: position.y }}
+      data-testid="session-summary-card"
+      data-scrollable="true"
+    >
+      <div className={styles.sessionSummaryTitle}>{t('session.summary.title')}</div>
+      <div className={styles.sessionSummaryBody}>
+        {summaryState.status === 'ready' ? (
+          <div dangerouslySetInnerHTML={{ __html: summaryHtml }} />
+        ) : (
+          <span className={styles.sessionSummaryPlaceholder}>
+            {summaryState.status === 'loading'
+              ? t('session.summary.loading')
+              : summaryState.status === 'error'
+                ? t('session.summary.loadFailed')
+                : t('session.summary.empty')}
+          </span>
+        )}
       </div>
-
-      <div className={styles.sessionItemMeta}>
-        {parts.join(' · ')}
-      </div>
-
-      {rcLabel && (
-        <div className={styles.sessionRcBadge}>
-          {rcLabel}
-        </div>
-      )}
-
-      {browserUrl && (
-        <span className={styles.sessionBrowserBadge} title={browserUrl}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="2" y1="12" x2="22" y2="12" />
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-          </svg>
-        </span>
-      )}
-    </button>
+    </div>,
+    document.body,
   );
 });
 

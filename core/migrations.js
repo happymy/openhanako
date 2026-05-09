@@ -1169,11 +1169,12 @@ function backfillLegacySessionFiles(ctx) {
  *
  * v0.142.x 连续收紧了两个运行时契约：
  *   1. 官方 DeepSeek provider 不能把 provider id "deepseek" 当作模型 id；
- *   2. 新建 agent 的 memory.enabled 默认关闭。
+ *   2. v0.142.x 时新建 agent 的 memory.enabled 曾改为默认关闭。
  *
  * 老数据里这两处都可能靠“隐式旧语义”存活：DeepSeek 旧列表可能含非法 id；
  * 老 agent 缺 memory.enabled 时，旧运行时一直按开启处理。迁移只修磁盘真相源，
  * 不把兼容判断散落到同步模型、Agent 初始化或前端读配置路径里。
+ * 当前版本的新写入路径重新默认开启，迁移仍不覆盖已有显式用户选择。
  */
 function normalizeRecentLegacyCompatibilityState(ctx) {
   const deepseekPatched = repairLegacyDeepSeekProviderModelIds(ctx);

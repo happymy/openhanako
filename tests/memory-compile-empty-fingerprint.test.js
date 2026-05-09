@@ -203,6 +203,65 @@ describe("compiled section formatting", () => {
     expect(fs.readFileSync(factsPath, "utf-8")).toBe("用户长期关注记忆系统。");
   });
 
+  it("extracts facts from third-level rolling summary headings", async () => {
+    callText.mockResolvedValueOnce("用户长期关注记忆系统。");
+    const factsPath = path.join(tmpDir, "facts.md");
+    const mgr = makeFakeSummaryManager([
+      {
+        session_id: "s1",
+        updated_at: "2026-04-29T08:30:00.000Z",
+        summary: "### 重要事实\n用户长期关注记忆系统。\n\n### 事情经过\n无",
+      },
+    ]);
+
+    await compileFacts(mgr, factsPath, RESOLVED_MODEL);
+
+    expect(callText).toHaveBeenCalledOnce();
+    const request = callText.mock.calls[0][0];
+    expect(request.messages[0].content).toContain("用户长期关注记忆系统。");
+    expect(fs.readFileSync(factsPath, "utf-8")).toBe("用户长期关注记忆系统。");
+  });
+
+  it("extracts facts from English rolling summary headings", async () => {
+    callText.mockResolvedValueOnce("The user is focused on memory systems.");
+    const factsPath = path.join(tmpDir, "facts.md");
+    const mgr = makeFakeSummaryManager([
+      {
+        session_id: "s1",
+        updated_at: "2026-04-29T08:30:00.000Z",
+        summary: "### Key Facts\nThe user is focused on memory systems.\n\n### Timeline\nNone",
+      },
+    ]);
+
+    await compileFacts(mgr, factsPath, RESOLVED_MODEL);
+
+    expect(callText).toHaveBeenCalledOnce();
+    const request = callText.mock.calls[0][0];
+    expect(request.messages[0].content).toContain("The user is focused on memory systems.");
+    expect(fs.readFileSync(factsPath, "utf-8")).toBe("The user is focused on memory systems.");
+  });
+
+  it("ignores unordered-list empty fact markers", async () => {
+    const factsPath = path.join(tmpDir, "facts.md");
+    const mgr = makeFakeSummaryManager([
+      {
+        session_id: "s1",
+        updated_at: "2026-04-29T08:30:00.000Z",
+        summary: "### 重要事实\n- 无\n\n### 事情经过\n- 用户在讨论记忆系统。",
+      },
+      {
+        session_id: "s2",
+        updated_at: "2026-04-29T09:30:00.000Z",
+        summary: "### Key Facts\n- None\n\n### Timeline\n- The user discussed memory systems.",
+      },
+    ]);
+
+    await compileFacts(mgr, factsPath, RESOLVED_MODEL);
+
+    expect(callText).not.toHaveBeenCalled();
+    expect(fs.readFileSync(factsPath, "utf-8")).toBe("");
+  });
+
   it("assemble strips legacy nested headings from source sections", async () => {
     const factsPath = path.join(tmpDir, "facts.md");
     const todayPath = path.join(tmpDir, "today.md");

@@ -97,7 +97,7 @@ function seedDefaultAgent(agentsDir, productDir) {
   };
   raw.memory = {
     ...(raw.memory || {}),
-    enabled: false,
+    enabled: true,
   };
   fs.writeFileSync(cfgDest, YAML.dump(raw, { indent: 2, lineWidth: -1, sortKeys: false, quotingType: '"' }), "utf-8");
 

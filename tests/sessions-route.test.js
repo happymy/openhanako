@@ -162,6 +162,116 @@ describe("sessions route", () => {
     expect(data[0].pinnedAt).toBe(pinnedAt);
   });
 
+  it("includes summary presence in the session list response", async () => {
+    const { createSessionsRoute } = await import("../server/routes/sessions.js");
+    const app = new Hono();
+    const summaryManager = {
+      getSummary: vi.fn((sessionId) => (
+        sessionId === "has-summary"
+          ? { session_id: sessionId, summary: "### 重要事实\n- 用户在做记忆系统。" }
+          : null
+      )),
+    };
+
+    const engine = {
+      listSessions: vi.fn(async () => [
+        {
+          path: "/tmp/agents/hana/sessions/has-summary.jsonl",
+          title: "Has summary",
+          firstMessage: "hello",
+          modified: new Date("2026-04-29T07:00:00.000Z"),
+          messageCount: 2,
+          cwd: "/tmp/work",
+          agentId: "hana",
+          agentName: "Hana",
+        },
+        {
+          path: "/tmp/agents/hana/sessions/no-summary.jsonl",
+          title: "No summary",
+          firstMessage: "hello",
+          modified: new Date("2026-04-29T06:00:00.000Z"),
+          messageCount: 1,
+          cwd: "/tmp/work",
+          agentId: "hana",
+          agentName: "Hana",
+        },
+      ]),
+      getAgent: vi.fn(() => ({ summaryManager })),
+      rcState: null,
+    };
+
+    app.route("/api", createSessionsRoute(engine));
+
+    const res = await app.request("/api/sessions");
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.map((s) => [s.path, s.hasSummary])).toEqual([
+      ["/tmp/agents/hana/sessions/has-summary.jsonl", true],
+      ["/tmp/agents/hana/sessions/no-summary.jsonl", false],
+    ]);
+    expect(summaryManager.getSummary).toHaveBeenCalledWith("has-summary");
+    expect(summaryManager.getSummary).toHaveBeenCalledWith("no-summary");
+  });
+
+  it("returns a session summary through an explicit route", async () => {
+    const { createSessionsRoute } = await import("../server/routes/sessions.js");
+    const app = new Hono();
+    const sessionPath = "/tmp/agents/hana/sessions/with-summary.jsonl";
+    const summaryManager = {
+      getSummary: vi.fn(() => ({
+        session_id: "with-summary",
+        summary: "### 重要事实\n- 用户在做记忆系统。\n\n### 事情经过\n- 10:00 用户讨论 session 摘要。",
+        created_at: "2026-04-29T07:00:00.000Z",
+        updated_at: "2026-04-29T08:00:00.000Z",
+      })),
+    };
+
+    const engine = {
+      agentsDir: "/tmp/agents",
+      agentIdFromSessionPath: vi.fn(() => "hana"),
+      getAgent: vi.fn(() => ({ summaryManager })),
+    };
+
+    app.route("/api", createSessionsRoute(engine));
+
+    const res = await app.request(`/api/sessions/summary?path=${encodeURIComponent(sessionPath)}`);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data).toEqual({
+      hasSummary: true,
+      summary: "### 重要事实\n- 用户在做记忆系统。\n\n### 事情经过\n- 10:00 用户讨论 session 摘要。",
+      createdAt: "2026-04-29T07:00:00.000Z",
+      updatedAt: "2026-04-29T08:00:00.000Z",
+    });
+    expect(engine.agentIdFromSessionPath).toHaveBeenCalledWith(sessionPath);
+    expect(summaryManager.getSummary).toHaveBeenCalledWith("with-summary");
+  });
+
+  it("returns an empty summary state when the session has no summary", async () => {
+    const { createSessionsRoute } = await import("../server/routes/sessions.js");
+    const app = new Hono();
+    const engine = {
+      agentsDir: "/tmp/agents",
+      agentIdFromSessionPath: vi.fn(() => "hana"),
+      getAgent: vi.fn(() => ({ summaryManager: { getSummary: vi.fn(() => null) } })),
+    };
+
+    app.route("/api", createSessionsRoute(engine));
+
+    const res = await app.request("/api/sessions/summary?path=%2Ftmp%2Fagents%2Fhana%2Fsessions%2Fempty.jsonl");
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data).toEqual({
+      hasSummary: false,
+      summary: null,
+      createdAt: null,
+      updatedAt: null,
+    });
+  });
+
   it("pins and unpins sessions through an explicit route", async () => {
     const { createSessionsRoute } = await import("../server/routes/sessions.js");
     const app = new Hono();

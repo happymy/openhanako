@@ -65,6 +65,14 @@
     "unpin": "取消置顶",
     "pinFailed": "置顶 session 失败",
     "unpinFailed": "取消置顶失败",
+    "archive": "归档",
+    "summary": {
+      "title": "Session 摘要",
+      "open": "Session 摘要",
+      "loading": "正在读取摘要…",
+      "empty": "暂无摘要",
+      "loadFailed": "摘要读取失败"
+    },
     "archived": {
       "entry": "已归档的聊天",
       "title": "已归档的聊天",

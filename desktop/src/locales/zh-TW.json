@@ -64,6 +64,14 @@
     "unpin": "取消置頂",
     "pinFailed": "置頂 session 失敗",
     "unpinFailed": "取消置頂失敗",
+    "archive": "封存",
+    "summary": {
+      "title": "Session 摘要",
+      "open": "Session 摘要",
+      "loading": "正在讀取摘要…",
+      "empty": "暫無摘要",
+      "loadFailed": "摘要讀取失敗"
+    },
     "archived": {
       "entry": "已封存的對話",
       "title": "已封存的對話",

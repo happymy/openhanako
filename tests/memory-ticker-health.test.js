@@ -149,7 +149,7 @@ describe("memory-ticker getHealthStatus", () => {
     expect(h.compileFacts.lastErrorMsg).toBe("persistent");
   });
 
-  it("tracks rollingSummary failure from notifyTurn → _doRollingSummary", async () => {
+  it("tracks rollingSummary failure only on the tenth notifyTurn", async () => {
     const rollingSummary = vi.fn().mockRejectedValue(new Error("llm down"));
     const ticker = makeTicker(tmpDir, {
       rollingSummary,
@@ -159,9 +159,11 @@ describe("memory-ticker getHealthStatus", () => {
     const sessionPath = path.join(tmpDir, "sessions", "s1.jsonl");
     writeSession(sessionPath);
 
-    // 触发 6 次 notifyTurn 才会跑一次 rollingSummary
-    for (let i = 0; i < 6; i++) ticker.notifyTurn(sessionPath);
-    // 等异步完成
+    for (let i = 0; i < 9; i++) ticker.notifyTurn(sessionPath);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(rollingSummary).not.toHaveBeenCalled();
+
+    ticker.notifyTurn(sessionPath);
     await new Promise((r) => setTimeout(r, 50));
 
     const h = ticker.getHealthStatus();
