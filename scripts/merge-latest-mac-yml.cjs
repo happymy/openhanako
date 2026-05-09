@@ -2,13 +2,119 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const yaml = require("js-yaml");
 
 const REQUIRED_ARCHES = ["arm64", "x64"];
 const METADATA_NAME_RE = /^latest-mac(?:-[A-Za-z0-9_-]+)?\.yml$/;
 
 function fail(message) {
   throw new Error(message);
+}
+
+function parseScalar(rawValue) {
+  const value = String(rawValue ?? "").trim();
+  if (value.startsWith("'") && value.endsWith("'")) {
+    return value.slice(1, -1).replace(/''/g, "'");
+  }
+  if (value.startsWith('"') && value.endsWith('"')) {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value.slice(1, -1);
+    }
+  }
+  if (/^\d+$/.test(value)) {
+    return Number(value);
+  }
+  return value;
+}
+
+function parseKeyValue(line, filePath) {
+  const match = line.match(/^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/);
+  if (!match) {
+    fail(`Invalid update metadata in ${filePath}: cannot parse line "${line}"`);
+  }
+  return [match[1], parseScalar(match[2])];
+}
+
+function parseUpdateYaml(text, filePath) {
+  const parsed = { files: [] };
+  let inFiles = false;
+  let currentFile = null;
+
+  for (const rawLine of text.split(/\n/)) {
+    const line = rawLine.replace(/\r$/, "");
+    if (!line.trim() || line.trimStart().startsWith("#")) continue;
+
+    if (!line.startsWith(" ") && !line.startsWith("-")) {
+      currentFile = null;
+      if (line.trim() === "files:") {
+        inFiles = true;
+        continue;
+      }
+      inFiles = false;
+      const [key, value] = parseKeyValue(line, filePath);
+      parsed[key] = value;
+      continue;
+    }
+
+    if (!inFiles) {
+      fail(`Invalid update metadata in ${filePath}: unexpected indented line "${line}"`);
+    }
+
+    const itemMatch = line.match(/^\s*-\s+([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/);
+    if (itemMatch) {
+      currentFile = {};
+      currentFile[itemMatch[1]] = parseScalar(itemMatch[2]);
+      parsed.files.push(currentFile);
+      continue;
+    }
+
+    const propertyMatch = line.match(/^\s+([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/);
+    if (!propertyMatch || !currentFile) {
+      fail(`Invalid update metadata in ${filePath}: cannot parse file entry line "${line}"`);
+    }
+    currentFile[propertyMatch[1]] = parseScalar(propertyMatch[2]);
+  }
+
+  return parsed;
+}
+
+function quoteScalar(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function scalarToYaml(value, { quote = false } = {}) {
+  if (value === undefined || value === null) return "";
+  const stringValue = String(value);
+  if (quote || !stringValue || /^\s|\s$/.test(stringValue) || /:\s|#|\n|\r/.test(stringValue)) {
+    return quoteScalar(stringValue);
+  }
+  return stringValue;
+}
+
+function fileKeys(file) {
+  const preferred = ["url", "sha512", "size"];
+  const extra = Object.keys(file)
+    .filter((key) => !preferred.includes(key))
+    .sort();
+  return [...preferred, ...extra].filter((key) => file[key] !== undefined && file[key] !== null);
+}
+
+function dumpUpdateYaml(info) {
+  const lines = [`version: ${scalarToYaml(info.version)}`, "files:"];
+  for (const file of info.files) {
+    const keys = fileKeys(file);
+    const [firstKey, ...restKeys] = keys;
+    if (!firstKey) continue;
+    lines.push(`  - ${firstKey}: ${scalarToYaml(file[firstKey])}`);
+    for (const key of restKeys) {
+      lines.push(`    ${key}: ${scalarToYaml(file[key])}`);
+    }
+  }
+  if (info.path) lines.push(`path: ${scalarToYaml(info.path)}`);
+  if (info.sha512) lines.push(`sha512: ${scalarToYaml(info.sha512)}`);
+  if (info.releaseDate) lines.push(`releaseDate: ${scalarToYaml(info.releaseDate, { quote: true })}`);
+  return `${lines.join("\n")}\n`;
 }
 
 function walkFiles(dir) {
@@ -54,7 +160,7 @@ function findMetadataFile(artifactsDir, arch) {
 }
 
 function readUpdateInfo(filePath) {
-  const parsed = yaml.load(fs.readFileSync(filePath, "utf8"));
+  const parsed = parseUpdateYaml(fs.readFileSync(filePath, "utf8"), filePath);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     fail(`Invalid update metadata in ${filePath}: expected a YAML object`);
   }
@@ -137,7 +243,7 @@ function main(argv) {
   }
 
   const merged = mergeLatestMac(artifactsDir);
-  fs.writeFileSync(outputPath, yaml.dump(merged, { lineWidth: -1 }), "utf8");
+  fs.writeFileSync(outputPath, dumpUpdateYaml(merged), "utf8");
   console.log(`Merged latest-mac.yml with ${merged.files.length} files`);
 }
 
@@ -150,4 +256,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { mergeLatestMac };
+module.exports = { dumpUpdateYaml, mergeLatestMac, parseUpdateYaml };

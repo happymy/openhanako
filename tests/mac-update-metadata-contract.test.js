@@ -51,6 +51,14 @@ function mergeLatestMac(artifactsDir, outputPath) {
   return yaml.load(fs.readFileSync(outputPath, "utf8"));
 }
 
+function mergeLatestMacWithoutYamlDependency(artifactsDir, outputPath, hookPath) {
+  execFileSync(process.execPath, ["--require", hookPath, scriptPath, artifactsDir, outputPath], {
+    cwd: rootDir,
+    stdio: "pipe",
+  });
+  return yaml.load(fs.readFileSync(outputPath, "utf8"));
+}
+
 describe("macOS update metadata release contract", () => {
   afterEach(() => {
     if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -87,6 +95,33 @@ describe("macOS update metadata release contract", () => {
 
     expect(() => mergeLatestMac(artifactsDir, outputPath)).toThrow(/Missing macOS update metadata for arm64/);
     expect(fs.existsSync(outputPath)).toBe(false);
+  });
+
+  it("runs in the release job without external YAML parser dependencies", () => {
+    const dir = makeTmpDir();
+    const artifactsDir = path.join(dir, "artifacts");
+    const outputPath = path.join(dir, "latest-mac.yml");
+    const hookPath = path.join(dir, "block-js-yaml.cjs");
+
+    writeMacMetadata(artifactsDir, "arm64", { fileName: "latest-mac-arm64.yml" });
+    writeMacMetadata(artifactsDir, "x64");
+    fs.writeFileSync(
+      hookPath,
+      [
+        'const Module = require("node:module");',
+        "const originalLoad = Module._load;",
+        "Module._load = function blockYamlParser(request, parent, isMain) {",
+        '  if (request === "js-yaml") throw new Error("blocked external YAML dependency");',
+        "  return originalLoad.call(this, request, parent, isMain);",
+        "};",
+        "",
+      ].join("\n"),
+    );
+
+    const merged = mergeLatestMacWithoutYamlDependency(artifactsDir, outputPath, hookPath);
+
+    expect(merged.files).toHaveLength(4);
+    expect(merged.path).toBe("Hanako-0.171.5-macOS-arm64.zip");
   });
 
   it("routes the GitHub release workflow through the checked merge script", () => {
