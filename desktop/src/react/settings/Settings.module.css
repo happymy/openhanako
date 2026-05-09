@@ -26,7 +26,7 @@
     background-attachment: fixed;
 }
 
-/* ── 纸质纹理：Card 层（所有 bg-card 元素，lighten 混合） ── */
+/* ── 纸质纹理：Card 层（所有 bg-card 元素，混合模式由全局 token 控制） ── */
 :global(body.paper-texture) .agent-card-inner,
 :global(body.paper-texture) .agent-create-card,
 :global(body.paper-texture) .agent-delete-card,
@@ -50,7 +50,7 @@
     background-repeat: repeat;
     background-size: 160px;
     background-attachment: fixed;
-    background-blend-mode: lighten;
+    background-blend-mode: var(--paper-texture-card-blend-mode);
 }
 
 :global(.settings-header) {

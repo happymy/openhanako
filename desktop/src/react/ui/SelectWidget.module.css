@@ -124,5 +124,5 @@
   background-repeat: repeat;
   background-size: 160px;
   background-attachment: fixed;
-  background-blend-mode: lighten;
+  background-blend-mode: var(--paper-texture-card-blend-mode);
 }
