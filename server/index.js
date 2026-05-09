@@ -223,16 +223,43 @@ hub.eventBus.handle("task:unregister-handler", ({ type }) => {
   engine.taskRegistry.unregisterHandler(type);
   return { ok: true };
 });
-hub.eventBus.handle("task:register", ({ taskId, type, parentSessionPath, meta }) => {
-  engine.taskRegistry.register(taskId, { type, parentSessionPath, meta });
+hub.eventBus.handle("task:register", ({ taskId, type, parentSessionPath, meta, pluginId, agentId, persist }) => {
+  engine.taskRegistry.register(taskId, { type, parentSessionPath, meta, pluginId, agentId, persist });
   return { ok: true };
+});
+hub.eventBus.handle("task:update", ({ taskId, ...patch }) => {
+  return { ok: true, task: engine.taskRegistry.update(taskId, patch) };
+});
+hub.eventBus.handle("task:complete", ({ taskId, result }) => {
+  return { ok: true, task: engine.taskRegistry.complete(taskId, result) };
+});
+hub.eventBus.handle("task:fail", ({ taskId, reason, error }) => {
+  return { ok: true, task: engine.taskRegistry.fail(taskId, reason ?? error) };
 });
 hub.eventBus.handle("task:remove", ({ taskId }) => {
   engine.taskRegistry.remove(taskId);
   return { ok: true };
 });
+hub.eventBus.handle("task:query", ({ taskId }) => {
+  return engine.taskRegistry.query(taskId);
+});
+hub.eventBus.handle("task:list", (filter = {}) => {
+  return engine.taskRegistry.listAll(filter);
+});
 hub.eventBus.handle("task:abort", ({ taskId }) => {
   return { result: engine.taskRegistry.abort(taskId) };
+});
+hub.eventBus.handle("task:cancel", ({ taskId, reason }) => {
+  return engine.taskRegistry.cancel(taskId, reason);
+});
+hub.eventBus.handle("task:schedule", ({ scheduleId, ...input }) => {
+  return { ok: true, schedule: engine.taskRegistry.schedule(scheduleId, input) };
+});
+hub.eventBus.handle("task:unschedule", ({ scheduleId }) => {
+  return { ok: true, removed: engine.taskRegistry.unschedule(scheduleId) };
+});
+hub.eventBus.handle("task:list-schedules", (filter = {}) => {
+  return engine.taskRegistry.listSchedules(filter);
 });
 hub.eventBus.handle("session:get-titles", async ({ paths }) => {
   if (!Array.isArray(paths) || !paths.length) return { titles: {} };

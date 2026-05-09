@@ -737,16 +737,19 @@ this.register(this.ctx.registerTool({
 
 ### 后台任务（Background Tasks） ⚡ full-access
 
-插件可以注册后台任务，让 Agent 能够追踪和终止它们。系统通过 `TaskRegistry` 管理所有后台任务的运行时生命周期。
+插件可以注册后台任务，让 Agent 能够追踪、终止、诊断和恢复它们。系统通过 `TaskRegistry` 管理任务记录和计划任务元数据。
+
+`TaskRegistry` 的边界很明确：任务 handler 是插件运行时函数，只存在内存里；任务记录和 schedule 元数据可以持久化，重启后仍能被诊断面板看到。重启后仍处于 `pending` / `running` / `paused` / `blocked` 的任务会标记为 `recovering`，插件在 `onload()` 里重新注册 handler 后，再按自己的持久化状态继续执行或清理。
 
 **注册任务类型处理器**（在 `onload()` 中调用一次）：
 
 ```js
-// 告诉系统如何终止你的任务
 await this.ctx.bus.request("task:register-handler", {
   type: "my-task-type",
-  abort: (taskId) => {
-    // 终止逻辑：取消轮询、中断请求等
+  abort: (taskId) => { /* 终止逻辑：取消轮询、中断请求等 */ },
+  run: async (schedule) => {
+    // 可选：计划任务触发时执行
+    await this.runScheduledJob(schedule.payload);
   },
 });
 
@@ -763,21 +766,63 @@ await this.ctx.bus.request("task:register", {
   taskId: "my-task-123",
   type: "my-task-type",
   parentSessionPath: sessionPath,
+  pluginId: this.ctx.pluginId,
   meta: { type: "my-task", prompt: "..." },
 });
 ```
 
-**任务完成后移除**：
+**更新进度、完成和失败**：
 
 ```js
+await this.ctx.bus.request("task:update", {
+  taskId: "my-task-123",
+  progress: { current: 3, total: 10, message: "rendering" },
+});
+
+await this.ctx.bus.request("task:complete", {
+  taskId: "my-task-123",
+  result: { fileId: "sf_123" },
+});
+
+await this.ctx.bus.request("task:fail", {
+  taskId: "my-task-123",
+  reason: "remote service timeout",
+});
+```
+
+**取消和移除**：
+
+```js
+await this.ctx.bus.request("task:cancel", {
+  taskId: "my-task-123",
+  reason: "user canceled",
+});
+
 await this.ctx.bus.request("task:remove", { taskId: "my-task-123" });
+```
+
+**计划任务**：
+
+```js
+await this.ctx.bus.request("task:schedule", {
+  scheduleId: "my-plugin.daily-sync",
+  type: "my-task-type",
+  pluginId: this.ctx.pluginId,
+  intervalMs: 24 * 60 * 60 * 1000,
+  payload: { agentId: "default" },
+  meta: { label: "Daily sync" },
+});
+
+const schedules = await this.ctx.bus.request("task:list-schedules", {
+  pluginId: this.ctx.pluginId,
+});
 ```
 
 **结果通知**（搭配 `deferred:*` 使用）：
 
 `task:*` 管理运行时生命周期（注册、终止），`deferred:*` 管理结果送达。后台任务通常同时使用两套协议：`deferred:register` 注册结果占位，`task:register` 注册运行时实例；完成时 `deferred:resolve` 送达结果，`task:remove` 清理运行时状态。
 
-**重启恢复**：`TaskRegistry` 是运行时临时状态，不做持久化。插件需要在 `onload()` 时从自己的持久化存储中恢复 pending 任务，重新调用 `task:register`。
+**重启恢复**：Hana 持久化任务与 schedule 元数据，不持久化插件函数。插件需要在 `onload()` 时重新注册 `task:register-handler`，然后调用 `task:list` 查询 `status: "recovering"` 的本插件任务，按自己的业务存储恢复或失败它们。
 
 ## 前向兼容
 

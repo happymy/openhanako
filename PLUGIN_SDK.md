@@ -62,11 +62,13 @@ Theme fallback order is:
 Use `@hana/plugin-runtime` for Node-side plugin code:
 
 ```js
-import { definePlugin, defineTool, requestBus } from '@hana/plugin-runtime';
+import { definePlugin, defineTool, registerTask, requestBus } from '@hana/plugin-runtime';
 ```
 
 Tools should return local files through `stageFile()` and `createMediaDetails()` so desktop, Bridge, and future mobile clients all consume the same `SessionFile` identity.
 
 Lifecycle plugins should declare `activationEvents` in `manifest.json` when they do not need to start on app launch. Existing lifecycle plugins without this field still activate on startup for compatibility.
+
+Long-running plugins should use the runtime task helpers (`registerTask`, `updateTask`, `completeTask`, `failTask`, `cancelTask`, `scheduleTask`) instead of hand-writing EventBus payloads.
 
 See `examples/plugins/sdk-showcase/` for a compact plugin that shows the current recommended shape.

@@ -227,8 +227,10 @@ export class HanaEngine {
     // hub 尚未注入，dispatcher 的 hub 字段先为 null；setHubCallbacks 时通过 setHub() 补齐
     this._slashSystem = createSlashSystem({ engine: this, hub: null });
 
-    // 任务注册表（外部 abort 用）
-    this._taskRegistry = new TaskRegistry();
+    // 任务注册表（外部 abort 用）；handler 是运行时函数，任务元数据持久化供插件重启恢复和诊断使用。
+    this._taskRegistry = new TaskRegistry({
+      persistencePath: path.join(this.hanakoHome, ".ephemeral", "plugin-tasks.json"),
+    });
 
     // subagent AbortController 存储（engine 级别，跨 agent 共享）
     this._subagentControllers = new Map();

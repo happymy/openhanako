@@ -1,15 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createMediaDetails,
+  cancelTask,
+  completeTask,
   defineBusHandler,
   defineCommand,
   defineExtension,
   definePlugin,
   defineProvider,
   defineTool,
+  failTask,
   HANA_BUS_SKIP,
+  registerTask,
   requestBus,
+  scheduleTask,
   sessionFileToMediaItem,
+  unscheduleTask,
+  updateTask,
 } from '@hana/plugin-runtime';
 
 describe('plugin runtime SDK', () => {
@@ -128,6 +135,32 @@ describe('plugin runtime SDK', () => {
     ).resolves.toEqual({ sent: true });
 
     expect(request).toHaveBeenCalledWith('session:send', { text: 'hello' }, { timeoutMs: 5000 });
+  });
+
+  it('wraps task bus calls with typed helper payloads', async () => {
+    const request = vi.fn(async (type: string) => {
+      if (type === 'task:cancel') return { result: 'aborted', canceled: true };
+      if (type === 'task:schedule') return { ok: true, schedule: { scheduleId: 'daily', type: 'digest' } };
+      if (type === 'task:unschedule') return { ok: true, removed: true };
+      return { ok: true, task: { taskId: 't1', type: 'render', status: 'running' } };
+    });
+    const ctx = { bus: { request } };
+
+    await registerTask(ctx, { taskId: 't1', type: 'render', parentSessionPath: '/s/a' });
+    await updateTask(ctx, { taskId: 't1', progress: { current: 1, total: 2 } });
+    await completeTask(ctx, 't1', { ok: true });
+    await failTask(ctx, 't1', 'nope');
+    await cancelTask(ctx, 't1', 'user');
+    await scheduleTask(ctx, { scheduleId: 'daily', type: 'digest', intervalMs: 60_000 });
+    await unscheduleTask(ctx, 'daily');
+
+    expect(request).toHaveBeenCalledWith('task:register', { taskId: 't1', type: 'render', parentSessionPath: '/s/a' }, undefined);
+    expect(request).toHaveBeenCalledWith('task:update', { taskId: 't1', progress: { current: 1, total: 2 } }, undefined);
+    expect(request).toHaveBeenCalledWith('task:complete', { taskId: 't1', result: { ok: true } }, undefined);
+    expect(request).toHaveBeenCalledWith('task:fail', { taskId: 't1', error: 'nope' }, undefined);
+    expect(request).toHaveBeenCalledWith('task:cancel', { taskId: 't1', reason: 'user' }, undefined);
+    expect(request).toHaveBeenCalledWith('task:schedule', { scheduleId: 'daily', type: 'digest', intervalMs: 60_000 }, undefined);
+    expect(request).toHaveBeenCalledWith('task:unschedule', { scheduleId: 'daily' }, undefined);
   });
 
   it('converts SessionFile records into structured media items', () => {

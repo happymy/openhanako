@@ -206,6 +206,94 @@ export interface HanaPluginInstance {
   onunload?(): MaybePromise<void>;
 }
 
+export type HanaTaskStatus =
+  | 'pending'
+  | 'running'
+  | 'paused'
+  | 'blocked'
+  | 'recovering'
+  | 'completed'
+  | 'failed'
+  | 'canceled'
+  | 'aborted';
+
+export interface HanaTaskProgress {
+  current?: number;
+  total?: number;
+  percent?: number;
+  message?: string;
+}
+
+export interface HanaTaskRecord {
+  taskId: string;
+  type: string;
+  parentSessionPath?: string | null;
+  pluginId?: string | null;
+  agentId?: string | null;
+  meta?: Record<string, unknown>;
+  progress?: HanaTaskProgress | null;
+  status: HanaTaskStatus;
+  aborted?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
+  completedAt?: number;
+  result?: unknown;
+  error?: string;
+}
+
+export interface HanaTaskSchedule {
+  scheduleId: string;
+  type: string;
+  pluginId?: string | null;
+  agentId?: string | null;
+  parentSessionPath?: string | null;
+  payload?: unknown;
+  meta?: Record<string, unknown>;
+  intervalMs?: number | null;
+  runAt?: number | string | null;
+  enabled?: boolean;
+  nextRunAt?: number | null;
+  lastRunAt?: number | null;
+  lastResult?: unknown;
+  lastError?: string | null;
+  runCount?: number;
+}
+
+export interface HanaTaskRegisterInput {
+  taskId: string;
+  type: string;
+  parentSessionPath?: string | null;
+  pluginId?: string | null;
+  agentId?: string | null;
+  meta?: Record<string, unknown>;
+  persist?: boolean;
+}
+
+export interface HanaTaskUpdateInput {
+  taskId: string;
+  status?: HanaTaskStatus;
+  progress?: HanaTaskProgress | null;
+  meta?: Record<string, unknown>;
+  result?: unknown;
+  error?: unknown;
+  parentSessionPath?: string | null;
+  pluginId?: string | null;
+  agentId?: string | null;
+}
+
+export interface HanaTaskScheduleInput {
+  scheduleId: string;
+  type: string;
+  pluginId?: string | null;
+  agentId?: string | null;
+  parentSessionPath?: string | null;
+  payload?: unknown;
+  meta?: Record<string, unknown>;
+  intervalMs?: number;
+  runAt?: number | string | Date;
+  enabled?: boolean;
+}
+
 const EMPTY_PARAMETERS: JsonSchema = { type: 'object', properties: {} };
 
 export function defineTool<Input = unknown, Output = unknown>(
@@ -247,6 +335,58 @@ export function requestBus<Result = unknown, Payload = unknown>(
     throw new Error('plugin bus request unavailable');
   }
   return ctx.bus.request<Result>(type, payload, options);
+}
+
+export function registerTask(
+  ctx: { bus?: Pick<HanaEventBus, 'request'> | null },
+  input: HanaTaskRegisterInput,
+): Promise<{ ok: true }> {
+  return requestBus(ctx, 'task:register', input);
+}
+
+export function updateTask(
+  ctx: { bus?: Pick<HanaEventBus, 'request'> | null },
+  input: HanaTaskUpdateInput,
+): Promise<{ ok: true; task: HanaTaskRecord }> {
+  return requestBus(ctx, 'task:update', input);
+}
+
+export function completeTask(
+  ctx: { bus?: Pick<HanaEventBus, 'request'> | null },
+  taskId: string,
+  result?: unknown,
+): Promise<{ ok: true; task: HanaTaskRecord }> {
+  return requestBus(ctx, 'task:complete', { taskId, result });
+}
+
+export function failTask(
+  ctx: { bus?: Pick<HanaEventBus, 'request'> | null },
+  taskId: string,
+  error: unknown,
+): Promise<{ ok: true; task: HanaTaskRecord }> {
+  return requestBus(ctx, 'task:fail', { taskId, error });
+}
+
+export function cancelTask(
+  ctx: { bus?: Pick<HanaEventBus, 'request'> | null },
+  taskId: string,
+  reason?: string,
+): Promise<{ result: string; canceled: boolean }> {
+  return requestBus(ctx, 'task:cancel', { taskId, reason });
+}
+
+export function scheduleTask(
+  ctx: { bus?: Pick<HanaEventBus, 'request'> | null },
+  input: HanaTaskScheduleInput,
+): Promise<{ ok: true; schedule: HanaTaskSchedule }> {
+  return requestBus(ctx, 'task:schedule', input);
+}
+
+export function unscheduleTask(
+  ctx: { bus?: Pick<HanaEventBus, 'request'> | null },
+  scheduleId: string,
+): Promise<{ ok: true; removed: boolean }> {
+  return requestBus(ctx, 'task:unschedule', { scheduleId });
 }
 
 export function sessionFileToMediaItem(file: HanaSessionFile): HanaSessionFileMediaItem {
