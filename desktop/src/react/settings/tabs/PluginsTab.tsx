@@ -20,6 +20,25 @@ interface PluginInfo {
   error?: string | null;
 }
 
+interface PluginConfigProperty {
+  type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array';
+  title?: string;
+  description?: string;
+  default?: unknown;
+  enum?: unknown[];
+  sensitive?: boolean;
+  scope?: 'global' | 'per-agent' | 'per-session';
+  ui?: { control?: string };
+}
+
+interface PluginConfigResponse {
+  pluginId: string;
+  schema: {
+    properties?: Record<string, PluginConfigProperty>;
+  };
+  values: Record<string, unknown>;
+}
+
 /* ── Status badge ── */
 
 function StatusBadge({ status }: { status: PluginInfo['status'] }) {
@@ -68,6 +87,20 @@ function ContributionBadges({ contributions }: { contributions?: string[] }) {
   );
 }
 
+function formatConfigValue(property: PluginConfigProperty, value: unknown): string {
+  if (property.type === 'object' || property.type === 'array') {
+    return value === undefined ? '' : JSON.stringify(value, null, 2);
+  }
+  return value === undefined || value === null ? '' : String(value);
+}
+
+function parseConfigValue(property: PluginConfigProperty, value: string): unknown {
+  if (property.type === 'number') return Number(value);
+  if (property.type === 'integer') return Number.parseInt(value, 10);
+  if (property.type === 'object' || property.type === 'array') return value.trim() ? JSON.parse(value) : property.type === 'array' ? [] : {};
+  return value;
+}
+
 /* ── Main tab ── */
 
 export function PluginsTab() {
@@ -76,6 +109,11 @@ export function PluginsTab() {
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [dragOver, setDragOver] = useState(false);
+  const [configPlugin, setConfigPlugin] = useState<PluginInfo | null>(null);
+  const [pluginConfig, setPluginConfig] = useState<PluginConfigResponse | null>(null);
+  const [configDraft, setConfigDraft] = useState<Record<string, unknown>>({});
+  const [dirtyConfigKeys, setDirtyConfigKeys] = useState<Set<string>>(new Set());
+  const [configSaving, setConfigSaving] = useState(false);
 
   /* ── data fetchers ── */
 
@@ -89,6 +127,20 @@ export function PluginsTab() {
       setPlugins([]);
     }
   }, []);
+
+  const loadPluginConfig = useCallback(async (plugin: PluginInfo) => {
+    try {
+      const res = await hanaFetch(`/api/plugins/${encodeURIComponent(plugin.id)}/config`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setConfigPlugin(plugin);
+      setPluginConfig(data);
+      setConfigDraft(data.values || {});
+      setDirtyConfigKeys(new Set());
+    } catch (err: unknown) {
+      showToast(t('settings.plugins.configLoadError') + ': ' + (err instanceof Error ? err.message : String(err)), 'error');
+    }
+  }, [showToast]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -192,6 +244,40 @@ export function PluginsTab() {
     }
   };
 
+  const updateConfigDraft = (key: string, value: unknown) => {
+    setConfigDraft(prev => ({ ...prev, [key]: value }));
+    setDirtyConfigKeys(prev => new Set(prev).add(key));
+  };
+
+  const savePluginConfig = async () => {
+    if (!configPlugin || !pluginConfig) return;
+    const values: Record<string, unknown> = {};
+    for (const key of dirtyConfigKeys) {
+      const property = pluginConfig.schema.properties?.[key] || {};
+      const value = configDraft[key];
+      if (property.sensitive && value === '********') continue;
+      values[key] = value;
+    }
+    setConfigSaving(true);
+    try {
+      const res = await hanaFetch(`/api/plugins/${encodeURIComponent(configPlugin.id)}/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.fields?.[0]?.message || data.error);
+      setPluginConfig(data);
+      setConfigDraft(data.values || {});
+      setDirtyConfigKeys(new Set());
+      showToast(t('settings.autoSaved'), 'success');
+    } catch (err: unknown) {
+      showToast(t('settings.saveFailed') + ': ' + (err instanceof Error ? err.message : String(err)), 'error');
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
   /* ── render ── */
 
   const isEnabled = (p: PluginInfo) => p.status === 'loaded' || p.status === 'failed';
@@ -246,6 +332,7 @@ export function PluginsTab() {
               const dimmed = isDimmed(plugin);
               const restricted = plugin.status === 'restricted';
               const enabled = isEnabled(plugin);
+              const configurable = plugin.contributions?.includes('configuration');
 
               return (
                 <div
@@ -278,6 +365,18 @@ export function PluginsTab() {
                   </div>
 
                   <div className={styles['skills-list-actions']}>
+                    {configurable && (
+                      <button
+                        className={styles['skill-card-delete']}
+                        title={t('settings.plugins.configure', { name: plugin.name })}
+                        onClick={() => loadPluginConfig(plugin)}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+                        </svg>
+                      </button>
+                    )}
                     {/* Delete */}
                     <button
                       className={styles['skill-card-delete']}
@@ -314,6 +413,70 @@ export function PluginsTab() {
           </p>
         )}
       </SettingsSection>
+
+      {configPlugin && pluginConfig && (
+        <SettingsSection
+          title={t('settings.plugins.configTitle', { name: configPlugin.name })}
+          context={
+            <button
+              className={styles['settings-save-btn-sm']}
+              disabled={configSaving || dirtyConfigKeys.size === 0}
+              onClick={savePluginConfig}
+            >
+              {t('settings.api.save')}
+            </button>
+          }
+        >
+          {Object.entries(pluginConfig.schema.properties || {}).filter(([, property]) => (property.scope || 'global') === 'global').map(([key, property]) => {
+            const label = property.title || key;
+            const hint = property.description || (property.sensitive ? t('settings.plugins.sensitiveHint') : undefined);
+            const value = configDraft[key];
+            const control = property.type === 'boolean' ? (
+              <button
+                className={`hana-toggle${value === true ? ' on' : ''}`}
+                onClick={() => updateConfigDraft(key, value !== true)}
+              />
+            ) : property.enum ? (
+              <select
+                className={styles['settings-input']}
+                value={formatConfigValue(property, value)}
+                onChange={(e) => updateConfigDraft(key, parseConfigValue(property, e.target.value))}
+              >
+                {property.enum.map((item) => (
+                  <option key={String(item)} value={String(item)}>{String(item)}</option>
+                ))}
+              </select>
+            ) : property.type === 'object' || property.type === 'array' ? (
+              <textarea
+                className={styles['settings-input']}
+                rows={4}
+                value={formatConfigValue(property, value)}
+                onChange={(e) => updateConfigDraft(key, e.target.value)}
+                onBlur={(e) => {
+                  try { updateConfigDraft(key, parseConfigValue(property, e.target.value)); }
+                  catch { showToast(t('settings.plugins.invalidJson'), 'error'); }
+                }}
+              />
+            ) : (
+              <input
+                className={styles['settings-input']}
+                type={property.sensitive ? 'password' : property.type === 'number' || property.type === 'integer' ? 'number' : 'text'}
+                value={formatConfigValue(property, value)}
+                onChange={(e) => updateConfigDraft(key, parseConfigValue(property, e.target.value))}
+              />
+            );
+            return (
+              <SettingsRow
+                key={key}
+                label={label}
+                hint={hint}
+                control={control}
+                layout={property.type === 'object' || property.type === 'array' ? 'stacked' : 'inline'}
+              />
+            );
+          })}
+        </SettingsSection>
+      )}
 
       {/* 权限：标准白卡片 row */}
       <SettingsSection title="权限">

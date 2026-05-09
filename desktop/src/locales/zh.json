@@ -1087,7 +1087,12 @@
       "installError": "插件安装失败",
       "invalidPlugin": "不是有效的插件目录",
       "pluginsDir": "插件目录：{path}",
-      "needsFullAccess": "请先开启「允许全权插件」"
+      "needsFullAccess": "请先开启「允许全权插件」",
+      "configure": "配置「{name}」",
+      "configTitle": "「{name}」设置",
+      "configLoadError": "插件设置加载失败",
+      "sensitiveHint": "已保存的值会被隐藏。输入新值即可替换。",
+      "invalidJson": "JSON 格式不正确"
     },
     "mcp": {
       "masterTitle": "总开关",

@@ -1056,7 +1056,12 @@
       "installError": "プラグインのインストールに失敗しました",
       "invalidPlugin": "有効なプラグインディレクトリではありません",
       "pluginsDir": "プラグインディレクトリ：{path}",
-      "needsFullAccess": "このプラグインを使用するには「フルアクセスプラグインを許可」を有効にしてください"
+      "needsFullAccess": "このプラグインを使用するには「フルアクセスプラグインを許可」を有効にしてください",
+      "configure": "{name} を設定",
+      "configTitle": "{name} 設定",
+      "configLoadError": "プラグイン設定の読み込みに失敗しました",
+      "sensitiveHint": "保存済みの値は非表示です。新しい値を入力すると置き換えます。",
+      "invalidJson": "JSON 形式が正しくありません"
     },
     "mcp": {
       "masterTitle": "Master Switch",

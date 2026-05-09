@@ -1056,7 +1056,12 @@
       "installError": "플러그인 설치 실패",
       "invalidPlugin": "유효한 플러그인 디렉토리가 아닙니다",
       "pluginsDir": "플러그인 디렉토리: {path}",
-      "needsFullAccess": "이 플러그인을 사용하려면 「전체 권한 플러그인 허용」을 먼저 활성화하세요"
+      "needsFullAccess": "이 플러그인을 사용하려면 「전체 권한 플러그인 허용」을 먼저 활성화하세요",
+      "configure": "{name} 설정",
+      "configTitle": "{name} 설정",
+      "configLoadError": "플러그인 설정을 불러오지 못했습니다",
+      "sensitiveHint": "저장된 값은 숨겨집니다. 새 값을 입력하면 교체됩니다.",
+      "invalidJson": "JSON 형식이 올바르지 않습니다"
     },
     "mcp": {
       "masterTitle": "Master Switch",

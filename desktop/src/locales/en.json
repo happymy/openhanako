@@ -1082,7 +1082,12 @@
       "installError": "Plugin install failed",
       "invalidPlugin": "Not a valid plugin directory",
       "pluginsDir": "Plugin directory: {path}",
-      "needsFullAccess": "Enable \"Allow full-access plugins\" to use this plugin"
+      "needsFullAccess": "Enable \"Allow full-access plugins\" to use this plugin",
+      "configure": "Configure {name}",
+      "configTitle": "{name} settings",
+      "configLoadError": "Plugin settings failed to load",
+      "sensitiveHint": "Stored value is hidden. Enter a new value to replace it.",
+      "invalidJson": "Invalid JSON"
     },
     "mcp": {
       "masterTitle": "Master Switch",

@@ -1056,7 +1056,12 @@
       "installError": "插件安裝失敗",
       "invalidPlugin": "不是有效的插件目錄",
       "pluginsDir": "插件目錄：{path}",
-      "needsFullAccess": "請先開啟「允許全權插件」"
+      "needsFullAccess": "請先開啟「允許全權插件」",
+      "configure": "設定「{name}」",
+      "configTitle": "「{name}」設定",
+      "configLoadError": "插件設定載入失敗",
+      "sensitiveHint": "已儲存的值會被隱藏。輸入新值即可替換。",
+      "invalidJson": "JSON 格式不正確"
     },
     "mcp": {
       "masterTitle": "總開關",
