@@ -19,6 +19,7 @@ import { adaptVisualContextMessages } from "./visual-context-pipeline.js";
 import { SESSION_PERMISSION_MODES } from "./session-permission-mode.js";
 import { collectMediaItems } from "../lib/tools/media-details.js";
 import { materializeBridgeInboundFiles } from "../lib/session-files/bridge-inbound-files.js";
+import { modelSupportsVideoInput } from "../shared/model-capabilities.js";
 
 function getSteerPrefix() {
   const isZh = getLocale().startsWith("zh");
@@ -27,8 +28,7 @@ function getSteerPrefix() {
 
 function assertVideoInputSupported(model, videos) {
   if (!videos?.length) return;
-  const input = model?.input;
-  if (!Array.isArray(input) || !input.includes("video")) {
+  if (!modelSupportsVideoInput(model)) {
     throw new Error("current model does not support video input");
   }
 }

@@ -71,6 +71,8 @@ const migrations = {
   18: migrateLocalIdentityRegistries,
   // API-key provider 凭证真相源迁移：auth.json → added-models.yaml
   19: migrateLegacyApiKeyAuthEntriesToProviders,
+  // Pi SDK 0.70+ 严格限制 model.input，只允许 text/image；Hana 视频能力迁入 compat
+  20: migratePiInputSchemaVideoCompat,
 };
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -1294,18 +1296,30 @@ function repairLegacySessionSidecarThinkingLevels(ctx) {
 }
 
 /**
- * #16 — 视频输入能力进入 model.input 后的老数据修补
+ * #16 — 视频输入能力投影的老数据修补
  *
  * 覆盖两类旧状态：
  *   1. models.json 是投影文件，老版本里已存在的已知视频模型可能只有 ["text","image"]；
  *   2. 少量手写 agent config.models.overrides 可能已经带 video，需要提升到 added-models.yaml。
  *
- * 幂等：只追加缺失的 input 项，未知模型默认不打开 video；运行期模型对象不保留 video 字段。
+ * 幂等：视频能力写入 Hana compat，Pi-facing input 只保留 text/image；运行期模型对象不保留 video 字段。
  */
 function migrateVideoCapabilityProjection(ctx) {
-  const modelsPatched = repairModelsJsonVideoInputs(ctx);
+  const modelsPatched = repairModelsJsonPiInputSchema(ctx);
   const overridesPatched = promoteAgentVideoOverrides(ctx);
   ctx.log?.(`[migrations] #16: video capability projected (models=${modelsPatched}, overrides=${overridesPatched})`);
+}
+
+/**
+ * #20 — 修复已运行过 #16 或新版本投影留下的非法 Pi input 模态
+ *
+ * Pi SDK models.json 的 input 是外部契约，只允许 text/image。Hana 自己的
+ * video 能力必须放在 compat.hanaVideoInput，避免 ModelRegistry 因单个非法
+ * 模型把整张模型表判空。
+ */
+function migratePiInputSchemaVideoCompat(ctx) {
+  const patched = repairModelsJsonPiInputSchema(ctx);
+  ctx.log?.(`[migrations] #20: Pi input schema sanitized (patched=${patched})`);
 }
 
 /**
@@ -1428,7 +1442,7 @@ function serializeBridgeIndexEntryForMigration(previousRaw, entry) {
   return entry;
 }
 
-function repairModelsJsonVideoInputs(ctx) {
+function repairModelsJsonPiInputSchema(ctx) {
   const modelsJsonPath = path.join(ctx.hanakoHome, "models.json");
   let raw;
   try {
@@ -1440,18 +1454,15 @@ function repairModelsJsonVideoInputs(ctx) {
 
   let patched = 0;
   for (const [providerId, provider] of Object.entries(raw.providers)) {
-    if (!provider || !Array.isArray(provider.models)) continue;
-    for (const model of provider.models) {
-      if (!model || typeof model !== "object" || Array.isArray(model)) continue;
-      const hadRuntimeVideoField = Object.prototype.hasOwnProperty.call(model, "video");
-      const shouldEnableVideo = migrationModelHasVideoCapability(providerId, model);
-      if (shouldEnableVideo && !migrationInputIncludes(model.input, "video")) {
-        model.input = migrationInputWith(model.input, "video");
-        patched++;
+    if (!provider || typeof provider !== "object") continue;
+    if (Array.isArray(provider.models)) {
+      for (const model of provider.models) {
+        patched += repairPiModelInputRecord(providerId, model, model?.id);
       }
-      if (hadRuntimeVideoField) {
-        delete model.video;
-        patched++;
+    }
+    if (provider.modelOverrides && typeof provider.modelOverrides === "object" && !Array.isArray(provider.modelOverrides)) {
+      for (const [modelId, override] of Object.entries(provider.modelOverrides)) {
+        patched += repairPiModelInputRecord(providerId, override, modelId);
       }
     }
   }
@@ -1464,10 +1475,31 @@ function repairModelsJsonVideoInputs(ctx) {
   return patched;
 }
 
-function migrationModelHasVideoCapability(providerId, model) {
+function repairPiModelInputRecord(providerId, record, fallbackModelId) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return 0;
+
+  let patched = 0;
+  const hadRuntimeVideoField = Object.prototype.hasOwnProperty.call(record, "video");
+  const hadInputVideo = migrationInputIncludes(record.input, "video");
+  const shouldEnableVideo = migrationModelHasVideoCapability(providerId, record, fallbackModelId, hadInputVideo);
+  const sanitizedInput = sanitizePiInputModalities(record.input);
+  if (sanitizedInput.changed) {
+    record.input = sanitizedInput.input;
+    patched++;
+  }
+  if (shouldEnableVideo && ensureHanaVideoInputCompat(record)) patched++;
+  if (hadRuntimeVideoField) {
+    delete record.video;
+    patched++;
+  }
+  return patched;
+}
+
+function migrationModelHasVideoCapability(providerId, model, fallbackModelId, hadInputVideo = false) {
   if (model?.video === true) return true;
   if (model?.video === false) return false;
-  const known = lookupKnown(providerId, model?.id);
+  if (hadInputVideo) return true;
+  const known = lookupKnown(providerId, model?.id || fallbackModelId);
   return known?.video === true;
 }
 
@@ -1475,11 +1507,31 @@ function migrationInputIncludes(input, modality) {
   return Array.isArray(input) && input.includes(modality);
 }
 
-function migrationInputWith(input, modality) {
-  const next = Array.isArray(input) ? [...input] : ["text"];
-  if (!next.includes("text")) next.unshift("text");
-  if (!next.includes(modality)) next.push(modality);
-  return next;
+function sanitizePiInputModalities(input) {
+  if (input === undefined) return { input, changed: false };
+
+  const source = Array.isArray(input) ? input : [];
+  const next = ["text"];
+  if (source.includes("image")) next.push("image");
+
+  return {
+    input: next,
+    changed: !Array.isArray(input)
+      || input.length !== next.length
+      || input.some((item, index) => item !== next[index]),
+  };
+}
+
+function ensureHanaVideoInputCompat(record) {
+  const compat = record.compat && typeof record.compat === "object" && !Array.isArray(record.compat)
+    ? record.compat
+    : {};
+  if (compat.hanaVideoInput === true && record.compat === compat) return false;
+  record.compat = {
+    ...compat,
+    hanaVideoInput: true,
+  };
+  return true;
 }
 
 function promoteAgentVideoOverrides(ctx) {

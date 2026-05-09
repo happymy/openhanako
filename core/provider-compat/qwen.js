@@ -26,13 +26,13 @@
  *
  * 接口契约：见 ./README.md
  */
+import { modelSupportsVideoInput } from "../../shared/model-capabilities.js";
 
 export function matches(model) {
   if (!model || typeof model !== "object") return false;
   if (
     isDashScopeProvider(model)
-    && Array.isArray(model.input)
-    && model.input.includes("video")
+    && modelSupportsVideoInput(model)
   ) {
     return true;
   }
@@ -82,9 +82,7 @@ function normalizeDashScopeVideoPayload(payload, model) {
 }
 
 function isDashScopeVideoModel(model) {
-  return isDashScopeProvider(model)
-    && Array.isArray(model.input)
-    && model.input.includes("video");
+  return isDashScopeProvider(model) && modelSupportsVideoInput(model);
 }
 
 function isDashScopeProvider(model) {

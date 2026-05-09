@@ -433,7 +433,8 @@ describe("normalizeProviderPayload — 通用层", () => {
       id: "qwen3-vl-plus",
       provider: "dashscope",
       api: "openai-completions",
-      input: ["text", "image", "video"],
+      input: ["text", "image"],
+      compat: { hanaVideoInput: true },
       baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
     }, { mode: "chat" });
 
@@ -461,7 +462,8 @@ describe("normalizeProviderPayload — 通用层", () => {
       id: "qwen3-vl-plus",
       provider: "dashscope",
       api: "openai-completions",
-      input: ["text", "image", "video"],
+      input: ["text", "image"],
+      compat: { hanaVideoInput: true },
       quirks: ["enable_thinking"],
     }, { mode: "utility" });
 

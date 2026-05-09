@@ -170,6 +170,32 @@ export function withThinkingFormatCompat(model, context = {}) {
   };
 }
 
+export function modelSupportsVideoInput(model) {
+  if (!isPlainObject(model)) return false;
+  if (model.video === true) return true;
+  if (model.compat?.hanaVideoInput === true) return true;
+
+  // Legacy runtime objects created before Pi SDK tightened models.json input
+  // validation may still carry video in input. Read it for compatibility, but
+  // model-sync/migrations must not write it back to Pi-facing JSON.
+  return Array.isArray(model.input) && model.input.includes("video");
+}
+
+export function withHanaVideoInputCompat(model, enabled) {
+  if (!isPlainObject(model) || enabled !== true) return model;
+
+  const compat = isPlainObject(model.compat) ? model.compat : {};
+  if (compat.hanaVideoInput === true) return model;
+
+  return {
+    ...model,
+    compat: {
+      ...compat,
+      hanaVideoInput: true,
+    },
+  };
+}
+
 /**
  * Resolve stable visual grounding capabilities for an auxiliary vision model.
  *

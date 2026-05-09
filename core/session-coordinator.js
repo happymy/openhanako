@@ -29,6 +29,7 @@ import { formatWorkspaceScopePrompt, normalizeWorkspaceScope } from "../shared/w
 import { getProviderPromptPatches } from "./provider-prompt-patches.js";
 import { requireVisionAuxiliaryEnabled } from "./vision-auxiliary-policy.js";
 import { adaptVisualContextMessages } from "./visual-context-pipeline.js";
+import { modelSupportsVideoInput } from "../shared/model-capabilities.js";
 import {
   normalizeSessionThinkingLevel,
   normalizeThinkingLevelForModel,
@@ -51,8 +52,7 @@ function getSteerPrefix() {
 
 function assertVideoInputSupported(model, videos) {
   if (!videos?.length) return;
-  const input = model?.input;
-  if (!Array.isArray(input) || !input.includes("video")) {
+  if (!modelSupportsVideoInput(model)) {
     throw new Error("current model does not support video input");
   }
 }

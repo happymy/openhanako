@@ -10,7 +10,7 @@ import { runMigrations } from "../core/migrations.js";
 
 // ── 测试工具 ────────────────────────────────────────────────────────────────
 
-const LATEST_DATA_VERSION = 19;
+const LATEST_DATA_VERSION = 20;
 
 function makeTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "hana-migrations-"));
@@ -1445,7 +1445,8 @@ describe("migration #16: video capability projection", () => {
     runMigration16(prefs);
 
     const raw = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
-    expect(raw.providers.dashscope.models[0].input).toEqual(["text", "image", "video"]);
+    expect(raw.providers.dashscope.models[0].input).toEqual(["text", "image"]);
+    expect(raw.providers.dashscope.models[0].compat.hanaVideoInput).toBe(true);
     expect(raw.providers.dashscope.models[0]).not.toHaveProperty("video");
     expect(raw.providers.dashscope.models[1].input).toEqual(["text"]);
     expect(prefs.getPreferences()._dataVersion).toBe(LATEST_DATA_VERSION);
@@ -1480,6 +1481,86 @@ describe("migration #16: video capability projection", () => {
     expect(raw.providers.dashscope.models[0]).toEqual({ id: "qwen3-vl-plus", video: true });
     const cfg = readAgentConfig(agentsDir, "hana");
     expect(cfg.models.overrides["qwen3-vl-plus"]).toEqual({ displayName: "Qwen VL" });
+  });
+});
+
+describe("migration #20: Pi model input schema compatibility", () => {
+  let tmpDir, agentsDir, userDir;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    agentsDir = path.join(tmpDir, "agents");
+    userDir = tmpDir;
+    fs.mkdirSync(agentsDir, { recursive: true });
+  });
+
+  afterEach(() => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+  function runMigration20(prefs) {
+    prefs.savePreferences({ _dataVersion: 19 });
+    runMigrations({
+      hanakoHome: tmpDir,
+      agentsDir,
+      prefs,
+      providerRegistry: makeRegistryWithModels({}),
+      log: () => {},
+    });
+  }
+
+  it("removes invalid Pi input modalities and preserves Hana video capability in compat", async () => {
+    const prefs = makePrefs(userDir);
+    const modelsJsonPath = path.join(tmpDir, "models.json");
+    fs.writeFileSync(modelsJsonPath, JSON.stringify({
+      providers: {
+        dashscope: {
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          api: "openai-completions",
+          apiKey: "sk-test",
+          models: [
+            { id: "qwen3-vl-plus", name: "Qwen VL", input: ["text", "image", "video"] },
+            { id: "qwen-plus", name: "Qwen Plus", input: ["text", "audio"] },
+            { id: "custom-video", name: "Custom Video", input: ["video"], video: true },
+          ],
+          modelOverrides: {
+            "qwen3-vl-plus": { input: ["text", "image", "video"] },
+            "qwen-plus": { input: ["text", "audio"] },
+          },
+        },
+      },
+    }, null, 2) + "\n", "utf-8");
+
+    runMigration20(prefs);
+
+    const raw = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
+    expect(raw.providers.dashscope.models[0]).toMatchObject({
+      id: "qwen3-vl-plus",
+      input: ["text", "image"],
+      compat: { hanaVideoInput: true },
+    });
+    expect(raw.providers.dashscope.models[1]).toMatchObject({
+      id: "qwen-plus",
+      input: ["text"],
+    });
+    expect(raw.providers.dashscope.models[1].compat?.hanaVideoInput).toBeUndefined();
+    expect(raw.providers.dashscope.models[2]).toMatchObject({
+      id: "custom-video",
+      input: ["text"],
+      compat: { hanaVideoInput: true },
+    });
+    expect(raw.providers.dashscope.models[2]).not.toHaveProperty("video");
+    expect(raw.providers.dashscope.modelOverrides["qwen3-vl-plus"]).toMatchObject({
+      input: ["text", "image"],
+      compat: { hanaVideoInput: true },
+    });
+    expect(raw.providers.dashscope.modelOverrides["qwen-plus"]).toEqual({
+      input: ["text"],
+    });
+
+    const { AuthStorage, createModelRegistry } = await import("../lib/pi-sdk/index.js");
+    const registry = createModelRegistry(new AuthStorage(tmpDir), modelsJsonPath);
+    const available = await registry.getAvailable();
+    expect(available.map((model) => model.id)).toEqual(["qwen3-vl-plus", "qwen-plus", "custom-video"]);
+    expect(prefs.getPreferences()._dataVersion).toBe(LATEST_DATA_VERSION);
   });
 });
 

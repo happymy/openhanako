@@ -29,6 +29,7 @@ describe('chat image send preflight', () => {
     expect(getModelImageInputMode({})).toBe('unknown');
     expect(getModelVideoInputMode({ input: ['text', 'image'] })).toBe('no-native-video');
     expect(getModelVideoInputMode({ input: ['text', 'video'] })).toBe('native-video');
+    expect(getModelVideoInputMode({ input: ['text', 'image'], video: true })).toBe('native-video');
     expect(getModelVideoInputMode({})).toBe('unknown');
   });
 
@@ -134,7 +135,7 @@ describe('chat image send preflight', () => {
   it('allows video send only when the current model explicitly supports video', async () => {
     const result = await evaluateChatVideoSendPreflight({
       attachments: [{ path: '/tmp/a.mp4', name: 'a.mp4' }],
-      model: { id: 'qwen3-vl-plus', provider: 'dashscope', input: ['text', 'image', 'video'] },
+      model: { id: 'qwen3-vl-plus', provider: 'dashscope', input: ['text', 'image'], video: true },
     });
 
     expect(result).toEqual({

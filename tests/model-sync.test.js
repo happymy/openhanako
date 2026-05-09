@@ -389,7 +389,8 @@ describe("syncModels", () => {
     expect(result.providers["kimi-coding"].modelOverrides["kimi-for-coding"]).toEqual({
       name: "Kimi 自定义显示名",
       maxTokens: 16000,
-      input: ["text", "image", "video"],
+      input: ["text", "image"],
+      compat: { hanaVideoInput: true },
     });
   });
 
@@ -507,7 +508,7 @@ describe("syncModels", () => {
     expect(model.input).toEqual(["text"]);
   });
 
-  it("projects explicit video capability into model.input and keeps unknown models video-off by default", async () => {
+  it("projects explicit video capability into Hana compat and keeps Pi input schema-compatible", async () => {
     const syncModels = await loadSync();
 
     const providers = {
@@ -526,14 +527,14 @@ describe("syncModels", () => {
     syncModels(providers, { modelsJsonPath });
 
     const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
-    expect(result.providers.custom.models.map((m) => [m.id, m.input])).toEqual([
-      ["custom-video", ["text", "video"]],
-      ["custom-multimodal", ["text", "image", "video"]],
-      ["custom-unknown", ["text"]],
+    expect(result.providers.custom.models.map((m) => [m.id, m.input, m.compat?.hanaVideoInput])).toEqual([
+      ["custom-video", ["text"], true],
+      ["custom-multimodal", ["text", "image"], true],
+      ["custom-unknown", ["text"], undefined],
     ]);
   });
 
-  it("projects known video-capable models into model.input", async () => {
+  it("projects known video-capable models into Hana compat without invalid Pi input", async () => {
     const syncModels = await loadSync();
 
     const providers = {
@@ -548,7 +549,34 @@ describe("syncModels", () => {
     syncModels(providers, { modelsJsonPath });
 
     const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
-    expect(result.providers.dashscope.models[0].input).toEqual(["text", "image", "video"]);
+    expect(result.providers.dashscope.models[0].input).toEqual(["text", "image"]);
+    expect(result.providers.dashscope.models[0].compat.hanaVideoInput).toBe(true);
+  });
+
+  it("writes Pi-loadable models when Hana video capability is enabled", async () => {
+    const syncModels = await loadSync();
+    const { AuthStorage, createModelRegistry } = await import("../lib/pi-sdk/index.js");
+
+    const providers = {
+      dashscope: {
+        base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        api: "openai-completions",
+        api_key: "sk-test",
+        models: ["qwen3-vl-plus"],
+      },
+    };
+
+    syncModels(providers, { modelsJsonPath });
+
+    const registry = createModelRegistry(new AuthStorage(tmpDir), modelsJsonPath);
+    const available = await registry.getAvailable();
+    expect(available).toHaveLength(1);
+    expect(available[0]).toMatchObject({
+      id: "qwen3-vl-plus",
+      provider: "dashscope",
+      input: ["text", "image"],
+      compat: { hanaVideoInput: true },
+    });
   });
 
   it("rejects the official DeepSeek provider id before writing models.json", async () => {

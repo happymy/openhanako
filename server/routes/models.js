@@ -6,6 +6,7 @@ import { safeJson } from "../hono-helpers.js";
 import { t } from "../i18n.js";
 import { modelRefEquals, parseModelRef } from "../../shared/model-ref.js";
 import { lookupKnown } from "../../shared/known-models.js";
+import { modelSupportsVideoInput } from "../../shared/model-capabilities.js";
 import { callText } from "../../core/llm-client.js";
 import { modelSupportsXhigh } from "../../core/session-thinking-level.js";
 
@@ -47,6 +48,7 @@ export function createModelsRoute(engine) {
         provider: m.provider,
         isCurrent: modelRefEquals(m, cur),
         input: Array.isArray(m.input) ? m.input : ["text"],
+        video: modelSupportsVideoInput(m),
         reasoning: m.reasoning,
         contextWindow: m.contextWindow,
         maxTokens: m.maxTokens,
@@ -136,6 +138,7 @@ export function createModelsRoute(engine) {
         name: resolveModelName(sessionModel.id, sessionModel.name, overrides, sessionModel.provider),
         provider: sessionModel.provider,
         input: Array.isArray(sessionModel.input) ? sessionModel.input : ["text"],
+        video: modelSupportsVideoInput(sessionModel),
         reasoning: sessionModel.reasoning,
         contextWindow: sessionModel.contextWindow,
         ...(modelSupportsXhigh(sessionModel) ? { xhigh: true } : {}),

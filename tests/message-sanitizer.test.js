@@ -41,6 +41,9 @@ describe("modelSupportsVideo", () => {
   it("input 含 video → true", () => {
     expect(modelSupportsVideo({ input: ["text", "video"] })).toBe(true);
   });
+  it("Hana compat 标记视频能力 → true", () => {
+    expect(modelSupportsVideo({ input: ["text", "image"], compat: { hanaVideoInput: true } })).toBe(true);
+  });
   it("input 缺失或只有 image → false", () => {
     expect(modelSupportsVideo({ input: ["text", "image"] })).toBe(false);
     expect(modelSupportsVideo({})).toBe(false);
@@ -50,7 +53,7 @@ describe("modelSupportsVideo", () => {
 describe("sanitizeMessagesForModel", () => {
   const textOnlyModel = { input: ["text"] };
   const imageModel = { input: ["text", "image"] };
-  const videoModel = { input: ["text", "video"] };
+  const videoModel = { input: ["text"], compat: { hanaVideoInput: true } };
 
   it("支持 image 的模型：放行不改", () => {
     const messages = [

@@ -8,7 +8,7 @@
 import fs from "fs";
 import { getPiModel } from "../lib/pi-sdk/index.js";
 import { lookupKnown } from "../shared/known-models.js";
-import { normalizeVisionCapabilities, withThinkingFormatCompat } from "../shared/model-capabilities.js";
+import { normalizeVisionCapabilities, withHanaVideoInputCompat, withThinkingFormatCompat } from "../shared/model-capabilities.js";
 import { providerCredentialAllowsMissingApiKey } from "../shared/provider-auth.js";
 import { validateProviderModels } from "../shared/provider-model-validation.js";
 
@@ -40,11 +40,10 @@ function getModelId(modelEntry) {
   return typeof modelEntry === "object" && modelEntry !== null ? modelEntry.id : modelEntry;
 }
 
-function buildInputModalities({ image = false, video = false } = {}) {
+function buildPiInputModalities({ image = false } = {}) {
   return [
     "text",
     ...(image ? ["image"] : []),
-    ...(video ? ["video"] : []),
   ];
 }
 
@@ -73,14 +72,14 @@ function buildModelOverride(modelEntry) {
   const image = modelEntry.image ?? modelEntry.vision;
   const video = modelEntry.video;
   if (image !== undefined || video !== undefined) {
-    override.input = buildInputModalities({
+    override.input = buildPiInputModalities({
       image: image === true,
-      video: video === true,
     });
   }
   if (modelEntry.reasoning !== undefined) override.reasoning = modelEntry.reasoning;
 
-  return Object.keys(override).length > 0 ? override : null;
+  const finalOverride = video === true ? withHanaVideoInputCompat(override, true) : override;
+  return Object.keys(finalOverride).length > 0 ? finalOverride : null;
 }
 
 /**
@@ -105,7 +104,7 @@ function buildModelEntry(modelEntry, provider, baseUrl = "", api = "openai-compl
   const entry = {
     id,
     name: (isObj && modelEntry.name) || known?.name || humanizeName(id),
-    input: buildInputModalities({ image: image === true, video: video === true }),
+    input: buildPiInputModalities({ image: image === true }),
     contextWindow: (isObj && modelEntry.context) || known?.context || DEFAULT_CONTEXT_WINDOW,
     reasoning: (isObj && modelEntry.reasoning !== undefined) ? modelEntry.reasoning : (known?.reasoning === true),
   };
@@ -138,7 +137,8 @@ function buildModelEntry(modelEntry, provider, baseUrl = "", api = "openai-compl
     entry.compat = compat;
   }
 
-  return withThinkingFormatCompat(entry, { provider, api });
+  const videoAwareEntry = video === true ? withHanaVideoInputCompat(entry, true) : entry;
+  return withThinkingFormatCompat(videoAwareEntry, { provider, api });
 }
 
 function filterChatModelEntries(provider, models) {

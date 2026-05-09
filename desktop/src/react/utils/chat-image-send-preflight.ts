@@ -10,6 +10,10 @@ export interface ChatImageModel {
   id?: string;
   provider?: string;
   input?: readonly string[];
+  video?: boolean;
+  compat?: {
+    hanaVideoInput?: boolean;
+  } | null;
 }
 
 export interface VisionAuxiliaryConfig {
@@ -72,6 +76,7 @@ export function getModelImageInputMode(model: ChatImageModel | null | undefined)
 }
 
 export function getModelVideoInputMode(model: ChatImageModel | null | undefined): ModelVideoInputMode {
+  if (model?.video === true || model?.compat?.hanaVideoInput === true) return 'native-video';
   const input = model?.input;
   if (!Array.isArray(input)) return 'unknown';
   return input.includes('video') ? 'native-video' : 'no-native-video';
