@@ -1,4 +1,5 @@
 import { hanaFetch } from '../hooks/use-hana-fetch';
+import { hasServerConnection } from '../services/server-connection';
 import type { PreviewItem, TextFileSnapshot } from '../types';
 import { useStore } from './index';
 // @ts-expect-error — shared JS module
@@ -93,7 +94,7 @@ export function buildPersistedWorkspaceUiState(root: string): PersistedWorkspace
 export async function loadPersistedWorkspaceUiState(root: string): Promise<PersistedWorkspaceUiState | null> {
   const normalized = normalizeRoot(root);
   const state = useStore.getState();
-  if (!normalized || !state.serverPort) return null;
+  if (!normalized || !hasServerConnection(state)) return null;
   try {
     const res = await hanaFetch(`/api/preferences/workspace-ui-state?workspace=${encodeURIComponent(normalized)}`);
     const data = await res.json().catch(() => null);
@@ -160,7 +161,7 @@ export async function hydratePersistedPreviewItems(
 
 export function schedulePersistCurrentWorkspaceUiState(root?: string | null): void {
   const normalized = normalizeRoot(root ?? useStore.getState().deskBasePath);
-  if (!normalized || !useStore.getState().serverPort) return;
+  if (!normalized || !hasServerConnection(useStore.getState())) return;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = null;
@@ -170,7 +171,7 @@ export function schedulePersistCurrentWorkspaceUiState(root?: string | null): vo
 
 export async function persistCurrentWorkspaceUiStateNow(root?: string | null): Promise<void> {
   const normalized = normalizeRoot(root ?? useStore.getState().deskBasePath);
-  if (!normalized || !useStore.getState().serverPort) return;
+  if (!normalized || !hasServerConnection(useStore.getState())) return;
   const state = buildPersistedWorkspaceUiState(normalized);
   try {
     await hanaFetch('/api/preferences/workspace-ui-state', {

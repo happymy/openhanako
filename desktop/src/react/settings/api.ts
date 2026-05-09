@@ -14,7 +14,7 @@ const DEFAULT_TIMEOUT = 30_000;
 export function hanaUrl(path: string): string {
   const connection = requireServerConnection(
     useSettingsStore.getState(),
-    `settings hanaUrl ${path}: serverPort not ready`,
+    `settings hanaUrl ${path}: server connection not ready`,
   );
   return buildConnectionUrl(connection, path, { includeTokenQuery: true });
 }
@@ -25,7 +25,7 @@ export async function hanaFetch(
 ): Promise<Response> {
   const connection = requireServerConnection(
     useSettingsStore.getState(),
-    `settings hanaFetch ${path}: serverPort not ready`,
+    `settings hanaFetch ${path}: server connection not ready`,
   );
   const headers = appendConnectionAuth(connection, opts.headers);
 

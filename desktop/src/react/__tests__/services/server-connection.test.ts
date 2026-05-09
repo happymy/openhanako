@@ -5,6 +5,8 @@ import {
   buildConnectionUrl,
   buildConnectionWsUrl,
   createLocalServerConnection,
+  hasServerConnection,
+  mergeServerIdentity,
   resolveServerConnection,
 } from '../../services/server-connection';
 
@@ -31,6 +33,17 @@ describe('server connection helpers', () => {
       serverPort: null,
       serverToken: 'test-token-123',
     })).toBeNull();
+  });
+
+  it('reports readiness from active connection while preserving legacy compatibility', () => {
+    const active = createLocalServerConnection({
+      serverPort: 4242,
+      serverToken: 'active-token',
+    });
+
+    expect(hasServerConnection({ activeServerConnection: active })).toBe(true);
+    expect(hasServerConnection({ serverPort: 3210, serverToken: 'legacy-token' })).toBe(true);
+    expect(hasServerConnection({ serverPort: null, serverToken: 'legacy-token' })).toBe(false);
   });
 
   it('prefers the active connection over legacy port and token fields', () => {
@@ -90,5 +103,40 @@ describe('server connection helpers', () => {
     expect(connection).not.toBeNull();
 
     expect(buildConnectionWsUrl(connection!, '/ws')).toBe('ws://127.0.0.1:3210/ws?token=test-token-123');
+  });
+
+  it('merges stable server identity without changing transport details', () => {
+    const connection = createLocalServerConnection({
+      serverPort: '3210',
+      serverToken: 'test-token-123',
+    });
+    expect(connection).not.toBeNull();
+
+    expect(mergeServerIdentity(connection!, {
+      serverId: 'server_stable',
+      userId: 'user_stable',
+      spaceId: 'space_stable',
+      label: 'Stable Server',
+      userLabel: 'Stable User',
+      spaceLabel: 'Stable Space',
+      authState: 'paired',
+      trustState: 'local',
+      capabilities: ['chat', 'resources', 'tools', 'identity'],
+      version: '1.2.3',
+    })).toEqual({
+      serverId: 'server_stable',
+      userId: 'user_stable',
+      spaceId: 'space_stable',
+      label: 'Stable Server',
+      userLabel: 'Stable User',
+      spaceLabel: 'Stable Space',
+      serverVersion: '1.2.3',
+      baseUrl: 'http://127.0.0.1:3210',
+      wsUrl: 'ws://127.0.0.1:3210',
+      token: 'test-token-123',
+      authState: 'paired',
+      trustState: 'local',
+      capabilities: ['chat', 'resources', 'tools', 'identity'],
+    });
   });
 });

@@ -11,6 +11,7 @@ import fs from "fs";
 import path from "path";
 import YAML from "js-yaml";
 import { safeReadYAMLSync } from "../shared/safe-fs.js";
+import { ensureLocalIdentityRegistries } from "./server-identity.js";
 import { saveConfig } from "../lib/memory/config-loader.js";
 import {
   getSubagentSessionMetaPath,
@@ -65,6 +66,8 @@ const migrations = {
   16: migrateVideoCapabilityProjection,
   // bridge sessionKey 引入 @agentId 后，修补旧 index 中无 agent 维度的 key
   17: migrateBridgeSessionKeysToAgentScoped,
+  // Space 基础身份：为旧 HANA_HOME 补齐 server / legacy owner / default Space registry
+  18: migrateLocalIdentityRegistries,
 };
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -1948,4 +1951,10 @@ function legacyBrowserScreenshot(msg) {
     base64,
     mimeType: image?.mimeType || msg.details?.mimeType || "image/png",
   };
+}
+
+function migrateLocalIdentityRegistries(ctx) {
+  const { hanakoHome, log } = ctx;
+  const { created } = ensureLocalIdentityRegistries(hanakoHome);
+  log?.(`[migrations] #18: local identity registries ready${created.length ? ` (created=${created.join(",")})` : ""}`);
 }

@@ -99,6 +99,22 @@ function jsonResponse(body: unknown): Response {
   return { json: async () => body } as unknown as Response;
 }
 
+function serverIdentityResponse(partial: Record<string, unknown> = {}): Response {
+  return jsonResponse({
+    serverId: 'server_test',
+    userId: 'user_test',
+    spaceId: 'space_test',
+    label: 'Test Server',
+    userLabel: 'Test User',
+    spaceLabel: 'Test Space',
+    trustState: 'local',
+    authState: 'paired',
+    capabilities: ['chat', 'resources', 'tools'],
+    version: '0.test',
+    ...partial,
+  });
+}
+
 describe('initApp bridge indicator', () => {
   beforeEach(() => {
     Object.keys(mockState).forEach(k => delete mockState[k]);
@@ -155,6 +171,7 @@ describe('initApp bridge indicator', () => {
     (globalThis as Record<string, unknown>).t = vi.fn((key: string) => key);
 
     mockHanaFetch
+      .mockResolvedValueOnce(serverIdentityResponse())
       .mockResolvedValueOnce(jsonResponse({ agent: 'Hanako', user: 'User', avatars: {} }))
       .mockResolvedValueOnce(jsonResponse({ locale: 'zh-CN', desk: { home_folder: null }, cwd_history: [] }))
       .mockResolvedValueOnce(jsonResponse({ jobs: [] }))
@@ -169,9 +186,13 @@ describe('initApp bridge indicator', () => {
     await initApp();
 
     expect(mockState.activeServerConnection).toEqual({
-      serverId: 'local',
-      spaceId: 'local',
-      label: 'Local Hana',
+      serverId: 'server_test',
+      userId: 'user_test',
+      spaceId: 'space_test',
+      label: 'Test Server',
+      userLabel: 'Test User',
+      spaceLabel: 'Test Space',
+      serverVersion: '0.test',
       baseUrl: 'http://127.0.0.1:62950',
       wsUrl: 'ws://127.0.0.1:62950',
       token: 'token',
@@ -180,6 +201,40 @@ describe('initApp bridge indicator', () => {
       capabilities: ['chat', 'resources', 'tools'],
     });
     expect(mockState.bridgeDotConnected).toBe(true);
+  });
+
+  it('stops startup explicitly when server identity cannot be loaded', async () => {
+    (globalThis as Record<string, unknown>).window = {
+      addEventListener: vi.fn(),
+      platform: {
+        getServerPort: vi.fn(async () => 62950),
+        getServerToken: vi.fn(async () => 'token'),
+        appReady: vi.fn(),
+        onSettingsChanged: vi.fn(),
+        openSettings: vi.fn(),
+      },
+      dispatchEvent: vi.fn(),
+    };
+    (globalThis as Record<string, unknown>).document = {
+      addEventListener: vi.fn(),
+    };
+    (globalThis as Record<string, unknown>).i18n = {
+      locale: 'zh-CN',
+      defaultName: 'Hanako',
+      load: vi.fn(async () => {}),
+    };
+    (globalThis as Record<string, unknown>).t = vi.fn((key: string) => key);
+
+    mockHanaFetch.mockRejectedValueOnce(new Error('identity unavailable'));
+
+    const { initApp } = await import('../app-init');
+    await initApp();
+
+    expect(mockHanaFetch).toHaveBeenCalledWith('/api/server/identity');
+    expect(mockSetStatus).toHaveBeenCalledWith('status.serverNotReady', false);
+    expect(mockLoadModels).not.toHaveBeenCalled();
+    expect(mockConnectWebSocket).not.toHaveBeenCalled();
+    expect((window.platform.appReady as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(1);
   });
 
   it('initializes the pending workspace from agent home even when cwd history points elsewhere', async () => {
@@ -205,6 +260,7 @@ describe('initApp bridge indicator', () => {
     (globalThis as Record<string, unknown>).t = vi.fn((key: string) => key);
 
     mockHanaFetch
+      .mockResolvedValueOnce(serverIdentityResponse())
       .mockResolvedValueOnce(jsonResponse({ agent: 'Hanako', user: 'User', avatars: {} }))
       .mockResolvedValueOnce(jsonResponse({
         locale: 'zh-CN',
@@ -255,6 +311,7 @@ describe('initApp bridge indicator', () => {
     (globalThis as Record<string, unknown>).t = vi.fn((key: string) => key);
 
     mockHanaFetch
+      .mockResolvedValueOnce(serverIdentityResponse())
       .mockResolvedValueOnce(jsonResponse({ agent: 'Hanako', user: 'User', avatars: {} }))
       .mockResolvedValueOnce(jsonResponse({ locale: 'zh-CN', desk: { home_folder: '/old-home' }, cwd_history: [] }))
       .mockResolvedValueOnce(jsonResponse({ jobs: [] }))
@@ -314,6 +371,7 @@ describe('initApp bridge indicator', () => {
     (globalThis as Record<string, unknown>).t = vi.fn((key: string) => key);
 
     mockHanaFetch
+      .mockResolvedValueOnce(serverIdentityResponse())
       .mockResolvedValueOnce(jsonResponse({ agent: 'Hanako', user: 'User', avatars: {} }))
       .mockResolvedValueOnce(jsonResponse({ locale: 'zh-CN', desk: { home_folder: '/old-home' }, cwd_history: [] }))
       .mockResolvedValueOnce(jsonResponse({ jobs: [] }))
@@ -373,6 +431,7 @@ describe('initApp bridge indicator', () => {
     (globalThis as Record<string, unknown>).t = vi.fn((key: string) => key);
 
     mockHanaFetch
+      .mockResolvedValueOnce(serverIdentityResponse())
       .mockResolvedValueOnce(jsonResponse({ agent: 'Hanako', user: 'User', avatars: {} }))
       .mockResolvedValueOnce(jsonResponse({ locale: 'zh-CN', desk: { home_folder: '/old-home' }, cwd_history: [] }))
       .mockResolvedValueOnce(jsonResponse({ jobs: [] }))
@@ -436,6 +495,7 @@ describe('initApp bridge indicator', () => {
 
     mockGetWebSocket.mockReturnValue({ readyState: 1, send } as unknown as WebSocket);
     mockHanaFetch
+      .mockResolvedValueOnce(serverIdentityResponse())
       .mockResolvedValueOnce(jsonResponse({ agent: 'Hanako', user: 'User', avatars: {} }))
       .mockResolvedValueOnce(jsonResponse({ locale: 'zh-CN', desk: { home_folder: null }, cwd_history: [] }))
       .mockResolvedValueOnce(jsonResponse({ jobs: [] }))
@@ -500,6 +560,7 @@ describe('initApp bridge indicator', () => {
     (globalThis as Record<string, unknown>).t = vi.fn((key: string) => key);
 
     mockHanaFetch
+      .mockResolvedValueOnce(serverIdentityResponse())
       .mockResolvedValueOnce(jsonResponse({ agent: 'Hanako', user: 'User', avatars: {} }))
       .mockResolvedValueOnce(jsonResponse({ locale: 'zh-CN', desk: { home_folder: null }, cwd_history: [] }))
       .mockResolvedValueOnce(jsonResponse({ jobs: [] }))

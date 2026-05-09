@@ -22,7 +22,7 @@ import { openSettingsModal } from './stores/settings-modal-actions';
 import { configureAppEventActions, handleAppEvent, readConfigCwdHistory, readConfigHomeFolder, readConfigMemoryMasterEnabled } from './services/app-event-actions';
 import { configureWsMessageHandler } from './services/ws-message-handler';
 import { applyEditorTypography } from './editor/typography';
-import { createLocalServerConnection } from './services/server-connection';
+import { createLocalServerConnection, hasServerConnection, mergeServerIdentity } from './services/server-connection';
 // @ts-expect-error — shared JS module
 import { errorBus as _errorBus } from '../../../shared/error-bus.js';
 // @ts-expect-error — shared JS module
@@ -39,8 +39,7 @@ declare function t(key: string, vars?: Record<string, string | number>): string;
 
 // ── __hanaLog：前端日志上报 ──
 window.__hanaLog = function (level: string, module: string, message: string) {
-  const { serverPort } = useStore.getState();
-  if (!serverPort) return;
+  if (!hasServerConnection(useStore.getState())) return;
   hanaFetch('/api/log', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -79,6 +78,19 @@ export async function initApp(): Promise<void> {
   useStore.setState({ serverPort, serverToken, activeServerConnection });
 
   if (!activeServerConnection) {
+    setStatus('status.serverNotReady', false);
+    platform.appReady();
+    return;
+  }
+
+  try {
+    const identityRes = await hanaFetch('/api/server/identity');
+    const identityData = await identityRes.json();
+    useStore.setState({
+      activeServerConnection: mergeServerIdentity(activeServerConnection, identityData),
+    });
+  } catch (err) {
+    console.error('[init] server identity failed:', err);
     setStatus('status.serverNotReady', false);
     platform.appReady();
     return;

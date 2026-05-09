@@ -3,14 +3,31 @@ export type ServerAuthState = 'anonymous' | 'paired' | 'user' | 'expired';
 
 export interface ServerConnection {
   serverId: string;
+  userId?: string;
   spaceId: string;
   label: string;
+  userLabel?: string;
+  spaceLabel?: string;
+  serverVersion?: string;
   baseUrl: string;
   wsUrl: string;
   token: string | null;
   authState: ServerAuthState;
   trustState: ServerTrustState;
   capabilities: string[];
+}
+
+export interface ServerIdentity {
+  serverId: string;
+  userId?: string;
+  spaceId: string;
+  label: string;
+  userLabel?: string;
+  spaceLabel?: string;
+  authState?: ServerAuthState;
+  trustState?: ServerTrustState;
+  capabilities?: string[];
+  version?: string;
 }
 
 export interface ServerConnectionSource {
@@ -109,6 +126,29 @@ export function requireServerConnection(
   const connection = resolveServerConnection(source);
   if (!connection) throw new Error(errorMessage);
   return connection;
+}
+
+export function hasServerConnection(source: ServerConnectionSource): boolean {
+  return !!resolveServerConnection(source);
+}
+
+export function mergeServerIdentity(
+  connection: ServerConnection,
+  identity: ServerIdentity,
+): ServerConnection {
+  return {
+    ...connection,
+    serverId: identity.serverId,
+    userId: identity.userId,
+    spaceId: identity.spaceId,
+    label: identity.label,
+    userLabel: identity.userLabel,
+    spaceLabel: identity.spaceLabel,
+    serverVersion: identity.version,
+    authState: identity.authState || connection.authState,
+    trustState: identity.trustState || connection.trustState,
+    capabilities: identity.capabilities ? [...identity.capabilities] : [...connection.capabilities],
+  };
 }
 
 export function buildConnectionUrl(

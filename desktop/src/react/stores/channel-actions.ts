@@ -8,6 +8,7 @@
 
 import { useStore } from './index';
 import { hanaFetch } from '../hooks/use-hana-fetch';
+import { hasServerConnection } from '../services/server-connection';
 import type { Channel, ChannelMessage } from '../types';
 
 // ══════════════════════════════════════════════════════
@@ -16,7 +17,7 @@ import type { Channel, ChannelMessage } from '../types';
 
 export async function loadChannels(): Promise<void> {
   const s = useStore.getState();
-  if (!s.serverPort) return;
+  if (!hasServerConnection(s)) return;
   try {
     const [chRes, dmRes] = await Promise.all([
       hanaFetch('/api/channels'),

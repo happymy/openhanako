@@ -19,23 +19,23 @@ export function ChannelsPanel() {
   const currentTab = useStore(s => s.currentTab);
   const channelsEnabled = useStore(s => s.channelsEnabled);
   const channels = useStore(s => s.channels);
-  const serverPort = useStore(s => s.serverPort);
+  const activeServerConnection = useStore(s => s.activeServerConnection);
 
   // 启动时从后端读频道开关状态；开启时加载频道列表
   useEffect(() => {
-    if (!serverPort) return;
+    if (!activeServerConnection) return;
     fetchConfig().then(cfg => {
       // 默认关：只有显式 true 才算启用
       const enabled = cfg?.channels?.enabled === true;
       useStore.getState().setChannelsEnabled(enabled);
       if (enabled) loadChannels();
     }).catch(err => console.warn('[channels] init failed:', err));
-  }, [serverPort]);
+  }, [activeServerConnection]);
 
   // 开关变化后加载频道列表
   useEffect(() => {
-    if (channelsEnabled && serverPort) loadChannels();
-  }, [channelsEnabled, serverPort]);
+    if (channelsEnabled && activeServerConnection) loadChannels();
+  }, [channelsEnabled, activeServerConnection]);
 
   return null;
 }

@@ -132,8 +132,7 @@ describe("loadAll", () => {
       export default class Stuck { async onload() { await new Promise(() => {}); } }
     `);
     const good = path.join(pluginsDir, "after-stuck");
-    fs.mkdirSync(path.join(good, "tools"), { recursive: true });
-    fs.writeFileSync(path.join(good, "tools", "t.js"), "export const name='t';");
+    fs.mkdirSync(good, { recursive: true });
     const pm = new PluginManager({
       pluginsDir,
       dataDir,

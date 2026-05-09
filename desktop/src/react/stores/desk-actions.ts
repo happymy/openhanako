@@ -14,6 +14,7 @@ import {
   loadPersistedWorkspaceUiState,
   schedulePersistCurrentWorkspaceUiState,
 } from './workspace-ui-state-actions';
+import { hasServerConnection } from '../services/server-connection';
 // @ts-expect-error — shared JS module
 import { mergeWorkspaceHistory, normalizeWorkspacePath } from '../../../../shared/workspace-history.js';
 
@@ -180,7 +181,7 @@ export function deskCurrentDir(): string | null {
 
 export async function loadDeskFiles(subdir?: string, overrideDir?: string | null): Promise<void> {
   const s = useStore.getState();
-  if (!s.serverPort) return;
+  if (!hasServerConnection(s)) return;
   if (subdir !== undefined) s.setDeskCurrentPath(subdir);
   const myVersion = ++_deskLoadVersion;
   try {
@@ -263,7 +264,7 @@ function joinDeskPath(basePath: string, subdir: string, name: string): string {
 
 export async function loadDeskTreeFiles(subdir = '', options: { force?: boolean; overrideDir?: string | null } = {}): Promise<void> {
   const s = useStore.getState();
-  if (!s.serverPort) return;
+  if (!hasServerConnection(s)) return;
   const dir = options.overrideDir !== undefined
     ? (options.overrideDir || undefined)
     : defaultDeskRoot(s);
@@ -297,7 +298,7 @@ export async function loadDeskTreeFiles(subdir = '', options: { force?: boolean;
 
 export async function searchDeskFiles(query: string): Promise<DeskSearchResult[]> {
   const s = useStore.getState();
-  if (!s.serverPort) return [];
+  if (!hasServerConnection(s)) return [];
   const trimmed = query.trim();
   if (!trimmed) return [];
   try {
@@ -335,7 +336,7 @@ export async function jumpToDeskSearchResult(result: DeskSearchResult): Promise<
 
 export async function loadJianContent(): Promise<void> {
   const s = useStore.getState();
-  if (!s.serverPort) return;
+  if (!hasServerConnection(s)) return;
   try {
     const params = new URLSearchParams();
     if (s.deskBasePath) params.set('dir', s.deskBasePath);
@@ -352,7 +353,7 @@ export async function loadJianContent(): Promise<void> {
 
 export async function saveJianContent(content?: string): Promise<void> {
   const s = useStore.getState();
-  if (!s.serverPort) return;
+  if (!hasServerConnection(s)) return;
   const text = content ?? s.deskJianContent ?? '';
   try {
     await hanaFetch('/api/desk/jian', {
@@ -703,7 +704,7 @@ export async function applyFolder(folder: string): Promise<void> {
 
 async function persistWorkspaceHistory(folder: string): Promise<void> {
   const s = useStore.getState();
-  if (!s.serverPort) return;
+  if (!hasServerConnection(s)) return;
   try {
     const res = await hanaFetch('/api/config/workspaces/recent', {
       method: 'POST',

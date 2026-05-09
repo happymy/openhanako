@@ -566,9 +566,9 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
   }, [addAttachedFile, editor, t]);
 
   // ── Load thinking level once server port is ready + listen for plan mode sync ──
-  const serverPort = useStore(s => s.serverPort);
+  const activeServerConnection = useStore(s => s.activeServerConnection);
   useEffect(() => {
-    if (serverPort) {
+    if (activeServerConnection) {
       fetchConfig()
         .then(d => { if (d.thinking_level) setThinkingLevel(d.thinking_level as ThinkingLevel); })
         .catch((err: unknown) => console.warn('[InputArea] load config failed', err));
@@ -580,7 +580,7 @@ function InputAreaInner({ cardRef }: InputAreaInnerProps) {
     };
     window.addEventListener('hana-plan-mode', handler);
     return () => window.removeEventListener('hana-plan-mode', handler);
-  }, [serverPort, setThinkingLevel]);
+  }, [activeServerConnection, setThinkingLevel]);
 
   // ── Handle slash selection (builtin vs skill) ──
   const handleSlashSelect = useCallback((item: SlashItem) => {

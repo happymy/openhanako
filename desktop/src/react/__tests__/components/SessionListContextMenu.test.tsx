@@ -148,7 +148,7 @@ describe('SessionList context menu', () => {
     fireEvent.click(screen.getByText('摘要'));
 
     expect(await screen.findByTestId('session-summary-card')).toHaveAttribute('data-scrollable', 'true');
-    expect(screen.getByText(/用户在做记忆系统/)).toBeInTheDocument();
+    expect(await screen.findByText(/用户在做记忆系统/)).toBeInTheDocument();
     expect(hanaFetchMock).toHaveBeenCalledWith(
       '/api/sessions/summary?path=%2Ftmp%2Fagents%2Fhana%2Fsessions%2Fwith-summary.jsonl',
     );
