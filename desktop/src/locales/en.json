@@ -122,7 +122,7 @@
     "screenshotFailed": "Screenshot save failed",
     "selectedCount": "{count} selected",
     "allDone": "All done",
-    "completeAndDismiss": "Complete and dismiss"
+    "markAllComplete": "Mark all as complete"
   },
   "chat": {
     "send": "Send",

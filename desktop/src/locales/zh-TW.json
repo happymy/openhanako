@@ -121,7 +121,7 @@
     "screenshotFailed": "截圖儲存失敗",
     "selectedCount": "已選 {count} 則",
     "allDone": "全部完成",
-    "completeAndDismiss": "完成並收起"
+    "markAllComplete": "全部標記為已完成"
   },
   "chat": {
     "send": "傳送",

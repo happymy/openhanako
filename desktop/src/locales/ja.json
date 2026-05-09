@@ -121,7 +121,7 @@
     "screenshotFailed": "スクリーンショットの保存に失敗しました",
     "selectedCount": "{count} 件選択中",
     "allDone": "すべて完了",
-    "completeAndDismiss": "完了して閉じる"
+    "markAllComplete": "すべて完了にする"
   },
   "chat": {
     "send": "送信",

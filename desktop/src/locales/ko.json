@@ -121,7 +121,7 @@
     "screenshotFailed": "스크린샷 저장 실패",
     "selectedCount": "{count}개 선택됨",
     "allDone": "모두 완료",
-    "completeAndDismiss": "완료하고 닫기"
+    "markAllComplete": "모두 완료로 표시"
   },
   "chat": {
     "send": "보내기",

@@ -9,7 +9,7 @@ describe('TodoDisplay', () => {
   beforeEach(() => {
     window.t = ((key: string) => {
       if (key === 'common.allDone') return '全部完成';
-      if (key === 'common.completeAndDismiss') return '完成并收起';
+      if (key === 'common.markAllComplete') return '全部标记为已完成';
       return key;
     }) as typeof window.t;
   });
@@ -19,7 +19,7 @@ describe('TodoDisplay', () => {
     vi.restoreAllMocks();
   });
 
-  it('calls onCompleteAll from the X control without toggling the todo list', () => {
+  it('shows the complete-all action only after expanding the todo list', () => {
     const onCompleteAll = vi.fn();
     render(
       <TodoDisplay
@@ -28,9 +28,12 @@ describe('TodoDisplay', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '完成并收起' }));
+    expect(screen.queryByRole('button', { name: '全部标记为已完成' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /正在写测试/ }));
+    fireEvent.click(screen.getByRole('button', { name: '全部标记为已完成' }));
 
     expect(onCompleteAll).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText('写测试')).not.toBeInTheDocument();
+    expect(screen.getAllByText('正在写测试')).toHaveLength(2);
   });
 });

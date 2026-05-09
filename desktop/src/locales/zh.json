@@ -122,7 +122,7 @@
     "screenshotFailed": "截图保存失败",
     "selectedCount": "已选 {count} 条",
     "allDone": "全部完成",
-    "completeAndDismiss": "完成并收起"
+    "markAllComplete": "全部标记为已完成"
   },
   "chat": {
     "send": "发送",

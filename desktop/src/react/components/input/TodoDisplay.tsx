@@ -78,22 +78,21 @@ export function TodoDisplay({
               </div>
             );
           })}
+          {onCompleteAll && (
+            <button
+              type="button"
+              className={styles['todo-bar-complete-row']}
+              disabled={completing}
+              onClick={(event) => {
+                event.stopPropagation();
+                onCompleteAll();
+              }}
+            >
+              <span className={styles['todo-bar-complete-icon']} aria-hidden="true">✓</span>
+              <span>{t('common.markAllComplete')}</span>
+            </button>
+          )}
         </div>
-      )}
-      {onCompleteAll && (
-        <button
-          type="button"
-          className={styles['todo-bar-complete']}
-          aria-label={t('common.completeAndDismiss')}
-          title={t('common.completeAndDismiss')}
-          disabled={completing}
-          onClick={(event) => {
-            event.stopPropagation();
-            onCompleteAll();
-          }}
-        >
-          ×
-        </button>
       )}
       <button type="button" className={styles['todo-bar-trigger']} onClick={() => setOpen(!open)}>
         <span className={styles['todo-bar-icon']}>☑</span>
