@@ -1074,6 +1074,7 @@
       "diagnosticConfig": "設定 {count}",
       "openMarketplace": "プラグインマーケットを開く",
       "marketplaceTitle": "プラグインマーケット",
+      "marketplaceHint": "インストール可能なプラグイン、README、権限、貢献タイプを確認できます。",
       "marketplaceCount": "{count} 件のプラグイン",
       "marketplaceNoSource": "マーケットソース未設定",
       "marketplaceEmpty": "閲覧できるプラグインはありません",

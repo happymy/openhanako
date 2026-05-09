@@ -1105,6 +1105,7 @@
       "diagnosticConfig": "配置项 {count}",
       "openMarketplace": "打开插件市场",
       "marketplaceTitle": "插件市场",
+      "marketplaceHint": "浏览可安装插件，查看 README、权限和贡献类型。",
       "marketplaceCount": "{count} 个插件",
       "marketplaceNoSource": "未配置市场源",
       "marketplaceEmpty": "暂无可浏览插件",

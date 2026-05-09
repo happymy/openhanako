@@ -1074,6 +1074,7 @@
       "diagnosticConfig": "配置項 {count}",
       "openMarketplace": "打開插件市場",
       "marketplaceTitle": "插件市場",
+      "marketplaceHint": "瀏覽可安裝插件，查看 README、權限和貢獻類型。",
       "marketplaceCount": "{count} 個插件",
       "marketplaceNoSource": "未配置市場源",
       "marketplaceEmpty": "暫無可瀏覽插件",

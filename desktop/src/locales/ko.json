@@ -1074,6 +1074,7 @@
       "diagnosticConfig": "설정 {count}",
       "openMarketplace": "플러그인 마켓 열기",
       "marketplaceTitle": "플러그인 마켓",
+      "marketplaceHint": "설치 가능한 플러그인, README, 권한, 기여 유형을 확인합니다.",
       "marketplaceCount": "플러그인 {count}개",
       "marketplaceNoSource": "마켓 소스 없음",
       "marketplaceEmpty": "둘러볼 플러그인이 없습니다",

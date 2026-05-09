@@ -472,30 +472,152 @@ export function PluginsTab() {
 
   const marketplaceButton = (
     <button
-      className={styles['settings-icon-btn']}
+      className={marketplace ? styles['settings-icon-btn'] : styles['settings-save-btn-sm']}
       title={t('settings.plugins.openMarketplace')}
       onClick={loadMarketplace}
       disabled={marketplaceLoading}
     >
-      <svg
-        width="14" height="14" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-        className={marketplaceLoading ? styles['spin'] : ''}
-      >
-        <path d="M4 7h16" />
-        <path d="M6 7l1 13h10l1-13" />
-        <path d="M9 7a3 3 0 0 1 6 0" />
-      </svg>
+      {marketplace ? (
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+          className={marketplaceLoading ? styles['spin'] : ''}
+        >
+          <path d="M4 7h16" />
+          <path d="M6 7l1 13h10l1-13" />
+          <path d="M9 7a3 3 0 0 1 6 0" />
+        </svg>
+      ) : t('settings.plugins.openMarketplace')}
     </button>
+  );
+
+  const marketplaceBody = marketplace ? (
+    <>
+      {marketplace.warnings && marketplace.warnings.length > 0 && (
+        <p className={`${styles['settings-muted-note']} ${styles['skills-empty']}`} style={{ color: 'var(--danger, #c55)' }}>
+          {marketplace.warnings[0]}
+        </p>
+      )}
+      {marketplace.plugins.length === 0 ? (
+        <p className={`${styles['settings-muted-note']} ${styles['skills-empty']}`}>
+          {t('settings.plugins.marketplaceEmpty')}
+        </p>
+      ) : (
+        <div className={styles['plugin-marketplace-grid']}>
+          <div className={styles['skills-list-block']}>
+            {marketplace.plugins.map(plugin => (
+              <div
+                key={plugin.id}
+                className={styles['skills-list-item']}
+                onClick={() => loadMarketReadme(plugin)}
+                style={selectedMarketPlugin?.id === plugin.id ? { background: 'var(--bg-hover)' } : undefined}
+              >
+                <div className={styles['skills-list-info']}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span className={styles['skills-list-name']}>{plugin.name}</span>
+                    {plugin.version && <span className={styles['skills-list-name-hint']}>v{plugin.version}</span>}
+                    {plugin.installed && (
+                      <span className={styles['skills-source-badge']} style={{ marginRight: 0 }}>
+                        {t('settings.plugins.marketInstalled')}
+                      </span>
+                    )}
+                  </div>
+                  {plugin.description && <span className={styles['skills-list-desc']}>{plugin.description}</span>}
+                  <span className={styles['skills-list-desc']}>
+                    {(plugin.publisher || 'unknown') + ' · ' + (plugin.trust || 'restricted')}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className={styles['skills-list-block']}>
+            <div className={styles['skills-list-item']} style={{ alignItems: 'flex-start', cursor: 'default' }}>
+              <div className={styles['skills-list-info']} style={{ gap: 'var(--space-sm)', width: '100%' }}>
+                {selectedMarketPlugin ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-md)', alignItems: 'center' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div className={styles['skills-list-name']}>{selectedMarketPlugin.name}</div>
+                        <div className={styles['skills-list-desc']}>
+                          {(selectedMarketPlugin.publisher || 'unknown') + ' · v' + (selectedMarketPlugin.version || '0.0.0')}
+                        </div>
+                      </div>
+                      <button
+                        className={styles['settings-save-btn-sm']}
+                        disabled={!selectedMarketPlugin.canInstall || marketInstallId === selectedMarketPlugin.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          installMarketplacePlugin(selectedMarketPlugin);
+                        }}
+                      >
+                        {selectedMarketPlugin.installed
+                          ? t('settings.plugins.marketUpdate')
+                          : t('settings.plugins.marketInstall')}
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {(selectedMarketPlugin.contributions || []).map(item => (
+                        <span key={item} className={styles['skills-source-badge']} style={{ marginRight: 0 }}>
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                    <div
+                      className="preview-markdown"
+                      style={{ fontSize: '0.78rem', lineHeight: 1.65, color: 'var(--text)', maxHeight: 360, overflow: 'auto' }}
+                      dangerouslySetInnerHTML={{
+                        __html: marketReadmeLoading
+                          ? `<p>${t('settings.plugins.marketReadmeLoading')}</p>`
+                          : renderMarkdown(marketReadme || selectedMarketPlugin.description || ''),
+                      }}
+                    />
+                  </>
+                ) : (
+                  <span className={styles['skills-list-desc']}>{t('settings.plugins.marketSelectPlugin')}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  ) : (
+    <div className={styles['skills-list-block']}>
+      <div className={styles['skills-list-item']} style={{ cursor: 'default' }}>
+        <div className={styles['skills-list-info']}>
+          <span className={styles['skills-list-name']}>{t('settings.plugins.marketplaceTitle')}</span>
+          <span className={styles['skills-list-desc']}>{t('settings.plugins.marketplaceHint')}</span>
+        </div>
+        <div className={styles['skills-list-actions']}>{marketplaceButton}</div>
+      </div>
+    </div>
   );
 
   return (
     <div className={`${styles['settings-tab-content']} ${styles['active']}`} data-tab="plugins">
+      <SettingsSection
+        title={t('settings.plugins.marketplaceTitle')}
+        variant="flush"
+        context={marketplace ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span className={styles['skills-source-badge']} style={{ marginRight: 0 }}>
+              {marketplace.source?.configured
+                ? t('settings.plugins.marketplaceCount', { count: String(marketplace.plugins.length) })
+                : t('settings.plugins.marketplaceNoSource')}
+            </span>
+            {marketplaceButton}
+          </div>
+        ) : undefined}
+      >
+        {marketplaceBody}
+      </SettingsSection>
+
       {/* 管理插件：dropzone + 列表 + 路径提示，同一 flush section；reload 按钮放 context */}
       <SettingsSection
         title="管理插件"
         variant="flush"
-        context={<div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>{marketplaceButton}{diagnosticsButton}{reloadButton}</div>}
+        context={<div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>{diagnosticsButton}{reloadButton}</div>}
       >
         {/* 安装区：dropzone 自带虚线边框卡 */}
         <div
@@ -605,109 +727,6 @@ export function PluginsTab() {
           </p>
         )}
       </SettingsSection>
-
-      {marketplace && (
-        <SettingsSection
-          title={t('settings.plugins.marketplaceTitle')}
-          variant="flush"
-          context={
-            <span className={styles['skills-source-badge']} style={{ marginRight: 0 }}>
-              {marketplace.source?.configured
-                ? t('settings.plugins.marketplaceCount', { count: String(marketplace.plugins.length) })
-                : t('settings.plugins.marketplaceNoSource')}
-            </span>
-          }
-        >
-          {marketplace.warnings && marketplace.warnings.length > 0 && (
-            <p className={`${styles['settings-muted-note']} ${styles['skills-empty']}`} style={{ color: 'var(--danger, #c55)' }}>
-              {marketplace.warnings[0]}
-            </p>
-          )}
-          {marketplace.plugins.length === 0 ? (
-            <p className={`${styles['settings-muted-note']} ${styles['skills-empty']}`}>
-              {t('settings.plugins.marketplaceEmpty')}
-            </p>
-          ) : (
-            <div className={styles['plugin-marketplace-grid']}>
-              <div className={styles['skills-list-block']}>
-                {marketplace.plugins.map(plugin => (
-                  <div
-                    key={plugin.id}
-                    className={styles['skills-list-item']}
-                    onClick={() => loadMarketReadme(plugin)}
-                    style={selectedMarketPlugin?.id === plugin.id ? { background: 'var(--bg-hover)' } : undefined}
-                  >
-                    <div className={styles['skills-list-info']}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        <span className={styles['skills-list-name']}>{plugin.name}</span>
-                        {plugin.version && <span className={styles['skills-list-name-hint']}>v{plugin.version}</span>}
-                        {plugin.installed && (
-                          <span className={styles['skills-source-badge']} style={{ marginRight: 0 }}>
-                            {t('settings.plugins.marketInstalled')}
-                          </span>
-                        )}
-                      </div>
-                      {plugin.description && <span className={styles['skills-list-desc']}>{plugin.description}</span>}
-                      <span className={styles['skills-list-desc']}>
-                        {(plugin.publisher || 'unknown') + ' · ' + (plugin.trust || 'restricted')}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className={styles['skills-list-block']}>
-                <div className={styles['skills-list-item']} style={{ alignItems: 'flex-start', cursor: 'default' }}>
-                  <div className={styles['skills-list-info']} style={{ gap: 'var(--space-sm)', width: '100%' }}>
-                    {selectedMarketPlugin ? (
-                      <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-md)', alignItems: 'center' }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div className={styles['skills-list-name']}>{selectedMarketPlugin.name}</div>
-                            <div className={styles['skills-list-desc']}>
-                              {(selectedMarketPlugin.publisher || 'unknown') + ' · v' + (selectedMarketPlugin.version || '0.0.0')}
-                            </div>
-                          </div>
-                          <button
-                            className={styles['settings-save-btn-sm']}
-                            disabled={!selectedMarketPlugin.canInstall || marketInstallId === selectedMarketPlugin.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              installMarketplacePlugin(selectedMarketPlugin);
-                            }}
-                          >
-                            {selectedMarketPlugin.installed
-                              ? t('settings.plugins.marketUpdate')
-                              : t('settings.plugins.marketInstall')}
-                          </button>
-                        </div>
-                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                          {(selectedMarketPlugin.contributions || []).map(item => (
-                            <span key={item} className={styles['skills-source-badge']} style={{ marginRight: 0 }}>
-                              {item}
-                            </span>
-                          ))}
-                        </div>
-                        <div
-                          className="preview-markdown"
-                          style={{ fontSize: '0.78rem', lineHeight: 1.65, color: 'var(--text)', maxHeight: 360, overflow: 'auto' }}
-                          dangerouslySetInnerHTML={{
-                            __html: marketReadmeLoading
-                              ? `<p>${t('settings.plugins.marketReadmeLoading')}</p>`
-                              : renderMarkdown(marketReadme || selectedMarketPlugin.description || ''),
-                          }}
-                        />
-                      </>
-                    ) : (
-                      <span className={styles['skills-list-desc']}>{t('settings.plugins.marketSelectPlugin')}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </SettingsSection>
-      )}
 
       {diagnostics && (
         <SettingsSection

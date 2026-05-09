@@ -1100,6 +1100,7 @@
       "diagnosticConfig": "Config {count}",
       "openMarketplace": "Open plugin marketplace",
       "marketplaceTitle": "Plugin Marketplace",
+      "marketplaceHint": "Browse installable plugins, README files, permissions, and contribution types.",
       "marketplaceCount": "{count} plugins",
       "marketplaceNoSource": "No marketplace source",
       "marketplaceEmpty": "No plugins to browse",
