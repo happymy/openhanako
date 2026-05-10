@@ -2891,6 +2891,7 @@ html[data-platform="linux"] .onboarding {
     width: 100%;
     max-width: 440px;
     flex: 1;
+    overflow-y: auto;
     --slide-y: 10px;
     animation: hana-fade-up var(--duration-slow) ease-out;
 }
