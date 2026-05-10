@@ -61,7 +61,7 @@ function baseOpts(overrides = {}) {
     },
     agentPersonality: "你是 Hana。",
     memory: "",
-    userName: "小黎",
+    userName: "测试用户",
     agentName: "小花",
     cwd: tempRoot,
     isSessionMemoryEnabledForPath: vi.fn().mockReturnValue(true),

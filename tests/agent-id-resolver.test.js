@@ -5,7 +5,7 @@ describe("resolveAgentParam", () => {
   const agents = [
     { id: "ming", name: "明" },
     { id: "maomao", name: "毛毛" },
-    { id: "hanako", name: "小黎" },
+    { id: "hanako", name: "小花" },
   ];
 
   it("returns ok with undefined when raw is empty", () => {
