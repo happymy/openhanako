@@ -70,6 +70,17 @@ const OPTIONAL_TOOL_NAMES_SET = new Set(OPTIONAL_TOOL_NAMES);
  */
 export const DEFAULT_DISABLED_TOOL_NAMES = ["update_settings", "dm"];
 
+export function uniqueToolNames(names) {
+  const seen = new Set();
+  const result = [];
+  for (const name of names || []) {
+    if (typeof name !== "string" || name.length === 0 || seen.has(name)) continue;
+    seen.add(name);
+    result.push(name);
+  }
+  return result;
+}
+
 /**
  * Startup-time invariant: every built-in tool the engine composes MUST be
  * explicitly categorized. Throwing here always means a developer added a tool
@@ -116,5 +127,6 @@ export function computeToolSnapshot(allNames, disabled, options = {}) {
   const extraDisabled = new Set(
     (options.extraDisabled || []).filter((n) => typeof n === "string" && n)
   );
-  return allNames.filter((n) => !effectivelyDisabled.has(n) && !extraDisabled.has(n));
+  return uniqueToolNames(allNames)
+    .filter((n) => !effectivelyDisabled.has(n) && !extraDisabled.has(n));
 }

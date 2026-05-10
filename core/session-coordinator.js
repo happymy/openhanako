@@ -24,7 +24,7 @@ import {
   normalizeSessionPermissionMode,
 } from "./session-permission-mode.js";
 import { findModel } from "../shared/model-ref.js";
-import { computeToolSnapshot, DEFAULT_DISABLED_TOOL_NAMES } from "../shared/tool-categories.js";
+import { computeToolSnapshot, DEFAULT_DISABLED_TOOL_NAMES, uniqueToolNames } from "../shared/tool-categories.js";
 import { isActiveSessionPath } from "./message-utils.js";
 import { formatWorkspaceScopePrompt, normalizeWorkspaceScope } from "../shared/workspace-scope.js";
 import { getProviderPromptPatches } from "./provider-prompt-patches.js";
@@ -100,6 +100,13 @@ function computeRuntimeDisabledToolNames(tools, agentConfig, context = {}) {
     }
   }
   return disabled;
+}
+
+function toolNamesFromObjects(tools, { includePluginTools = true } = {}) {
+  return (tools || [])
+    .filter((tool) => includePluginTools || !tool?._pluginId)
+    .map((tool) => tool?.name)
+    .filter(Boolean);
 }
 
 function freezeSkillsResult(value) {
@@ -589,50 +596,50 @@ export class SessionCoordinator {
     // customs + plugin tools from sessionCustomTools. Using only agent.tools
     // would silently drop SDK built-ins and plugin tools when
     // setActiveToolsByName is applied.
-    const allToolNames = [
-      ...(sessionTools || []).map((t) => t.name).filter(Boolean),
-      ...(sessionCustomTools || []).map((t) => t.name).filter(Boolean),
-    ];
     const allToolObjects = [
       ...(sessionTools || []),
       ...(sessionCustomTools || []),
     ];
+    const allToolNames = toolNamesFromObjects(allToolObjects);
+    const stableRestoreToolNames = toolNamesFromObjects(allToolObjects, {
+      includePluginTools: false,
+    });
     const runtimeDisabledToolNames = computeRuntimeDisabledToolNames(
       allToolObjects,
       agent.config,
       { agentId: creatingAgentId, restore },
     );
     let snapshotToolNames = null;  // null signals "do not call setActiveToolsByName"
+    let shouldPersistRestoredToolNames = false;
 
     if (restore) {
       if (sessionPath) {
         const metaPathForRestore = path.join(agent.sessionDir, "session-meta.json");
         let metaEntry = null;
-        let metaReadFailed = false;
         try {
           const raw = await fsp.readFile(metaPathForRestore, "utf-8");
           const meta = JSON.parse(raw);
           metaEntry = meta[path.basename(sessionPath)];
         } catch (err) {
           if (err.code !== "ENOENT") {
-            metaReadFailed = true;
             log.warn(`session-meta read for tool-snapshot restore failed, recomputing from current agent config: ${err.message}`);
           }
         }
         if (metaEntry && Array.isArray(metaEntry.toolNames)) {
-          snapshotToolNames = metaEntry.toolNames;  // Case A
-        } else if (metaReadFailed) {
-          // Fallback when meta file exists but is unreadable/corrupt: recompute
-          // the snapshot from current agent config. Safer than silent Case B
-          // (which would re-enable every disabled tool). Cannot perfectly
-          // preserve the historical snapshot, but honors the user's current
-          // disabled-tool intent.
+          const restoredToolNames = uniqueToolNames(metaEntry.toolNames);
+          snapshotToolNames = restoredToolNames;  // Case A
+          shouldPersistRestoredToolNames = restoredToolNames.length !== metaEntry.toolNames.length
+            || restoredToolNames.some((name, index) => name !== metaEntry.toolNames[index]);
+        } else {
+          // Legacy sessions created before tool snapshots had no stable tool
+          // identity boundary. Establish one on first restore so future plugin
+          // or dynamic tool registrations only affect newly created sessions.
           const disabled = agent.config?.tools?.disabled ?? DEFAULT_DISABLED_TOOL_NAMES;
-          snapshotToolNames = computeToolSnapshot(allToolNames, disabled, {
+          snapshotToolNames = computeToolSnapshot(stableRestoreToolNames, disabled, {
             extraDisabled: runtimeDisabledToolNames,
           });
+          shouldPersistRestoredToolNames = true;
         }
-        // else Case B (meta absent via ENOENT): snapshotToolNames stays null
       }
     } else {
       // Case C. Fresh agents (and agents upgrading from a pre-feature version)
@@ -677,11 +684,11 @@ export class SessionCoordinator {
       ? { ...promptSnapshotForPersist, finalSystemPrompt }
       : promptSnapshotForPersist;
 
-    // Persist snapshot for Case C only. Case A already had it in meta; Case B
-    // intentionally leaves meta untouched (adding a toolNames field to a legacy
-    // session's meta would lock it into the current tool list, breaking
-    // "upgrade is zero-noise"). writeSessionMeta is serialized and never
-    // rejects; awaiting gives createSession a clean post-return state.
+    // Persist fresh snapshots and repair/establish restored snapshots. Restored
+    // legacy sessions with missing toolNames get a baseline on first restore,
+    // so later plugin/dynamic tool registrations do not drift into old history.
+    // writeSessionMeta is serialized and never rejects; awaiting gives
+    // createSession a clean post-return state.
     if (!restore && sessionPath) {
       const metaPatch = {
         memoryEnabled: frozenMemoryEnabled,
@@ -695,12 +702,15 @@ export class SessionCoordinator {
       };
       if (snapshotToolNames !== null) metaPatch.toolNames = snapshotToolNames;
       await this.writeSessionMeta(sessionPath, metaPatch);
-    } else if (restore && sessionPath && !restoredPromptSnapshot) {
-      // Legacy sessions have no creation-time snapshot. The first cold restore
-      // establishes a stable baseline so subsequent restores do not drift again.
-      await this.writeSessionMeta(sessionPath, {
-        promptSnapshot: promptSnapshotToWrite,
-      });
+    } else if (restore && sessionPath) {
+      const metaPatch = {};
+      if (!restoredPromptSnapshot) metaPatch.promptSnapshot = promptSnapshotToWrite;
+      if (shouldPersistRestoredToolNames && snapshotToolNames !== null) {
+        metaPatch.toolNames = snapshotToolNames;
+      }
+      if (Object.keys(metaPatch).length > 0) {
+        await this.writeSessionMeta(sessionPath, metaPatch);
+      }
     }
 
     // LRU 淘汰：按 lastTouchedAt 排序，跳过 streaming 和焦点 session

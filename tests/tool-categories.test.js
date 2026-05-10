@@ -92,6 +92,15 @@ describe("computeToolSnapshot", () => {
     expect(result).toEqual(["a", "b", "c"]);
   });
 
+  it("deduplicates tool names while preserving the first occurrence", () => {
+    const result = computeToolSnapshot(
+      ["read", "bash", "read", "browser", "browser", "todo_write"],
+      [],
+    );
+
+    expect(result).toEqual(["read", "bash", "browser", "todo_write"]);
+  });
+
   it("treats null disabled as empty (no tools removed)", () => {
     expect(computeToolSnapshot(["read", "browser"], null)).toEqual(["read", "browser"]);
   });

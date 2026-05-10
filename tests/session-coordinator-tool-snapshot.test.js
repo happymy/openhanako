@@ -68,6 +68,10 @@ function allNames() {
   ];
 }
 
+function defaultBaselineNames() {
+  return allNames().filter((name) => !["dm", "update_settings"].includes(name));
+}
+
 describe("session-coordinator tool snapshot (createSession)", () => {
   let tmpDir, agentDir, sessionDir, coord, fakeSessionPath, activeToolsSpy, currentAgentConfig, defaultModeSaveSpy, storedDefaultMode, storedThinkingLevel, lastSessionOptions, fakeEngine;
 
@@ -440,6 +444,41 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     expect(activeToolsSpy.mock.calls[0][0]).toEqual(replayList);
   });
 
+  it("Case A: restore deduplicates frozen toolNames before applying them", async () => {
+    const replayList = ["read", "bash", "read", "todo_write", "bash"];
+    await fsp.writeFile(
+      path.join(sessionDir, "session-meta.json"),
+      JSON.stringify({ [path.basename(fakeSessionPath)]: { toolNames: replayList } }, null, 2),
+    );
+
+    await coord.createSession(null, tmpDir, true, null, { restore: true });
+
+    expect(activeToolsSpy).toHaveBeenCalledTimes(1);
+    expect(activeToolsSpy.mock.calls[0][0]).toEqual(["read", "bash", "todo_write"]);
+
+    const meta = JSON.parse(await fsp.readFile(path.join(sessionDir, "session-meta.json"), "utf-8"));
+    expect(meta[path.basename(fakeSessionPath)].toolNames).toEqual(["read", "bash", "todo_write"]);
+  });
+
+  it("Case A: restore keeps newly registered tools inactive when they are absent from the frozen snapshot", async () => {
+    const dynamicTool = { ...makeTool("mcp_new_dynamic_tool"), _pluginId: "mcp" };
+    coord._d.buildTools = () => ({
+      tools: SDK_BUILTIN_OBJS,
+      customTools: [...HANAKO_CUSTOM_OBJS, dynamicTool],
+    });
+    const replayList = ["read", "bash", "todo_write"];
+    await fsp.writeFile(
+      path.join(sessionDir, "session-meta.json"),
+      JSON.stringify({ [path.basename(fakeSessionPath)]: { toolNames: replayList } }, null, 2),
+    );
+
+    await coord.createSession(null, tmpDir, true, null, { restore: true });
+
+    expect(activeToolsSpy).toHaveBeenCalledTimes(1);
+    expect(activeToolsSpy.mock.calls[0][0]).toEqual(replayList);
+    expect(activeToolsSpy.mock.calls[0][0]).not.toContain("mcp_new_dynamic_tool");
+  });
+
   it("Case A: restore replays frozen plugin tool snapshot even if MCP is currently disabled", async () => {
     const mcpTool = {
       ...makeTool("mcp_github_search"),
@@ -463,30 +502,43 @@ describe("session-coordinator tool snapshot (createSession)", () => {
 
   // ── Case B tests ─────────────────────────────────────────────
 
-  it("Case B: restore with meta missing toolNames does NOT call setActiveToolsByName", async () => {
+  it("Case B: restore with meta missing toolNames creates a stable non-plugin baseline snapshot", async () => {
     // Pre-write meta WITHOUT toolNames
     const metaPath = path.join(sessionDir, "session-meta.json");
     await fsp.writeFile(
       metaPath,
       JSON.stringify({ [path.basename(fakeSessionPath)]: { memoryEnabled: true } }, null, 2),
     );
+    const dynamicTool = { ...makeTool("mcp_new_dynamic_tool"), _pluginId: "mcp" };
+    coord._d.buildTools = () => ({
+      tools: SDK_BUILTIN_OBJS,
+      customTools: [...HANAKO_CUSTOM_OBJS, dynamicTool],
+    });
 
     const { sessionPath } = await coord.createSession(null, tmpDir, true, null, { restore: true });
 
-    expect(activeToolsSpy).not.toHaveBeenCalled();
+    expect(activeToolsSpy).toHaveBeenCalledTimes(1);
+    expect(activeToolsSpy.mock.calls[0][0]).not.toContain("mcp_new_dynamic_tool");
+    expect(activeToolsSpy.mock.calls[0][0]).toEqual(defaultBaselineNames());
 
-    // sessionEntry.toolNames is null (not undefined, not [])
     const entry = coord._sessions.get(sessionPath);
-    expect(entry.toolNames).toBeNull();
+    expect(entry.toolNames).not.toContain("mcp_new_dynamic_tool");
+    expect(entry.toolNames).toEqual(defaultBaselineNames());
+
+    const meta = JSON.parse(await fsp.readFile(metaPath, "utf-8"));
+    expect(meta[path.basename(fakeSessionPath)].toolNames).toEqual(entry.toolNames);
   });
 
-  it("Case B: restore when session-meta.json doesn't exist also keeps all tools", async () => {
+  it("Case B: restore when session-meta.json doesn't exist also creates a baseline snapshot", async () => {
     // No meta file on disk
     const { sessionPath } = await coord.createSession(null, tmpDir, true, null, { restore: true });
 
-    expect(activeToolsSpy).not.toHaveBeenCalled();
+    expect(activeToolsSpy).toHaveBeenCalledTimes(1);
     const entry = coord._sessions.get(sessionPath);
-    expect(entry.toolNames).toBeNull();
+    expect(entry.toolNames).toEqual(defaultBaselineNames());
+
+    const meta = JSON.parse(await fsp.readFile(path.join(sessionDir, "session-meta.json"), "utf-8"));
+    expect(meta[path.basename(fakeSessionPath)].toolNames).toEqual(defaultBaselineNames());
   });
 
   // ── Meta read-failure fallback (P2) ──────────────────────────
