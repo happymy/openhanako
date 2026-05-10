@@ -625,6 +625,8 @@ export class HanaEngine {
   setEditor(p) { return this._prefs.setEditor(p); }
   getWorkspaceUiState(workspaceRoot) { return this._prefs.getWorkspaceUiState(workspaceRoot); }
   setWorkspaceUiState(workspaceRoot, state) { return this._prefs.setWorkspaceUiState(workspaceRoot, state); }
+  getPluginUiPrefs() { return this._prefs.getPluginUiPrefs(); }
+  setPluginUiPrefs(partial) { return this._prefs.setPluginUiPrefs(partial); }
   getTimezone() { return this._prefs.getTimezone(); }
   setTimezone(tz) { this._prefs.setTimezone(tz); }
   getUpdateChannel() { return this._prefs.getUpdateChannel(); }

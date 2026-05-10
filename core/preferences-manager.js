@@ -351,6 +351,29 @@ export class PreferencesManager {
     this.savePreferences(prefs);
   }
 
+  /** 读取插件 UI 偏好（hiddenWidgets / hiddenTabs / tabOrder） */
+  getPluginUiPrefs() {
+    const raw = this._cache.plugin_ui;
+    return {
+      hiddenWidgets: Array.isArray(raw?.hiddenWidgets) ? raw.hiddenWidgets : [],
+      hiddenTabs: Array.isArray(raw?.hiddenTabs) ? raw.hiddenTabs : [],
+      tabOrder: Array.isArray(raw?.tabOrder) ? raw.tabOrder : [],
+    };
+  }
+
+  /** 合并写入插件 UI 偏好 */
+  setPluginUiPrefs(partial) {
+    const prefs = this._mutableCopy();
+    const current = prefs.plugin_ui || {};
+    const merged = { ...current };
+    if (Array.isArray(partial.hiddenWidgets)) merged.hiddenWidgets = partial.hiddenWidgets;
+    if (Array.isArray(partial.hiddenTabs)) merged.hiddenTabs = partial.hiddenTabs;
+    if (Array.isArray(partial.tabOrder)) merged.tabOrder = partial.tabOrder;
+    prefs.plugin_ui = merged;
+    this.savePreferences(prefs);
+    return this.getPluginUiPrefs();
+  }
+
   /** 读取更新通道偏好："stable" | "beta" */
   getUpdateChannel() {
     return this._cache.update_channel || "stable";

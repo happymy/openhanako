@@ -161,6 +161,27 @@ export function createPreferencesRoute(engine, { platform = process.platform } =
     }
   });
 
+  route.get("/preferences/plugin-ui", async (c) => {
+    try {
+      return c.json(engine.getPluginUiPrefs());
+    } catch (err) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  route.put("/preferences/plugin-ui", async (c) => {
+    try {
+      const body = await safeJson(c);
+      if (!body || typeof body !== "object") {
+        return c.json({ error: "invalid JSON body" }, 400);
+      }
+      const result = engine.setPluginUiPrefs(body);
+      return c.json({ ok: true, ...result });
+    } catch (err) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
   route.get("/preferences/computer-use", async (c) => {
     try {
       const settings = effectiveComputerUseSettings(engine.getComputerUseSettings(), { platform });
