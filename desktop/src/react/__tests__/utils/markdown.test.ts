@@ -130,6 +130,49 @@ describe('renderMarkdown', () => {
     expect(html).toContain('sequenceDiagram');
   });
 
+  it('preserves generated KaTeX markup in markdown preview mode', () => {
+    const html = renderMarkdownPreview('inline $x+1$\n\n$$\ny^2\n$$');
+
+    expect(html).toContain('class="katex"');
+    expect(html).toContain('class="katex-display"');
+    expect(html).toContain('<math');
+    expect(html).toContain('<annotation encoding="application/x-tex">');
+  });
+
+  it('preserves complex generated KaTeX markup in markdown preview mode', () => {
+    const html = renderMarkdownPreview(String.raw`$$\sqrt{\frac{a}{b}}+\overrightarrow{AB}$$`);
+
+    expect(html).toMatch(/class="[^"]*\bsqrt\b[^"]*"/);
+    expect(html).toMatch(/class="[^"]*\bmfrac\b[^"]*"/);
+    expect(html).toContain('<svg');
+    expect(html).toContain('<path');
+    expect(html).toContain('aria-hidden="true"');
+  });
+
+  it('does not trust raw HTML just because it uses KaTeX classes', () => {
+    const html = renderMarkdownPreview([
+      '<span class="katex" display="block" onclick="alert(1)">',
+      '<script>alert(2)</script>',
+      '<span class="mord" onmouseover="alert(3)">x</span>',
+      '</span>',
+    ].join(''));
+
+    expect(html).not.toContain('display=');
+    expect(html).not.toContain('onclick');
+    expect(html).not.toContain('onmouseover');
+    expect(html).not.toContain('<script');
+    expect(html).toContain('<span class="katex"><span class="mord">x</span></span>');
+  });
+
+  it('does not allow raw SVG outside generated KaTeX markup', () => {
+    const html = renderMarkdownPreview('<svg onload="alert(1)"><path d="M0 0"></path></svg><span>ok</span>');
+
+    expect(html).not.toContain('<svg');
+    expect(html).not.toContain('<path');
+    expect(html).not.toContain('onload');
+    expect(html).toContain('<span>ok</span>');
+  });
+
   it('renders Obsidian callouts from blockquote syntax', () => {
     const html = renderMarkdown([
       '> [!warning] 小心一点',

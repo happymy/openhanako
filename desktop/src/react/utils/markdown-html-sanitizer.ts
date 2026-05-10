@@ -1,3 +1,14 @@
+const MATHML_TAGS = new Set([
+  'math', 'semantics', 'annotation',
+  'mrow', 'mi', 'mn', 'mo', 'mtext', 'mspace',
+  'msup', 'msub', 'msubsup', 'mfrac', 'msqrt', 'mroot',
+  'mover', 'munder', 'munderover',
+  'mtable', 'mtr', 'mtd', 'mstyle',
+  'mpadded', 'mphantom', 'menclose',
+]);
+
+const SVG_TAGS = new Set(['svg', 'path', 'line']);
+
 const ALLOWED_TAGS = new Set([
   'p', 'div', 'span', 'center',
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -8,6 +19,8 @@ const ALLOWED_TAGS = new Set([
   'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
   'details', 'summary',
   'a',
+  ...MATHML_TAGS,
+  ...SVG_TAGS,
 ]);
 
 const REMOVE_WITH_CONTENT = new Set([
@@ -39,9 +52,109 @@ const ALLOWED_CLASS_NAMES = new Set([
   'is-rendered',
   'is-error',
 ]);
+const KATEX_CLASS_NAMES = new Set([
+  'katex',
+  'katex-display',
+  'katex-block',
+  'katex-mathml',
+  'katex-html',
+  'base',
+  'strut',
+  'pstrut',
+  'vlist',
+  'vlist-r',
+  'vlist-s',
+  'vlist-t',
+  'vlist-t2',
+  'vlist-children',
+  'mord',
+  'mop',
+  'mbin',
+  'mrel',
+  'mopen',
+  'mclose',
+  'mpunct',
+  'minner',
+  'mspace',
+  'msupsub',
+  'mfrac',
+  'mfrac-line',
+  'sqrt',
+  'sqrt-sign',
+  'root',
+  'accent',
+  'accent-body',
+  'op-symbol',
+  'delimsizing',
+  'nulldelimiter',
+  'sizing',
+  'mtight',
+  'text',
+  'arraycolsep',
+  'boxpad',
+  'col-align-c',
+  'col-align-l',
+  'col-align-r',
+  'delimcenter',
+  'fbox',
+  'frac-line',
+  'hide-tail',
+  'large-op',
+  'mtable',
+  'op-limits',
+  'stretchy',
+  'svg-align',
+  'mathnormal',
+  'mathit',
+  'mathrm',
+  'mathbf',
+  'amsrm',
+  'mathbb',
+  'mathcal',
+  'mathfrak',
+  'mathtt',
+  'mathscr',
+  'mathsf',
+  'mainrm',
+]);
 
 const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
 const EXPLICIT_PROTOCOL_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
+const MATHML_ATTRS = new Set([
+  'xmlns',
+  'display',
+  'encoding',
+  'mathvariant',
+  'accent',
+  'accentunder',
+  'stretchy',
+  'fence',
+  'separator',
+  'lspace',
+  'rspace',
+  'rowspan',
+  'columnspan',
+  'notation',
+  'displaystyle',
+  'mathcolor',
+  'scriptlevel',
+  'columnalign',
+  'columnspacing',
+  'rowspacing',
+]);
+const SVG_ATTRS = new Set([
+  'xmlns',
+  'width',
+  'height',
+  'viewbox',
+  'preserveaspectratio',
+  'd',
+  'x1',
+  'x2',
+  'y1',
+  'y2',
+  'stroke-width',
+]);
 
 const ALLOWED_CSS_PROPERTIES = new Set([
   'color',
@@ -80,6 +193,8 @@ const ALLOWED_CSS_PROPERTIES = new Set([
   'height',
   'max-height',
   'min-height',
+  'top',
+  'vertical-align',
 ]);
 
 const ALLOWED_DISPLAY_VALUES = new Set([
@@ -144,8 +259,34 @@ function sanitizeClass(raw: string): string {
   return raw
     .split(/\s+/)
     .map(token => token.trim())
-    .filter(token => ALLOWED_CLASS_NAMES.has(token))
+    .filter(token => (
+      ALLOWED_CLASS_NAMES.has(token)
+      || KATEX_CLASS_NAMES.has(token)
+      || /^reset-size\d+$/.test(token)
+      || /^size\d+$/.test(token)
+      || /^delim-size\d+$/.test(token)
+    ))
     .join(' ');
+}
+
+function hasClass(element: Element, className: string): boolean {
+  return (element.getAttribute('class') ?? '').split(/\s+/).includes(className);
+}
+
+function isInsideKatexMarkup(element: Element): boolean {
+  let current = element.parentElement;
+  while (current) {
+    if (hasClass(current, 'katex')) return true;
+    current = current.parentElement;
+  }
+  return false;
+}
+
+function normalizeAriaHidden(raw: string): string | null {
+  const value = raw.toLowerCase();
+  if (value === 'true') return 'true';
+  if (value === 'false') return 'false';
+  return null;
 }
 
 function sanitizeAttributes(element: Element, tagName: string): void {
@@ -177,6 +318,25 @@ function sanitizeAttributes(element: Element, tagName: string): void {
 
     if (tagName === 'details' && name === 'open') {
       element.setAttribute('open', 'open');
+      continue;
+    }
+
+    if (name === 'aria-hidden') {
+      const normalized = normalizeAriaHidden(attr.value);
+      if (normalized) element.setAttribute('aria-hidden', normalized);
+      else element.removeAttribute(attr.name);
+      continue;
+    }
+
+    if (MATHML_TAGS.has(tagName) && MATHML_ATTRS.has(name)) {
+      if (isSafeCssValue(attr.value)) element.setAttribute(attr.name, attr.value);
+      else element.removeAttribute(attr.name);
+      continue;
+    }
+
+    if (SVG_TAGS.has(tagName) && SVG_ATTRS.has(name)) {
+      if (isSafeCssValue(attr.value)) element.setAttribute(attr.name, attr.value);
+      else element.removeAttribute(attr.name);
       continue;
     }
 
@@ -228,6 +388,12 @@ function sanitizeNode(node: ChildNode): void {
   if (!ALLOWED_TAGS.has(tagName)) {
     sanitizeChildren(element);
     unwrapElement(element);
+    return;
+  }
+
+  // KaTeX uses tiny SVG fragments for stretchy accents; keep SVG scoped to KaTeX output.
+  if (SVG_TAGS.has(tagName) && !isInsideKatexMarkup(element)) {
+    element.remove();
     return;
   }
 
