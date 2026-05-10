@@ -131,7 +131,12 @@
     "browserScreenshot": "Browser screenshot",
     "compacting": "Compacting context",
     "visionAuxiliary": "Vision auxiliary",
-    "fileExpired": "File expired"
+    "fileExpired": "File expired",
+    "fileActions": {
+      "more": "More file actions",
+      "revealInFinder": "Reveal in file manager",
+      "copyPath": "Copy file path"
+    }
   },
   "time": {
     "justNow": "Just now",

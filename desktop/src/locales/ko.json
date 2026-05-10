@@ -130,7 +130,12 @@
     "browserScreenshot": "브라우저 스크린샷",
     "compacting": "컨텍스트 압축 중",
     "visionAuxiliary": "보조 시각",
-    "fileExpired": "파일 만료됨"
+    "fileExpired": "파일 만료됨",
+    "fileActions": {
+      "more": "파일 작업 더 보기",
+      "revealInFinder": "파일 관리자에서 보기",
+      "copyPath": "파일 경로 복사"
+    }
   },
   "time": {
     "justNow": "방금",

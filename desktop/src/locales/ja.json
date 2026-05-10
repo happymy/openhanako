@@ -130,7 +130,12 @@
     "browserScreenshot": "ブラウザスクリーンショット",
     "compacting": "コンテキスト圧縮中",
     "visionAuxiliary": "補助ビジョン",
-    "fileExpired": "ファイル期限切れ"
+    "fileExpired": "ファイル期限切れ",
+    "fileActions": {
+      "more": "その他のファイル操作",
+      "revealInFinder": "ファイルマネージャーで表示",
+      "copyPath": "ファイルパスをコピー"
+    }
   },
   "time": {
     "justNow": "たった今",

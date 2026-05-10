@@ -12,6 +12,7 @@ import { SubagentCard } from './SubagentCard';
 import { SettingsConfirmCard } from './SettingsConfirmCard';
 import { MessageActions } from './MessageActions';
 import { BLOCK_RENDERERS } from './block-renderers';
+import { FileOutputActions } from './FileOutputActions';
 const lazyScreenshot = () => import('../../utils/screenshot').then(m => m.takeScreenshot);
 import type { ChatMessage, ContentBlock } from '../../stores/chat-types';
 import { useStore } from '../../stores';
@@ -249,12 +250,6 @@ const ImageOutputCard = memo(function ImageOutputCard({ filePath, label, ext, st
 const FileOutputCard = memo(function FileOutputCard({ filePath, label, ext, status, ctx }: { filePath: string; label: string; ext: string; status?: string; ctx: FileBlockCtx }) {
   const expired = status === 'expired';
   const expiredLabel = window.t('chat.fileExpired');
-  const handleOpen = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (expired) return;
-    const p = window.platform;
-    if (p?.openFile) p.openFile(filePath);
-  };
   const handlePreview = () => {
     if (expired) return;
     openFilePreview(filePath, label, ext, {
@@ -288,13 +283,7 @@ const FileOutputCard = memo(function FileOutputCard({ filePath, label, ext, stat
         </div>
       </div>
       {!expired && (
-        <button className={styles.fileOutputOpen} onClick={handleOpen} title={window.t('desk.openWithDefault')}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-            <polyline points="15 3 21 3 21 9" />
-            <line x1="10" y1="14" x2="21" y2="3" />
-          </svg>
-        </button>
+        <FileOutputActions filePath={filePath} displayName={displayName} />
       )}
     </div>
   );

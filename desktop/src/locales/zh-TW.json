@@ -130,7 +130,12 @@
     "browserScreenshot": "瀏覽器截圖",
     "compacting": "上下文壓縮中",
     "visionAuxiliary": "輔助視覺",
-    "fileExpired": "檔案已過期"
+    "fileExpired": "檔案已過期",
+    "fileActions": {
+      "more": "更多檔案操作",
+      "revealInFinder": "在 Finder 中顯示",
+      "copyPath": "複製檔案路徑"
+    }
   },
   "time": {
     "justNow": "剛剛",

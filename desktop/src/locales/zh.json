@@ -131,7 +131,12 @@
     "browserScreenshot": "浏览器截图",
     "compacting": "上下文压缩中",
     "visionAuxiliary": "辅助视觉",
-    "fileExpired": "文件已过期"
+    "fileExpired": "文件已过期",
+    "fileActions": {
+      "more": "更多文件操作",
+      "revealInFinder": "在访达中显示",
+      "copyPath": "复制文件路径"
+    }
   },
   "time": {
     "justNow": "刚刚",
