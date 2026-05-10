@@ -247,7 +247,7 @@ describe("createSkillWatchIgnore", () => {
     expect(ignore(path.join(root, "#skill.md#"))).toBe(true);
   });
 
-  it("ignores heavy directory names anywhere in the path (root cause of #765 / #787)", () => {
+  it("ignores heavy directory names inside a skill (root cause of #765 / #787)", () => {
     for (const heavy of ["node_modules", "target", "build", "dist", "out", "__pycache__", "coverage", "venv", ".venv"]) {
       expect(ignore(path.join(root, "skill", heavy, "anything"))).toBe(true);
       expect(ignore(path.join(root, "skill", "nested", heavy, "deep", "x"))).toBe(true);
@@ -257,6 +257,23 @@ describe("createSkillWatchIgnore", () => {
   it("does not ignore skill files that merely mention heavy names", () => {
     expect(ignore(path.join(root, "node_modules-loader-skill", "SKILL.md"))).toBe(false);
     expect(ignore(path.join(root, "skill", "build-config.md"))).toBe(false);
+  });
+
+  it("does NOT ignore a skill whose name happens to equal a heavy dir name", () => {
+    // First-level segment is the skill name itself — never treat it as heavy,
+    // otherwise a legit skill literally named "build" / "dist" / "target" gets
+    // dropped from the watcher and edits never trigger reload.
+    for (const heavy of ["build", "dist", "target", "out", "coverage"]) {
+      expect(ignore(path.join(root, heavy, "SKILL.md"))).toBe(false);
+      expect(ignore(path.join(root, heavy, "references", "guide.md"))).toBe(false);
+    }
+  });
+
+  it("still skips heavy dirs nested inside a heavy-named skill", () => {
+    // <root>/build/ is a legit skill, but <root>/build/node_modules/ inside it
+    // is still a dependency tree that must be skipped.
+    expect(ignore(path.join(root, "build", "node_modules", "react", "index.js"))).toBe(true);
+    expect(ignore(path.join(root, "dist", "target", "release", "x"))).toBe(true);
   });
 });
 

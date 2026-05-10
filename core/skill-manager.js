@@ -22,15 +22,20 @@ const HEAVY_DIR_NAMES = new Set([
 // （~/.hanako/skills、workspace 下的 .agents/... 等）自身就住在隐藏目录里，
 // 用全局 regex 会把整棵树吞掉。这里改为相对 watch 根做判断：
 //   1. 屏蔽根以下的隐藏文件和编辑器临时文件（.DS_Store / .swp / foo~ / #foo#）
-//   2. 屏蔽 HEAVY_DIR_NAMES 下的所有内容（node_modules 等递归会爆 fd）
+//   2. 屏蔽 skill 内部的 HEAVY_DIR_NAMES（node_modules 等递归会爆 fd）
+//
+// HEAVY 检查只对"skill 内部"生效（segments index >= 1）。第 0 段是 skill 名本身，
+// 即使叫 "build" / "dist" / "target" 也合法，必须保留——否则用户写一个名为 build 的
+// skill 会被 watcher 跳过、保存后不触发 reload。
 function createSkillWatchIgnore(rootDir) {
   return (absPath) => {
     const rel = path.relative(rootDir, absPath);
     if (!rel) return false;
     if (/(^|[/\\])\./.test(rel)) return true;
     if (/[~#]$/.test(rel)) return true;
-    for (const seg of rel.split(/[/\\]/)) {
-      if (HEAVY_DIR_NAMES.has(seg)) return true;
+    const segments = rel.split(/[/\\]/);
+    for (let i = 1; i < segments.length; i++) {
+      if (HEAVY_DIR_NAMES.has(segments[i])) return true;
     }
     return false;
   };
