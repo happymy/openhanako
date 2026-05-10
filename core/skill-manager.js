@@ -81,17 +81,32 @@ export class SkillManager {
     this._appendExternalSkills();
   }
 
+  /**
+   * 按 agent 过滤 _allSkills：learned skill 只对归属 agent 可见。
+   * 所有对外消费方法都基于此方法，agentId 隔离逻辑只写这一处。
+   */
+  _skillsVisibleToAgent(agent, { includePlugin = false, includeWorkspace = false } = {}) {
+    const agentId = agent?.id || null;
+    return this._allSkills.filter(s => {
+      if (s._agentId && s._agentId !== agentId) return false;
+      if (!includePlugin && s._pluginSkill) return false;
+      if (!includeWorkspace && s._workspaceSkill) return false;
+      return true;
+    });
+  }
+
   /** 将 agent 启用的 skill 同步到 agent 的 system prompt */
   syncAgentSkills(agent) {
     const enabled = new Set(agent?.config?.skills?.enabled || []);
-    const skills = this._allSkills.filter(s => this._isRuntimeEnabledForAgent(s, enabled));
+    const skills = this._skillsVisibleToAgent(agent, { includePlugin: true, includeWorkspace: true })
+      .filter(s => this._isRuntimeEnabledForAgent(s, enabled));
     agent.setEnabledSkills(skills);
   }
 
   /** 返回全量 skill 列表（供 API 使用），附带指定 agent 的 enabled 状态。Plugin skill 不返回（UI 不显示） */
   getAllSkills(agent) {
     const enabled = new Set(agent?.config?.skills?.enabled || []);
-    return this._allSkills.filter(s => !s._pluginSkill && !s._workspaceSkill).map(s => ({
+    return this._skillsVisibleToAgent(agent).map(s => ({
       name: s.name,
       description: s.description,
       filePath: s.filePath,
@@ -109,7 +124,7 @@ export class SkillManager {
   /** 返回运行时 skill 列表（含 workspace skill），供 desk / slash 等 session 视图使用 */
   getRuntimeSkillInfos(agent) {
     const enabled = new Set(agent?.config?.skills?.enabled || []);
-    return this._allSkills.filter(s => !s._pluginSkill).map(s => ({
+    return this._skillsVisibleToAgent(agent, { includeWorkspace: true }).map(s => ({
       name: s.name,
       description: s.description,
       filePath: s.filePath,
@@ -125,15 +140,12 @@ export class SkillManager {
     }));
   }
 
-  /** 按 agent 过滤可用 skills（learned skills 有 per-agent 隔离） */
+  /** 按 agent 过滤可用 skills，供 Pi SDK resourceLoader.getSkills() 使用 */
   getSkillsForAgent(targetAgent) {
     const enabled = new Set(targetAgent?.config?.skills?.enabled || []);
-    const agentId = targetAgent?.id || null;
     return {
-      skills: this._allSkills.filter(s =>
-        this._isRuntimeEnabledForAgent(s, enabled)
-        && (!s._agentId || s._agentId === agentId)
-      ),
+      skills: this._skillsVisibleToAgent(targetAgent, { includePlugin: true, includeWorkspace: true })
+        .filter(s => this._isRuntimeEnabledForAgent(s, enabled)),
       diagnostics: [],
     };
   }

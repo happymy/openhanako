@@ -1401,7 +1401,7 @@ export class HanaEngine {
   async translateSkillNames(names, lang, opts = {}) {
     const skills = Array.isArray(opts.skills)
       ? opts.skills
-      : (opts.agentId ? this.getAllSkills(opts.agentId) : this._skillMgr?.allSkills || []);
+      : (opts.agentId ? this.getAllSkills(opts.agentId) : []);
     return translateSkillNamesWithCache({
       cachePath: getSkillNameTranslationCachePath(this.hanakoHome),
       skills,
