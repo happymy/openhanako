@@ -12,6 +12,7 @@ import { createAgentSession, SessionManager, estimateTokens, findCutPoint, gener
 import { createDefaultSettings } from "./session-defaults.js";
 import { computeHardTruncation } from "./compaction-utils.js";
 import { teardownSessionResources } from "./session-teardown.js";
+import { evaluateSessionHealth } from "./session-health.js";
 import { createModuleLogger } from "../lib/debug-log.js";
 import { BrowserManager } from "../lib/browser/browser-manager.js";
 import { t, getLocale } from "../server/i18n.js";
@@ -795,6 +796,11 @@ export class SessionCoordinator {
         );
       }
     }
+    // #521: 在恢复前扫描会话尾部，若最近 N 条 assistant 大量 stopReason=error
+    // 说明用户已经撞到了"反复 empty_stream"循环，给前端发警告事件让 UI 提示用户
+    // 新建会话或修复。restore 本身仍然继续，避免破坏用户预期。
+    this._emitSessionHealthWarning(sessionPath);
+
     // 冷启动恢复：model 由 PI SDK 从 session JSONL 恢复（单一数据源），不从 session-meta.json 读
     const sessionMgr = SessionManager.open(sessionPath, this._d.getAgent().sessionDir);
     const cwd = sessionMgr.getCwd?.() || undefined;
@@ -804,6 +810,27 @@ export class SessionCoordinator {
       agentId: targetAgentId || this._d.getActiveAgentId(),
     });
     return result.session;
+  }
+
+  /** @private 检查 session 健康度并在 unhealthy 时 log + emit 事件，不抛错 */
+  _emitSessionHealthWarning(sessionPath) {
+    try {
+      const health = evaluateSessionHealth(sessionPath);
+      if (health.healthy) return;
+      log.warn(
+        `session restore: ${path.basename(sessionPath)} unhealthy (`
+        + `${health.recentErrors}/${health.totalChecked} recent assistant messages had stopReason=error). `
+        + `User may need to start a new session — see #521.`
+      );
+      this._d.emitEvent?.({
+        type: "session_unhealthy_warning",
+        recentErrors: health.recentErrors,
+        totalChecked: health.totalChecked,
+      }, sessionPath);
+    } catch (err) {
+      // 健康度检查不能阻塞 restore，吃掉所有错误
+      log.warn(`session health check failed for ${path.basename(sessionPath)}: ${err.message}`);
+    }
   }
 
   async prompt(text, opts) {
@@ -1515,6 +1542,8 @@ export class SessionCoordinator {
     const prevFocus = this._session;
     const prevSessionStarted = this._sessionStarted;
     try {
+      // #521: attach 路径同样要做健康度评估，否则 bridge / RC 自动恢复时也会反复失败
+      this._emitSessionHealthWarning(sessionPath);
       const sessionMgr = SessionManager.open(sessionPath, agent.sessionDir);
       const cwd = sessionMgr.getCwd?.() || undefined;
       await this.createSession(sessionMgr, cwd, memoryEnabled, null, {
