@@ -417,5 +417,21 @@ export function createProvidersRoute(engine) {
     }
   });
 
+  /**
+   * 删除模型配置
+   * 从 added-models.yaml 移除指定模型 → 触发 model-sync
+   */
+  route.delete("/providers/:name/models/:modelId", async (c) => {
+    const providerName = c.req.param("name");
+    const modelId = decodeURIComponent(c.req.param("modelId"));
+    try {
+      engine.providerRegistry.removeModel(providerName, modelId);
+      await engine.onProviderChanged();
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
   return route;
 }
