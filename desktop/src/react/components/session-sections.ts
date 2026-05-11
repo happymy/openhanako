@@ -78,6 +78,15 @@ export function buildSessionSections(
     dateGroups[getSessionDateGroup(session.modified, now)].push(session);
   }
 
+  // Sort within each group: newest modified first
+  for (const group of DATE_GROUP_ORDER) {
+    dateGroups[group].sort((a, b) => {
+      const ta = a.modified ? Date.parse(a.modified) : 0;
+      const tb = b.modified ? Date.parse(b.modified) : 0;
+      return tb - ta;
+    });
+  }
+
   for (const group of DATE_GROUP_ORDER) {
     const items = dateGroups[group];
     if (items.length === 0) continue;
