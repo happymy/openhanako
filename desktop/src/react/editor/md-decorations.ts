@@ -24,6 +24,16 @@ interface LivePreviewOptions {
 export const hideMark = Decoration.replace({});
 const centerLineDeco = Decoration.line({ class: 'cm-center-line' });
 const markDeco = Decoration.mark({ class: 'cm-md-mark' });
+
+class ListBulletWidget extends WidgetType {
+  eq() { return true; }
+  toDOM() {
+    const span = document.createElement('span');
+    span.className = 'cm-list-bullet';
+    return span;
+  }
+}
+const listBulletDeco = Decoration.replace({ widget: new ListBulletWidget() });
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?(?:[0-9a-fA-F]{2})?$/;
 const RGB_COLOR_RE = /^rgba?\(\s*(?:\d{1,3}\s*,\s*){2}\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i;
 const BG_SPAN_RE = /<span\s+style=(["'])\s*background(?:-color)?\s*:\s*([^;"']+)\s*;?\s*\1>([\s\S]*?)<\/span>/ig;
@@ -348,6 +358,20 @@ export function buildMarkdownDecorations(view: EditorView): DecorationSet {
           case 'Link':
             handleLink({ view, node, activeLines, ranges });
             break;
+          case 'ListMark': {
+            const markText = view.state.doc.sliceString(node.from, node.to);
+            if (markText !== '-' && markText !== '*' && markText !== '+') break;
+            let hideTo = node.to;
+            if (view.state.doc.sliceString(hideTo, hideTo + 1) === ' ') hideTo += 1;
+            const rest = view.state.doc.sliceString(node.to, Math.min(node.to + 5, line.to));
+            const isTask = /^ ?\[[ xX]\]/.test(rest);
+            if (isTask) {
+              ranges.push({ from: node.from, to: hideTo, deco: hideMark });
+            } else {
+              ranges.push({ from: node.from, to: hideTo, deco: listBulletDeco });
+            }
+            break;
+          }
           // conceal marks
           case 'HeaderMark': case 'EmphasisMark': case 'CodeMark':
           case 'StrikethroughMark': case 'LinkMark': case 'URL': case 'QuoteMark': {
