@@ -25,7 +25,7 @@ export function MediaTab() {
   const [providers, setProviders] = useState<Record<string, MediaProvider>>({});
   const [config, setConfig] = useState<MediaConfig>({});
   const [selected, setSelected] = useState<string | null>(null);
-  const { showToast } = useSettingsStore();
+  const showToast = useSettingsStore(s => s.showToast);
 
   const load = useCallback(async () => {
     try {

@@ -16,11 +16,13 @@ interface MockState extends Record<string, unknown> {
 const mockState: MockState = {};
 const mockHanaFetch = vi.fn();
 
-vi.mock('../../settings/store', () => ({
-  useSettingsStore: Object.assign(() => mockState, {
-    getState: () => mockState,
-  }),
-}));
+vi.mock('../../settings/store', () => {
+  const hook: any = (selector?: (s: MockState) => unknown) =>
+    selector ? selector(mockState) : mockState;
+  hook.getState = () => mockState;
+  hook.setState = (partial: Partial<MockState>) => Object.assign(mockState, partial);
+  return { useSettingsStore: hook };
+});
 
 vi.mock('../../settings/api', () => ({
   hanaFetch: (...args: unknown[]) => mockHanaFetch(...args),

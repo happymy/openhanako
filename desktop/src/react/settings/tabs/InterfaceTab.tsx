@@ -51,7 +51,7 @@ const EDITOR_FONT_SIZE_ROWS: Array<{
 ];
 
 export function InterfaceTab() {
-  const { settingsConfig } = useSettingsStore();
+  const settingsConfig = useSettingsStore(s => s.settingsConfig);
   const currentTheme = registry.migrateSavedTheme(localStorage.getItem(registry.STORAGE_KEY));
   const serifEnabled = localStorage.getItem('hana-font-serif') !== '0';
   const paperTextureEnabled = isPaperTextureEnabled(localStorage);

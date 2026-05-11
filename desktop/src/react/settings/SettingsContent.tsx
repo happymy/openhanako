@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from './store';
 import { hanaFetch } from './api';
 import { createLocalServerConnection } from '../services/server-connection';
@@ -92,7 +93,10 @@ export function SettingsContent({
   onActiveTabChange,
   listenToWindowTabSwitch = false,
 }: SettingsContentProps) {
-  const { activeTab, platformName, pluginSettingsTabs, set, ready } = useSettingsStore();
+  const { activeTab, platformName, pluginSettingsTabs, ready } = useSettingsStore(
+    useShallow(s => ({ activeTab: s.activeTab, platformName: s.platformName, pluginSettingsTabs: s.pluginSettingsTabs, ready: s.ready }))
+  );
+  const set = useSettingsStore(s => s.set);
 
   useEffect(() => {
     initSettings();
@@ -183,7 +187,7 @@ export function SettingsContent({
             {!isModal && (
               <h1 className={styles['settings-tab-title']}>{activeTabTitle}</h1>
             )}
-            <ErrorBoundary region={effectiveActiveTab}>
+            <ErrorBoundary region={effectiveActiveTab} resetKeys={[effectiveActiveTab]}>
               <ActiveTab />
             </ErrorBoundary>
           </div>
