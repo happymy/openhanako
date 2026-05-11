@@ -1,6 +1,8 @@
 // plugins/image-gen/routes/media.js
 import fs from "fs";
 import path from "path";
+import { execFile } from "child_process";
+import { getKnownModels } from "../lib/model-catalog.js";
 
 const MIME = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", mp4: "video/mp4", mov: "video/quicktime" };
 
@@ -59,6 +61,24 @@ export default function (app, ctx) {
     });
   });
 
+  // Open generated media in system default application (cross-platform)
+  app.post("/media/open/:filename", async (c) => {
+    const filename = c.req.param("filename");
+    if (filename.includes("/") || filename.includes("\\") || filename.includes("..")) {
+      return c.json({ error: "invalid filename" }, 400);
+    }
+    const filePath = path.join(ctx.dataDir, "generated", filename);
+
+    try { fs.statSync(filePath); } catch { return c.json({ error: "not found" }, 404); }
+
+    try {
+      await openWithSystem(filePath);
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: err.message || "failed to open file" }, 500);
+    }
+  });
+
   // Preset providers that support image generation
   const IMAGE_PROVIDER_PRESETS = [
     { id: "volcengine", displayName: "火山引擎 (豆包)" },
@@ -66,25 +86,10 @@ export default function (app, ctx) {
     { id: "openai-codex-oauth", displayName: "OpenAI Codex (OAuth)" },
   ];
 
-  // Known image models per provider (mirrors known-models.json type:image entries)
-  const KNOWN_IMAGE_MODELS = {
-    volcengine: [
-      { id: "doubao-seedream-3-0-t2i", name: "Seedream 3.0" },
-      { id: "doubao-seedream-4-0-250828", name: "Seedream 4.0" },
-      { id: "doubao-seedream-4-5-251128", name: "Seedream 4.5" },
-      { id: "doubao-seedream-5-0-lite-260128", name: "Seedream 5.0 Lite" },
-    ],
-    openai: [
-      { id: "gpt-image-2", name: "GPT Image 2" },
-      { id: "gpt-image-1", name: "GPT Image 1" },
-      { id: "gpt-image-1.5", name: "GPT Image 1.5" },
-      { id: "gpt-image-1-mini", name: "GPT Image 1 Mini" },
-      { id: "dall-e-3", name: "DALL-E 3" },
-    ],
-    "openai-codex-oauth": [
-      { id: "gpt-image-2", name: "GPT Image 2" },
-    ],
-  };
+  // Known image models — single source of truth from shared catalog
+  const KNOWN_IMAGE_MODELS = Object.fromEntries(
+    IMAGE_PROVIDER_PRESETS.map(p => [p.id, getKnownModels(p.id)])
+  );
 
   // Provider summary for Media settings tab
   app.get("/providers", async (c) => {
@@ -140,6 +145,22 @@ export default function (app, ctx) {
     } catch (err) {
       return c.json({ error: err.message }, 500);
     }
+  });
+}
+
+/** Open a file with the system default application (cross-platform). */
+function openWithSystem(filePath) {
+  return new Promise((resolve, reject) => {
+    const p = process.platform;
+    let cmd, args;
+    if (p === "darwin") {
+      cmd = "open"; args = [filePath];
+    } else if (p === "win32") {
+      cmd = "cmd"; args = ["/c", "start", "", filePath];
+    } else {
+      cmd = "xdg-open"; args = [filePath];
+    }
+    execFile(cmd, args, (err) => err ? reject(err) : resolve());
   });
 }
 
