@@ -362,11 +362,13 @@ export class VisionBridge {
     callText = defaultCallText,
     now = () => Date.now(),
     maxCacheEntries = MAX_CACHE_ENTRIES,
+    visionMaxTokens = 4096,
   } = {}) {
     this._resolveVisionConfig = resolveVisionConfig || (() => null);
     this._callText = callText;
     this._now = now;
     this._maxCacheEntries = maxCacheEntries;
+    this._visionMaxTokens = visionMaxTokens;
     this._analysisByPrompt = new Map();
     this._noteByPath = new Map();
   }
@@ -607,7 +609,7 @@ export class VisionBridge {
           img,
         ],
       }],
-      maxTokens: 900,
+      maxTokens: this._visionMaxTokens,
       timeoutMs: VISION_ANALYSIS_TIMEOUT_MS,
     }));
   }
@@ -652,7 +654,7 @@ export class VisionBridge {
           img,
         ],
       }],
-      maxTokens: 1100,
+      maxTokens: this._visionMaxTokens,
       timeoutMs: VISION_ANALYSIS_TIMEOUT_MS,
     });
 
