@@ -34,6 +34,7 @@ class ListBulletWidget extends WidgetType {
   }
 }
 const listBulletDeco = Decoration.replace({ widget: new ListBulletWidget() });
+const autolinkDeco = Decoration.mark({ class: 'cm-link-text' });
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?(?:[0-9a-fA-F]{2})?$/;
 const RGB_COLOR_RE = /^rgba?\(\s*(?:\d{1,3}\s*,\s*){2}\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i;
 const BG_SPAN_RE = /<span\s+style=(["'])\s*background(?:-color)?\s*:\s*([^;"']+)\s*;?\s*\1>([\s\S]*?)<\/span>/ig;
@@ -358,6 +359,16 @@ export function buildMarkdownDecorations(view: EditorView): DecorationSet {
           case 'Link':
             handleLink({ view, node, activeLines, ranges });
             break;
+          case 'Autolink': {
+            // Autolink <url> — hide angle brackets, keep URL text visible with link style
+            const full = view.state.doc.sliceString(node.from, node.to);
+            if (full.startsWith('<') && full.endsWith('>')) {
+              ranges.push({ from: node.from, to: node.from + 1, deco: hideMark });
+              ranges.push({ from: node.from + 1, to: node.to - 1, deco: autolinkDeco });
+              ranges.push({ from: node.to - 1, to: node.to, deco: hideMark });
+            }
+            return false; // prevent child URL/LinkMark from being concealed
+          }
           case 'ListMark': {
             const markText = view.state.doc.sliceString(node.from, node.to);
             if (markText !== '-' && markText !== '*' && markText !== '+') break;
