@@ -614,7 +614,7 @@ async function _spawnServerOnce(serverInfoPath) {
 
   // Windows: 注入 MinGit 路径
   if (process.platform === "win32") {
-    // MinGit-busybox 结构：cmd/git.exe, mingw64/bin/git.exe+sh.exe
+    // MinGit-busybox 结构：cmd/git.exe, mingw64/bin/git.exe + ash/busybox
     const gitRoot = path.join(process.resourcesPath || "", "git");
     const gitPaths = [
       path.join(gitRoot, "mingw64", "bin"),
