@@ -3,7 +3,7 @@
  */
 import { useSettingsStore } from './store';
 import { hanaFetch } from './api';
-import registry from '../../shared/theme-registry.cjs';
+import registry from '../../shared/theme-registry';
 import { lookupReferenceModelMeta } from '../utils/model-metadata';
 import { API_PROVIDER_PRESETS, getProviderPresetLabel } from '../utils/provider-presets';
 

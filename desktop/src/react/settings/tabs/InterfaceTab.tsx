@@ -17,7 +17,7 @@ import {
   isPaperTextureEnabled,
 } from '../../../shared/appearance-preferences';
 import styles from '../Settings.module.css';
-import registry from '../../../shared/theme-registry.cjs';
+import registry from '../../../shared/theme-registry';
 
 const platform = window.platform;
 const i18n = window.i18n;
