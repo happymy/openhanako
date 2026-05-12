@@ -407,6 +407,27 @@ export class Hub {
       return { models: engine.providerRegistry.getAllModelsByType(type) };
     }));
 
+    this._sessionHandlerCleanups.push(bus.handle("provider:media-providers", async ({ capability = "image_generation" } = {}) => {
+      const providers = {};
+      for (const provider of engine.providerRegistry.getMediaProviders(capability)) {
+        const creds = engine.providerRegistry.getCredentials(provider.providerId);
+        providers[provider.providerId] = {
+          ...provider,
+          hasCredentials: provider.authType === "none" || !!creds?.apiKey,
+          unavailableReason: provider.authType !== "none" && !creds?.apiKey ? "no_credentials" : null,
+          models: provider.models.map((model) => ({
+            id: model.id,
+            name: model.displayName || model.name || model.id,
+            displayName: model.displayName || model.name || model.id,
+            protocolId: model.protocolId,
+            credentialLaneId: model.credentialLaneId,
+          })),
+          availableModels: [],
+        };
+      }
+      return { providers };
+    }));
+
     this._sessionHandlerCleanups.push(bus.handle("agent:config", async ({ agentId }) => {
       const { agent, error } = resolveAgentForBus(engine, agentId);
       if (error) return { error };

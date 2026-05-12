@@ -2,7 +2,6 @@
 import fs from "fs";
 import path from "path";
 import { execFile } from "child_process";
-import { getKnownModels } from "../lib/model-catalog.js";
 
 const MIME = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", mp4: "video/mp4", mov: "video/quicktime" };
 
@@ -79,56 +78,11 @@ export default function (app, ctx) {
     }
   });
 
-  // Preset providers that support image generation
-  const IMAGE_PROVIDER_PRESETS = [
-    { id: "volcengine", displayName: "火山引擎 (豆包)" },
-    { id: "openai", displayName: "OpenAI" },
-    { id: "openai-codex-oauth", displayName: "OpenAI Codex (OAuth)" },
-  ];
-
-  // Known image models — single source of truth from shared catalog
-  const KNOWN_IMAGE_MODELS = Object.fromEntries(
-    IMAGE_PROVIDER_PRESETS.map(p => [p.id, getKnownModels(p.id)])
-  );
-
   // Provider summary for Media settings tab
   app.get("/providers", async (c) => {
     try {
-      const { models } = await ctx.bus.request("provider:models-by-type", { type: "image" });
-      // Group added image models by provider
-      const grouped = {};
-      for (const m of (models || [])) {
-        if (!grouped[m.provider]) {
-          const creds = await ctx.bus.request("provider:credentials", { providerId: m.provider });
-          grouped[m.provider] = {
-            providerId: m.provider,
-            hasCredentials: !creds.error,
-            models: [],
-            availableModels: [],
-          };
-        }
-        grouped[m.provider].models.push({ id: m.id, name: m.name });
-      }
-      // Ensure preset providers always appear + attach available models
-      for (const preset of IMAGE_PROVIDER_PRESETS) {
-        if (!grouped[preset.id]) {
-          const creds = await ctx.bus.request("provider:credentials", { providerId: preset.id });
-          grouped[preset.id] = {
-            providerId: preset.id,
-            displayName: preset.displayName,
-            hasCredentials: !creds.error,
-            models: [],
-            availableModels: [],
-          };
-        } else if (!grouped[preset.id].displayName) {
-          grouped[preset.id].displayName = preset.displayName;
-        }
-        // Compute available = known - already added
-        const known = KNOWN_IMAGE_MODELS[preset.id] || [];
-        const addedIds = new Set(grouped[preset.id].models.map(m => m.id));
-        grouped[preset.id].availableModels = known.filter(m => !addedIds.has(m.id));
-      }
-      return c.json({ providers: grouped, config: ctx.config.get() || {} });
+      const { providers } = await ctx.bus.request("provider:media-providers", { capability: "image_generation" });
+      return c.json({ providers: providers || {}, config: ctx.config.get() || {} });
     } catch (err) {
       return c.json({ error: err.message }, 500);
     }

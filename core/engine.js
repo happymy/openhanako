@@ -17,6 +17,7 @@ import os from "os";
 import path from "path";
 import { migrateConfigScope } from "../shared/migrate-config-scope.js";
 import { migrateToProvidersYaml } from "./migrate-providers.js";
+import { migrateProviderMediaConfig } from "./provider-media-config.js";
 import { runMigrations } from "./migrations.js";
 import { findModel } from "../shared/model-ref.js";
 import { resolveWorkspaceSkillPaths } from "../shared/workspace-skill-paths.js";
@@ -867,6 +868,9 @@ export class HanaEngine {
     // 0b. Provider 迁移（旧数据 → added-models.yaml，只跑一次）
     migrateToProvidersYaml(this.hanakoHome, this.agentsDir, log);
 
+    // 0b2. Provider media 迁移（旧 type:image 模型 → media.image_generation）
+    migrateProviderMediaConfig(this.hanakoHome, log);
+
     // 0c. Model overrides 迁移（config.models.overrides → added-models.yaml，只跑一次）
     this._models.providerRegistry.migrateOverridesToAddedModels(this.agentsDir, log);
 
@@ -1126,6 +1130,15 @@ export class HanaEngine {
     });
     this._pluginManager.scan();
     await this._pluginManager.loadAll();
+
+    let providerContributionsChanged = false;
+    for (const provider of this._pluginManager.getProviderPlugins()) {
+      this._models.providerRegistry.registerProviderContribution(provider);
+      providerContributionsChanged = true;
+    }
+    if (providerContributionsChanged) {
+      await this._models.reloadAndSync();
+    }
 
     if (this._skills) {
       await this.syncWorkspaceSkillPaths(this.currentSessionPath ? this.cwd : null, {
