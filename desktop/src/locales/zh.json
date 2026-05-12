@@ -134,7 +134,7 @@
     "fileExpired": "文件已过期",
     "fileActions": {
       "more": "更多文件操作",
-      "revealInFinder": "在访达中显示",
+      "revealInFinder": "打开文件夹",
       "copyPath": "复制文件路径"
     }
   },

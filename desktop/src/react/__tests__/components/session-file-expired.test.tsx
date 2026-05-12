@@ -22,7 +22,7 @@ describe('expired session file presentation', () => {
       'chat.fileExpired': '文件已过期',
       'desk.openWithDefault': '用默认应用打开',
       'chat.fileActions.more': '更多文件操作',
-      'chat.fileActions.revealInFinder': '在访达中显示',
+      'chat.fileActions.revealInFinder': '打开文件夹',
       'chat.fileActions.copyPath': '复制文件路径',
     };
     window.t = ((key: string) => tMap[key] || key) as typeof window.t;
@@ -131,7 +131,7 @@ describe('expired session file presentation', () => {
     expect(window.platform?.openFile).toHaveBeenCalledWith('/cache/demo.pdf');
 
     fireEvent.click(screen.getByRole('button', { name: '更多文件操作 demo.pdf' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: '在访达中显示' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '打开文件夹' }));
     expect(window.platform?.showInFinder).toHaveBeenCalledWith('/cache/demo.pdf');
 
     fireEvent.click(screen.getByRole('button', { name: '更多文件操作 demo.pdf' }));
