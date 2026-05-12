@@ -16,6 +16,7 @@ export interface ChannelSlice {
   channelAgentReplyMinChars: number | null;
   channelAgentReplyMaxChars: number | null;
   channelAgentReminderIntervalMinutes: number;
+  channelAgentGuardLimit: number;
   channelAgentModelOverrideEnabled: boolean;
   channelAgentModelOverrideModel: { id: string; provider: string } | null;
   setChannels: (channels: Channel[]) => void;
@@ -43,6 +44,7 @@ export const createChannelSlice = (
   channelAgentReplyMinChars: null,
   channelAgentReplyMaxChars: null,
   channelAgentReminderIntervalMinutes: 31,
+  channelAgentGuardLimit: 36,
   channelAgentModelOverrideEnabled: false,
   channelAgentModelOverrideModel: null,
   setChannels: (channels) => set({ channels }),

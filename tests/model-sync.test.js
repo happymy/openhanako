@@ -623,6 +623,8 @@ describe("syncModels", () => {
     expect(model.compat).toMatchObject({
       supportsDeveloperRole: false,
       hanaVideoInput: true,
+      thinkingFormat: "qwen-chat-template",
+      reasoningProfile: "mimo-openai",
     });
   });
 

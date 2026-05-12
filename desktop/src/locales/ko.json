@@ -55,6 +55,7 @@
     "replyRangeInvalid": "최소 글자 수는 최대 글자 수보다 클 수 없어요",
     "settingsSaveFailed": "설정 저장 실패",
     "reminderInterval": "능동 알림 간격(분)",
+    "guardLimit": "턴 상한",
     "modelOverride": "모델 덮어쓰기",
     "modelDefault": "기본",
     "modelOverrideOn": "덮어쓰기",

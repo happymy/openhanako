@@ -55,6 +55,7 @@
     "replyRangeInvalid": "最小文字数は最大文字数以下にしてください",
     "settingsSaveFailed": "設定の保存に失敗しました",
     "reminderInterval": "能動リマインド間隔（分）",
+    "guardLimit": "ターン上限",
     "modelOverride": "モデル上書き",
     "modelDefault": "既定",
     "modelOverrideOn": "上書き",

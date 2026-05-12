@@ -120,6 +120,7 @@ describe("channels route membership contract", () => {
         replyMinChars: 20,
         replyMaxChars: 80,
         reminderIntervalMinutes: 45,
+        guardLimit: 9,
         modelOverrideEnabled: true,
         modelOverrideModel: { id: "deepseek-v4-flash", provider: "deepseek" },
       }),
@@ -132,6 +133,7 @@ describe("channels route membership contract", () => {
       replyMinChars: 20,
       replyMaxChars: 80,
       reminderIntervalMinutes: 45,
+      guardLimit: 9,
       modelOverrideEnabled: true,
       modelOverrideModel: { id: "deepseek-v4-flash", provider: "deepseek" },
     });
@@ -141,6 +143,7 @@ describe("channels route membership contract", () => {
     expect(meta.agentPhoneReplyMinChars).toBe("20");
     expect(meta.agentPhoneReplyMaxChars).toBe("80");
     expect(meta.agentPhoneReminderIntervalMinutes).toBe("45");
+    expect(meta.agentPhoneGuardLimit).toBe("9");
     expect(meta.agentPhoneModelOverrideEnabled).toBe("true");
     expect(meta.agentPhoneModelOverrideId).toBe("deepseek-v4-flash");
     expect(meta.agentPhoneModelOverrideProvider).toBe("deepseek");
@@ -152,6 +155,7 @@ describe("channels route membership contract", () => {
       replyMinChars: 20,
       replyMaxChars: 80,
       reminderIntervalMinutes: 45,
+      guardLimit: 9,
       modelOverrideEnabled: true,
       modelOverrideModel: { id: "deepseek-v4-flash", provider: "deepseek" },
     });
@@ -170,6 +174,7 @@ describe("channels route membership contract", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
       reminderIntervalMinutes: 31,
+      guardLimit: 24,
       modelOverrideEnabled: false,
       modelOverrideModel: null,
     });

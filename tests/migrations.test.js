@@ -11,7 +11,7 @@ import { getAgentPhoneProjectionPath } from "../lib/conversations/agent-phone-pr
 
 // ── 测试工具 ────────────────────────────────────────────────────────────────
 
-const LATEST_DATA_VERSION = 23;
+const LATEST_DATA_VERSION = 24;
 
 function makeTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "hana-migrations-"));
@@ -1970,6 +1970,56 @@ describe("migration #23 — removeAgentPhoneReplyInstructions", () => {
     expect(projectionRaw).not.toContain("replyInstructions");
     expect(projectionRaw).toContain("replyMinChars: 20");
     expect(projectionRaw).toContain("# Agent Phone");
+    expect(prefs.getPreferences()._dataVersion).toBe(LATEST_DATA_VERSION);
+  });
+});
+
+describe("migration #24 — migrateChannelPhoneGuardLimitDefaults", () => {
+  let tmpDir, userDir, agentsDir, channelsDir;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    userDir = path.join(tmpDir, "user");
+    agentsDir = path.join(tmpDir, "agents");
+    channelsDir = path.join(tmpDir, "channels");
+    fs.mkdirSync(userDir, { recursive: true });
+    fs.mkdirSync(agentsDir, { recursive: true });
+    fs.mkdirSync(channelsDir, { recursive: true });
+  });
+
+  afterEach(() => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+  it("adds a per-channel guard limit based on channel member count", () => {
+    fs.writeFileSync(
+      path.join(channelsDir, "ch_crew.md"),
+      [
+        "---",
+        "id: ch_crew",
+        "members: [hana, butter, ming]",
+        "name: Crew",
+        "---",
+        "",
+        "### user | 2026-05-12 12:00:00",
+        "",
+        "hello",
+        "",
+      ].join("\n"),
+      "utf-8",
+    );
+    const prefs = makePrefs(userDir);
+    prefs.savePreferences({ _dataVersion: 23 });
+
+    runMigrations({
+      hanakoHome: tmpDir,
+      agentsDir,
+      prefs,
+      providerRegistry: makeRegistry([]),
+      log: () => {},
+    });
+
+    const raw = fs.readFileSync(path.join(channelsDir, "ch_crew.md"), "utf-8");
+    expect(raw).toContain("agentPhoneGuardLimit: 36");
+    expect(raw).toContain("### user | 2026-05-12 12:00:00");
     expect(prefs.getPreferences()._dataVersion).toBe(LATEST_DATA_VERSION);
   });
 });

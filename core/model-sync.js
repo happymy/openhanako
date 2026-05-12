@@ -138,7 +138,7 @@ function buildModelEntry(modelEntry, provider, baseUrl = "", api = "openai-compl
   }
 
   const videoAwareEntry = video === true ? withHanaVideoInputCompat(entry, true) : entry;
-  return withThinkingFormatCompat(videoAwareEntry, { provider, api });
+  return withThinkingFormatCompat(videoAwareEntry, { provider, api, baseUrl });
 }
 
 function filterChatModelEntries(provider, models) {

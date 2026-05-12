@@ -123,6 +123,7 @@ function normalizeAgentPhoneSettings(data: any): AgentPhoneSettings {
     replyMinChars: normalizeNullablePositiveInt(data?.replyMinChars),
     replyMaxChars: normalizeNullablePositiveInt(data?.replyMaxChars),
     reminderIntervalMinutes: normalizeNullablePositiveInt(data?.reminderIntervalMinutes) || 31,
+    guardLimit: normalizeNullablePositiveInt(data?.guardLimit) || 36,
     modelOverrideEnabled: data?.modelOverrideEnabled === true,
     modelOverrideModel: overrideModel?.id && overrideModel?.provider
       ? { id: String(overrideModel.id), provider: String(overrideModel.provider) }
@@ -136,6 +137,7 @@ function applyAgentPhoneSettings(settings: AgentPhoneSettings): void {
     channelAgentReplyMinChars: settings.replyMinChars,
     channelAgentReplyMaxChars: settings.replyMaxChars,
     channelAgentReminderIntervalMinutes: settings.reminderIntervalMinutes,
+    channelAgentGuardLimit: settings.guardLimit,
     channelAgentModelOverrideEnabled: settings.modelOverrideEnabled,
     channelAgentModelOverrideModel: settings.modelOverrideModel,
   });
@@ -171,6 +173,7 @@ export async function loadConversationAgentPhoneSettings(conversationId: string)
         replyMinChars: null,
         replyMaxChars: null,
         reminderIntervalMinutes: 31,
+        guardLimit: 36,
         modelOverrideEnabled: false,
         modelOverrideModel: null,
       });
@@ -185,6 +188,7 @@ export async function loadConversationAgentPhoneSettings(conversationId: string)
       replyMinChars: null,
       replyMaxChars: null,
       reminderIntervalMinutes: 31,
+      guardLimit: 36,
       modelOverrideEnabled: false,
       modelOverrideModel: null,
     });
@@ -207,6 +211,7 @@ export async function saveConversationAgentPhoneSettings(patch: Partial<AgentPho
       replyMinChars: patch.replyMinChars !== undefined ? patch.replyMinChars : s.channelAgentReplyMinChars,
       replyMaxChars: patch.replyMaxChars !== undefined ? patch.replyMaxChars : s.channelAgentReplyMaxChars,
       reminderIntervalMinutes: patch.reminderIntervalMinutes !== undefined ? patch.reminderIntervalMinutes : s.channelAgentReminderIntervalMinutes,
+      guardLimit: patch.guardLimit !== undefined ? patch.guardLimit : s.channelAgentGuardLimit,
       modelOverrideEnabled: patch.modelOverrideEnabled !== undefined ? patch.modelOverrideEnabled : s.channelAgentModelOverrideEnabled,
       modelOverrideModel: patch.modelOverrideModel !== undefined ? patch.modelOverrideModel : s.channelAgentModelOverrideModel,
     }),

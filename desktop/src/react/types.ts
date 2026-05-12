@@ -108,6 +108,7 @@ export interface AgentPhoneSettings {
   replyMinChars: number | null;
   replyMaxChars: number | null;
   reminderIntervalMinutes: number;
+  guardLimit: number;
   modelOverrideEnabled: boolean;
   modelOverrideModel: { id: string; provider: string } | null;
 }

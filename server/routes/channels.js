@@ -37,8 +37,10 @@ import {
 import { normalizeAgentPhoneToolMode } from "../../lib/conversations/agent-phone-session.js";
 import {
   DEFAULT_AGENT_PHONE_SETTINGS,
+  defaultAgentPhoneGuardLimit,
   normalizeAgentPhoneModelOverride,
   positiveIntegerOrDefault,
+  resolveAgentPhoneGuardLimit,
 } from "../../lib/conversations/agent-phone-prompt.js";
 import {
   getAgentPhoneProjectionPath,
@@ -74,6 +76,7 @@ function normalizePhoneSettingsPayload(body = {}) {
     body.reminderIntervalMinutes ?? DEFAULT_AGENT_PHONE_SETTINGS.reminderIntervalMinutes,
     "reminderIntervalMinutes",
   ) || DEFAULT_AGENT_PHONE_SETTINGS.reminderIntervalMinutes;
+  const guardLimit = normalizeOptionalPositiveInt(body.guardLimit, "guardLimit");
   const override = normalizeAgentPhoneModelOverride({
     enabled: body.modelOverrideEnabled,
     id: body.modelOverrideModel?.id ?? body.modelOverrideId,
@@ -84,12 +87,14 @@ function normalizePhoneSettingsPayload(body = {}) {
     replyMinChars,
     replyMaxChars,
     reminderIntervalMinutes,
+    guardLimit,
     modelOverrideEnabled: override.enabled,
     modelOverrideModel: override.model,
   };
 }
 
 function readChannelPhoneSettingsFromMeta(meta) {
+  const memberCount = Array.isArray(meta.members) ? meta.members.length : 3;
   const override = normalizeAgentPhoneModelOverride({
     enabled: meta.agentPhoneModelOverrideEnabled,
     id: meta.agentPhoneModelOverrideId,
@@ -103,6 +108,7 @@ function readChannelPhoneSettingsFromMeta(meta) {
       meta.agentPhoneReminderIntervalMinutes,
       DEFAULT_AGENT_PHONE_SETTINGS.reminderIntervalMinutes,
     ),
+    guardLimit: resolveAgentPhoneGuardLimit(meta.agentPhoneGuardLimit, memberCount),
     modelOverrideEnabled: override.enabled,
     modelOverrideModel: override.model,
   };
@@ -167,6 +173,7 @@ export function createChannelsRoute(engine, hub) {
         replyMinChars: readOptionalPositiveInt(projection.meta.replyMinChars),
         replyMaxChars: readOptionalPositiveInt(projection.meta.replyMaxChars),
         reminderIntervalMinutes: DEFAULT_AGENT_PHONE_SETTINGS.reminderIntervalMinutes,
+        guardLimit: DEFAULT_AGENT_PHONE_SETTINGS.guardLimit,
         modelOverrideEnabled: false,
         modelOverrideModel: null,
       };
@@ -205,7 +212,10 @@ export function createChannelsRoute(engine, hub) {
           replyMaxChars: settings.replyMaxChars || "",
         },
       });
-      return;
+      return {
+        ...settings,
+        guardLimit: DEFAULT_AGENT_PHONE_SETTINGS.guardLimit,
+      };
     }
     const filePath = safeChannelPath(id);
     if (!filePath) {
@@ -219,15 +229,19 @@ export function createChannelsRoute(engine, hub) {
       throw err;
     }
     assertAvailableModelOverride(engine, settings);
+    const memberCount = getChannelMembers(filePath).length;
+    const guardLimit = settings.guardLimit || defaultAgentPhoneGuardLimit(memberCount);
     await updateChannelMeta(filePath, {
       agentPhoneToolMode: settings.mode,
       agentPhoneReplyMinChars: settings.replyMinChars || "",
       agentPhoneReplyMaxChars: settings.replyMaxChars || "",
       agentPhoneReminderIntervalMinutes: settings.reminderIntervalMinutes,
+      agentPhoneGuardLimit: guardLimit,
       agentPhoneModelOverrideEnabled: settings.modelOverrideEnabled ? "true" : "false",
       agentPhoneModelOverrideId: settings.modelOverrideEnabled && settings.modelOverrideModel ? settings.modelOverrideModel.id : "",
       agentPhoneModelOverrideProvider: settings.modelOverrideEnabled && settings.modelOverrideModel ? settings.modelOverrideModel.provider : "",
     });
+    return { ...settings, guardLimit };
   }
 
   route.get("/conversations/:id/agent-phone-settings", async (c) => {
@@ -244,8 +258,8 @@ export function createChannelsRoute(engine, hub) {
       const id = c.req.param("id");
       const body = await safeJson(c);
       const settings = normalizePhoneSettingsPayload(body);
-      await writeConversationPhoneSettings(id, settings, c);
-      return c.json({ ok: true, ...settings });
+      const saved = await writeConversationPhoneSettings(id, settings, c);
+      return c.json({ ok: true, ...(saved || settings) });
     } catch (err) {
       return c.json({ error: err.message }, err.status || 500);
     }

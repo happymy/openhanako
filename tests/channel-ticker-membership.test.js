@@ -161,4 +161,58 @@ describe("channel-ticker membership source", () => {
     expect(executeCheck.mock.calls[0][2].map((message) => message.body)).toEqual(["频道最近的事实"]);
     expect(executeCheck.mock.calls[0][4]).toMatchObject({ proactive: true });
   });
+
+  it("expands proactive reminder into normal delivery when the starter posts", async () => {
+    tmpDir = mktemp();
+    const channelsDir = path.join(tmpDir, "channels");
+    const agentsDir = path.join(tmpDir, "agents");
+    for (const agentId of ["hana", "yui", "ming"]) {
+      const agentDir = path.join(agentsDir, agentId);
+      fs.mkdirSync(agentDir, { recursive: true });
+      fs.writeFileSync(path.join(agentDir, "channels.md"), "# 频道\n\n", "utf-8");
+    }
+
+    const { id: channelId } = await createChannel(channelsDir, {
+      id: "ch_crew",
+      name: "Crew",
+      members: ["hana", "yui", "ming"],
+    });
+    const channelFile = path.join(channelsDir, `${channelId}.md`);
+    await appendMessage(channelFile, "user", "频道最近的事实");
+
+    const seen = [];
+    const executeCheck = vi.fn(async (agentId, _channelName, newMessages, _allUpdates, opts) => {
+      seen.push({
+        agentId,
+        proactive: opts?.proactive === true,
+        bodies: newMessages.map((message) => message.body),
+      });
+      if (agentId === "yui" && opts?.proactive) {
+        await appendMessage(channelFile, agentId, "我来开个头。");
+        return { replied: true, replyContent: "我来开个头。" };
+      }
+      return { replied: false, passed: true };
+    });
+    const ticker = createChannelTicker({
+      channelsDir,
+      agentsDir,
+      getAgentOrder: () => ["hana", "yui", "ming"],
+      executeCheck,
+      onMemorySummarize: vi.fn(),
+      random: () => 0.6,
+    });
+
+    ticker.start();
+    try {
+      await ticker.triggerReminder(channelId);
+    } finally {
+      await ticker.stop();
+    }
+
+    expect(seen).toEqual([
+      { agentId: "yui", proactive: true, bodies: ["频道最近的事实"] },
+      { agentId: "hana", proactive: false, bodies: ["频道最近的事实", "我来开个头。"] },
+      { agentId: "ming", proactive: false, bodies: ["频道最近的事实", "我来开个头。"] },
+    ]);
+  });
 });

@@ -79,6 +79,8 @@ const migrations = {
   22: migrateChannelPhoneSettingsDefaults,
   // 删除本轮开发期间加入但已废弃的自由文本回复范围设置
   23: removeAgentPhoneReplyInstructions,
+  // 频道 phone 轮次 guard limit 显式化，默认按成员数 × 12
+  24: migrateChannelPhoneGuardLimitDefaults,
 };
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -2104,6 +2106,30 @@ function removeAgentPhoneReplyInstructions(ctx) {
   log?.(`[migrations] #23: deprecated reply-scope settings removed (channels=${channelPatched}, projections=${projectionPatched})`);
 }
 
+function migrateChannelPhoneGuardLimitDefaults(ctx) {
+  const { hanakoHome, log } = ctx;
+  const channelsDir = path.join(hanakoHome, "channels");
+  if (!fs.existsSync(channelsDir)) {
+    log?.("[migrations] #24: no channels dir");
+    return;
+  }
+
+  let patched = 0;
+  for (const entry of fs.readdirSync(channelsDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+    const filePath = path.join(channelsDir, entry.name);
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const next = patchChannelGuardLimitFrontmatter(raw);
+    if (next === raw) continue;
+    const tmp = `${filePath}.tmp`;
+    fs.writeFileSync(tmp, next, "utf-8");
+    fs.renameSync(tmp, filePath);
+    patched++;
+  }
+
+  log?.(`[migrations] #24: channel phone guard limits patched (${patched})`);
+}
+
 function removeFrontmatterKeys(raw, keys) {
   const lines = raw.split("\n");
   if (lines[0]?.trim() !== "---") return raw;
@@ -2129,6 +2155,59 @@ function removeFrontmatterKeys(raw, keys) {
   }
   if (!changed) return raw;
   return ["---", ...nextFm, "---", ...lines.slice(end + 1)].join("\n");
+}
+
+function patchChannelGuardLimitFrontmatter(raw) {
+  const lines = raw.split("\n");
+  if (lines[0]?.trim() !== "---") return raw;
+  let end = -1;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === "---") {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) return raw;
+
+  const fmLines = lines.slice(1, end);
+  const meta = new Map();
+  for (const line of fmLines) {
+    const idx = line.indexOf(":");
+    if (idx < 0) continue;
+    meta.set(line.slice(0, idx).trim(), line.slice(idx + 1).trim());
+  }
+
+  const current = Number(meta.get("agentPhoneGuardLimit"));
+  if (Number.isFinite(current) && current > 0) return raw;
+
+  const memberCount = parseFrontmatterMemberCount(meta.get("members"));
+  meta.set("agentPhoneGuardLimit", String(memberCount * 12));
+
+  const originalKeys = [];
+  for (const line of fmLines) {
+    const idx = line.indexOf(":");
+    if (idx < 0) continue;
+    originalKeys.push(line.slice(0, idx).trim());
+  }
+  const orderedKeys = [
+    ...originalKeys,
+    ...[...meta.keys()].filter((key) => !originalKeys.includes(key)),
+  ];
+  const nextFm = orderedKeys.map((key) => `${key}: ${meta.get(key)}`);
+  return ["---", ...nextFm, "---", ...lines.slice(end + 1)].join("\n");
+}
+
+function parseFrontmatterMemberCount(value) {
+  if (typeof value !== "string") return 3;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return 3;
+  const count = trimmed
+    .slice(1, -1)
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .length;
+  return count > 0 ? count : 3;
 }
 
 function patchChannelPhoneSettingsFrontmatter(raw) {

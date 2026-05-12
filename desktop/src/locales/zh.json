@@ -57,6 +57,7 @@
     "replyRangeInvalid": "最少字数不能大于最多字数",
     "settingsSaveFailed": "保存设置失败",
     "reminderInterval": "主动提醒间隔（分钟）",
+    "guardLimit": "轮次上限",
     "modelOverride": "覆写模型",
     "modelDefault": "默认",
     "modelOverrideOn": "覆写",

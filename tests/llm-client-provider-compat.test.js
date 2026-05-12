@@ -308,4 +308,44 @@ describe("callText provider-compat routing", () => {
       }),
     });
   });
+
+  it("classifies responses that become empty only after thinking cleanup", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        choices: [{ message: { content: "<think>The user asked for OK.</think>\n\n" } }],
+      }),
+    });
+
+    await expect(callText({
+      api: "openai-completions",
+      baseUrl: "https://example.test/v1",
+      model: { id: "MiniMax-M2.7", provider: "minimax", reasoning: true },
+      messages: [{ role: "user", content: "Reply OK." }],
+      timeoutMs: 5_000,
+    })).rejects.toMatchObject({
+      code: "LLM_EMPTY_RESPONSE",
+      message: "LLM returned only thinking content without visible text",
+      context: expect.objectContaining({ reason: "empty_after_thinking" }),
+    });
+  });
+
+  it("returns visible text after stripping a leading thinking block", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        choices: [{ message: { content: "<think>The user asked for OK.</think>\n\nOK" } }],
+      }),
+    });
+
+    await expect(callText({
+      api: "openai-completions",
+      baseUrl: "https://example.test/v1",
+      model: { id: "MiniMax-M2.7", provider: "minimax", reasoning: true },
+      messages: [{ role: "user", content: "Reply OK." }],
+      timeoutMs: 5_000,
+    })).resolves.toBe("OK");
+  });
 });

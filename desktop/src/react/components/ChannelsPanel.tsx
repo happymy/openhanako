@@ -671,6 +671,7 @@ export function ChannelAgentSettingsPanel() {
   const replyMinChars = useStore(s => s.channelAgentReplyMinChars);
   const replyMaxChars = useStore(s => s.channelAgentReplyMaxChars);
   const reminderIntervalMinutes = useStore(s => s.channelAgentReminderIntervalMinutes);
+  const guardLimit = useStore(s => s.channelAgentGuardLimit);
   const modelOverrideEnabled = useStore(s => s.channelAgentModelOverrideEnabled);
   const modelOverrideModel = useStore(s => s.channelAgentModelOverrideModel);
   const [saving, setSaving] = useState(false);
@@ -678,13 +679,15 @@ export function ChannelAgentSettingsPanel() {
   const [draftMin, setDraftMin] = useState(replyMinChars ? String(replyMinChars) : '');
   const [draftMax, setDraftMax] = useState(replyMaxChars ? String(replyMaxChars) : '');
   const [draftReminder, setDraftReminder] = useState(String(reminderIntervalMinutes || 31));
+  const [draftGuardLimit, setDraftGuardLimit] = useState(String(guardLimit || 36));
   const modelSelectRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setDraftMin(replyMinChars ? String(replyMinChars) : '');
     setDraftMax(replyMaxChars ? String(replyMaxChars) : '');
     setDraftReminder(String(reminderIntervalMinutes || 31));
-  }, [currentChannel, replyMinChars, replyMaxChars, reminderIntervalMinutes]);
+    setDraftGuardLimit(String(guardLimit || 36));
+  }, [currentChannel, replyMinChars, replyMaxChars, reminderIntervalMinutes, guardLimit]);
 
   useEffect(() => {
     if (models.length > 0) return;
@@ -725,6 +728,7 @@ export function ChannelAgentSettingsPanel() {
     const min = parseOptionalIntInput(draftMin);
     const max = parseOptionalIntInput(draftMax);
     const reminder = parseOptionalIntInput(draftReminder) || 31;
+    const guard = parseOptionalIntInput(draftGuardLimit) || 36;
     if (min && max && min > max) {
       alert(t('channel.replyRangeInvalid'));
       return;
@@ -732,7 +736,7 @@ export function ChannelAgentSettingsPanel() {
     void saveSettings({
       replyMinChars: min,
       replyMaxChars: max,
-      ...(!isDM ? { reminderIntervalMinutes: reminder } : {}),
+      ...(!isDM ? { reminderIntervalMinutes: reminder, guardLimit: guard } : {}),
     });
   };
 
@@ -816,6 +820,20 @@ export function ChannelAgentSettingsPanel() {
                 placeholder="31"
                 value={draftReminder}
                 onChange={(event) => setDraftReminder(event.target.value.replace(/[^\d]/g, ''))}
+                onBlur={commitTextSettings}
+                disabled={saving}
+              />
+            </div>
+          )}
+          {!isDM && (
+            <div className={styles.agentSettingsField}>
+              <div className={styles.agentSettingsLabel}>{t('channel.guardLimit')}</div>
+              <input
+                className={styles.agentReplyRangeInput}
+                inputMode="numeric"
+                placeholder="36"
+                value={draftGuardLimit}
+                onChange={(event) => setDraftGuardLimit(event.target.value.replace(/[^\d]/g, ''))}
                 onBlur={commitTextSettings}
                 disabled={saving}
               />

@@ -55,6 +55,7 @@
     "replyRangeInvalid": "最少字數不能大於最多字數",
     "settingsSaveFailed": "儲存設定失敗",
     "reminderInterval": "主動提醒間隔（分鐘）",
+    "guardLimit": "輪次上限",
     "modelOverride": "覆寫模型",
     "modelDefault": "預設",
     "modelOverrideOn": "覆寫",

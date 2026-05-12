@@ -44,6 +44,11 @@ function isOfficialDeepSeekEndpoint(model, context = {}) {
     || getBaseUrl(model, context).includes("api.deepseek.com");
 }
 
+function isOfficialMimoEndpoint(model, context = {}) {
+  return getProvider(model, context) === "mimo"
+    || getBaseUrl(model, context).includes("api.xiaomimimo.com");
+}
+
 function isDeepSeekV4ModelId(id) {
   return id === "deepseek-v4" || id.startsWith("deepseek-v4-") || id.startsWith("deepseek-v4.");
 }
@@ -115,6 +120,10 @@ export function getThinkingFormat(model, context = {}) {
     return "deepseek";
   }
 
+  if (isOfficialMimoEndpoint(model, context) && model.reasoning === true) {
+    return "qwen-chat-template";
+  }
+
   return null;
 }
 
@@ -130,6 +139,13 @@ export function getReasoningProfile(model, context = {}) {
 
   const explicit = lower(model.compat?.reasoningProfile || model.compat?.thinkingProfile);
   if (explicit) return explicit;
+
+  if (isOfficialMimoEndpoint(model, context) && model.reasoning === true) {
+    const api = getApi(model, context);
+    if (api === "openai-completions" || api === "openai-responses" || api === "") {
+      return "mimo-openai";
+    }
+  }
 
   if (!isOfficialDeepSeekEndpoint(model, context)) return null;
 

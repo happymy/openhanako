@@ -540,9 +540,53 @@ describe("model sync related routes", () => {
       apiKey: "sk-test",
       baseUrl: "https://api.deepseek.com/v1",
       model: resolved.model,
-      maxTokens: 8,
+      maxTokens: 128,
       timeoutMs: 15_000,
     }));
+  });
+
+  it("model health reports empty-after-thinking as a diagnostic failure", async () => {
+    const { AppError } = await import("../shared/errors.js");
+    const { createModelsRoute } = await import("../server/routes/models.js");
+    const app = new Hono();
+    const resolved = {
+      model: {
+        id: "MiniMax-M2.7",
+        provider: "minimax",
+        reasoning: true,
+      },
+      provider: "minimax",
+      api: "openai-completions",
+      api_key: "sk-test",
+      base_url: "https://api.minimax.io/v1",
+    };
+    const engine = {
+      availableModels: [],
+      currentModel: null,
+      config: {},
+      resolveModelWithCredentials: vi.fn(() => resolved),
+    };
+    callText.mockRejectedValue(new AppError("LLM_EMPTY_RESPONSE", {
+      message: "LLM returned only thinking content without visible text",
+      context: { model: "MiniMax-M2.7", reason: "empty_after_thinking" },
+    }));
+
+    app.route("/api", createModelsRoute(engine));
+
+    const healthRes = await app.request("/api/models/health", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modelId: "MiniMax-M2.7", provider: "minimax" }),
+    });
+    const healthData = await healthRes.json();
+
+    expect(healthRes.status).toBe(200);
+    expect(healthData).toMatchObject({
+      ok: false,
+      code: "LLM_EMPTY_RESPONSE",
+      reason: "empty_after_thinking",
+      error: "LLM returned only thinking content without visible text",
+    });
   });
 
   it("oauth provider with empty baseUrl falls back to registry", async () => {

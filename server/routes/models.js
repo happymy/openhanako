@@ -14,6 +14,9 @@ import {
 import { callText } from "../../core/llm-client.js";
 import { modelSupportsXhigh } from "../../core/session-thinking-level.js";
 
+const HEALTH_CHECK_PROMPT = "Reply exactly OK.";
+const HEALTH_CHECK_MAX_TOKENS = 128;
+
 /** 查询模型显示名：overrides > SDK name > known-models > id */
 function resolveModelName(id, sdkName, overrides, provider) {
   if (overrides?.[id]?.displayName) return overrides[id].displayName;
@@ -97,14 +100,19 @@ export function createModelsRoute(engine) {
         apiKey: resolved.api_key,
         baseUrl: resolved.base_url,
         model: resolved.model,
-        messages: [{ role: "user", content: "Reply OK." }],
-        maxTokens: 8,
+        messages: [{ role: "user", content: HEALTH_CHECK_PROMPT }],
+        maxTokens: HEALTH_CHECK_MAX_TOKENS,
         timeoutMs: 15_000,
       });
 
       return c.json({ ok: true, status: 200, provider: resolved.provider });
     } catch (err) {
-      return c.json({ ok: false, error: err.message });
+      return c.json({
+        ok: false,
+        error: err.message,
+        ...(err.code ? { code: err.code } : {}),
+        ...(err.context?.reason ? { reason: err.context.reason } : {}),
+      });
     }
   });
 
