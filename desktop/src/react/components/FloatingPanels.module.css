@@ -609,7 +609,7 @@
 
 .bridgePanelWide .floatingPanelInner {
     width: 100%;
-    max-width: 640px;
+    max-width: 800px;
     min-width: 420px;
     height: 85%;
 }

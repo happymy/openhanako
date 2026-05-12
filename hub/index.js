@@ -211,11 +211,11 @@ export class Hub {
       },
       { // Bridge guest
         match: o => o.sessionKey && o.role === "guest",
-        handle: () => this._guestHandler.handle(text, o.sessionKey, o.meta, { isGroup: o.isGroup, agentId: o.agentId, onDelta: o.onDelta, images: o.images, imageAttachmentPaths: o.imageAttachmentPaths, videos: o.videos, videoAttachmentPaths: o.videoAttachmentPaths, inboundFiles: o.inboundFiles }),
+        handle: () => this._guestHandler.handle(text, o.sessionKey, o.meta, { isGroup: o.isGroup, agentId: o.agentId, onDelta: o.onDelta, images: o.images, imageAttachmentPaths: o.imageAttachmentPaths, videos: o.videos, videoAttachmentPaths: o.videoAttachmentPaths, inboundFiles: o.inboundFiles, displayMessage: o.displayMessage }),
       },
       { // Bridge owner
         match: o => o.sessionKey && !o.ephemeral,
-        handle: () => this._engine.executeExternalMessage(text, o.sessionKey, o.meta, { guest: false, agentId: o.agentId, onDelta: o.onDelta, images: o.images, imageAttachmentPaths: o.imageAttachmentPaths, videos: o.videos, videoAttachmentPaths: o.videoAttachmentPaths, inboundFiles: o.inboundFiles }),
+        handle: () => this._engine.executeExternalMessage(text, o.sessionKey, o.meta, { guest: false, agentId: o.agentId, onDelta: o.onDelta, images: o.images, imageAttachmentPaths: o.imageAttachmentPaths, videos: o.videos, videoAttachmentPaths: o.videoAttachmentPaths, inboundFiles: o.inboundFiles, displayMessage: o.displayMessage }),
       },
       { // 隔离执行（cron/heartbeat/channel）
         match: o => o.ephemeral,

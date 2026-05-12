@@ -24,19 +24,22 @@ interface Props {
   sessionPath: string;
   readOnly?: boolean;
   hideIdentity?: boolean;
+  userIdentity?: { name?: string | null; avatarUrl?: string | null };
   messageRef?: (element: HTMLDivElement | null) => void;
 }
 
-export const UserMessage = memo(function UserMessage({ message, showAvatar, sessionPath, readOnly = false, hideIdentity = false, messageRef }: Props) {
+export const UserMessage = memo(function UserMessage({ message, showAvatar, sessionPath, readOnly = false, hideIdentity = false, userIdentity, messageRef }: Props) {
   const userAvatarUrl = useStore(s => s.userAvatarUrl);
   const t = window.t ?? ((p: string) => p);
-  const userName = useStore(s => s.userName) || t('common.me');
+  const storeUserName = useStore(s => s.userName) || t('common.me');
+  const userName = userIdentity?.name || storeUserName;
+  const displayAvatarUrl = userIdentity ? (userIdentity.avatarUrl || null) : userAvatarUrl;
   const userDisplayInfo = useMemo(() => resolveAgentDisplayInfo({
     id: 'user',
     agents: [],
     userName,
-    userAvatarUrl,
-  }), [userName, userAvatarUrl]);
+    userAvatarUrl: displayAvatarUrl,
+  }), [userName, displayAvatarUrl]);
 
   const isStreaming = useStore(s => selectIsStreamingSession(s, sessionPath));
   const selectedIds = useStore(s => selectSelectedIdsBySession(s, sessionPath));

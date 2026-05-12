@@ -137,6 +137,15 @@ export class BridgeSessionManager {
   /** 活跃 bridge sessions（供 bridge-manager abort 用） */
   get activeSessions() { return this._activeSessions; }
 
+  _emitSessionEvent(event, sessionPath) {
+    if (!sessionPath || typeof this._deps.emitEvent !== "function") return;
+    try {
+      this._deps.emitEvent(event, sessionPath);
+    } catch (err) {
+      console.warn(`[bridge-session] emit ${event?.type || "event"} failed: ${err?.message || err}`);
+    }
+  }
+
   /** 指定 bridge session 是否正在 streaming */
   isSessionStreaming(sessionKey) {
     return this._prePromptAbortControllers.has(sessionKey)
@@ -379,6 +388,7 @@ export class BridgeSessionManager {
       sessionPathRef.current = activeSessionPath;
       this._activeSessions.set(sessionKey, session);
 
+      let displayAttachments = [];
       if (opts.inboundFiles?.length && !activeSessionPath) {
         throw new Error("bridge inbound files require a resolved sessionPath");
       }
@@ -399,7 +409,24 @@ export class BridgeSessionManager {
             ],
           };
         }
+        displayAttachments = materialized.displayAttachments || [];
       }
+
+      this._emitSessionEvent({ type: "session_status", isStreaming: true }, activeSessionPath);
+      const displayMessage = {
+        timestamp: Date.now(),
+        ...(opts.displayMessage || {}),
+        text: opts.displayMessage?.text ?? promptText,
+        source: opts.displayMessage?.source || "bridge",
+        bridgeSessionKey: sessionKey,
+      };
+      if (displayAttachments.length && !displayMessage.attachments?.length) {
+        displayMessage.attachments = displayAttachments;
+      }
+      this._emitSessionEvent({
+        type: "session_user_message",
+        message: displayMessage,
+      }, activeSessionPath);
 
       // 捕获文本输出
       let capturedText = "";
@@ -418,6 +445,7 @@ export class BridgeSessionManager {
             capturedText += (capturedText ? "\n\n" : "") + card.description;
           }
         }
+        this._emitSessionEvent(event, activeSessionPath);
       });
 
       try {
@@ -450,6 +478,7 @@ export class BridgeSessionManager {
           warn: (msg) => console.warn(`[bridge-session] ${msg}`),
         });
         this._activeSessions.delete(sessionKey);
+        this._emitSessionEvent({ type: "session_status", isStreaming: false }, activeSessionPath);
       }
 
       // 更新索引 + 元数据

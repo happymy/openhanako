@@ -223,6 +223,7 @@ export class HanaEngine {
       registerSessionFile: (entry) => this.registerSessionFile(entry),
       getSessionFile: (fileId, options) => this.getSessionFile(fileId, options),
       getSessionFileByPath: (filePath, options) => this.getSessionFileByPath(filePath, options),
+      emitEvent: (event, sessionPath) => this._emitEvent(event, sessionPath),
     });
     this._notifications = new NotificationService({
       emitDesktop: ({ title, body, agentId }) => {

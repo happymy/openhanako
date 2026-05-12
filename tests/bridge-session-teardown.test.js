@@ -134,6 +134,72 @@ describe("BridgeSessionManager teardown", () => {
     expect(manager.activeSessions.has("bridge-k1")).toBe(false);
   });
 
+  it("emits normal bridge turns through the desktop chat stream contract", async () => {
+    const agent = makeAgent(rootDir);
+    const mgrPath = path.join(agent.sessionDir, "bridge", "owner", "stream.jsonl");
+    const deps = makeDeps(agent);
+    deps.emitEvent = vi.fn();
+    const manager = new BridgeSessionManager(deps);
+    sessionManagerCreateMock.mockReturnValue({ getSessionFile: () => mgrPath });
+
+    const subscribers = [];
+    const session = {
+      model: { input: ["text"] },
+      prompt: vi.fn(async () => {
+        for (const fn of subscribers) {
+          fn({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "Hello" } });
+          fn({ type: "tool_execution_start", toolName: "read", args: { file_path: "/tmp/a.txt" } });
+          fn({ type: "tool_execution_end", toolName: "read", isError: false, result: { details: {} } });
+        }
+      }),
+      subscribe: vi.fn((fn) => {
+        subscribers.push(fn);
+        return vi.fn();
+      }),
+      dispose: vi.fn(),
+      sessionManager: { getSessionFile: () => mgrPath },
+    };
+    createAgentSessionMock.mockResolvedValue({ session });
+
+    const reply = await manager.executeExternalMessage("model prompt", "tg_dm_owner@agent-a", null, {
+      agentId: "agent-a",
+      displayMessage: { text: "visible bridge message", source: "bridge" },
+    });
+
+    expect(reply).toBe("Hello");
+    expect(deps.emitEvent).toHaveBeenCalledWith(
+      { type: "session_status", isStreaming: true },
+      mgrPath,
+    );
+    expect(deps.emitEvent).toHaveBeenCalledWith(
+      {
+        type: "session_user_message",
+        message: expect.objectContaining({
+          text: "visible bridge message",
+          source: "bridge",
+          bridgeSessionKey: "tg_dm_owner@agent-a",
+        }),
+      },
+      mgrPath,
+    );
+    expect(deps.emitEvent).toHaveBeenCalledWith(
+      { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "Hello" } },
+      mgrPath,
+    );
+    expect(deps.emitEvent).toHaveBeenCalledWith(
+      { type: "tool_execution_start", toolName: "read", args: { file_path: "/tmp/a.txt" } },
+      mgrPath,
+    );
+    expect(deps.emitEvent).toHaveBeenCalledWith(
+      { type: "tool_execution_end", toolName: "read", isError: false, result: { details: {} } },
+      mgrPath,
+    );
+    expect(deps.emitEvent).toHaveBeenLastCalledWith(
+      { type: "session_status", isStreaming: false },
+      mgrPath,
+    );
+  });
+
   it("registers bridge inbound image files after the bridge session path exists", async () => {
     const agent = makeAgent(rootDir);
     const mgrPath = path.join(agent.sessionDir, "bridge", "owner", "s-inbound.jsonl");
