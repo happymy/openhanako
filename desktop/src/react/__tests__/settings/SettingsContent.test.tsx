@@ -136,7 +136,19 @@ describe('SettingsContent title placement', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.tabs.computer' }));
 
+    expect(onActiveTabChange).toHaveBeenCalledTimes(1);
     expect(onActiveTabChange).toHaveBeenCalledWith('computer');
+  });
+
+  it('does not echo the initially rendered tab back to the modal shell', async () => {
+    const onActiveTabChange = vi.fn();
+    const { SettingsContent } = await import('../../settings/SettingsContent');
+    render(<SettingsContent variant="modal" onClose={() => {}} onActiveTabChange={onActiveTabChange} />);
+
+    await waitFor(() => {
+      expect(mockHanaFetch).toHaveBeenCalledWith('/api/config');
+    });
+    expect(onActiveTabChange).not.toHaveBeenCalled();
   });
 
   it('renders the plugin marketplace as a full settings subpage', async () => {
@@ -148,11 +160,14 @@ describe('SettingsContent title placement', () => {
     expect(screen.queryByText('agent tab')).not.toBeInTheDocument();
   });
 
-  it('notifies the modal shell when a hidden settings subpage is active', async () => {
-    mockState.activeTab = 'plugin-marketplace';
+  it('notifies the modal shell when content navigates to a hidden settings subpage after mount', async () => {
     const onActiveTabChange = vi.fn();
     const { SettingsContent } = await import('../../settings/SettingsContent');
-    render(<SettingsContent variant="modal" onClose={() => {}} onActiveTabChange={onActiveTabChange} />);
+    const { rerender } = render(<SettingsContent variant="modal" onClose={() => {}} onActiveTabChange={onActiveTabChange} />);
+
+    onActiveTabChange.mockClear();
+    mockState.activeTab = 'plugin-marketplace';
+    rerender(<SettingsContent variant="modal" onClose={() => {}} onActiveTabChange={onActiveTabChange} />);
 
     await waitFor(() => {
       expect(onActiveTabChange).toHaveBeenCalledWith('plugin-marketplace');

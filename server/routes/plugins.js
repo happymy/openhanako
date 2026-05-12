@@ -125,6 +125,24 @@ function decodeHttpConfigValues(values) {
   );
 }
 
+function decodeHttpConfigBody(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { values: {}, scope: "global", agentId: undefined, sessionPath: undefined };
+  }
+  const hasValuesEnvelope = Object.prototype.hasOwnProperty.call(body, "values");
+  const rawValues = hasValuesEnvelope
+    ? body.values
+    : Object.fromEntries(
+        Object.entries(body).filter(([key]) => !["scope", "agentId", "sessionPath"].includes(key)),
+      );
+  return {
+    values: decodeHttpConfigValues(rawValues),
+    scope: body.scope || "global",
+    agentId: body.agentId,
+    sessionPath: body.sessionPath,
+  };
+}
+
 async function downloadMarketplaceRelease({ engine, plugin }) {
   const dist = plugin?.distribution;
   if (!dist || dist.kind !== "release") {
@@ -368,11 +386,11 @@ export function createPluginsRoute(engine) {
     if (!pm) return c.json({ error: "Plugin manager not available" }, 500);
     const body = await c.req.json();
     try {
-      const values = decodeHttpConfigValues(body.values || {});
+      const { values, scope, agentId, sessionPath } = decodeHttpConfigBody(body);
       const config = pm.setConfig(c.req.param("id"), values, {
-        scope: body.scope || "global",
-        agentId: body.agentId,
-        sessionPath: body.sessionPath,
+        scope,
+        agentId,
+        sessionPath,
       });
       const { rawValues: _rawValues, ...safeConfig } = config;
       return c.json(safeConfig);

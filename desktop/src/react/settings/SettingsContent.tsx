@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from './store';
 import { hanaFetch } from './api';
@@ -97,6 +97,7 @@ export function SettingsContent({
     useShallow(s => ({ activeTab: s.activeTab, platformName: s.platformName, pluginSettingsTabs: s.pluginSettingsTabs, ready: s.ready }))
   );
   const set = useSettingsStore(s => s.set);
+  const lastReportedActiveTabRef = useRef<string | null>(null);
 
   useEffect(() => {
     initSettings();
@@ -115,8 +116,12 @@ export function SettingsContent({
 
   useEffect(() => {
     const nextTab = normalizeNativeTabForPlatform(activeTab, platformName);
-    if (nextTab !== activeTab) set({ activeTab: nextTab });
-  }, [activeTab, platformName, set]);
+    if (nextTab !== activeTab) {
+      set({ activeTab: nextTab });
+      lastReportedActiveTabRef.current = nextTab;
+      onActiveTabChange?.(nextTab);
+    }
+  }, [activeTab, platformName, set, onActiveTabChange]);
 
   // Server 重启后用新端口重新加载数据
   useEffect(() => {
@@ -148,7 +153,19 @@ export function SettingsContent({
   const activeTabTitle = TAB_TITLES[effectiveActiveTab] || titleToLabel(dynamicTab?.title);
   const isWideTab = effectiveActiveTab === 'plugin-marketplace';
 
+  const reportActiveTabChange = useCallback((tab: string) => {
+    const nextTab = normalizeNativeTabForPlatform(tab, platformName);
+    lastReportedActiveTabRef.current = nextTab;
+    onActiveTabChange?.(nextTab);
+  }, [onActiveTabChange, platformName]);
+
   useEffect(() => {
+    if (lastReportedActiveTabRef.current === null) {
+      lastReportedActiveTabRef.current = effectiveActiveTab;
+      return;
+    }
+    if (lastReportedActiveTabRef.current === effectiveActiveTab) return;
+    lastReportedActiveTabRef.current = effectiveActiveTab;
     onActiveTabChange?.(effectiveActiveTab);
   }, [effectiveActiveTab, onActiveTabChange]);
 
@@ -182,7 +199,7 @@ export function SettingsContent({
           )}
         </div>
         <div className={styles['settings-body']}>
-          <SettingsNav onTabChange={onActiveTabChange} />
+          <SettingsNav onTabChange={reportActiveTabChange} />
           <div className={`${styles['settings-main']}${isWideTab ? ' ' + styles['settings-main-wide'] : ''}`}>
             {!isModal && (
               <h1 className={styles['settings-tab-title']}>{activeTabTitle}</h1>
