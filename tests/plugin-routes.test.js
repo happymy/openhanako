@@ -937,5 +937,40 @@ describe("plugin management API", () => {
       });
       expect(describeSurfaceDebug).toHaveBeenCalledWith({ pluginId: "demo", kind: "page" });
     });
+
+    it("lists and runs dev scenarios through PluginDevService", async () => {
+      const getScenarios = vi.fn(() => [{ id: "smoke", title: "Smoke", steps: [] }]);
+      const runScenario = vi.fn(async () => ({
+        pluginId: "demo",
+        scenarioId: "smoke",
+        status: "passed",
+        steps: [],
+      }));
+      const engine = mockEngine({
+        pluginDevService: { getScenarios, runScenario },
+      });
+      const app = createApp(engine);
+
+      const listRes = await app.request("/api/plugins/dev/demo/scenarios");
+      const runRes = await app.request("/api/plugins/dev/demo/scenarios/smoke/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowDestructive: true }),
+      });
+
+      expect(listRes.status).toBe(200);
+      expect(await listRes.json()).toEqual({
+        pluginId: "demo",
+        scenarios: [{ id: "smoke", title: "Smoke", steps: [] }],
+      });
+      expect(runRes.status).toBe(200);
+      expect(await runRes.json()).toMatchObject({ status: "passed" });
+      expect(getScenarios).toHaveBeenCalledWith({ pluginId: "demo" });
+      expect(runScenario).toHaveBeenCalledWith({
+        pluginId: "demo",
+        scenarioId: "smoke",
+        allowDestructive: true,
+      });
+    });
   });
 });

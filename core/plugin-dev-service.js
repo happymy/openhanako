@@ -119,6 +119,42 @@ export const PLUGIN_DEV_EVENT_BUS_CAPABILITIES = Object.freeze([
     stability: "experimental",
     owner: "system",
   },
+  {
+    type: "plugin.dev.getScenarios",
+    title: "List dev scenarios",
+    description: "List manifest-declared dev scenarios for a plugin.",
+    inputSchema: {
+      type: "object",
+      properties: { pluginId: { type: "string" } },
+      required: ["pluginId"],
+      additionalProperties: false,
+    },
+    outputSchema: OBJECT_SCHEMA,
+    permission: "plugin.dev.read",
+    errors: ["NO_HANDLER", "TIMEOUT", "NOT_FOUND", "INTERNAL_ERROR"],
+    stability: "experimental",
+    owner: "system",
+  },
+  {
+    type: "plugin.dev.runScenario",
+    title: "Run dev scenario",
+    description: "Run one manifest-declared dev scenario.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        pluginId: { type: "string" },
+        scenarioId: { type: "string" },
+        allowDestructive: { type: "boolean" },
+      },
+      required: ["pluginId", "scenarioId"],
+      additionalProperties: false,
+    },
+    outputSchema: OBJECT_SCHEMA,
+    permission: "plugin.dev.execute",
+    errors: ["NO_HANDLER", "TIMEOUT", "NOT_FOUND", "FORBIDDEN", "INTERNAL_ERROR"],
+    stability: "experimental",
+    owner: "system",
+  },
 ]);
 
 function createDevError(message, status = 400, code = "PLUGIN_DEV_ERROR") {
@@ -190,6 +226,22 @@ function shouldCopyPath(src, sourceRoot) {
     || part === ".DS_Store"
     || part === ".cache"
   ));
+}
+
+function extractToolResultText(invocation) {
+  const result = invocation?.result;
+  if (Array.isArray(result?.content)) {
+    return result.content
+      .map((block) => {
+        if (typeof block?.text === "string") return block.text;
+        if (typeof block === "string") return block;
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (typeof result === "string") return result;
+  return JSON.stringify(result ?? "");
 }
 
 export class PluginDevService {
@@ -448,6 +500,115 @@ export class PluginDevService {
     };
   }
 
+  getScenarios({ pluginId } = {}) {
+    if (!pluginId) throw createDevError("pluginId is required", 400, "PLUGIN_DEV_PLUGIN_ID_REQUIRED");
+    const entry = this._pluginManager.getPlugin(pluginId);
+    if (!entry) throw createDevError(`Plugin "${pluginId}" not found`, 404, "PLUGIN_DEV_PLUGIN_NOT_FOUND");
+    const scenarios = Array.isArray(entry.manifest?.dev?.scenarios)
+      ? entry.manifest.dev.scenarios
+      : [];
+    return scenarios
+      .filter((item) => item && typeof item.id === "string" && Array.isArray(item.steps))
+      .map((item) => ({
+        id: item.id,
+        title: item.title || item.id,
+        destructive: item.destructive === true,
+        surface: item.surface || null,
+        steps: safeJsonClone(item.steps),
+      }));
+  }
+
+  async runScenario({ pluginId, scenarioId, allowDestructive = false } = {}) {
+    if (!scenarioId) throw createDevError("scenarioId is required", 400, "PLUGIN_DEV_SCENARIO_ID_REQUIRED");
+    const scenario = this.getScenarios({ pluginId }).find((item) => item.id === scenarioId);
+    if (!scenario) {
+      throw createDevError(
+        `Scenario "${scenarioId}" not found for plugin "${pluginId}"`,
+        404,
+        "PLUGIN_DEV_SCENARIO_NOT_FOUND",
+      );
+    }
+    if (scenario.destructive && !allowDestructive) {
+      throw createDevError(
+        `Scenario "${scenarioId}" is destructive and requires explicit approval`,
+        403,
+        "PLUGIN_DEV_SCENARIO_DESTRUCTIVE",
+      );
+    }
+
+    const steps = [];
+    let lastToolInvocation = null;
+    for (let index = 0; index < scenario.steps.length; index += 1) {
+      const step = scenario.steps[index];
+      if (step?.invokeTool) {
+        const invocation = await this.invokeTool({
+          pluginId,
+          toolName: step.invokeTool.name,
+          input: step.invokeTool.input || {},
+          sessionPath: step.invokeTool.sessionPath,
+          agentId: step.invokeTool.agentId,
+        });
+        lastToolInvocation = invocation;
+        steps.push({
+          index,
+          type: "invokeTool",
+          status: "passed",
+          toolName: invocation.toolName,
+          result: invocation.result,
+        });
+        continue;
+      }
+      if (typeof step?.expectToolText === "string") {
+        const actual = extractToolResultText(lastToolInvocation);
+        if (!actual.includes(step.expectToolText)) {
+          steps.push({
+            index,
+            type: "expectToolText",
+            status: "failed",
+            expected: step.expectToolText,
+            actual,
+          });
+          return { pluginId, scenarioId, status: "failed", steps };
+        }
+        steps.push({
+          index,
+          type: "expectToolText",
+          status: "passed",
+          expected: step.expectToolText,
+        });
+        continue;
+      }
+      if (step?.openSurface) {
+        const requested = String(step.openSurface);
+        const surface = this.listSurfaces(pluginId).find((item) => (
+          item.route === requested
+          || item.routeUrl === requested
+          || `${item.kind}:${item.route}` === requested
+        ));
+        if (!surface) {
+          steps.push({
+            index,
+            type: "openSurface",
+            status: "failed",
+            expected: requested,
+          });
+          return { pluginId, scenarioId, status: "failed", steps };
+        }
+        steps.push({
+          index,
+          type: "openSurface",
+          status: "passed",
+          surface,
+          debug: this.describeSurfaceDebug({ pluginId, kind: surface.kind, route: surface.route }),
+        });
+        continue;
+      }
+      steps.push({ index, type: "unknown", status: "failed", step: safeJsonClone(step) });
+      return { pluginId, scenarioId, status: "failed", steps };
+    }
+    return { pluginId, scenarioId, status: "passed", steps };
+  }
+
   recordLog(entry = {}) {
     const args = Array.isArray(entry.args) ? entry.args : [];
     const log = {
@@ -477,11 +638,15 @@ export class PluginDevService {
     const plugins = typeof this._pluginManager.getDiagnostics === "function"
       ? this._pluginManager.getDiagnostics()
       : [];
+    const scenarios = pluginId && this._pluginManager.getPlugin(pluginId)
+      ? this.getScenarios({ pluginId }).map(({ steps: _steps, ...scenario }) => scenario)
+      : [];
     return {
       devSlots: [...this._slots.values()].filter((slot) => !pluginId || slot.pluginId === pluginId),
       plugins: plugins.filter((plugin) => !pluginId || plugin.id === pluginId),
       logs: this.getLogs(pluginId),
       surfaces: this.listSurfaces(pluginId),
+      scenarios,
     };
   }
 
@@ -503,6 +668,8 @@ export class PluginDevService {
       ["plugin.dev.diagnostics", (payload = {}) => this.getDiagnostics(payload.pluginId)],
       ["plugin.dev.listSurfaces", (payload = {}) => this.listSurfaces(payload.pluginId)],
       ["plugin.dev.describeSurfaceDebug", (payload = {}) => this.describeSurfaceDebug(payload)],
+      ["plugin.dev.getScenarios", (payload = {}) => this.getScenarios(payload)],
+      ["plugin.dev.runScenario", (payload = {}) => this.runScenario(payload)],
     ];
     const capabilityByType = new Map(PLUGIN_DEV_EVENT_BUS_CAPABILITIES.map((capability) => [capability.type, capability]));
     this._eventBusDisposers = handlers.map(([type, handler]) => (

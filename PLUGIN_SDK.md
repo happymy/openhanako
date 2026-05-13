@@ -94,6 +94,8 @@ Lifecycle plugins should declare `activationEvents` in `manifest.json` when they
 
 Long-running plugins should use the runtime task helpers (`registerTask`, `updateTask`, `completeTask`, `failTask`, `cancelTask`, `scheduleTask`) instead of hand-writing EventBus payloads.
 
+For Agent-assisted development, plugins can declare `manifest.dev.scenarios`. These are not runtime features; they are smoke-test instructions for Hana's dev loop and should only describe repeatable checks such as invoking a tool, expecting text in the result, or opening a declared UI surface.
+
 Provider plugins can use `defineProvider()` for TypeScript-friendly authoring, then export named provider fields from `providers/*.js`:
 
 ```js

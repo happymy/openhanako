@@ -157,7 +157,20 @@ describe("PluginDevService", () => {
   it("registers EventBus dev capabilities and request handlers", async () => {
     const { EventBus } = await import("../hub/event-bus.js");
     const eventBus = new EventBus();
-    const sourcePath = writeDevPlugin(sourceRoot, "bus-dev", { prefix: "Bus" });
+    const sourcePath = writeDevPlugin(sourceRoot, "bus-dev", {
+      prefix: "Bus",
+      manifest: {
+        dev: {
+          scenarios: [{
+            id: "bus-smoke",
+            steps: [
+              { invokeTool: { name: "echo", input: { text: "scenario" } } },
+              { expectToolText: "Bus scenario" },
+            ],
+          }],
+        },
+      },
+    });
 
     const unregister = service.registerEventBusHandlers(eventBus);
 
@@ -173,9 +186,16 @@ describe("PluginDevService", () => {
       toolName: "echo",
       input: { text: "ok" },
     });
+    const scenarios = await eventBus.request("plugin.dev.getScenarios", { pluginId: "bus-dev" });
+    const scenarioRun = await eventBus.request("plugin.dev.runScenario", {
+      pluginId: "bus-dev",
+      scenarioId: "bus-smoke",
+    });
 
     expect(install.plugin.id).toBe("bus-dev");
     expect(invocation.result.content[0].text).toBe("Bus ok");
+    expect(scenarios[0].id).toBe("bus-smoke");
+    expect(scenarioRun.status).toBe("passed");
 
     unregister();
     expect(eventBus.getCapability("plugin.dev.install")).toBeNull();
@@ -214,6 +234,62 @@ describe("PluginDevService", () => {
       screenshot: {
         role: expect.stringContaining("fallback"),
       },
+    });
+  });
+
+  it("runs manifest dev scenarios with tool steps", async () => {
+    const sourcePath = writeDevPlugin(sourceRoot, "scenario-dev", {
+      prefix: "Scenario",
+      manifest: {
+        dev: {
+          scenarios: [{
+            id: "echo-tool",
+            title: "Echo tool",
+            steps: [
+              { invokeTool: { name: "echo", input: { text: "hello" } } },
+              { expectToolText: "Scenario hello" },
+            ],
+          }],
+        },
+      },
+    });
+    await service.installFromSource({ sourcePath });
+
+    const scenarios = service.getScenarios({ pluginId: "scenario-dev" });
+    const result = await service.runScenario({
+      pluginId: "scenario-dev",
+      scenarioId: "echo-tool",
+    });
+
+    expect(scenarios[0]).toMatchObject({ id: "echo-tool", title: "Echo tool" });
+    expect(result).toMatchObject({
+      pluginId: "scenario-dev",
+      scenarioId: "echo-tool",
+      status: "passed",
+    });
+    expect(result.steps).toHaveLength(2);
+  });
+
+  it("requires explicit approval for destructive dev scenarios", async () => {
+    const sourcePath = writeDevPlugin(sourceRoot, "destructive-dev", {
+      manifest: {
+        dev: {
+          scenarios: [{
+            id: "delete-ish",
+            destructive: true,
+            steps: [{ invokeTool: { name: "echo", input: { text: "danger" } } }],
+          }],
+        },
+      },
+    });
+    await service.installFromSource({ sourcePath });
+
+    await expect(service.runScenario({
+      pluginId: "destructive-dev",
+      scenarioId: "delete-ish",
+    })).rejects.toMatchObject({
+      code: "PLUGIN_DEV_SCENARIO_DESTRUCTIVE",
+      status: 403,
     });
   });
 });

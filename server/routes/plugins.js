@@ -360,6 +360,35 @@ export function createPluginsRoute(engine) {
     }
   });
 
+  route.get("/plugins/dev/:id/scenarios", (c) => {
+    const { service, errorResponse } = pluginDevServiceOrError(engine, c);
+    if (errorResponse) return errorResponse;
+    const pluginId = c.req.param("id");
+    try {
+      return c.json({
+        pluginId,
+        scenarios: service.getScenarios({ pluginId }),
+      });
+    } catch (err) {
+      return pluginDevErrorResponse(c, err);
+    }
+  });
+
+  route.post("/plugins/dev/:id/scenarios/:scenarioId/run", async (c) => {
+    const { service, errorResponse } = pluginDevServiceOrError(engine, c);
+    if (errorResponse) return errorResponse;
+    const body = await c.req.json().catch(() => ({}));
+    try {
+      return c.json(await service.runScenario({
+        pluginId: c.req.param("id"),
+        scenarioId: c.req.param("scenarioId"),
+        allowDestructive: body.allowDestructive === true,
+      }));
+    } catch (err) {
+      return pluginDevErrorResponse(c, err);
+    }
+  });
+
   route.post("/plugins/dev/:id/tools/:toolName/invoke", async (c) => {
     const { service, errorResponse } = pluginDevServiceOrError(engine, c);
     if (errorResponse) return errorResponse;
