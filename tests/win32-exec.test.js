@@ -169,6 +169,56 @@ describe("createWin32Exec", () => {
     );
   });
 
+  it("prefers bundled POSIX runtime over system Git Bash when sandbox is disabled", async () => {
+    classifyWin32Command.mockReturnValue({ runner: "bash", reason: "complex-shell" });
+    const bundledShell = "C:\\Hanako\\resources\\git\\mingw64\\bin\\ash.exe";
+    const systemBash = "C:\\Program Files\\Git\\bin\\bash.exe";
+    existsSync.mockImplementation((p) => p === bundledShell || p === systemBash);
+    spawnSync.mockImplementation((cmd, args) => {
+      if ((cmd === bundledShell || cmd === systemBash) && args?.[0] === "-c") {
+        return { status: 0, stdout: "__hana_probe_ok__\n", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    });
+
+    const originalResourcesPath = process.resourcesPath;
+    Object.defineProperty(process, "resourcesPath", {
+      value: "C:\\Hanako\\resources",
+      configurable: true,
+    });
+
+    const createWin32Exec = await loadExecFactory();
+    const exec = createWin32Exec();
+
+    try {
+      await exec("ls && pwd", "C:\\work", {
+        onData: () => {},
+        signal: undefined,
+        timeout: 5,
+        env: {
+          PATH: "C:\\Windows\\System32",
+          ProgramFiles: "C:\\Program Files",
+        },
+      });
+    } finally {
+      Object.defineProperty(process, "resourcesPath", {
+        value: originalResourcesPath,
+        configurable: true,
+      });
+    }
+
+    expect(spawnAndStream).toHaveBeenCalledWith(
+      bundledShell,
+      ["-c", "ls && pwd"],
+      expect.objectContaining({
+        cwd: "C:\\work",
+        env: expect.objectContaining({
+          PATH: expect.stringMatching(/^C:\\Hanako\\resources\\git\\mingw64\\bin;/),
+        }),
+      })
+    );
+  });
+
   it("rejects CMD nul redirection before executing bash-routed commands", async () => {
     classifyWin32Command.mockReturnValue({ runner: "bash", reason: "complex-shell" });
     existsSync.mockImplementation((p) => p === "C:\\mock\\bash.exe");

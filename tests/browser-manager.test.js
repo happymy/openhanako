@@ -110,7 +110,7 @@ describe("BrowserManager explicit sessionPath", () => {
     expect(manager._lruOrder).not.toContain(SP1);
   });
 
-  it("thumbnail fatal capture errors mark the session unavailable", async () => {
+  it("thumbnail display-surface capture errors do not mark the session unavailable", async () => {
     const manager = new BrowserManager();
     manager._sessions.set(SP1, { running: true, url: "https://example.com", headless: false });
     manager._lruOrder = [SP1];
@@ -121,10 +121,29 @@ describe("BrowserManager explicit sessionPath", () => {
     const thumbnail = await manager.thumbnail(SP1);
 
     expect(thumbnail).toBeNull();
-    expect(manager.isRunning(SP1)).toBe(false);
-    expect(manager.runningSessions).not.toContain(SP1);
-    expect(manager.sessionUnavailableReason(SP1)).toContain("display surface");
-    expect(manager._lruOrder).not.toContain(SP1);
+    expect(manager.isRunning(SP1)).toBe(true);
+    expect(manager.runningSessions).toContain(SP1);
+    expect(manager.sessionUnavailableReason(SP1)).toBeNull();
+    expect(manager._lruOrder).toContain(SP1);
+  });
+
+  it("screenshot display-surface capture errors do not block later browser commands", async () => {
+    const manager = new BrowserManager();
+    manager._sessions.set(SP1, { running: true, url: "https://example.com", headless: false });
+    manager._sendCmd = vi.fn()
+      .mockRejectedValueOnce(new Error("Current display surface not available for capture"))
+      .mockResolvedValueOnce({
+        currentUrl: "https://example.com",
+        text: "snapshot after failed screenshot",
+      });
+
+    await expect(manager.screenshot(SP1)).rejects.toThrow(/display surface/i);
+    expect(manager.isRunning(SP1)).toBe(true);
+    expect(manager.sessionUnavailableReason(SP1)).toBeNull();
+
+    const snapshot = await manager.snapshot(SP1);
+    expect(snapshot).toBe("snapshot after failed screenshot");
+    expect(manager._sendCmd).toHaveBeenNthCalledWith(2, "snapshot", { sessionPath: SP1 });
   });
 
   it("does not send further commands for an unavailable browser session", async () => {

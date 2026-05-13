@@ -1517,8 +1517,6 @@ function _ensureBrowser() {
 }
 
 const FATAL_BROWSER_HOST_ERROR_PATTERNS = [
-  /current display surface not available/i,
-  /display surface .*not available/i,
   /object has been destroyed/i,
   /no browser instance/i,
   /render process gone/i,
