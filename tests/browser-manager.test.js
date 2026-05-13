@@ -208,6 +208,43 @@ describe("BrowserManager explicit sessionPath", () => {
 
     expect(sessions).toEqual({});
   });
+
+  it("getBrowserSessionStates() distinguishes running, resumable, and unavailable sessions", () => {
+    const manager = new BrowserManager();
+    manager._sessions.set(SP1, { running: true, url: "https://live.example.com", headless: false });
+    manager._sessions.set(SP2, {
+      running: false,
+      url: "https://broken.example.com",
+      headless: false,
+      health: "unhealthy",
+      unavailableReason: "Object has been destroyed",
+    });
+    manager._loadColdState = vi.fn().mockReturnValue({
+      "/sessions/cold-session.json": "https://cold.example.com",
+      [SP2]: "https://saved-broken.example.com",
+    });
+
+    expect(manager.getBrowserSessionStates()).toEqual({
+      "/sessions/cold-session.json": {
+        url: "https://cold.example.com",
+        running: false,
+        resumable: true,
+        unavailableReason: null,
+      },
+      [SP2]: {
+        url: "https://broken.example.com",
+        running: false,
+        resumable: false,
+        unavailableReason: "Object has been destroyed",
+      },
+      [SP1]: {
+        url: "https://live.example.com",
+        running: true,
+        resumable: true,
+        unavailableReason: null,
+      },
+    });
+  });
 });
 
 describe("BrowserManager multi-instance", () => {
