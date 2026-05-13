@@ -50,6 +50,20 @@ python3 skills2set/hana-plugin-creator/scripts/create_hana_plugin.py "My Plugin"
 
 调试顺序：本地文件夹安装 → 设置页诊断 → 补 README/manifest → 需要公开时再写 `OH-Plugins` 市场条目。
 
+### Agent 辅助开发循环
+
+当 Hana / Codex 这类 Agent 直接帮用户开发插件时，优先走 dev loop，而不是把半成品复制到正式插件目录：
+
+1. 插件源码放在当前工作区，或 `${HANA_HOME}/plugin-dev-sources/`。
+2. 调用 EventBus `plugin.dev.install` 或 HTTP `POST /api/plugins/dev/install`，把源码复制到 `${HANA_HOME}/plugins-dev/<pluginId>` 并加载。
+3. 修改源码后调用 `plugin.dev.reload` 或 `POST /api/plugins/dev/:id/reload`。
+4. 工具插件用 `plugin.dev.invokeTool` 或 `POST /api/plugins/dev/:id/tools/:toolName/invoke` 做 smoke test。
+5. 诊断用 `plugin.dev.diagnostics` 或 `GET /api/plugins/dev/diagnostics`。
+
+dev 安装不会写入 `${HANA_HOME}/plugins/`。`full-access` dev 插件也必须显式传 `allowFullAccess: true`，全局社区插件开关不会自动授权开发态插件。
+
+UI 插件调试时，先用 `plugin.dev.listSurfaces` 找到 page / widget，再用 `plugin.dev.describeSurfaceDebug` 获取 element-first 调试说明。Agent 应先读取可访问性树、文本、role、label 等语义元素并直接点击/输入，截图只用于视觉确认、布局检查，或语义信息不足时兜底。
+
 ## 安装与管理
 
 ### 安装方式

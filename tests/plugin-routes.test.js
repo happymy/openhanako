@@ -911,5 +911,31 @@ describe("plugin management API", () => {
         code: "PLUGIN_DEV_SOURCE_OUTSIDE_ALLOWED_ROOTS",
       });
     });
+
+    it("exposes element-first UI surface debug descriptors", async () => {
+      const describeSurfaceDebug = vi.fn(() => ({
+        strategy: "element-first",
+        surface: { pluginId: "demo", kind: "page", routeUrl: "/api/plugins/demo/page" },
+        elementBridge: { preferred: true, operations: ["describeElements", "clickElement"] },
+        screenshot: { role: "visual confirmation and fallback" },
+      }));
+      const engine = mockEngine({
+        pluginDevService: { describeSurfaceDebug },
+      });
+      const app = createApp(engine);
+
+      const res = await app.request("/api/plugins/dev/surfaces/describe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pluginId: "demo", kind: "page" }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({
+        strategy: "element-first",
+        elementBridge: { preferred: true },
+      });
+      expect(describeSurfaceDebug).toHaveBeenCalledWith({ pluginId: "demo", kind: "page" });
+    });
   });
 });

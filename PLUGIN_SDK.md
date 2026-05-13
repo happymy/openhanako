@@ -31,6 +31,19 @@ Built-in plugins may use the same source patterns, but they should be checked ag
 - Provider contribution plugins use `providers/*.js` declarations. They require `trust: "full-access"` and should declare `capabilities.chat` separately from `capabilities.media.*` so chat selectors stay clean while image, video, or speech tools discover media providers.
 - Marketplace metadata lives outside the app repo in `OH-Plugins`, the official community plugin catalog. The app reads the generated catalog URL by default, installs `distribution.kind = "release"` entries by downloading the zip package and verifying `sha256`, and keeps `distribution.kind = "source"` for local file marketplace development only. `readmePath` is resolved relative to the catalog when the official URL is used.
 
+## Agent Dev Loop
+
+Agent-assisted plugin work should use Hana's dev loop instead of copying work-in-progress code into the production plugin directory.
+
+- Source stays in the workspace or `${HANA_HOME}/plugin-dev-sources/`.
+- `plugin.dev.install` copies the source into `${HANA_HOME}/plugins-dev/<pluginId>` and loads it through the normal `PluginManager`.
+- `plugin.dev.reload` replaces the dev copy from the same source slot.
+- `plugin.dev.invokeTool` runs a tool smoke test with explicit input.
+- `plugin.dev.diagnostics` returns dev slots, load status, logs, surfaces, and plugin diagnostics.
+- `plugin.dev.listSurfaces` and `plugin.dev.describeSurfaceDebug` drive UI debugging.
+
+UI debugging is element-first. A capable Agent should inspect accessible elements, text, roles, labels, and stable locators before asking for screenshots. Screenshots are still useful for visual polish, clipping, theme contrast, and blank-state checks, but they are no longer the first source of truth when Hana can expose semantic UI structure.
+
 ## UI Path
 
 Use `@hana/plugin-sdk` for host communication:

@@ -24,6 +24,7 @@ function writeDevPlugin(root, id, options = {}) {
     name: options.name || id,
     version: options.version || "0.1.0",
     ...(options.trust ? { trust: options.trust } : {}),
+    ...(options.manifest || {}),
   }, null, 2));
   fs.writeFileSync(path.join(pluginDir, "tools", "echo.js"), `
     export const name = "echo";
@@ -178,5 +179,41 @@ describe("PluginDevService", () => {
 
     unregister();
     expect(eventBus.getCapability("plugin.dev.install")).toBeNull();
+  });
+
+  it("describes UI surfaces with an element-first debug strategy", async () => {
+    const sourcePath = writeDevPlugin(sourceRoot, "ui-dev", {
+      trust: "full-access",
+      manifest: {
+        contributes: {
+          page: { title: "UI Dev", route: "/page" },
+        },
+      },
+    });
+    fs.mkdirSync(path.join(sourcePath, "routes"), { recursive: true });
+    await service.installFromSource({ sourcePath, allowFullAccess: true });
+
+    const surfaces = service.listSurfaces("ui-dev");
+    const descriptor = service.describeSurfaceDebug({
+      pluginId: "ui-dev",
+      kind: "page",
+      route: "/page",
+    });
+
+    expect(surfaces).toEqual([expect.objectContaining({
+      kind: "page",
+      pluginId: "ui-dev",
+      routeUrl: "/api/plugins/ui-dev/page",
+    })]);
+    expect(descriptor).toMatchObject({
+      strategy: "element-first",
+      elementBridge: {
+        preferred: true,
+        operations: expect.arrayContaining(["describeElements", "clickElement", "typeIntoElement"]),
+      },
+      screenshot: {
+        role: expect.stringContaining("fallback"),
+      },
+    });
   });
 });
