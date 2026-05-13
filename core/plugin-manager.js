@@ -817,23 +817,36 @@ export class PluginManager {
     return op; // caller gets success/failure
   }
 
+  readPluginDescriptor(pluginDir, dirName = path.basename(pluginDir)) {
+    return this._readPluginDescriptor(pluginDir, dirName);
+  }
+
+  _isFullAccessAllowed(entryOrDesc, options = {}) {
+    if (entryOrDesc.source === "builtin") return true;
+    if (entryOrDesc.source === "dev") return options.allowFullAccess === true;
+    return this._preferencesManager?.getAllowFullAccessPlugins() || false;
+  }
+
   // ── Hot operations ───────────────────────────────────────────────────────
 
-  async installPlugin(pluginDir) {
+  async installPlugin(pluginDir, options = {}) {
     return this._enqueue(async () => {
       const dirName = path.basename(pluginDir);
+      const source = options.source === "dev" ? "dev" : "community";
+      const desc = this._readPluginDescriptor(pluginDir, dirName);
+      desc.source = source;
       // Check for existing (upgrade scenario)
       const existing = [...this._plugins.values()].find(
-        p => path.basename(p.pluginDir) === dirName
+        p => p.id === (options.pluginId || desc.id) || path.basename(p.pluginDir) === dirName
       );
       if (existing) {
         await this.unloadPlugin(existing.id);
         this._plugins.delete(existing.id);
       }
 
-      const desc = this._readPluginDescriptor(pluginDir, dirName);
-      desc.source = "community";
-      const disabledList = this._preferencesManager?.getDisabledPlugins() || [];
+      const disabledList = source === "dev"
+        ? []
+        : (this._preferencesManager?.getDisabledPlugins() || []);
 
       const entry = { ...desc, status: "loading", activationState: "inactive", activationReason: null, instance: null, _disposables: [] };
       this._plugins.set(desc.id, entry);
@@ -843,12 +856,9 @@ export class PluginManager {
         return entry;
       }
 
-      if (desc.trust === "full-access") {
-        const allowed = this._preferencesManager?.getAllowFullAccessPlugins() || false;
-        if (!allowed) {
-          entry.status = "restricted";
-          return entry;
-        }
+      if (desc.trust === "full-access" && !this._isFullAccessAllowed(entry, options)) {
+        entry.status = "restricted";
+        return entry;
       }
 
       try {
