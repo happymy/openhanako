@@ -134,4 +134,4 @@ Pi SDK 的 `streamSimple` 会在调用方未传 `maxTokens` 时，把 `min(model
 
 ## 历史背景
 
-本架构由 commit `2a9ea17`（README 奠基）至 `0d87520`（llm-client 收口）一系列 commit 引入，根因来自 issue [#468](https://github.com/liliMozi/openhanako/issues/468) 的 DeepSeek 思考模式 400。设计 spec（本地工作文档，不入仓）：[docs/superpowers/specs/2026-04-26-provider-compat-layer-design.md](../../docs/superpowers/specs/2026-04-26-provider-compat-layer-design.md)。
+本架构由 commit `2a9ea17`（README 奠基）至 `0d87520`（llm-client 收口）一系列 commit 引入，根因来自 issue [#468](https://github.com/liliMozi/openhanako/issues/468) 的 DeepSeek 思考模式 400。
