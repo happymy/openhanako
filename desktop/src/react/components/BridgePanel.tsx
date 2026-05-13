@@ -18,12 +18,27 @@ interface BridgeSession {
   displayName?: string;
   avatarUrl?: string;
   lastActive?: number;
+  isOwner?: boolean;
 }
 
 interface StatusData {
   telegram?: { status: string; configured?: boolean };
   feishu?: { status: string; configured?: boolean };
   [key: string]: { status: string; configured?: boolean } | undefined;
+}
+
+function getBridgeSessionIdentity(
+  session: BridgeSession,
+  systemName: string,
+  systemAvatarUrl: string | null,
+) {
+  if (session.isOwner) {
+    return { name: systemName, avatarUrl: systemAvatarUrl };
+  }
+  return {
+    name: session.displayName || session.chatId,
+    avatarUrl: session.avatarUrl || null,
+  };
 }
 
 export function BridgePanel() {
@@ -33,6 +48,7 @@ export function BridgePanel() {
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   const [currentName, setCurrentName] = useState('');
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState<string | null>(null);
+  const [currentIsOwner, setCurrentIsOwner] = useState(false);
   const [currentSessionPath, setCurrentSessionPath] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
@@ -87,11 +103,17 @@ export function BridgePanel() {
     setCurrentKey(null);
     setCurrentName('');
     setCurrentAvatarUrl(null);
+    setCurrentIsOwner(false);
     setCurrentSessionPath(null);
   }, [loadPlatformData, platform]);
 
   const currentAgentId = useStore(s => s.currentAgentId);
   const agents = useStore(s => s.agents);
+  const userName = useStore(s => s.userName);
+  const userAvatarUrl = useStore(s => s.userAvatarUrl);
+  const t = window.t ?? ((p: string) => p);
+  const systemUserName = userName || t('common.me');
+  const systemUserAvatarUrl = userAvatarUrl || null;
 
   // Init bridgeAgentId from store
   useEffect(() => {
@@ -106,6 +128,7 @@ export function BridgePanel() {
       setCurrentKey(null);
       setCurrentName('');
       setCurrentAvatarUrl(null);
+      setCurrentIsOwner(false);
       setCurrentSessionPath(null);
     }
   }, [bridgeAgentId]);
@@ -161,6 +184,7 @@ export function BridgePanel() {
     setCurrentKey(null);
     setCurrentName('');
     setCurrentAvatarUrl(null);
+    setCurrentIsOwner(false);
     setCurrentSessionPath(null);
     setChatOpen(false);
     localStorage.setItem('hana_bridge_tab', plat);
@@ -169,10 +193,11 @@ export function BridgePanel() {
 
   const openSession = useCallback(async (session: BridgeSession) => {
     const snapshotId = bridgeAgentId;
-    const displayName = session.displayName || session.chatId;
+    const identity = getBridgeSessionIdentity(session, systemUserName, systemUserAvatarUrl);
     setCurrentKey(session.sessionKey);
-    setCurrentName(displayName);
-    setCurrentAvatarUrl(session.avatarUrl || null);
+    setCurrentName(identity.name);
+    setCurrentAvatarUrl(identity.avatarUrl);
+    setCurrentIsOwner(!!session.isOwner);
     setCurrentSessionPath(session.sessionPath || null);
     try {
       if (!session.sessionPath) throw new Error('bridge sessionPath missing');
@@ -183,7 +208,7 @@ export function BridgePanel() {
       console.error('[bridge] open session failed:', err);
       if (bridgeAgentIdRef.current === snapshotId) setChatOpen(false);
     }
-  }, [bridgeAgentId]);
+  }, [bridgeAgentId, systemUserName, systemUserAvatarUrl]);
 
   const resetSession = useCallback(async () => {
     if (!currentKey) return;
@@ -197,6 +222,7 @@ export function BridgePanel() {
       setCurrentKey(null);
       setCurrentName('');
       setCurrentAvatarUrl(null);
+      setCurrentIsOwner(false);
       setCurrentSessionPath(null);
       await loadPlatformData(platform);
     } catch (err) {
@@ -206,7 +232,6 @@ export function BridgePanel() {
 
   if (!visible) return null;
 
-  const t = window.t ?? ((p: string) => p);
   const tgStatus = statusData.telegram?.status;
   const fsStatus = statusData.feishu?.status;
   const waStatus = statusData.whatsapp?.status;
@@ -339,16 +364,16 @@ export function BridgePanel() {
                 <div className={fp.bridgeContactEmpty}>{t('bridge.noSessions')}</div>
               ) : (
                 sessions.map(s => {
-                  const name = s.displayName || s.chatId;
+                  const identity = getBridgeSessionIdentity(s, systemUserName, systemUserAvatarUrl);
                   return (
                     <div
                       key={s.sessionKey}
                       className={`${fp.bridgeContactItem}${s.sessionKey === currentKey ? ` ${fp.bridgeContactItemActive}` : ''}`}
                       onClick={() => openSession(s)}
                     >
-                      <ContactAvatar name={name} avatarUrl={s.avatarUrl} />
+                      <ContactAvatar name={identity.name} avatarUrl={identity.avatarUrl || undefined} />
                       <div className={fp.bridgeContactInfo}>
-                        <div className={fp.bridgeContactName}>{name}</div>
+                        <div className={fp.bridgeContactName}>{identity.name}</div>
                         {s.lastActive && (
                           <div className={fp.bridgeContactTime}>
                             {formatSessionDate(new Date(s.lastActive).toISOString())}
@@ -380,6 +405,7 @@ export function BridgePanel() {
                     agentId={bridgeAgentId}
                     contactName={currentName}
                     contactAvatarUrl={currentAvatarUrl}
+                    useSystemUserIdentity={currentIsOwner}
                     emptyLabel={t('bridge.noMessages')}
                   />
                 ) : (
@@ -413,6 +439,10 @@ function updateSidebarDot(data: Record<string, { status: string } | undefined>) 
 
 function ContactAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string }) {
   const [showImg, setShowImg] = useState(!!avatarUrl);
+  useEffect(() => {
+    setShowImg(!!avatarUrl);
+  }, [avatarUrl]);
+
   return (
     <div className={fp.bridgeContactAvatar}>
       {showImg && avatarUrl ? (
@@ -437,12 +467,14 @@ function BridgeChatTranscript({
   agentId,
   contactName,
   contactAvatarUrl,
+  useSystemUserIdentity,
   emptyLabel,
 }: {
   sessionPath: string;
   agentId?: string | null;
   contactName: string;
   contactAvatarUrl?: string | null;
+  useSystemUserIdentity?: boolean;
   emptyLabel: string;
 }) {
   const items = useStore(s => s.chatSessions[sessionPath]?.items || EMPTY_ITEMS);
@@ -486,6 +518,10 @@ function BridgeChatTranscript({
     if (isAtBottom.current) requestAnimationFrame(scrollToBottom);
   }, [items.length, isStreaming, scrollToBottom]);
 
+  const userIdentity = useSystemUserIdentity
+    ? undefined
+    : { name: contactName, avatarUrl: contactAvatarUrl || null };
+
   return (
     <div className={fp.bridgeChatMessages} ref={scrollRef} id="bridgeChatMessages">
       <div ref={contentRef} className={chatStyles.sessionMessages}>
@@ -497,7 +533,7 @@ function BridgeChatTranscript({
             sessionPath={sessionPath}
             agentId={agentId}
             readOnly
-            userIdentity={{ name: contactName, avatarUrl: contactAvatarUrl || null }}
+            userIdentity={userIdentity}
           />
         )}
         {isStreaming && (
