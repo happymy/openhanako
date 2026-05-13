@@ -476,13 +476,14 @@ export function AgentPhoneSessionPreview({ sessionPath, agentId, agentYuan }: {
           updateStreamMessage((message) => {
             const blocks = message.blocks || [];
             const textBlock = blocks.find((block) => block.type === 'text') as (Extract<ContentBlock, { type: 'text' }> & { _raw?: string }) | undefined;
-            const nextText = `${textBlock?._raw || ''}${event.delta || ''}`;
+            const prevText = textBlock?.source ?? textBlock?._raw ?? '';
+            const nextText = `${prevText}${event.delta || ''}`;
             return {
               ...message,
               blocks: upsertPhoneBlock(
                 blocks,
                 (block) => block.type === 'text',
-                { type: 'text', html: renderMarkdown(nextText), _raw: nextText } as any,
+                { type: 'text', html: renderMarkdown(nextText), source: nextText },
               ),
             };
           });

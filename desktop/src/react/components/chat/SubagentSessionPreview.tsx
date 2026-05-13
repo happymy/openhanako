@@ -212,15 +212,14 @@ export function SubagentSessionPreview({ taskId, sessionPath, agentId, streamSta
           updateStreamMessage((message) => {
             const blocks = message.blocks || [];
             const textBlock = blocks.find((block) => block.type === 'text') as (Extract<ContentBlock, { type: 'text' }> & { _raw?: string }) | undefined;
-            // 维护纯文本累加器 _raw，避免每次 delta 都从 HTML 反向解析
-            const prevText = textBlock?._raw ?? '';
+            const prevText = textBlock?.source ?? textBlock?._raw ?? '';
             const nextText = prevText + (event.delta || '');
             return {
               ...message,
               blocks: upsertBlock(
                 blocks,
                 (block) => block.type === 'text',
-                { type: 'text', html: renderMarkdown(nextText), _raw: nextText } as any,
+                { type: 'text', html: renderMarkdown(nextText), source: nextText },
               ),
             };
           });
