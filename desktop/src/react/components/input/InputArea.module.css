@@ -235,7 +235,7 @@
     right: 0;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-chat-card);
+    border-radius: var(--radius-md);
     margin-bottom: 4px;
     min-width: 160px;
     overflow: hidden;
@@ -359,7 +359,7 @@
     right: 0;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-chat-card);
+    border-radius: var(--radius-md);
     padding: var(--space-xs);
     margin-bottom: var(--space-xs);
     min-width: 180px;
@@ -571,7 +571,7 @@
     padding: var(--space-sm);
     background: var(--bg-card);
     border: 1px solid var(--overlay-light);
-    border-radius: var(--radius-chat-card);
+    border-radius: var(--radius-md);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     font-size: 0.78rem;
     line-height: 1.6;
@@ -670,7 +670,7 @@
     flex-direction: column;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-chat-card);
+    border-radius: var(--radius-md);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
     padding: 4px;
     margin-bottom: 6px;
@@ -754,7 +754,7 @@
     margin-bottom: 6px;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-chat-card);
+    border-radius: var(--radius-md);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
@@ -907,7 +907,7 @@
     padding: 0.64rem 1rem 2.12rem;
     background: var(--bg-card);
     border: 1px solid rgba(var(--accent-rgb), 0.12);
-    border-radius: var(--radius-chat-card);
+    border-radius: var(--radius-lg);
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.055);
     animation: hana-rise var(--duration-slow) cubic-bezier(0.25, 0.46, 0.45, 0.94);
     transform-origin: bottom center;
@@ -1049,7 +1049,7 @@
     padding: var(--space-xs);
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-chat-card);
+    border-radius: var(--radius-md);
     box-shadow: 0 4px 16px var(--shadow);
     animation: hana-fade-up var(--duration-fast) var(--ease-out);
 }
@@ -1108,7 +1108,7 @@
     gap: var(--space-sm);
     background: var(--bg-card);
     border: 1px solid var(--overlay-light);
-    border-radius: var(--radius-chat-card);
+    border-radius: var(--radius-lg);
     padding: var(--space-md) var(--space-sm) var(--space-sm) var(--space-md);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     transition: border-color 0.3s var(--ease-out),
