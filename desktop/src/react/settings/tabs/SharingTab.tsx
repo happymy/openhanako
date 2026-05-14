@@ -108,6 +108,7 @@ export function SharingTab() {
               min={1000}
               max={100000}
               step={1000}
+              fieldWidth="wide"
               unit={t('settings.screenshot.segmentLimitUnit')}
             />
           }
