@@ -123,9 +123,11 @@ async function buildScreenshotPayloadForMessages(
         block.content = cached;
         continue;
       }
-      const dataUrl = await fetchImageAsDataUrl(block.content);
-      imageCache.set(block.content, dataUrl);
-      block.content = dataUrl;
+      try {
+        const dataUrl = await fetchImageAsDataUrl(block.content);
+        imageCache.set(block.content, dataUrl);
+        block.content = dataUrl;
+      } catch { /* keep original content; broken image is preferable to failing the whole screenshot */ }
     }
   }
 
