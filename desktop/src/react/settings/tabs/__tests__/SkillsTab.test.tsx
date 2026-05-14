@@ -182,6 +182,9 @@ function defaultFetchMock() {
     if (url.includes('/api/skills/external-paths')) {
       return Promise.resolve(jsonResponse({ configured: [], discovered: [] }));
     }
+    if (url.includes('/api/skills/bundles')) {
+      return Promise.resolve(jsonResponse({ bundles: [] }));
+    }
     if (url.includes('/api/skills')) {
       return Promise.resolve(jsonResponse({ skills: [] }));
     }
@@ -308,6 +311,9 @@ describe('SkillsTab — sticky skillsViewAgentId & toggleSkill race guard', () =
       if (url.includes('/api/skills/external-paths')) {
         return Promise.resolve(jsonResponse({ configured: [], discovered: [] }));
       }
+      if (url.includes('/api/skills/bundles')) {
+        return Promise.resolve(jsonResponse({ bundles: [] }));
+      }
       if (url.includes('/api/skills?agentId=agent-a')) {
         return Promise.resolve(jsonResponse({
           skills: [
@@ -343,6 +349,9 @@ describe('SkillsTab — sticky skillsViewAgentId & toggleSkill race guard', () =
       if (url.includes('/api/skills/external-paths')) {
         return Promise.resolve(jsonResponse({ configured: [], discovered: [] }));
       }
+      if (url.includes('/api/skills/bundles')) {
+        return Promise.resolve(jsonResponse({ bundles: [] }));
+      }
       if (url.includes('/api/skills?agentId=agent-a')) {
         return Promise.resolve(
           jsonResponse({
@@ -375,6 +384,9 @@ describe('SkillsTab — sticky skillsViewAgentId & toggleSkill race guard', () =
     fetchMock.mockImplementation((url: string, opts?: RequestInit) => {
       if (url.includes('/api/skills/external-paths')) {
         return Promise.resolve(jsonResponse({ configured: [], discovered: [] }));
+      }
+      if (url.includes('/api/skills/bundles')) {
+        return Promise.resolve(jsonResponse({ bundles: [] }));
       }
       // The PUT that the race guard should prevent.
       if (
@@ -481,5 +493,65 @@ describe('SkillsTab — sticky skillsViewAgentId & toggleSkill race guard', () =
       (c) => typeof c[0] === 'string' && c[0].includes('agentId=agent-a'),
     );
     expect(agentCallsAfter.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders skill bundles and toggles all bundled skills for the selected agent', async () => {
+    seedStore({ currentAgentId: 'agent-a' });
+
+    fetchMock.mockImplementation((url: string, opts?: RequestInit) => {
+      if (url.includes('/api/skills/external-paths')) {
+        return Promise.resolve(jsonResponse({ configured: [], discovered: [] }));
+      }
+      if (url.includes('/api/skills/bundles')) {
+        return Promise.resolve(jsonResponse({
+          bundles: [
+            {
+              id: 'writing-bundle',
+              name: 'Writing Bundle',
+              skillNames: ['writer', 'reader'],
+              source: 'user',
+              agentId: null,
+              sourcePackage: null,
+              skills: [
+                { name: 'writer', enabled: false, source: 'user', missing: false },
+                { name: 'reader', enabled: true, source: 'user', missing: false },
+              ],
+            },
+          ],
+        }));
+      }
+      if (url.includes('/api/skills?agentId=agent-a')) {
+        return Promise.resolve(jsonResponse({
+          skills: [
+            { name: 'writer', enabled: false, source: 'user' },
+            { name: 'reader', enabled: true, source: 'user' },
+            { name: 'loose-skill', enabled: false, source: 'user' },
+          ],
+        }));
+      }
+      if (url.includes('/api/agents/agent-a/skills') && opts?.method === 'PUT') {
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+
+    render(<SkillsTab />);
+    await flushMicrotasks(6);
+
+    expect(screen.getAllByText('Writing Bundle').length).toBeGreaterThanOrEqual(1);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('skill-bundle-toggle-writing-bundle'));
+    });
+    await flushMicrotasks(6);
+
+    const putCall = fetchMock.mock.calls.find(
+      (c) =>
+        typeof c[0] === 'string' &&
+        c[0].includes('/api/agents/agent-a/skills') &&
+        (c[1] as RequestInit | undefined)?.method === 'PUT',
+    );
+    expect(JSON.parse(String((putCall?.[1] as RequestInit)?.body))).toEqual({
+      enabled: ['writer', 'reader'],
+    });
   });
 });

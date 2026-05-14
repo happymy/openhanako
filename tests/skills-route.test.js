@@ -253,6 +253,90 @@ describe("skills route", () => {
     expect(engine.getAllSkills).toHaveBeenCalledWith(agentId);
   });
 
+  it("creates, updates, and deletes skill bundles through the skills route", async () => {
+    const { createSkillsRoute } = await import("../server/routes/skills.js");
+    const app = new Hono();
+    const engine = {
+      hanakoHome: tempRoot,
+      agentsDir: tempRoot,
+      emitEvent: vi.fn(),
+      getAllSkills: vi.fn(() => [
+        { name: "writer", enabled: false, source: "user" },
+        { name: "reader", enabled: false, source: "user" },
+      ]),
+    };
+
+    app.route("/api", createSkillsRoute(engine));
+
+    const createRes = await app.request("/api/skills/bundles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Writing Bundle",
+        skillNames: ["writer", "writer"],
+      }),
+    });
+    expect(createRes.status).toBe(200);
+    const created = await createRes.json();
+    expect(created.bundle).toMatchObject({
+      id: "writing-bundle",
+      name: "Writing Bundle",
+      skillNames: ["writer"],
+      source: "user",
+    });
+    expectAppEvent(engine.emitEvent, "skills-changed", { agentId: null });
+
+    const updateRes = await app.request("/api/skills/bundles/writing-bundle", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Writing Pack",
+        skillNames: ["writer", "reader"],
+      }),
+    });
+    expect(updateRes.status).toBe(200);
+    expect(await updateRes.json()).toMatchObject({
+      ok: true,
+      bundle: {
+        id: "writing-bundle",
+        name: "Writing Pack",
+        skillNames: ["writer", "reader"],
+      },
+    });
+
+    const deleteRes = await app.request("/api/skills/bundles/writing-bundle", { method: "DELETE" });
+    expect(deleteRes.status).toBe(200);
+    expect(await deleteRes.json()).toEqual({ ok: true });
+    const store = JSON.parse(fs.readFileSync(path.join(tempRoot, "skill-bundles.json"), "utf-8"));
+    expect(store.bundles).toEqual([]);
+  });
+
+  it("rejects bundle membership for skills that are not installed", async () => {
+    const { createSkillsRoute } = await import("../server/routes/skills.js");
+    const app = new Hono();
+    const engine = {
+      hanakoHome: tempRoot,
+      agentsDir: tempRoot,
+      getAllSkills: vi.fn(() => [{ name: "writer", enabled: false, source: "user" }]),
+      emitEvent: vi.fn(),
+    };
+
+    app.route("/api", createSkillsRoute(engine));
+
+    const res = await app.request("/api/skills/bundles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Broken Bundle",
+        skillNames: ["writer", "ghost-skill"],
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "unknown skill in bundle: ghost-skill" });
+    expect(engine.emitEvent).not.toHaveBeenCalled();
+  });
+
   it("registers a session-scoped skill install source before installing", async () => {
     const { createSkillsRoute } = await import("../server/routes/skills.js");
     const app = new Hono();

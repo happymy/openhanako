@@ -23,6 +23,7 @@ import {
 import { findModel, parseModelRef } from "../shared/model-ref.js";
 import { DEFAULT_HEARTBEAT_INTERVAL_MINUTES } from "../shared/default-workspace.js";
 import { relativePathInsideBase } from "./message-utils.js";
+import { detachAgentFromBundles } from "../lib/skill-bundles/store.js";
 
 const log = createModuleLogger("agent-mgr");
 
@@ -603,6 +604,14 @@ export class AgentManager {
     }
 
     await fsp.rm(agentDir, { recursive: true, force: true });
+
+    if (this._d.hanakoHome) {
+      try {
+        detachAgentFromBundles({ hanakoHome: this._d.hanakoHome }, agentId);
+      } catch (err) {
+        log.error(`Skill Bundle 解耦失败 (${agentId}): ${err.message}`);
+      }
+    }
 
     const prefs = this._d.getPrefs();
     const primaryId = prefs.getPrimaryAgent();

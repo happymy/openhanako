@@ -69,8 +69,7 @@ export function CharacterCardPreviewOverlay({
   const memoryLabel = mode === 'export' ? '导出记忆' : '导入记忆';
   const memoryUnavailableLabel = mode === 'export' ? '无可导出记忆' : '无可导入记忆';
   const confirmLabel = processing ? (mode === 'export' ? '正在导出' : '正在导入') : '确定';
-  const identityText = plan.agent.identitySummary || plan.prompts?.identity || '这个角色卡没有写入 Identity。';
-  const descriptionText = plan.agent.description || plan.agent.identitySummary || plan.prompts?.identity || '这个角色卡没有写入 Description。';
+  const descriptionText = plan.agent.description || '这个角色卡没有写入 Description。';
   const ishikiText = plan.prompts?.ishiki || '未提供 Ishiki';
   const yuanKey = (plan.agent.yuan || 'hanako').toLowerCase();
   const memoryInputId = `character-card-memory-${plan.token || plan.agentId || 'preview'}`;
