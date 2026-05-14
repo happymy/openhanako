@@ -195,6 +195,64 @@ describe("skills route", () => {
     );
   });
 
+  it("lists skill bundles with the requested agent's enabled state", async () => {
+    const agentId = "hana";
+    const agentDir = path.join(tempRoot, agentId);
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, "config.yaml"), "agent:\n  name: Hana\n", "utf-8");
+    fs.writeFileSync(path.join(tempRoot, "skill-bundles.json"), JSON.stringify({
+      schemaVersion: 1,
+      bundles: [
+        {
+          id: "coding",
+          name: "Coding Bundle",
+          skillNames: ["writer", "reader", "missing-skill"],
+          source: "character-card-import",
+          agentId,
+          sourcePackage: "coding.zip",
+          createdAt: "2026-05-14T00:00:00.000Z",
+          updatedAt: "2026-05-14T00:00:00.000Z",
+        },
+      ],
+    }, null, 2), "utf-8");
+
+    const { createSkillsRoute } = await import("../server/routes/skills.js");
+    const app = new Hono();
+    const engine = {
+      hanakoHome: tempRoot,
+      agentsDir: tempRoot,
+      getAllSkills: vi.fn(() => [
+        { name: "writer", enabled: true, source: "user" },
+        { name: "reader", enabled: false, source: "user" },
+      ]),
+    };
+
+    app.route("/api", createSkillsRoute(engine));
+
+    const res = await app.request(`/api/skills/bundles?agentId=${agentId}`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      bundles: [
+        {
+          id: "coding",
+          name: "Coding Bundle",
+          skillNames: ["writer", "reader", "missing-skill"],
+          source: "character-card-import",
+          agentId,
+          sourcePackage: "coding.zip",
+          createdAt: "2026-05-14T00:00:00.000Z",
+          updatedAt: "2026-05-14T00:00:00.000Z",
+          skills: [
+            { name: "writer", enabled: true, source: "user", missing: false },
+            { name: "reader", enabled: false, source: "user", missing: false },
+            { name: "missing-skill", enabled: false, source: null, missing: true },
+          ],
+        },
+      ],
+    });
+    expect(engine.getAllSkills).toHaveBeenCalledWith(agentId);
+  });
+
   it("registers a session-scoped skill install source before installing", async () => {
     const { createSkillsRoute } = await import("../server/routes/skills.js");
     const app = new Hono();
@@ -426,6 +484,55 @@ describe("DELETE /skills/:name — per-agent target selection", () => {
     expect(enabledB).not.toContain("globalskill");
     expect(enabledA).toContain("other");
     expect(enabledB).toContain("other");
+  });
+
+  it("删除用户级 skill 时同步清理 skill bundle 元数据里的引用和空 bundle", async () => {
+    const engine = buildEngine({
+      agents: ["agent-a"],
+      currentAgentId: "agent-a",
+    });
+    engine.hanakoHome = tempRoot;
+    writeUserSkill("bundled-skill");
+    fs.writeFileSync(path.join(tempRoot, "skill-bundles.json"), JSON.stringify({
+      schemaVersion: 1,
+      bundles: [
+        {
+          id: "coding",
+          name: "Coding Bundle",
+          skillNames: ["bundled-skill", "keep-skill"],
+          source: "character-card-import",
+          agentId: "agent-a",
+          sourcePackage: "coding.zip",
+          createdAt: "2026-05-14T00:00:00.000Z",
+          updatedAt: "2026-05-14T00:00:00.000Z",
+        },
+        {
+          id: "empty-after-delete",
+          name: "Empty After Delete",
+          skillNames: ["bundled-skill"],
+          source: "character-card-import",
+          agentId: "agent-a",
+          sourcePackage: "coding.zip",
+          createdAt: "2026-05-14T00:00:00.000Z",
+          updatedAt: "2026-05-14T00:00:00.000Z",
+        },
+      ],
+    }, null, 2), "utf-8");
+
+    const { createSkillsRoute } = await import("../server/routes/skills.js");
+    const app = new Hono();
+    app.route("/api", createSkillsRoute(engine));
+
+    const res = await app.request("/api/skills/bundled-skill?agentId=agent-a", { method: "DELETE" });
+    expect(res.status).toBe(200);
+
+    const store = JSON.parse(fs.readFileSync(path.join(tempRoot, "skill-bundles.json"), "utf-8"));
+    expect(store.bundles).toHaveLength(1);
+    expect(store.bundles[0]).toMatchObject({
+      id: "coding",
+      name: "Coding Bundle",
+      skillNames: ["keep-skill"],
+    });
   });
 
   it("显式 agentId 不存在时返回 404 agent not found", async () => {

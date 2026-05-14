@@ -20,6 +20,7 @@ import { resolveAgent } from "../utils/resolve-agent.js";
 import { validateId, agentExists } from "../utils/validation.js";
 import { registerSessionFileFromRequest } from "../../lib/session-files/session-file-response.js";
 import { createSkillSourceIdentity } from "../../lib/skills/skill-file-identity.js";
+import { loadSkillBundleStore, removeSkillsFromBundles } from "../../lib/skill-bundles/store.js";
 
 /** 从 SKILL.md frontmatter 解析 name */
 function parseSkillName(skillMdPath) {
@@ -50,6 +51,38 @@ export function createSkillsRoute(engine) {
     _installLock = new Promise(r => { resolve = r; });
     return prev.then(fn).finally(resolve);
   }
+
+  route.get("/skills/bundles", async (c) => {
+    try {
+      const agentId = c.req.query("agentId") || "";
+      let skillByName = new Map();
+      if (agentId) {
+        if (!validateId(agentId) || !agentExists(engine, agentId)) {
+          return c.json({ error: "agent not found" }, 404);
+        }
+        skillByName = new Map((engine.getAllSkills(agentId) || []).map(skill => [skill.name, skill]));
+      }
+      const store = loadSkillBundleStore(engine);
+      const bundles = store.bundles.map(bundle => ({
+        ...bundle,
+        skills: bundle.skillNames.map((name) => {
+          const skill = skillByName.get(name);
+          if (!skill) {
+            return { name, enabled: false, source: null, missing: true };
+          }
+          return {
+            name,
+            enabled: !!skill.enabled,
+            source: skill.source || null,
+            missing: false,
+          };
+        }),
+      }));
+      return c.json({ bundles });
+    } catch (err) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
 
   route.get("/skills", async (c) => {
     try {
@@ -360,6 +393,9 @@ export function createSkillsRoute(engine) {
 
       // 重新加载 skills
       await engine.reloadSkills();
+      if (engine.hanakoHome) {
+        removeSkillsFromBundles(engine, [name]);
+      }
 
       emitAppEvent(engine, "skills-changed", { agentId: targetAgentId || null });
       return c.json({ ok: true });
