@@ -82,6 +82,14 @@ function buildPromptMediaOptions(opts) {
 
 const MAX_CACHED_SESSIONS = 20;
 const SESSION_PROMPT_SNAPSHOT_VERSION = 1;
+const MiB = 1024 * 1024;
+const DEFAULT_RUNTIME_PRESSURE_THRESHOLDS = Object.freeze({
+  checkDelayMs: 1500,
+  minRetainedBytes: 16 * MiB,
+  highPayloadBytes: 64 * MiB,
+  highRssBytes: 1536 * MiB,
+  highExternalBytes: 512 * MiB,
+});
 
 function jsonClone(value, fallback) {
   try {
@@ -108,6 +116,70 @@ function freezeAgentsFilesResult(value) {
     agentsFiles: Array.isArray(value?.agentsFiles) ? value.agentsFiles : [],
   };
   return jsonClone(next, { agentsFiles: [] });
+}
+
+function normalizeMemoryPressureOptions(raw) {
+  if (raw === false || raw?.enabled === false) {
+    return {
+      enabled: false,
+      getMemoryUsage: () => process.memoryUsage(),
+      thresholds: DEFAULT_RUNTIME_PRESSURE_THRESHOLDS,
+    };
+  }
+  return {
+    enabled: true,
+    getMemoryUsage: typeof raw?.getMemoryUsage === "function"
+      ? raw.getMemoryUsage
+      : () => process.memoryUsage(),
+    thresholds: {
+      ...DEFAULT_RUNTIME_PRESSURE_THRESHOLDS,
+      ...(raw?.thresholds || {}),
+    },
+  };
+}
+
+function estimateSessionRuntimeRetainedBytes(session) {
+  const seen = new WeakSet();
+  const stateMessages = session?.agent?.state?.messages;
+  const messages = Array.isArray(session?.messages)
+    ? session.messages
+    : Array.isArray(stateMessages)
+      ? stateMessages
+      : [];
+  return estimateRetainedValueBytes(messages, seen, { count: 0 });
+}
+
+function estimateRetainedValueBytes(value, seen, budget, depth = 0) {
+  if (value == null || depth > 10 || budget.count > 20_000) return 0;
+  budget.count += 1;
+
+  if (typeof value === "string") {
+    return value.length >= 8192 ? value.length : 0;
+  }
+  if (typeof value !== "object") return 0;
+  if (seen.has(value)) return 0;
+  seen.add(value);
+
+  let total = 0;
+  if (Array.isArray(value)) {
+    for (const item of value) total += estimateRetainedValueBytes(item, seen, budget, depth + 1);
+    return total;
+  }
+
+  if ((value.type === "image" || value.type === "video") && typeof value.data === "string") {
+    total += value.data.length;
+  }
+  if ((value.type === "image" || value.type === "video") && typeof value.source?.data === "string") {
+    total += value.source.data.length;
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    if ((value.type === "image" || value.type === "video") && (key === "data" || key === "source")) {
+      continue;
+    }
+    total += estimateRetainedValueBytes(child, seen, budget, depth + 1);
+  }
+  return total;
 }
 
 function normalizePromptSnapshot(value) {
@@ -195,8 +267,12 @@ export class SessionCoordinator {
     this._d = deps;
     this._pendingModel = null;
     this._session = null;
+    this._currentSessionPath = null;
     this._sessionStarted = false;
     this._sessions = new Map();
+    this._hibernatedSessionMeta = new Map();
+    this._runtimePressureTimers = new Map();
+    this._memoryPressure = normalizeMemoryPressureOptions(deps.memoryPressure);
     this._headlessOps = new Set();
     this._titlesCache = new Map(); // sessionDir → { titles, ts }
     this._metaCache = new Map();   // metaPath → { data, ts }
@@ -216,7 +292,7 @@ export class SessionCoordinator {
   get pendingModel() { return this._pendingModel; }
 
   get currentSessionPath() {
-    return this._session?.sessionManager?.getSessionFile?.() ?? null;
+    return this._session?.sessionManager?.getSessionFile?.() ?? this._currentSessionPath ?? null;
   }
 
   // ── Session 创建 / 切换 ──
@@ -535,11 +611,12 @@ export class SessionCoordinator {
     }
     const elapsed = Date.now() - t0;
     log.log(`session created (${elapsed}ms), model=${resolvedModel?.name || effectiveModel?.name || "?"}`);
-    this._session = session;
-    this._sessionStarted = false;
 
     // 事件转发（附带 agentId，供订阅者按 agent 过滤）
     const sessionPath = session.sessionManager?.getSessionFile?.();
+    this._session = session;
+    this._currentSessionPath = sessionPath || null;
+    this._sessionStarted = false;
     if (restore && sessionPath && restoredPermissionMode === null) {
       try {
         const metaPath = path.join(agent.sessionDir, "session-meta.json");
@@ -665,6 +742,7 @@ export class SessionCoordinator {
       unsub,
     });
     this._sessions.set(mapKey, sessionEntry);
+    this._hibernatedSessionMeta.delete(mapKey);
 
     // Apply tool snapshot (Case A / Case C). Permission mode is a runtime
     // policy and does not change the stable tool schema.
@@ -733,7 +811,7 @@ export class SessionCoordinator {
 
   getSessionWorkspaceFolders(sessionPath = this.currentSessionPath) {
     if (!sessionPath) return [];
-    const entry = this._sessions.get(sessionPath);
+    const entry = this._sessions.get(sessionPath) || this._hibernatedSessionMeta.get(sessionPath);
     return Array.isArray(entry?.workspaceFolders) ? [...entry.workspaceFolders] : [];
   }
 
@@ -785,6 +863,7 @@ export class SessionCoordinator {
         }
       }
       this._session = existing.session;
+      this._currentSessionPath = sessionPath;
       existing.lastTouchedAt = Date.now();
       const targetAgent = this._d.getAgentById(existing.agentId) || this._d.getAgent();
       targetAgent.setMemoryEnabled(memoryEnabled);
@@ -840,7 +919,11 @@ export class SessionCoordinator {
   }
 
   async prompt(text, opts) {
-    if (!this._session) throw new Error(t("error.noActiveSessionPrompt"));
+    if (!this._session) {
+      const currentPath = this.currentSessionPath;
+      if (!currentPath) throw new Error(t("error.noActiveSessionPrompt"));
+      this._session = await this.ensureSessionLoaded(currentPath);
+    }
     this._sessionStarted = true;
     const sp = this._session.sessionManager?.getSessionFile?.();
     if (sp) {
@@ -860,7 +943,11 @@ export class SessionCoordinator {
     ({ text, opts } = await prepareModelImageInputsForPrompt({ text, opts }));
     assertVideoInputSupported(this._session.model, opts?.videos);
     const promptOpts = buildPromptMediaOptions(opts);
-    await this._session.prompt(text, promptOpts);
+    try {
+      await this._session.prompt(text, promptOpts);
+    } finally {
+      if (sp) this._scheduleRuntimePressureCheck(sp, "prompt");
+    }
     if (sp) {
       const entry = this._sessions.get(sp);
       const agent = entry ? this._d.getAgentById(entry.agentId) : this._d.getAgent();
@@ -881,6 +968,7 @@ export class SessionCoordinator {
       log.warn(`abort focus session: abort failed: ${err.message}`);
     }
     this._session = null;
+    this._currentSessionPath = null;
     this._sessionStarted = false;
     return true;
   }
@@ -899,8 +987,15 @@ export class SessionCoordinator {
   // ── Path 感知 API（Phase 2） ──
 
   async promptSession(sessionPath, text, opts) {
-    const entry = this._sessions.get(sessionPath);
+    let entry = this._sessions.get(sessionPath);
+    if (!entry) {
+      await this.ensureSessionLoaded(sessionPath);
+      entry = this._sessions.get(sessionPath);
+    }
     if (!entry) throw new Error(t("error.sessionNotInCache", { path: sessionPath }));
+    if (sessionPath === this.currentSessionPath && this._session !== entry.session) {
+      this._session = entry.session;
+    }
     entry.lastTouchedAt = Date.now();
     if (sessionPath === this.currentSessionPath) this._sessionStarted = true;
     const engine = this._d.getEngine?.();
@@ -929,7 +1024,11 @@ export class SessionCoordinator {
     }
     assertVideoInputSupported(entry.session.model, opts?.videos);
     const promptOpts = buildPromptMediaOptions(opts);
-    await entry.session.prompt(text, promptOpts);
+    try {
+      await entry.session.prompt(text, promptOpts);
+    } finally {
+      this._scheduleRuntimePressureCheck(sessionPath, "prompt_session");
+    }
     const agent = this._d.getAgentById(entry.agentId) || this._d.getAgent();
     agent?._memoryTicker?.notifyTurn(sessionPath);
   }
@@ -965,8 +1064,15 @@ export class SessionCoordinator {
    * @returns {Promise<{ adaptations: string[] }>}
    */
   async switchSessionModel(sessionPath, newModel) {
-    const entry = this._sessions.get(sessionPath);
+    let entry = this._sessions.get(sessionPath);
+    if (!entry) {
+      await this.ensureSessionLoaded(sessionPath);
+      entry = this._sessions.get(sessionPath);
+    }
     if (!entry) throw new Error(t("error.sessionNotInCache", { path: sessionPath }));
+    if (sessionPath === this.currentSessionPath && this._session !== entry.session) {
+      this._session = entry.session;
+    }
 
     const { session } = entry;
 
@@ -1177,14 +1283,14 @@ export class SessionCoordinator {
 
   getPermissionMode(sessionPath = this.currentSessionPath) {
     if (!sessionPath) return this._pendingPermissionMode || this._getDefaultPermissionMode();
-    const entry = this._sessions.get(sessionPath);
+    const entry = this._sessions.get(sessionPath) || this._hibernatedSessionMeta.get(sessionPath);
     return normalizeSessionPermissionMode(entry || { permissionMode: this._getDefaultPermissionMode() });
   }
 
   getSessionThinkingLevel(sessionPath = this.currentSessionPath) {
     const fallback = normalizeSessionThinkingLevel(this._d.getPrefs().getThinkingLevel());
     if (!sessionPath) return fallback;
-    const entry = this._sessions.get(sessionPath);
+    const entry = this._sessions.get(sessionPath) || this._hibernatedSessionMeta.get(sessionPath);
     return normalizeSessionThinkingLevel(entry?.thinkingLevel || fallback);
   }
 
@@ -1194,6 +1300,13 @@ export class SessionCoordinator {
     }
     const entry = this._sessions.get(sessionPath);
     if (!entry?.session) {
+      const meta = this._hibernatedSessionMeta.get(sessionPath);
+      if (meta) {
+        const nextLevel = normalizeSessionThinkingLevel(level);
+        meta.thinkingLevel = nextLevel;
+        this.writeSessionMeta(sessionPath, { thinkingLevel: nextLevel });
+        return { ok: true, thinkingLevel: nextLevel };
+      }
       return { ok: false, error: "session not found", thinkingLevel: this.getSessionThinkingLevel(sessionPath) };
     }
     const models = this._d.getModels();
@@ -1245,6 +1358,8 @@ export class SessionCoordinator {
     }
     const entry = this._sessions.get(sp);
     if (!entry) {
+      const meta = this._hibernatedSessionMeta.get(sp);
+      if (meta) return this._applyPermissionModeToEntry(sp, meta, nextMode);
       return {
         ok: false,
         error: "current session not found",
@@ -1265,6 +1380,8 @@ export class SessionCoordinator {
     }
     const entry = this._sessions.get(sessionPath);
     if (!entry) {
+      const meta = this._hibernatedSessionMeta.get(sessionPath);
+      if (meta) return this._applyPermissionModeToEntry(sessionPath, meta, nextMode);
       return {
         ok: false,
         error: "session not found",
@@ -1280,6 +1397,10 @@ export class SessionCoordinator {
     this._setDefaultPermissionMode(nextMode);
     if (sp) {
       const entry = this._sessions.get(sp);
+      if (!entry) {
+        const meta = this._hibernatedSessionMeta.get(sp);
+        if (meta) return this._applyPermissionModeToEntry(sp, meta, nextMode);
+      }
       if (!entry) return { ok: false, mode: this.getPermissionMode(sp) };
       return this._applyPermissionModeToEntry(sp, entry, nextMode);
     }
@@ -1319,7 +1440,7 @@ export class SessionCoordinator {
   getCurrentSessionModelRef() {
     const sp = this.currentSessionPath;
     if (!sp) return null;
-    const entry = this._sessions.get(sp);
+    const entry = this._sessions.get(sp) || this._hibernatedSessionMeta.get(sp);
     if (!entry?.modelId || !entry?.modelProvider) return null;
     return { id: entry.modelId, provider: entry.modelProvider };
   }
@@ -1358,9 +1479,12 @@ export class SessionCoordinator {
     const spShort = sessionPath ? path.basename(sessionPath) : "(anon)";
     entry.lastTouchedAt = Date.now();
 
+    this._clearRuntimePressureTimer(sessionPath);
+    this._hibernatedSessionMeta.delete(sessionPath);
     this._sessions.delete(sessionPath);
     if (this._session === session || this.currentSessionPath === sessionPath) {
       this._session = null;
+      this._currentSessionPath = null;
       this._sessionStarted = false;
     }
 
@@ -1430,9 +1554,125 @@ export class SessionCoordinator {
     });
   }
 
+  _canHibernateSessionRuntime(entry, sessionPath) {
+    if (!entry?.session || !sessionPath) return false;
+    if (entry.session.isStreaming || entry.session.isCompacting || entry._switching) return false;
+    if (this._prePromptAbortControllers.has(sessionPath)) return false;
+    const pendingDeferred = this._d.getDeferredResultStore?.()?.listPending?.(sessionPath);
+    if (Array.isArray(pendingDeferred) && pendingDeferred.length > 0) return false;
+    return true;
+  }
+
+  async hibernateSessionRuntime(sessionPath, reason = "memory_pressure") {
+    const entry = this._sessions.get(sessionPath);
+    if (!entry) return false;
+    if (!this._canHibernateSessionRuntime(entry, sessionPath)) return false;
+
+    const isFocus = this._session === entry.session || this.currentSessionPath === sessionPath;
+    if (isFocus) this._currentSessionPath = sessionPath;
+    this._hibernatedSessionMeta.set(sessionPath, {
+      agentId: entry.agentId,
+      memoryEnabled: entry.memoryEnabled,
+      experienceEnabled: entry.experienceEnabled,
+      modelId: entry.modelId,
+      modelProvider: entry.modelProvider,
+      workspaceFolders: Array.isArray(entry.workspaceFolders) ? [...entry.workspaceFolders] : [],
+      permissionMode: entry.permissionMode,
+      accessMode: entry.accessMode,
+      planMode: entry.planMode,
+      thinkingLevel: entry.thinkingLevel,
+      toolNames: Array.isArray(entry.toolNames) ? [...entry.toolNames] : entry.toolNames,
+      contextUsage: entry.session?.getContextUsage?.() || null,
+      hibernatedAt: Date.now(),
+    });
+    await this._teardownSessionEntry(entry, sessionPath, reason);
+    this._sessions.delete(sessionPath);
+    this._clearRuntimePressureTimer(sessionPath);
+    if (isFocus) {
+      this._session = null;
+    }
+    log.log(`session runtime hibernated (${reason}): ${path.basename(sessionPath)}`);
+    return true;
+  }
+
+  checkRuntimeMemoryPressure(sessionPath, reason = "manual") {
+    return this._checkRuntimeMemoryPressure(sessionPath, reason);
+  }
+
+  async _checkRuntimeMemoryPressure(sessionPath, reason) {
+    const entry = this._sessions.get(sessionPath);
+    if (!entry) return { hibernated: false, reason: "not_loaded" };
+    if (!this._memoryPressure.enabled) return { hibernated: false, reason: "disabled" };
+    if (!this._canHibernateSessionRuntime(entry, sessionPath)) {
+      return { hibernated: false, reason: "busy" };
+    }
+
+    const retainedBytes = estimateSessionRuntimeRetainedBytes(entry.session);
+    const memory = this._readMemoryUsage();
+    const thresholds = this._memoryPressure.thresholds;
+    const externalBytes = (memory.external || 0) + (memory.arrayBuffers || 0);
+    const payloadPressure = retainedBytes >= thresholds.highPayloadBytes;
+    const processPressure = memory.rss >= thresholds.highRssBytes || externalBytes >= thresholds.highExternalBytes;
+    const shouldHibernate = payloadPressure || (processPressure && retainedBytes >= thresholds.minRetainedBytes);
+    if (!shouldHibernate) {
+      return { hibernated: false, reason: "below_threshold", retainedBytes, memory };
+    }
+
+    const hibernated = await this.hibernateSessionRuntime(sessionPath, `memory_pressure:${reason}`);
+    return {
+      hibernated,
+      reason: hibernated ? "memory_pressure" : "busy",
+      retainedBytes,
+      memory,
+    };
+  }
+
+  _readMemoryUsage() {
+    try {
+      const usage = this._memoryPressure.getMemoryUsage();
+      return {
+        rss: Number(usage?.rss) || 0,
+        heapUsed: Number(usage?.heapUsed) || 0,
+        external: Number(usage?.external) || 0,
+        arrayBuffers: Number(usage?.arrayBuffers) || 0,
+      };
+    } catch (err) {
+      log.warn(`memory pressure usage read failed: ${err.message}`);
+      return { rss: 0, heapUsed: 0, external: 0, arrayBuffers: 0 };
+    }
+  }
+
+  _scheduleRuntimePressureCheck(sessionPath, reason = "post_turn") {
+    if (!this._memoryPressure.enabled || !sessionPath) return;
+    const entry = this._sessions.get(sessionPath);
+    if (!entry) return;
+    const scheduledSession = entry.session;
+    this._clearRuntimePressureTimer(sessionPath);
+    const delay = Math.max(0, Number(this._memoryPressure.thresholds.checkDelayMs) || 0);
+    const timer = setTimeout(() => {
+      this._runtimePressureTimers.delete(sessionPath);
+      const current = this._sessions.get(sessionPath);
+      if (!current || current.session !== scheduledSession) return;
+      this._checkRuntimeMemoryPressure(sessionPath, reason).catch((err) => {
+        log.warn(`runtime pressure check failed for ${path.basename(sessionPath)}: ${err.message}`);
+      });
+    }, delay);
+    timer.unref?.();
+    this._runtimePressureTimers.set(sessionPath, timer);
+  }
+
+  _clearRuntimePressureTimer(sessionPath) {
+    const timer = this._runtimePressureTimers.get(sessionPath);
+    if (!timer) return;
+    clearTimeout(timer);
+    this._runtimePressureTimers.delete(sessionPath);
+  }
+
   // ── Session 关闭 ──
 
   async closeSession(sessionPath) {
+    this._clearRuntimePressureTimer(sessionPath);
+    this._hibernatedSessionMeta.delete(sessionPath);
     const entry = this._sessions.get(sessionPath);
     if (entry) {
       const agent = this._d.getAgentById(entry.agentId) || this._d.getAgent();
@@ -1459,10 +1699,14 @@ export class SessionCoordinator {
     }
     if (sessionPath === this.currentSessionPath) {
       this._session = null;
+      this._currentSessionPath = null;
     }
   }
 
   async closeAllSessions() {
+    for (const sessionPath of this._runtimePressureTimers.keys()) {
+      this._clearRuntimePressureTimer(sessionPath);
+    }
     // abort all streaming sessions + teardown（记忆收尾由 disposeAll 带超时处理）
     for (const [sessionPath, entry] of this._sessions) {
       if (entry.session.isStreaming) {
@@ -1481,7 +1725,9 @@ export class SessionCoordinator {
       log.warn(`closeAllSessions: close terminals failed: ${err.message}`);
     }
     this._sessions.clear();
+    this._hibernatedSessionMeta.clear();
     this._session = null;
+    this._currentSessionPath = null;
   }
 
   async cleanupSession() {
@@ -1512,6 +1758,13 @@ export class SessionCoordinator {
 
   getSessionByPath(sessionPath) {
     return this._sessions.get(sessionPath)?.session ?? null;
+  }
+
+  getSessionContextUsage(sessionPath) {
+    if (!sessionPath) return null;
+    const live = this._sessions.get(sessionPath)?.session?.getContextUsage?.();
+    if (live) return live;
+    return this._hibernatedSessionMeta.get(sessionPath)?.contextUsage || null;
   }
 
   /**
@@ -1559,6 +1812,7 @@ export class SessionCoordinator {
     // 保存焦点：createSession 副作用会设 this._session / _sessionStarted，
     // /rc 这类纯 attach 路径结束后必须完整回滚，避免污染桌面 UI 的当前会话态。
     const prevFocus = this._session;
+    const prevCurrentSessionPath = this._currentSessionPath;
     const prevSessionStarted = this._sessionStarted;
     try {
       // #521: attach 路径同样要做健康度评估，否则 bridge / RC 自动恢复时也会反复失败
@@ -1573,6 +1827,7 @@ export class SessionCoordinator {
       });
     } finally {
       this._session = prevFocus;
+      this._currentSessionPath = prevCurrentSessionPath;
       this._sessionStarted = prevSessionStarted;
     }
 
