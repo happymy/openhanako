@@ -1137,7 +1137,7 @@
     background: var(--bg-card);
     border: 1px solid var(--overlay-light);
     border-radius: var(--radius-lg);
-    padding: var(--space-md) var(--space-sm) var(--space-sm) var(--space-md);
+    padding: var(--space-md) var(--space-md) var(--space-sm);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     transition: border-color 0.3s var(--ease-out),
                 box-shadow 0.3s var(--ease-out);

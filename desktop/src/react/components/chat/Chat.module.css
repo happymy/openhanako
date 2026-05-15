@@ -1162,7 +1162,7 @@
 }
 
 .sessionMessages {
-    max-width: 800px;
+    max-width: var(--chat-column-width);
     margin: 0 auto;
     display: flex;
     flex-direction: column;
