@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_NETWORK_PROXY_CONFIG,
+  electronProxyBypassRulesForConfig,
   isNoProxyMatch,
   normalizeNetworkProxyConfig,
   proxyConfigFromEnvironment,
+  proxyConfigToEnvironment,
   resolveProxyForUrl,
 } from "../shared/network-proxy.js";
 
@@ -65,5 +67,37 @@ describe("network proxy config", () => {
     expect(isNoProxyMatch("https://example.com:443", "example.com:443")).toBe(true);
     expect(isNoProxyMatch("https://example.com:8443", "example.com:443")).toBe(false);
     expect(isNoProxyMatch("http://[::1]:3000", "[::1]:3000")).toBe(true);
+  });
+
+  it("always bypasses local server addresses even when no_proxy is empty", () => {
+    const manual = {
+      mode: "manual",
+      httpProxy: "http://127.0.0.1:7890",
+      noProxy: "",
+    };
+
+    expect(resolveProxyForUrl("http://127.0.0.1:1455/api/health", manual)).toBe("");
+    expect(resolveProxyForUrl("http://localhost:1455/api/health", manual)).toBe("");
+    expect(resolveProxyForUrl("http://127.42.0.9:1455/api/health", manual)).toBe("");
+    expect(resolveProxyForUrl("http://[::1]:1455/api/health", manual)).toBe("");
+    expect(resolveProxyForUrl("http://0.0.0.0:1455/api/health", manual)).toBe("http://127.0.0.1:7890");
+    expect(resolveProxyForUrl("https://hana.company.example/api/health", manual)).toBe("http://127.0.0.1:7890");
+  });
+
+  it("forces local bypass entries into Electron and env proxy rules", () => {
+    const manual = {
+      mode: "manual",
+      httpProxy: "http://127.0.0.1:7890",
+      noProxy: "",
+    };
+
+    const electronRules = electronProxyBypassRulesForConfig(manual);
+    expect(electronRules).toContain("127.0.0.1");
+    expect(electronRules).toContain("localhost");
+    expect(electronRules).toContain("<local>");
+
+    const env = proxyConfigToEnvironment(manual, {});
+    expect(env.NO_PROXY).toContain("127.0.0.1");
+    expect(env.NO_PROXY).toContain("localhost");
   });
 });

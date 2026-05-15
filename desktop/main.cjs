@@ -48,6 +48,7 @@ const {
   electronProxyRulesForConfig,
   electronProxyBypassRulesForConfig,
   proxyConfigToEnvironment,
+  withForcedLocalProxyBypass,
 } = require("../shared/network-proxy.cjs");
 
 const APP_USER_MODEL_ID = "com.hanako.app"; // Keep in sync with package.json build.appId.
@@ -177,9 +178,8 @@ async function serverEnvironmentForNetworkProxy(baseEnv) {
   if (httpsProxy) env.HTTPS_PROXY = env.https_proxy = httpsProxy;
   if (wsProxy) env.WS_PROXY = env.ws_proxy = wsProxy;
   if (wssProxy) env.WSS_PROXY = env.wss_proxy = wssProxy;
-  if (config.noProxy && !env.NO_PROXY && !env.no_proxy) {
-    env.NO_PROXY = env.no_proxy = config.noProxy;
-  }
+  const noProxy = withForcedLocalProxyBypass(env.NO_PROXY || env.no_proxy || config.noProxy);
+  if (noProxy) env.NO_PROXY = env.no_proxy = noProxy;
   return env;
 }
 

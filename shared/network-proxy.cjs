@@ -2,6 +2,9 @@
 
 const NETWORK_PROXY_MODES = ["system", "manual", "direct"];
 const DEFAULT_NO_PROXY = "localhost, 127.0.0.1, ::1";
+// Only loopback endpoints are forced direct. Future remote Hana servers need a
+// separate frontend-to-server connection policy, not this backend outbound list.
+const FORCED_LOCAL_PROXY_BYPASS = Object.freeze(["localhost", "127.0.0.1", "::1"]);
 
 const DEFAULT_NETWORK_PROXY_CONFIG = Object.freeze({
   mode: "system",
@@ -109,8 +112,28 @@ function noProxyEntries(noProxy) {
     .filter(Boolean);
 }
 
+function withForcedLocalProxyBypass(noProxy, options = {}) {
+  const entries = noProxyEntries(noProxy);
+  const seen = new Set(entries.map(entry => entry.toLowerCase()));
+  for (const entry of FORCED_LOCAL_PROXY_BYPASS) {
+    if (seen.has(entry.toLowerCase())) continue;
+    entries.push(entry);
+    seen.add(entry.toLowerCase());
+  }
+  if (options.electron === true && !seen.has("<local>")) {
+    entries.push("<local>");
+  }
+  return entries.join(", ");
+}
+
 function stripHostBrackets(host) {
   return String(host || "").replace(/^\[/, "").replace(/\]$/, "").toLowerCase();
+}
+
+function isForcedLocalHost(host) {
+  const normalized = stripHostBrackets(host);
+  if (normalized === "localhost" || normalized === "::1") return true;
+  return /^127(?:\.\d{1,3}){3}$/.test(normalized);
 }
 
 function splitNoProxyEntry(entry) {
@@ -161,7 +184,6 @@ function effectiveUrlPort(parsed) {
 }
 
 function isNoProxyMatch(targetUrl, noProxy) {
-  if (!noProxy) return false;
   let parsed;
   try {
     parsed = targetUrl instanceof URL ? targetUrl : new URL(String(targetUrl));
@@ -170,6 +192,8 @@ function isNoProxyMatch(targetUrl, noProxy) {
   }
   const host = stripHostBrackets(parsed.hostname);
   const port = effectiveUrlPort(parsed);
+  if (isForcedLocalHost(host)) return true;
+  if (!noProxy) return false;
 
   for (const entry of noProxyEntries(noProxy)) {
     const rule = splitNoProxyEntry(entry);
@@ -282,7 +306,8 @@ function proxyConfigToEnvironment(config, baseEnv = process.env) {
   if (httpsProxy) env.HTTPS_PROXY = env.https_proxy = httpsProxy;
   if (wsProxy) env.WS_PROXY = env.ws_proxy = wsProxy;
   if (wssProxy) env.WSS_PROXY = env.wss_proxy = wssProxy;
-  if (normalized.noProxy) env.NO_PROXY = env.no_proxy = normalized.noProxy;
+  const noProxy = withForcedLocalProxyBypass(normalized.noProxy);
+  if (noProxy) env.NO_PROXY = env.no_proxy = noProxy;
   return env;
 }
 
@@ -312,15 +337,17 @@ function electronProxyRulesForConfig(config) {
 
 function electronProxyBypassRulesForConfig(config) {
   const normalized = normalizeNetworkProxyConfig(config);
-  return noProxyEntries(normalized.noProxy).join(",");
+  return noProxyEntries(withForcedLocalProxyBypass(normalized.noProxy, { electron: true })).join(",");
 }
 
 module.exports = {
   NETWORK_PROXY_MODES,
   DEFAULT_NO_PROXY,
+  FORCED_LOCAL_PROXY_BYPASS,
   DEFAULT_NETWORK_PROXY_CONFIG,
   normalizeNetworkProxyConfig,
   noProxyEntries,
+  withForcedLocalProxyBypass,
   isNoProxyMatch,
   proxyConfigFromEnvironment,
   resolveProxyForUrl,
