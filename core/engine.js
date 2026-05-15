@@ -326,6 +326,8 @@ export class HanaEngine {
     this._devLogs = [];
     this._devLogsMax = 200;
 
+    this._outboundProxyRuntime = null;
+
     // 设置起始 agentId
     this._agentMgr.activeAgentId = startId;
   }
@@ -579,6 +581,13 @@ export class HanaEngine {
   setBridgeReadOnly(v) { this._prefs.setBridgeReadOnly(v); }
   getBridgeReceiptEnabled() { return this._prefs.getBridgeReceiptEnabled(); }
   setBridgeReceiptEnabled(v) { this._prefs.setBridgeReceiptEnabled(v); }
+  setOutboundProxyRuntime(runtime) { this._outboundProxyRuntime = runtime || null; }
+  getNetworkProxy() { return this._prefs.getNetworkProxy(); }
+  setNetworkProxy(v) {
+    const config = this._prefs.setNetworkProxy(v);
+    this._outboundProxyRuntime?.apply?.(config);
+    return config;
+  }
   getBridgeMediaPublicBaseUrl() { return this._prefs.getBridgeMediaPublicBaseUrl(); }
   setBridgeMediaPublicBaseUrl(v) { return this._prefs.setBridgeMediaPublicBaseUrl(v); }
   getSharedModels() { return this._configCoord.getSharedModels(); }

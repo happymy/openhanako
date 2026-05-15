@@ -43,6 +43,12 @@ const {
   buildBrowserSearchLoadOptions,
   buildBrowserSearchUrl,
 } = require("../lib/browser/browser-search-extractors.cjs");
+const {
+  normalizeNetworkProxyConfig,
+  electronProxyRulesForConfig,
+  electronProxyBypassRulesForConfig,
+  proxyConfigToEnvironment,
+} = require("../shared/network-proxy.cjs");
 
 const APP_USER_MODEL_ID = "com.hanako.app"; // Keep in sync with package.json build.appId.
 
@@ -97,6 +103,84 @@ configureProcessPiSdkEnv(hanakoHome);
 
 function redactMainLogText(value) {
   return redactLogText(value, { homeDir: os.homedir(), extraPaths: [hanakoHome] });
+}
+
+function readNetworkProxyPreference() {
+  const prefsPath = path.join(hanakoHome, "user", "preferences.json");
+  const prefs = safeReadJSON(prefsPath, {});
+  return normalizeNetworkProxyConfig(prefs?.network_proxy);
+}
+
+async function applyDesktopNetworkProxy(config, { reason = "runtime" } = {}) {
+  const normalized = normalizeNetworkProxyConfig(config);
+  const ses = session.defaultSession;
+  if (!ses) return normalized;
+
+  if (normalized.mode === "direct") {
+    await ses.setProxy({ mode: "direct" });
+  } else if (normalized.mode === "manual") {
+    const proxyRules = electronProxyRulesForConfig(normalized);
+    await ses.setProxy({
+      mode: "fixed_servers",
+      proxyRules,
+      proxyBypassRules: electronProxyBypassRulesForConfig(normalized),
+    });
+  } else {
+    await ses.setProxy({ mode: "system" });
+  }
+
+  console.log(`[desktop] network proxy applied (${reason}): ${normalized.mode}`);
+  return normalized;
+}
+
+function parseElectronProxyList(proxyList) {
+  const first = String(proxyList || "")
+    .split(";")
+    .map(item => item.trim())
+    .find(item => item && item.toUpperCase() !== "DIRECT");
+  if (!first) return "";
+
+  const match = first.match(/^([A-Z0-9]+)\s+(.+)$/i);
+  if (!match) return "";
+  const type = match[1].toUpperCase();
+  const server = match[2].trim();
+  if (!server) return "";
+
+  if (type === "SOCKS5") return `socks5://${server}`;
+  if (type === "SOCKS") return `socks://${server}`;
+  if (type === "HTTPS") return `https://${server}`;
+  return `http://${server}`;
+}
+
+async function resolveElectronProxyUrl(targetUrl) {
+  try {
+    return parseElectronProxyList(await session.defaultSession.resolveProxy(targetUrl));
+  } catch {
+    return "";
+  }
+}
+
+async function serverEnvironmentForNetworkProxy(baseEnv) {
+  const config = readNetworkProxyPreference();
+  if (config.mode === "manual" || config.mode === "direct") {
+    return proxyConfigToEnvironment(config, baseEnv);
+  }
+
+  const env = { ...(baseEnv || {}) };
+  const [httpProxy, httpsProxy, wsProxy, wssProxy] = await Promise.all([
+    resolveElectronProxyUrl("http://example.com"),
+    resolveElectronProxyUrl("https://example.com"),
+    resolveElectronProxyUrl("ws://example.com"),
+    resolveElectronProxyUrl("wss://example.com"),
+  ]);
+  if (httpProxy) env.HTTP_PROXY = env.http_proxy = httpProxy;
+  if (httpsProxy) env.HTTPS_PROXY = env.https_proxy = httpsProxy;
+  if (wsProxy) env.WS_PROXY = env.ws_proxy = wsProxy;
+  if (wssProxy) env.WSS_PROXY = env.wss_proxy = wssProxy;
+  if (config.noProxy && !env.NO_PROXY && !env.no_proxy) {
+    env.NO_PROXY = env.no_proxy = config.noProxy;
+  }
+  return env;
 }
 
 // 按 HANA_HOME 隔离 Electron userData（localStorage / cache / session）
@@ -612,7 +696,8 @@ async function _spawnServerOnce(serverInfoPath) {
   _serverLogs = [];
   _lastServerProgressAtMs = null;
 
-  const serverEnv = { ...withHanaPiSdkEnv(process.env, hanakoHome), HANA_HOME: hanakoHome };
+  let serverEnv = { ...withHanaPiSdkEnv(process.env, hanakoHome), HANA_HOME: hanakoHome };
+  serverEnv = await serverEnvironmentForNetworkProxy(serverEnv);
 
   // Windows: 注入 PortableGit 路径
   if (process.platform === "win32") {
@@ -2552,6 +2637,11 @@ wrapIpcOn("settings-changed", (_event, type, data) => {
       browserViewerWindow.webContents.send("settings-changed", type, data);
     }
   }
+  if (type === "network-proxy-changed") {
+    applyDesktopNetworkProxy(data?.network_proxy || readNetworkProxyPreference(), { reason: "settings" }).catch(err => {
+      console.error("[desktop] apply network proxy failed:", redactMainLogText(err.message));
+    });
+  }
   if (type === "locale-changed") {
     resetMainI18n();
     // 重建托盘菜单，使标签跟随新 locale
@@ -3130,6 +3220,7 @@ app.whenReady().then(async () => {
     }
     const splashShownAt = Date.now();
     await resolveLoginShellPath();
+    await applyDesktopNetworkProxy(readNetworkProxyPreference(), { reason: "startup" });
 
     // 2. 后台启动 server（PATH 已就绪）
     console.log("[desktop] 启动 Hanako Server...");

@@ -24,6 +24,8 @@ export default defineConfig({
         "@silvia-odwyer/photon-node",
         "@larksuiteoapi/node-sdk",
         "node-telegram-bot-api",
+        "proxy-agent",
+        "undici",
         "exceljs",
         "mammoth",
         // jsdom: CJS package that reads package-local resources via __dirname
