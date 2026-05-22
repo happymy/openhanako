@@ -1,29 +1,42 @@
 import os from "node:os";
+import path from "node:path";
 
-// 模型侧看到稳定的 bash 工具契约；Windows 的 Git/cmd/POSIX runtime
-// 分派属于 win32-exec 的执行层细节，避免泄漏到 prompt 里干扰规划。
-function getExecShellLabel() {
-  return "bash";
+const DEFAULT_SANDBOX_MODE = "read-all_write-scoped_network-on";
+
+function envValue(env, name) {
+  const source = env || {};
+  const direct = source[name];
+  if (direct) return direct;
+  const key = Object.keys(source).find((item) => item.toLowerCase() === name.toLowerCase());
+  return key ? source[key] : undefined;
+}
+
+function shellNameFromPath(shellPath) {
+  const raw = String(shellPath || "").trim();
+  if (!raw) return "";
+  return path.basename(raw).replace(/(?:\.exe)$/i, "");
+}
+
+function getExecShellLabel(platform, env = process.env) {
+  if (platform === "win32") return "powershell";
+  return shellNameFromPath(envValue(env, "SHELL")) || "bash";
 }
 
 export function getPlatformPromptNote({
   platform = process.platform,
   osType = os.type(),
   osRelease = os.release(),
+  cwd = "",
+  env = process.env,
 } = {}) {
-  const lines = [
-    `Platform: ${platform}`,
-    `Shell: ${getExecShellLabel(platform)}`,
-    `OS Version: ${osType} ${osRelease}`,
-  ];
-  if (platform === "win32") {
-    lines.push(
-      "Host OS is Windows, but the bash tool accepts POSIX shell-style commands.",
-      "Hanako may internally route simple git commands through bundled git.exe and explicit cmd.exe/powershell.exe commands through Windows-native runners.",
-      "Prefer POSIX syntax for pipes, paths, environment variables, and redirection when writing shell-style commands.",
-      "Use cmd.exe /c or powershell.exe -NoProfile -Command only when you explicitly need a Windows-native shell.",
-      "Discard POSIX command output with /dev/null; use CMD's nul device only inside an explicit cmd.exe command.",
-    );
-  }
-  return lines.join("\n");
+  return [
+    "<environment_context>",
+    `  <platform>${platform}</platform>`,
+    `  <cwd>${cwd}</cwd>`,
+    `  <shell>${getExecShellLabel(platform, env)}</shell>`,
+    `  <os>${osType} ${osRelease}</os>`,
+    `  <sandbox_mode>${DEFAULT_SANDBOX_MODE}</sandbox_mode>`,
+    "</environment_context>",
+    "Use structured file tools for source edits. Use shell for builds, tests, scripts, and command-line tools.",
+  ].join("\n");
 }
