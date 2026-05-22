@@ -10,7 +10,13 @@ import { t } from "../i18n.js";
 import { extractBlocks, resolveMediaGenerationBlocks } from "../block-extractors.js";
 import { BrowserManager } from "../../lib/browser/browser-manager.js";
 import { sessionIdFromFilename } from "../../lib/session-jsonl.js";
-import { parseDeferredResultNotification } from "../../lib/deferred-result-notification.js";
+import {
+  DEFERRED_RESULT_MESSAGE_TYPE,
+  DEFERRED_RESULT_RECORD_TYPE,
+  buildDeferredResultRecord,
+  parseDeferredResultNotification,
+  parseDeferredResultRecord,
+} from "../../lib/deferred-result-notification.js";
 import {
   materializeExecutorIdentity,
   readSubagentSessionMetaSync,
@@ -426,6 +432,7 @@ export function createSessionsRoute(engine, hub = null) {
         sessionPath: queryPath || engine.currentSessionPath || null,
       });
       if (!auth.allowed) return c.json({ error: "insufficient_scope", reason: auth.reason }, 403);
+      const resolvedSessionPath = queryPath || engine.currentSessionPath || null;
       const sourceMessages = await loadSessionHistoryMessages(engine, queryPath);
 
       // 分页参数
@@ -438,6 +445,16 @@ export function createSessionsRoute(engine, hub = null) {
       const blocks = [];
       const mediaGenerationResults = new Map();
       const standaloneMediaGenerationResults = [];
+      const recordMediaGenerationResult = (parsed, afterIndex) => {
+        if (!parsed?.taskId || !isMediaGenerationDeferredResult(parsed)) return;
+        mediaGenerationResults.set(parsed.taskId, parsed);
+        if (parsed.status === "success") {
+          standaloneMediaGenerationResults.push({
+            ...parsed,
+            afterIndex,
+          });
+        }
+      };
       let globalIdx = 0;
 
       for (const m of sourceMessages) {
@@ -474,16 +491,16 @@ export function createSessionsRoute(engine, hub = null) {
           for (const b of extracted) {
             blocks.push({ ...b, afterIndex: allMessages.length - 1 });
           }
-        } else if (m.role === "custom" && m.customType === "hana-background-result") {
-          const parsed = parseDeferredResultNotification(m.content);
-          if (!parsed?.taskId || !isMediaGenerationDeferredResult(parsed)) continue;
-          mediaGenerationResults.set(parsed.taskId, parsed);
-          if (parsed.status === "success") {
-            standaloneMediaGenerationResults.push({
-              ...parsed,
-              afterIndex: allMessages.length - 1,
-            });
-          }
+        } else if (m.role === "custom") {
+          recordMediaGenerationResult(parseHistoryDeferredResult(m), allMessages.length - 1);
+        }
+      }
+
+      const deferredStore = engine.deferredResults;
+      if (resolvedSessionPath && typeof deferredStore?.listBySession === "function") {
+        for (const task of deferredStore.listBySession(resolvedSessionPath)) {
+          if (!isTerminalDeferredTask(task)) continue;
+          recordMediaGenerationResult(buildDeferredResultRecord(task.taskId, task), allMessages.length - 1);
         }
       }
       const resolvedBlocks = resolveMediaGenerationBlocks(
@@ -587,7 +604,6 @@ export function createSessionsRoute(engine, hub = null) {
         }
       }
 
-      const resolvedSessionPath = queryPath || engine.currentSessionPath || null;
       patchSessionFileLifecycleBlocks(slicedBlocks, engine, resolvedSessionPath);
       const sessionFiles = listSessionRegistryFiles(engine, resolvedSessionPath);
 
@@ -1107,6 +1123,20 @@ function listSessionRegistryFiles(engine, sessionPath) {
 
 function isMediaGenerationDeferredResult(result) {
   return result?.type === "image-generation" || result?.type === "video-generation";
+}
+
+function parseHistoryDeferredResult(message) {
+  if (message?.customType === DEFERRED_RESULT_RECORD_TYPE) {
+    return parseDeferredResultRecord(message.data);
+  }
+  if (message?.customType === DEFERRED_RESULT_MESSAGE_TYPE) {
+    return parseDeferredResultNotification(message.content);
+  }
+  return null;
+}
+
+function isTerminalDeferredTask(task) {
+  return task?.status === "resolved" || task?.status === "failed" || task?.status === "aborted";
 }
 
 function sessionFileLifecycleFields(file, engine) {

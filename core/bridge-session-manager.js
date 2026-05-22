@@ -330,6 +330,31 @@ export class BridgeSessionManager {
     return null;
   }
 
+  recordCustomEntryForSessionPath(sessionPath, customType, data, opts = {}) {
+    if (!sessionPath) throw new Error("recordCustomEntryForSessionPath: sessionPath is required");
+    if (!customType) throw new Error("recordCustomEntryForSessionPath: customType is required");
+    const context = this.getBridgeContextForSessionPath(sessionPath, opts);
+    if (context?.isBridgeSession !== true) return null;
+
+    const resolved = path.resolve(sessionPath);
+    for (const session of this._activeSessions.values()) {
+      const activePath = session?.sessionManager?.getSessionFile?.();
+      if (!activePath || path.resolve(activePath) !== resolved) continue;
+      if (typeof session.sessionManager?.appendCustomEntry !== "function") {
+        throw new Error("recordCustomEntryForSessionPath: active bridge session does not support custom entries");
+      }
+      session.sessionManager.appendCustomEntry(customType, data);
+      return { ok: true, mode: "bridge-live" };
+    }
+
+    if (!fs.existsSync(resolved)) {
+      throw new Error(`recordCustomEntryForSessionPath: session file not found: ${sessionPath}`);
+    }
+    const manager = SessionManager.open(resolved, path.dirname(resolved));
+    manager.appendCustomEntry(customType, data);
+    return { ok: true, mode: "bridge-file" };
+  }
+
   _buildOwnerFreshCompactContext(agent, homeCwd) {
     const prefs = this._deps.getPreferences();
     const systemPrompt = agent.buildSystemPrompt({

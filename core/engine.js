@@ -398,6 +398,9 @@ export class HanaEngine {
       this._deferredResultCoordinator = new DeferredResultCoordinator({
         store,
         sessionCoordinator: this._sessionCoord,
+        recordCustomEntry: (sessionPath, customType, data) => (
+          this.recordSessionCustomEntry(sessionPath, customType, data)
+        ),
       });
       this._deferredResultCoordinator.start();
     }
@@ -560,6 +563,11 @@ export class HanaEngine {
   async abortBridgeSession(key) { return this._bridge?.abortSession(key) ?? false; }
   steerBridgeSession(key, text) { return this._bridge?.steerSession(key, text) ?? false; }
   get bridgeSessionManager() { return this._bridge; }
+  recordSessionCustomEntry(sessionPath, customType, data) {
+    const bridgeResult = this._bridge?.recordCustomEntryForSessionPath?.(sessionPath, customType, data);
+    if (bridgeResult?.ok) return bridgeResult;
+    return this._sessionCoord.recordCustomEntry(sessionPath, customType, data);
+  }
   getBridgeContextForSessionPath(sessionPath, opts = {}) {
     return this._bridge?.getBridgeContextForSessionPath?.(sessionPath, opts) || null;
   }

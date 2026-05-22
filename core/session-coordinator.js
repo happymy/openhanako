@@ -269,16 +269,16 @@ function makeBackgroundTaskPrompt(locale) {
 
 1. 先继续做手头还没做完的工作，不要立刻停下来等
 2. 手头工作做完后，调 check_pending_tasks 查看后台任务状态
-3. 如果还有任务未完成，根据任务复杂度自行估算等待时间，调 wait 等待后再查。最多查 2 次，之后不再轮询，告知用户任务仍在后台运行，完成后会自动通知
-4. 后台任务完成时系统也会以 <hana-background-result> 消息自动送达结果，届时处理并告知用户`
+3. 如果还有任务未完成，根据任务复杂度自行估算等待时间，调 wait 等待后再查。最多查 2 次，之后不再轮询，告知用户任务仍在后台运行，完成后会自动处理
+4. 只有需要你继续处理的后台任务，系统才会以 <hana-background-result> 消息送达结果；媒体生成这类 UI 结果由界面和 Bridge 自动处理，不要等待或主动追问`
     : `## Background Tasks
 
 After dispatching subagent or other background tasks:
 
 1. Continue with any remaining work first — do not stop immediately to wait
 2. Once your other work is done, call check_pending_tasks to check status
-3. If tasks are still pending, estimate a reasonable wait time based on task complexity, then call wait and check again. Check at most 2 times — after that, stop polling and inform the user the task is still running and they will be notified when it completes
-4. The system will also automatically deliver results via <hana-background-result> messages when tasks finish — process and relay them to the user`;
+3. If tasks are still pending, estimate a reasonable wait time based on task complexity, then call wait and check again. Check at most 2 times — after that, stop polling and tell the user the task is still running and will be handled in the background
+4. Only background tasks that need your follow-up are delivered via <hana-background-result> messages. Media generation is handled by the UI and Bridge automatically; do not wait for it or ask about it again`;
 }
 
 function buildAppendSystemPromptSnapshot({
@@ -1124,6 +1124,22 @@ export class SessionCoordinator {
     const triggerTurn = options?.triggerTurn !== false;
     await entry.session.sendCustomMessage(message, { triggerTurn });
     return { ok: true, mode: triggerTurn ? "triggerTurn" : "notifyOnly" };
+  }
+
+  recordCustomEntry(sessionPath, customType, data) {
+    if (!sessionPath) throw new Error("recordCustomEntry: sessionPath is required");
+    if (!customType) throw new Error("recordCustomEntry: customType is required");
+    this._assertActiveDesktopSessionPath(sessionPath, "recordCustomEntry");
+
+    const liveManager = this._sessions.get(sessionPath)?.session?.sessionManager;
+    if (typeof liveManager?.appendCustomEntry === "function") {
+      liveManager.appendCustomEntry(customType, data);
+      return { ok: true, mode: "live" };
+    }
+
+    const manager = SessionManager.open(sessionPath, path.dirname(sessionPath));
+    manager.appendCustomEntry(customType, data);
+    return { ok: true, mode: "file" };
   }
 
   async abortSession(sessionPath) {
