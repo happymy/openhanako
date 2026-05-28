@@ -57,17 +57,48 @@ describe("SessionProjectCatalogStore", () => {
     ]);
   });
 
-  it("rejects blank names and unsupported folder moves instead of silently falling back", () => {
+  it("creates folders and moves projects into a folder with scoped ordering", () => {
+    const { store } = makeStore();
+
+    const folder = store.createFolder({ name: "作品集" });
+    const projectA = store.createProject({ name: "简历" });
+    const projectB = store.createProject({ name: "网站", folderId: folder.id });
+
+    expect(folder).toMatchObject({ id: expect.stringMatching(/^folder-/), name: "作品集", order: 0 });
+    expect(projectB.folderId).toBe(folder.id);
+
+    const moved = store.updateProject(projectA.id, { folderId: folder.id });
+    expect(moved).toMatchObject({ id: projectA.id, folderId: folder.id, order: 1 });
+
+    const reordered = store.reorderProjects({ folderId: folder.id, projectIds: [projectA.id, projectB.id] });
+    expect(reordered.projects.filter(project => project.folderId === folder.id).map(project => project.id)).toEqual([
+      projectA.id,
+      projectB.id,
+    ]);
+  });
+
+  it("persists folder ordering independently from project ordering", () => {
+    const { store } = makeStore();
+
+    const folderA = store.createFolder({ name: "A" });
+    const folderB = store.createFolder({ name: "B" });
+    const reordered = store.reorderFolders({ folderIds: [folderB.id, folderA.id] });
+
+    expect(reordered.folders.map(folder => folder.id)).toEqual([folderB.id, folderA.id]);
+  });
+
+  it("rejects blank names and missing folder moves instead of silently falling back", () => {
     const { store } = makeStore();
 
     const project = store.createProject({ name: "Good" });
     expect(() => store.createProject({ name: " " })).toThrow(/name/);
-    expect(() => store.createProject({ name: "Bad", folderId: "missing-folder" })).toThrow(/folders/);
-    expect(() => store.updateProject(project.id, { folderId: "folder-work" })).toThrow(/folders/);
-    expect(() => store.reorderProjects({ folderId: "folder-work", projectIds: [project.id] })).toThrow(/folders/);
+    expect(() => store.createFolder({ name: " " })).toThrow(/name/);
+    expect(() => store.createProject({ name: "Bad", folderId: "missing-folder" })).toThrow(/folder not found/);
+    expect(() => store.updateProject(project.id, { folderId: "folder-work" })).toThrow(/folder not found/);
+    expect(() => store.reorderProjects({ folderId: "folder-work", projectIds: [project.id] })).toThrow(/folder not found/);
   });
 
-  it("flattens older catalog files that still contain folders", () => {
+  it("preserves catalog files that contain folders", () => {
     const { userDir, store } = makeStore();
     fs.mkdirSync(userDir, { recursive: true });
     fs.writeFileSync(path.join(userDir, "session-projects.json"), JSON.stringify({
@@ -77,8 +108,8 @@ describe("SessionProjectCatalogStore", () => {
     }));
 
     expect(store.getCatalog()).toEqual({
-      folders: [],
-      projects: [{ id: "project-resume", name: "简历和作品集", folderId: null, order: 0 }],
+      folders: [{ id: "folder-work", name: "作品集", order: 0 }],
+      projects: [{ id: "project-resume", name: "简历和作品集", folderId: "folder-work", order: 0 }],
     });
   });
 

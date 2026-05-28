@@ -102,6 +102,7 @@
       "newProject": "新建项目",
       "newFolder": "新建文件夹",
       "renameProject": "重命名项目",
+      "renameFolder": "重命名文件夹",
       "newProjectPrompt": "项目名称",
       "newFolderPrompt": "文件夹名称",
       "createAction": "创建",

@@ -48,6 +48,22 @@ export function autoProjectNameForCwd(cwd, fallback = "未指定项目") {
 }
 
 export function normalizeSessionProjectCatalog(input = {}) {
+  const rawFolders = Array.isArray(input?.folders) ? input.folders : [];
+  const folders = [];
+  const folderIds = new Set();
+  for (const [index, raw] of rawFolders.entries()) {
+    if (!raw || typeof raw !== "object") continue;
+    const id = normalizeSessionProjectId(raw.id);
+    const name = normalizeProjectName(raw.name);
+    if (!id || !name || folderIds.has(id)) continue;
+    folderIds.add(id);
+    folders.push({
+      id,
+      name,
+      order: finiteOrder(raw.order, index),
+    });
+  }
+
   const rawProjects = Array.isArray(input?.projects) ? input.projects : [];
   const projects = [];
   const projectIds = new Set();
@@ -56,17 +72,19 @@ export function normalizeSessionProjectCatalog(input = {}) {
     const id = normalizeSessionProjectId(raw.id);
     const name = normalizeProjectName(raw.name);
     if (!id || !name || projectIds.has(id)) continue;
+    const folderId = normalizeSessionProjectId(raw.folderId);
     projectIds.add(id);
     projects.push({
       id,
       name,
-      folderId: null,
+      folderId: folderId && folderIds.has(folderId) ? folderId : null,
       order: finiteOrder(raw.order, index),
     });
   }
 
+  folders.sort(compareOrderedByName);
   projects.sort(compareOrderedByName);
-  return { folders: [], projects };
+  return { folders, projects };
 }
 
 export function serializeSessionProjectCatalog(catalog) {

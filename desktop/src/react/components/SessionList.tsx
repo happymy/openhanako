@@ -20,6 +20,7 @@ import {
   buildSessionProjectView,
   buildSessionSections,
   type SessionProjectCatalog,
+  type SessionProjectFolderGroup,
   type SessionProjectGroup,
   type SessionViewMode,
 } from './session-sections';
@@ -30,23 +31,38 @@ import styles from './SessionList.module.css';
 const SESSION_VIEW_MODE_KEY = 'hana-session-sidebar-view-mode';
 const SESSION_DRAG_MIME = 'application/x-hana-session-path';
 const PROJECT_DRAG_MIME = 'application/x-hana-project-id';
+const FOLDER_DRAG_MIME = 'application/x-hana-project-folder-id';
+const PROJECT_SESSION_PREVIEW_LIMIT = 5;
 
-const EMPTY_PROJECT_CATALOG: SessionProjectCatalog = { projects: [] };
+const EMPTY_PROJECT_CATALOG: SessionProjectCatalog = { folders: [], projects: [] };
 
 type SidebarDragState =
   | { kind: 'session'; sessionPath: string }
   | { kind: 'project'; projectId: string }
+  | { kind: 'folder'; folderId: string }
   | null;
 
 type ProjectNameDialogState =
   | { kind: 'create-project'; value: string }
   | { kind: 'rename-project'; projectId: string; value: string }
+  | { kind: 'rename-folder'; folderId: string; value: string }
   | null;
 
 type ProjectActionMenuState = {
   position: { x: number; y: number };
   project: SessionProjectGroup;
 } | null;
+
+type FolderActionMenuState = {
+  position: { x: number; y: number };
+  folder: SessionProjectFolderGroup;
+} | null;
+
+interface SidebarProjectViewPrefs {
+  collapsedProjectIds: string[];
+  collapsedFolderIds: string[];
+  showAllProjectIds: string[];
+}
 
 interface BrowserSessionState {
   url: string | null;
@@ -131,7 +147,53 @@ function normalizeProjectCatalog(data: unknown): SessionProjectCatalog {
     ? raw as Partial<SessionProjectCatalog>
     : EMPTY_PROJECT_CATALOG;
   return {
+    folders: Array.isArray(catalog.folders) ? catalog.folders : [],
     projects: Array.isArray(catalog.projects) ? catalog.projects : [],
+  };
+}
+
+function uniqueStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const id = item.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+function normalizeSidebarProjectViewPrefs(data: unknown): SidebarProjectViewPrefs {
+  const raw = data && typeof data === 'object' && !Array.isArray(data)
+    ? (data as { sidebarUi?: unknown; projectView?: unknown })
+    : {};
+  const sidebarUi = raw.sidebarUi && typeof raw.sidebarUi === 'object' && !Array.isArray(raw.sidebarUi)
+    ? raw.sidebarUi as { projectView?: unknown }
+    : raw;
+  const projectView = sidebarUi.projectView && typeof sidebarUi.projectView === 'object' && !Array.isArray(sidebarUi.projectView)
+    ? sidebarUi.projectView as Partial<SidebarProjectViewPrefs>
+    : {};
+  return {
+    collapsedProjectIds: uniqueStringArray(projectView.collapsedProjectIds),
+    collapsedFolderIds: uniqueStringArray(projectView.collapsedFolderIds),
+    showAllProjectIds: uniqueStringArray(projectView.showAllProjectIds),
+  };
+}
+
+function sidebarProjectViewPayload(
+  collapsedProjectIds: Set<string>,
+  collapsedFolderIds: Set<string>,
+  showAllProjectIds: Set<string>,
+): { projectView: SidebarProjectViewPrefs } {
+  return {
+    projectView: {
+      collapsedProjectIds: [...collapsedProjectIds],
+      collapsedFolderIds: [...collapsedFolderIds],
+      showAllProjectIds: [...showAllProjectIds],
+    },
   };
 }
 
@@ -143,6 +205,11 @@ function dragSessionPath(event: React.DragEvent, state: SidebarDragState): strin
 function dragProjectId(event: React.DragEvent, state: SidebarDragState): string | null {
   const fromState = state?.kind === 'project' ? state.projectId : null;
   return event.dataTransfer.getData(PROJECT_DRAG_MIME) || fromState;
+}
+
+function dragFolderId(event: React.DragEvent, state: SidebarDragState): string | null {
+  const fromState = state?.kind === 'folder' ? state.folderId : null;
+  return event.dataTransfer.getData(FOLDER_DRAG_MIME) || fromState;
 }
 
 // ── 主组件 ──
@@ -167,8 +234,11 @@ function SessionListInner() {
   const [viewMode, setViewModeState] = useState<SessionViewMode>(readInitialSessionViewMode);
   const [projectCatalog, setProjectCatalog] = useState<SessionProjectCatalog>(EMPTY_PROJECT_CATALOG);
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(() => new Set());
+  const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => new Set());
+  const [showAllProjectIds, setShowAllProjectIds] = useState<Set<string>>(() => new Set());
   const [projectMenuPosition, setProjectMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [projectActionMenu, setProjectActionMenu] = useState<ProjectActionMenuState>(null);
+  const [folderActionMenu, setFolderActionMenu] = useState<FolderActionMenuState>(null);
   const [projectNameDialog, setProjectNameDialog] = useState<ProjectNameDialogState>(null);
   const [dragState, setDragState] = useState<SidebarDragState>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -266,6 +336,22 @@ function SessionListInner() {
     }
   }, []);
 
+  const persistSidebarProjectView = useCallback((
+    nextCollapsedProjectIds: Set<string>,
+    nextCollapsedFolderIds: Set<string>,
+    nextShowAllProjectIds: Set<string>,
+  ) => {
+    hanaFetch('/api/preferences/sidebar-ui', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sidebarProjectViewPayload(
+        nextCollapsedProjectIds,
+        nextCollapsedFolderIds,
+        nextShowAllProjectIds,
+      )),
+    }).catch(err => console.warn('[sessions] persist sidebar UI prefs failed:', err));
+  }, []);
+
   useEffect(() => {
     if (viewMode !== 'project') return;
     let cancelled = false;
@@ -275,6 +361,24 @@ function SessionListInner() {
         if (!cancelled) setProjectCatalog(normalizeProjectCatalog(data));
       })
       .catch(err => console.warn('[sessions] fetch project catalog failed:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== 'project') return;
+    let cancelled = false;
+    hanaFetch('/api/preferences/sidebar-ui')
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        const prefs = normalizeSidebarProjectViewPrefs(data);
+        setCollapsedProjectIds(new Set(prefs.collapsedProjectIds));
+        setCollapsedFolderIds(new Set(prefs.collapsedFolderIds));
+        setShowAllProjectIds(new Set(prefs.showAllProjectIds));
+      })
+      .catch(err => console.warn('[sessions] fetch sidebar UI prefs failed:', err));
     return () => {
       cancelled = true;
     };
@@ -344,11 +448,41 @@ function SessionListInner() {
     return project;
   }, []);
 
+  const patchFolder = useCallback(async (folderId: string, patch: { name?: string }) => {
+    const res = await hanaFetch(`/api/session-projects/folders/${encodeURIComponent(folderId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    const data = await res.json().catch(() => ({}));
+    const folder = data?.folder;
+    if (!folder || typeof folder.id !== 'string') return null;
+    setProjectCatalog(catalog => ({
+      ...catalog,
+      folders: (catalog.folders || []).some(item => item.id === folder.id)
+        ? (catalog.folders || []).map(item => item.id === folder.id ? folder : item)
+        : [...(catalog.folders || []), folder],
+    }));
+    return folder;
+  }, []);
+
   const reorderProjects = useCallback(async (folderId: string | null, projectIds: string[]) => {
     const res = await hanaFetch('/api/session-projects/projects/reorder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ folderId, projectIds }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data?.catalog) {
+      setProjectCatalog(normalizeProjectCatalog({ catalog: data.catalog }));
+    }
+  }, []);
+
+  const reorderFolders = useCallback(async (folderIds: string[]) => {
+    const res = await hanaFetch('/api/session-projects/folders/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folderIds }),
     });
     const data = await res.json().catch(() => ({}));
     if (data?.catalog) {
@@ -375,11 +509,13 @@ function SessionListInner() {
     if (!name) return;
     if (projectNameDialog.kind === 'create-project') {
       await createProject(name);
-    } else {
+    } else if (projectNameDialog.kind === 'rename-project') {
       await patchProject(projectNameDialog.projectId, { name });
+    } else {
+      await patchFolder(projectNameDialog.folderId, { name });
     }
     setProjectNameDialog(null);
-  }, [createProject, patchProject, projectNameDialog]);
+  }, [createProject, patchFolder, patchProject, projectNameDialog]);
 
   const handleSessionDragStart = useCallback((event: React.DragEvent, session: Session) => {
     event.dataTransfer.effectAllowed = 'move';
@@ -393,18 +529,26 @@ function SessionListInner() {
     setDragState({ kind: 'project', projectId });
   }, []);
 
+  const handleFolderDragStart = useCallback((event: React.DragEvent, folderId: string) => {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData(FOLDER_DRAG_MIME, folderId);
+    setDragState({ kind: 'folder', folderId });
+  }, []);
+
   const clearDragState = useCallback(() => {
     setDragState(null);
     setDropTargetId(null);
   }, []);
 
-  const ensureCatalogProject = useCallback(async (project: SessionProjectGroup) => {
-    if (projectCatalog.projects.some(item => item.id === project.id)) return;
-    await patchProject(project.id, { name: project.name });
+  const ensureCatalogProject = useCallback(async (project: SessionProjectGroup, folderId: string | null = project.folderId) => {
+    const existing = projectCatalog.projects.find(item => item.id === project.id);
+    if (existing && existing.folderId === folderId) return;
+    await patchProject(project.id, { name: project.name, folderId });
   }, [patchProject, projectCatalog.projects]);
 
   const handleDropOnProject = useCallback(async (event: React.DragEvent, project: SessionProjectGroup) => {
     event.preventDefault();
+    event.stopPropagation();
     const sessionPath = dragSessionPath(event, dragState);
     const projectId = dragProjectId(event, dragState);
     clearDragState();
@@ -416,21 +560,80 @@ function SessionListInner() {
       return;
     }
     if (projectId && projectId !== project.id) {
-      const visibleProjects = buildSessionProjectView(sessions, projectCatalog).rootProjects;
+      const visibleView = buildSessionProjectView(sessions, projectCatalog);
+      const visibleProjects = [
+        ...visibleView.rootProjects,
+        ...visibleView.folders.flatMap(folder => folder.projects),
+      ];
       const draggedProject = visibleProjects.find(item => item.id === projectId) || null;
       if (!draggedProject) return;
-      const nextProjectIds = visibleProjects
+      const targetFolderId = project.folderId || null;
+      const levelProjects = visibleProjects.filter(item => (item.folderId || null) === targetFolderId);
+      const nextProjectIds = levelProjects
         .map(item => item.id)
         .filter(id => id !== projectId);
       const insertIndex = nextProjectIds.indexOf(project.id);
       nextProjectIds.splice(insertIndex >= 0 ? insertIndex : nextProjectIds.length, 0, projectId);
       for (const id of nextProjectIds) {
         const visibleProject = visibleProjects.find(item => item.id === id);
-        if (visibleProject) await ensureCatalogProject(visibleProject);
+        if (visibleProject) await ensureCatalogProject(visibleProject, targetFolderId);
       }
-      await reorderProjects(null, nextProjectIds);
+      await reorderProjects(targetFolderId, nextProjectIds);
     }
   }, [clearDragState, dragState, ensureCatalogProject, projectCatalog, reorderProjects, sessions, updateSessionProjectAssignment]);
+
+  const handleDropOnProjectRoot = useCallback(async (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const projectId = dragProjectId(event, dragState);
+    clearDragState();
+    if (!projectId) return;
+    const visibleView = buildSessionProjectView(sessions, projectCatalog);
+    const visibleProjects = [
+      ...visibleView.rootProjects,
+      ...visibleView.folders.flatMap(folder => folder.projects),
+    ];
+    const draggedProject = visibleProjects.find(item => item.id === projectId) || null;
+    if (!draggedProject) return;
+    const nextProjectIds = visibleView.rootProjects
+      .map(item => item.id)
+      .filter(id => id !== projectId);
+    nextProjectIds.push(projectId);
+    await ensureCatalogProject(draggedProject, null);
+    await reorderProjects(null, nextProjectIds);
+  }, [clearDragState, dragState, ensureCatalogProject, projectCatalog, reorderProjects, sessions]);
+
+  const handleDropOnFolder = useCallback(async (event: React.DragEvent, folder: SessionProjectFolderGroup) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const projectId = dragProjectId(event, dragState);
+    const folderId = dragFolderId(event, dragState);
+    clearDragState();
+    const visibleView = buildSessionProjectView(sessions, projectCatalog);
+    if (projectId) {
+      const visibleProjects = [
+        ...visibleView.rootProjects,
+        ...visibleView.folders.flatMap(item => item.projects),
+      ];
+      const draggedProject = visibleProjects.find(item => item.id === projectId) || null;
+      if (!draggedProject) return;
+      const nextProjectIds = folder.projects
+        .map(item => item.id)
+        .filter(id => id !== projectId);
+      nextProjectIds.push(projectId);
+      await ensureCatalogProject(draggedProject, folder.id);
+      await reorderProjects(folder.id, nextProjectIds);
+      return;
+    }
+    if (folderId && folderId !== folder.id) {
+      const nextFolderIds = visibleView.folders
+        .map(item => item.id)
+        .filter(id => id !== folderId);
+      const insertIndex = nextFolderIds.indexOf(folder.id);
+      nextFolderIds.splice(insertIndex >= 0 ? insertIndex : nextFolderIds.length, 0, folderId);
+      await reorderFolders(nextFolderIds);
+    }
+  }, [clearDragState, dragState, ensureCatalogProject, projectCatalog, reorderFolders, reorderProjects, sessions]);
 
   const activeSessionPath = pendingSessionSwitchPath || currentSessionPath;
   const renderSessionItem = (s: Session, options: { draggable?: boolean } = {}) => (
@@ -472,9 +675,27 @@ function SessionListInner() {
       const next = new Set(prev);
       if (next.has(projectId)) next.delete(projectId);
       else next.add(projectId);
+      persistSidebarProjectView(next, collapsedFolderIds, showAllProjectIds);
       return next;
     });
-  }, []);
+  }, [collapsedFolderIds, persistSidebarProjectView, showAllProjectIds]);
+  const handleToggleFolderCollapsed = useCallback((folderId: string) => {
+    setCollapsedFolderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
+      persistSidebarProjectView(collapsedProjectIds, next, showAllProjectIds);
+      return next;
+    });
+  }, [collapsedProjectIds, persistSidebarProjectView, showAllProjectIds]);
+  const handleShowAllProject = useCallback((projectId: string) => {
+    setShowAllProjectIds(prev => {
+      const next = new Set(prev);
+      next.add(projectId);
+      persistSidebarProjectView(collapsedProjectIds, collapsedFolderIds, next);
+      return next;
+    });
+  }, [collapsedFolderIds, collapsedProjectIds, persistSidebarProjectView]);
   const handleProjectNameChange = useCallback((value: string) => {
     setProjectNameDialog(dialog => dialog ? { ...dialog, value } : dialog);
   }, []);
@@ -530,16 +751,24 @@ function SessionListInner() {
       view={projectView}
       renderSessionItem={(session) => renderSessionItem(session, { draggable: true })}
       collapsedProjectIds={collapsedProjectIds}
+      collapsedFolderIds={collapsedFolderIds}
+      showAllProjectIds={showAllProjectIds}
       dragState={dragState}
       dropTargetId={dropTargetId}
       setDropTargetId={setDropTargetId}
       onToggleProject={handleToggleProjectCollapsed}
+      onToggleFolder={handleToggleFolderCollapsed}
+      onShowAllProject={handleShowAllProject}
       onProjectDragStart={handleProjectDragStart}
+      onFolderDragStart={handleFolderDragStart}
       onDragEnd={clearDragState}
       onDropProject={handleDropOnProject}
+      onDropFolder={handleDropOnFolder}
+      onDropRoot={handleDropOnProjectRoot}
       onOpenMenu={setProjectMenuPosition}
       onCreateProject={() => setProjectNameDialog({ kind: 'create-project', value: '' })}
       onOpenProjectMenu={(position, project) => setProjectActionMenu({ position, project })}
+      onOpenFolderMenu={(position, folder) => setFolderActionMenu({ position, folder })}
     />
   ) : timeContent;
 
@@ -582,6 +811,22 @@ function SessionListInner() {
                 kind: 'rename-project',
                 projectId: projectActionMenu.project.id,
                 value: projectActionMenu.project.name,
+              }),
+            },
+          ]}
+        />
+      )}
+      {folderActionMenu && (
+        <ContextMenu
+          position={folderActionMenu.position}
+          onClose={() => setFolderActionMenu(null)}
+          items={[
+            {
+              label: t('sidebar.projects.renameFolder'),
+              action: () => setProjectNameDialog({
+                kind: 'rename-folder',
+                folderId: folderActionMenu.folder.id,
+                value: folderActionMenu.folder.name,
               }),
             },
           ]}
@@ -633,10 +878,16 @@ function ProjectNameDialog({
   const { t } = useI18n();
   const titleKey = dialog.kind === 'create-project'
     ? 'sidebar.projects.newProject'
-    : 'sidebar.projects.renameProject';
-  const placeholderKey = 'sidebar.projects.newProjectPrompt';
+    : dialog.kind === 'rename-folder'
+      ? 'sidebar.projects.renameFolder'
+      : 'sidebar.projects.renameProject';
+  const placeholderKey = dialog.kind === 'rename-folder'
+    ? 'sidebar.projects.newFolderPrompt'
+    : 'sidebar.projects.newProjectPrompt';
   const actionKey = dialog.kind === 'rename-project'
     ? 'sidebar.projects.save'
+    : dialog.kind === 'rename-folder'
+      ? 'sidebar.projects.save'
     : 'sidebar.projects.createAction';
 
   return createPortal(
@@ -672,30 +923,46 @@ function ProjectSessionView({
   view,
   renderSessionItem,
   collapsedProjectIds,
+  collapsedFolderIds,
+  showAllProjectIds,
   dragState,
   dropTargetId,
   setDropTargetId,
   onToggleProject,
+  onToggleFolder,
+  onShowAllProject,
   onProjectDragStart,
+  onFolderDragStart,
   onDragEnd,
   onDropProject,
+  onDropFolder,
+  onDropRoot,
   onOpenMenu,
   onCreateProject,
   onOpenProjectMenu,
+  onOpenFolderMenu,
 }: {
   view: ReturnType<typeof buildSessionProjectView>;
   renderSessionItem: (session: Session) => React.ReactNode;
   collapsedProjectIds: Set<string>;
+  collapsedFolderIds: Set<string>;
+  showAllProjectIds: Set<string>;
   dragState: SidebarDragState;
   dropTargetId: string | null;
   setDropTargetId: (id: string | null) => void;
   onToggleProject: (projectId: string) => void;
+  onToggleFolder: (folderId: string) => void;
+  onShowAllProject: (projectId: string) => void;
   onProjectDragStart: (event: React.DragEvent, projectId: string) => void;
+  onFolderDragStart: (event: React.DragEvent, folderId: string) => void;
   onDragEnd: () => void;
   onDropProject: (event: React.DragEvent, project: SessionProjectGroup) => void;
+  onDropFolder: (event: React.DragEvent, folder: SessionProjectFolderGroup) => void;
+  onDropRoot: (event: React.DragEvent) => void;
   onOpenMenu: (position: { x: number; y: number }) => void;
   onCreateProject: () => void;
   onOpenProjectMenu: (position: { x: number; y: number }, project: SessionProjectGroup) => void;
+  onOpenFolderMenu: (position: { x: number; y: number }, folder: SessionProjectFolderGroup) => void;
 }) {
   const { t } = useI18n();
   return (
@@ -742,13 +1009,16 @@ function ProjectSessionView({
           setDropTargetId('root');
         }}
         onDragLeave={() => setDropTargetId(null)}
+        onDrop={onDropRoot}
       >
         {view.rootProjects.map(project => (
           <ProjectBlock
             key={project.id}
             project={project}
-            expanded={!collapsedProjectIds.has(project.id)}
+            collapsed={collapsedProjectIds.has(project.id)}
+            showAll={showAllProjectIds.has(project.id)}
             onToggle={() => onToggleProject(project.id)}
+            onShowAll={() => onShowAllProject(project.id)}
             renderSessionItem={renderSessionItem}
             dropTargetId={dropTargetId}
             setDropTargetId={setDropTargetId}
@@ -758,8 +1028,31 @@ function ProjectSessionView({
             onOpenProjectMenu={onOpenProjectMenu}
           />
         ))}
+        {view.folders.map(folder => (
+          <FolderBlock
+            key={folder.id}
+            folder={folder}
+            collapsed={collapsedFolderIds.has(folder.id)}
+            collapsedProjectIds={collapsedProjectIds}
+            showAllProjectIds={showAllProjectIds}
+            onToggle={() => onToggleFolder(folder.id)}
+            onToggleProject={onToggleProject}
+            onShowAllProject={onShowAllProject}
+            renderSessionItem={renderSessionItem}
+            dragState={dragState}
+            dropTargetId={dropTargetId}
+            setDropTargetId={setDropTargetId}
+            onProjectDragStart={onProjectDragStart}
+            onFolderDragStart={onFolderDragStart}
+            onDragEnd={onDragEnd}
+            onDropProject={onDropProject}
+            onDropFolder={onDropFolder}
+            onOpenProjectMenu={onOpenProjectMenu}
+            onOpenFolderMenu={onOpenFolderMenu}
+          />
+        ))}
       </div>
-      {view.rootProjects.length === 0 && (
+      {view.rootProjects.length === 0 && view.folders.length === 0 && (
         <div className={styles.sessionEmpty}>{t('sidebar.projects.empty')}</div>
       )}
     </>
@@ -768,8 +1061,10 @@ function ProjectSessionView({
 
 function ProjectBlock({
   project,
-  expanded,
+  collapsed,
+  showAll,
   onToggle,
+  onShowAll,
   renderSessionItem,
   dropTargetId,
   setDropTargetId,
@@ -779,8 +1074,10 @@ function ProjectBlock({
   onOpenProjectMenu,
 }: {
   project: SessionProjectGroup;
-  expanded: boolean;
+  collapsed: boolean;
+  showAll: boolean;
   onToggle: () => void;
+  onShowAll: () => void;
   renderSessionItem: (session: Session) => React.ReactNode;
   dropTargetId: string | null;
   setDropTargetId: (id: string | null) => void;
@@ -789,15 +1086,21 @@ function ProjectBlock({
   onDropProject: (event: React.DragEvent, project: SessionProjectGroup) => void;
   onOpenProjectMenu: (position: { x: number; y: number }, project: SessionProjectGroup) => void;
 }) {
-  const visibleItems = expanded ? project.items : [];
+  const visibleItems = collapsed
+    ? []
+    : showAll
+      ? project.items
+      : project.items.slice(0, PROJECT_SESSION_PREVIEW_LIMIT);
+  const hasMore = !collapsed && !showAll && project.items.length > PROJECT_SESSION_PREVIEW_LIMIT;
   const lastDragEndAtRef = useRef(0);
+  const { t } = useI18n();
   return (
     <div className={styles.projectBlock}>
       <div
         className={`${styles.projectRow}${dropTargetId === project.id ? ` ${styles.dropTarget}` : ''}`}
         role="button"
         tabIndex={0}
-        aria-expanded={expanded}
+        aria-expanded={!collapsed}
         draggable
         onClick={() => {
           if (Date.now() - lastDragEndAtRef.current < 250) return;
@@ -830,7 +1133,115 @@ function ProjectBlock({
       </div>
       <div className={styles.projectSessionList}>
         {visibleItems.map(session => renderSessionItem(session))}
+        {hasMore && (
+          <button type="button" className={styles.projectShowMoreButton} onClick={onShowAll}>
+            {t('sidebar.projects.showMore')}
+          </button>
+        )}
       </div>
+    </div>
+  );
+}
+
+function FolderBlock({
+  folder,
+  collapsed,
+  collapsedProjectIds,
+  showAllProjectIds,
+  onToggle,
+  onToggleProject,
+  onShowAllProject,
+  renderSessionItem,
+  dragState,
+  dropTargetId,
+  setDropTargetId,
+  onProjectDragStart,
+  onFolderDragStart,
+  onDragEnd,
+  onDropProject,
+  onDropFolder,
+  onOpenProjectMenu,
+  onOpenFolderMenu,
+}: {
+  folder: SessionProjectFolderGroup;
+  collapsed: boolean;
+  collapsedProjectIds: Set<string>;
+  showAllProjectIds: Set<string>;
+  onToggle: () => void;
+  onToggleProject: (projectId: string) => void;
+  onShowAllProject: (projectId: string) => void;
+  renderSessionItem: (session: Session) => React.ReactNode;
+  dragState: SidebarDragState;
+  dropTargetId: string | null;
+  setDropTargetId: (id: string | null) => void;
+  onProjectDragStart: (event: React.DragEvent, projectId: string) => void;
+  onFolderDragStart: (event: React.DragEvent, folderId: string) => void;
+  onDragEnd: () => void;
+  onDropProject: (event: React.DragEvent, project: SessionProjectGroup) => void;
+  onDropFolder: (event: React.DragEvent, folder: SessionProjectFolderGroup) => void;
+  onOpenProjectMenu: (position: { x: number; y: number }, project: SessionProjectGroup) => void;
+  onOpenFolderMenu: (position: { x: number; y: number }, folder: SessionProjectFolderGroup) => void;
+}) {
+  const lastDragEndAtRef = useRef(0);
+  return (
+    <div className={styles.folderBlock}>
+      <div
+        className={`${styles.projectRow}${dropTargetId === folder.id ? ` ${styles.dropTarget}` : ''}`}
+        role="button"
+        tabIndex={0}
+        aria-expanded={!collapsed}
+        draggable
+        onClick={() => {
+          if (Date.now() - lastDragEndAtRef.current < 250) return;
+          onToggle();
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          onToggle();
+        }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          onOpenFolderMenu({ x: event.clientX, y: event.clientY }, folder);
+        }}
+        onDragStart={(event) => onFolderDragStart(event, folder.id)}
+        onDragEnd={() => {
+          lastDragEndAtRef.current = Date.now();
+          onDragEnd();
+        }}
+        onDragOver={(event) => {
+          if (dragState?.kind === 'session') return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'move';
+          setDropTargetId(folder.id);
+        }}
+        onDragLeave={() => setDropTargetId(null)}
+        onDrop={(event) => onDropFolder(event, folder)}
+      >
+        <FolderIcon />
+        <span className={styles.projectName}>{folder.name}</span>
+      </div>
+      {!collapsed && (
+        <div className={styles.folderProjectList}>
+          {folder.projects.map(project => (
+            <ProjectBlock
+              key={project.id}
+              project={project}
+              collapsed={collapsedProjectIds.has(project.id)}
+              showAll={showAllProjectIds.has(project.id)}
+              onToggle={() => onToggleProject(project.id)}
+              onShowAll={() => onShowAllProject(project.id)}
+              renderSessionItem={renderSessionItem}
+              dropTargetId={dropTargetId}
+              setDropTargetId={setDropTargetId}
+              onProjectDragStart={onProjectDragStart}
+              onDragEnd={onDragEnd}
+              onDropProject={onDropProject}
+              onOpenProjectMenu={onOpenProjectMenu}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

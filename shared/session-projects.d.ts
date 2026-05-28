@@ -9,8 +9,14 @@ export interface SessionProjectRecord {
   order: number;
 }
 
+export interface SessionProjectFolderRecord {
+  id: string;
+  name: string;
+  order: number;
+}
+
 export interface SessionProjectCatalogRecord {
-  folders: [];
+  folders: SessionProjectFolderRecord[];
   projects: SessionProjectRecord[];
 }
 
@@ -23,6 +29,6 @@ export function autoProjectNameForCwd(cwd: unknown, fallback?: string): string;
 export function normalizeSessionProjectCatalog(input?: unknown): SessionProjectCatalogRecord;
 export function serializeSessionProjectCatalog(catalog: unknown): {
   version: typeof SESSION_PROJECTS_VERSION;
-  folders: [];
+  folders: SessionProjectFolderRecord[];
   projects: SessionProjectRecord[];
 };

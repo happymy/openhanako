@@ -588,12 +588,48 @@
     padding: 0;
 }
 
+.folderBlock {
+    margin: 0;
+    padding: 0;
+}
+
+.folderProjectList {
+    padding-left: 0;
+}
+
 .projectSessionList {
     padding-left: 0;
 }
 
 .projectSessionList:not(:empty) {
     padding-top: 1px;
+}
+
+.projectShowMoreButton {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 30px;
+    padding: 4px var(--space-sm);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    text-align: left;
+    cursor: default;
+    opacity: 0.72;
+    transition: background var(--duration-fast), color var(--duration-fast), opacity var(--duration-fast);
+}
+
+.projectShowMoreButton:hover,
+.projectShowMoreButton:focus-visible {
+    color: var(--accent);
+    background: var(--accent-light);
+    opacity: 1;
+    outline: none;
 }
 
 .projectNameDialogBackdrop {

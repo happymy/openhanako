@@ -102,6 +102,7 @@
       "newProject": "新規プロジェクト",
       "newFolder": "新規フォルダ",
       "renameProject": "プロジェクト名を変更",
+      "renameFolder": "フォルダ名を変更",
       "newProjectPrompt": "プロジェクト名",
       "newFolderPrompt": "フォルダ名",
       "createAction": "作成",

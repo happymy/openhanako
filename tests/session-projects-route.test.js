@@ -46,6 +46,76 @@ describe("session projects route", () => {
     expect(engine.createSessionProject).toHaveBeenCalledWith({ name: "插件官网", folderId: null });
   });
 
+  it("creates and reorders folders through the engine facade", async () => {
+    const engine = {
+      createSessionProjectFolder: vi.fn(({ name }) => ({ id: "folder-new", name, order: 2 })),
+      reorderSessionProjectFolders: vi.fn(({ folderIds }) => ({
+        folders: folderIds.map((id, order) => ({ id, name: id, order })),
+        projects: [],
+      })),
+    };
+    const app = makeApp(engine);
+
+    const createRes = await app.request("/api/session-projects/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "作品集" }),
+    });
+    const createBody = await createRes.json();
+
+    const reorderRes = await app.request("/api/session-projects/folders/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderIds: ["folder-b", "folder-a"] }),
+    });
+    const reorderBody = await reorderRes.json();
+
+    expect(createRes.status).toBe(200);
+    expect(createBody.folder).toEqual({ id: "folder-new", name: "作品集", order: 2 });
+    expect(engine.createSessionProjectFolder).toHaveBeenCalledWith({ name: "作品集" });
+    expect(reorderRes.status).toBe(200);
+    expect(reorderBody.catalog.folders.map(folder => folder.id)).toEqual(["folder-b", "folder-a"]);
+    expect(engine.reorderSessionProjectFolders).toHaveBeenCalledWith({ folderIds: ["folder-b", "folder-a"] });
+  });
+
+  it("creates projects inside folders and moves projects across levels", async () => {
+    const engine = {
+      createSessionProject: vi.fn(({ name, folderId }) => ({ id: "project-new", name, folderId, order: 0 })),
+      updateSessionProject: vi.fn((id, patch) => ({ id, name: "Moved", folderId: patch.folderId, order: 1 })),
+      reorderSessionProjects: vi.fn(({ folderId, projectIds }) => ({
+        folders: [{ id: "folder-work", name: "作品集", order: 0 }],
+        projects: projectIds.map((id, order) => ({ id, name: id, folderId, order })),
+      })),
+    };
+    const app = makeApp(engine);
+
+    const createRes = await app.request("/api/session-projects/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "官网", folderId: "folder-work" }),
+    });
+    const moveRes = await app.request("/api/session-projects/projects/project-new", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId: null }),
+    });
+    const reorderRes = await app.request("/api/session-projects/projects/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId: "folder-work", projectIds: ["project-a", "project-b"] }),
+    });
+
+    expect(createRes.status).toBe(200);
+    expect(engine.createSessionProject).toHaveBeenCalledWith({ name: "官网", folderId: "folder-work" });
+    expect(moveRes.status).toBe(200);
+    expect(engine.updateSessionProject).toHaveBeenCalledWith("project-new", { folderId: null });
+    expect(reorderRes.status).toBe(200);
+    expect(engine.reorderSessionProjects).toHaveBeenCalledWith({
+      folderId: "folder-work",
+      projectIds: ["project-a", "project-b"],
+    });
+  });
+
   it("renames projects and persists same-level order", async () => {
     const engine = {
       updateSessionProject: vi.fn(() => ({ id: "project-hana", name: "Project Hana", folderId: null, order: 0 })),
@@ -84,28 +154,21 @@ describe("session projects route", () => {
     });
   });
 
-  it("returns a clear error for unsupported folder routes", async () => {
+  it("renames folders through the engine facade", async () => {
     const engine = {
-      createSessionProject: vi.fn(),
+      updateSessionProjectFolder: vi.fn(() => ({ id: "folder-work", name: "作品集", order: 0 })),
     };
     const app = makeApp(engine);
 
-    const res = await app.request("/api/session-projects/projects", {
-      method: "POST",
+    const res = await app.request("/api/session-projects/folders/folder-work", {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Bad", folderId: "folder-work" }),
+      body: JSON.stringify({ name: "作品集" }),
     });
 
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "folders are not supported" });
-    expect(engine.createSessionProject).not.toHaveBeenCalled();
-
-    const folderRes = await app.request("/api/session-projects/folders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Unused" }),
-    });
-    expect(folderRes.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, folder: { id: "folder-work", name: "作品集", order: 0 } });
+    expect(engine.updateSessionProjectFolder).toHaveBeenCalledWith("folder-work", { name: "作品集" });
   });
 
   it("assigns a session to a project through session meta", async () => {

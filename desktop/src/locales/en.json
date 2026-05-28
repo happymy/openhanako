@@ -102,6 +102,7 @@
       "newProject": "New project",
       "newFolder": "New folder",
       "renameProject": "Rename project",
+      "renameFolder": "Rename folder",
       "newProjectPrompt": "Project name",
       "newFolderPrompt": "Folder name",
       "createAction": "Create",

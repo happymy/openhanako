@@ -102,6 +102,7 @@
       "newProject": "새 프로젝트",
       "newFolder": "새 폴더",
       "renameProject": "프로젝트 이름 바꾸기",
+      "renameFolder": "폴더 이름 바꾸기",
       "newProjectPrompt": "프로젝트 이름",
       "newFolderPrompt": "폴더 이름",
       "createAction": "만들기",

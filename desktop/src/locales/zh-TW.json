@@ -102,6 +102,7 @@
       "newProject": "新建項目",
       "newFolder": "新建資料夾",
       "renameProject": "重新命名項目",
+      "renameFolder": "重新命名資料夾",
       "newProjectPrompt": "項目名稱",
       "newFolderPrompt": "資料夾名稱",
       "createAction": "建立",

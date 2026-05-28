@@ -183,7 +183,7 @@ describe('buildSessionProjectView', () => {
     ]);
   });
 
-  it('flattens legacy folder assignments into one project list', () => {
+  it('keeps catalog folders and places assigned projects under their folder', () => {
     const catalog = {
       folders: [
         { id: 'folder-work', name: '作品集', order: 0 },
@@ -211,14 +211,22 @@ describe('buildSessionProjectView', () => {
 
     expect(sections.rootProjects).toEqual([
       expect.objectContaining({
-        id: 'project-resume',
-        folderId: null,
-        items: [expect.objectContaining({ path: '/sessions/resume.jsonl' })],
-      }),
-      expect.objectContaining({
         id: 'project-root',
         folderId: null,
         items: [expect.objectContaining({ path: '/sessions/root.jsonl' })],
+      }),
+    ]);
+    expect(sections.folders).toEqual([
+      expect.objectContaining({
+        id: 'folder-work',
+        name: '作品集',
+        projects: [
+          expect.objectContaining({
+            id: 'project-resume',
+            folderId: 'folder-work',
+            items: [expect.objectContaining({ path: '/sessions/resume.jsonl' })],
+          }),
+        ],
       }),
     ]);
   });
@@ -239,12 +247,19 @@ describe('buildSessionProjectView', () => {
     });
   });
 
-  it('does not surface empty legacy folders in the project-only view', () => {
+  it('surfaces empty catalog folders so users can drag projects into them', () => {
     const sections = buildSessionProjectView([], {
       folders: [{ id: 'folder-empty', name: '稍后整理', order: 0 }],
       projects: [],
     } as unknown as SessionProjectCatalog);
 
     expect(sections.rootProjects).toEqual([]);
+    expect(sections.folders).toEqual([
+      expect.objectContaining({
+        id: 'folder-empty',
+        name: '稍后整理',
+        projects: [],
+      }),
+    ]);
   });
 });

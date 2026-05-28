@@ -456,7 +456,7 @@ describe('SessionList context menu', () => {
     expect(await screen.findByText('Renamed Project')).toBeInTheDocument();
   });
 
-  it('toggles a project between fully collapsed and fully expanded session lists when the project row is clicked', async () => {
+  it('shows five project sessions by default and persists the show-all expansion', async () => {
     useStore.setState({
       sessions: Array.from({ length: 6 }, (_, index) => ({
         path: `/tmp/agents/hana/sessions/project-${index + 1}.jsonl`,
@@ -482,6 +482,9 @@ describe('SessionList context menu', () => {
           },
         });
       }
+      if (url === '/api/preferences/sidebar-ui') {
+        return jsonResponse({ sidebarUi: { projectView: { collapsedProjectIds: [], collapsedFolderIds: [], showAllProjectIds: [] } } });
+      }
       return jsonResponse({});
     });
 
@@ -489,13 +492,134 @@ describe('SessionList context menu', () => {
     await switchToProjectView();
 
     await waitFor(() => {
-      expect(screen.getByText('Project item 6')).toBeInTheDocument();
+      expect(screen.getByText('Project item 5')).toBeInTheDocument();
     });
-    fireEvent.click(await screen.findByText('Root Project'));
     expect(screen.queryByText('Project item 6')).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByText('Root Project'));
+    fireEvent.click(await screen.findByText('sidebar.projects.showMore'));
     await waitFor(() => {
       expect(screen.getByText('Project item 6')).toBeInTheDocument();
+      expect(hanaFetchMock).toHaveBeenCalledWith('/api/preferences/sidebar-ui', expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          projectView: {
+            collapsedProjectIds: [],
+            collapsedFolderIds: [],
+            showAllProjectIds: ['project-root'],
+          },
+        }),
+      }));
+    });
+  });
+
+  it('persists project row collapse state through sidebar UI preferences', async () => {
+    useStore.setState({
+      sessions: [
+        {
+          path: '/tmp/agents/hana/sessions/project-1.jsonl',
+          title: 'Project item 1',
+          firstMessage: 'hello',
+          modified: new Date().toISOString(),
+          messageCount: 1,
+          agentId: 'hana',
+          agentName: 'Hana',
+          cwd: '/tmp/project',
+          projectId: 'project-root',
+          pinnedAt: null,
+          hasSummary: false,
+        },
+      ],
+    });
+    hanaFetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/browser/session-states') return jsonResponse({});
+      if (url === '/api/session-projects') {
+        return jsonResponse({
+          catalog: {
+            folders: [],
+            projects: [{ id: 'project-root', name: 'Root Project', folderId: null, order: 0 }],
+          },
+        });
+      }
+      if (url === '/api/preferences/sidebar-ui' && !init) {
+        return jsonResponse({ sidebarUi: { projectView: { collapsedProjectIds: ['project-root'], collapsedFolderIds: [], showAllProjectIds: [] } } });
+      }
+      return jsonResponse({});
+    });
+
+    render(<SessionList />);
+    await switchToProjectView();
+
+    expect(await screen.findByText('Root Project')).toBeInTheDocument();
+    expect(screen.queryByText('Project item 1')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Root Project'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Project item 1')).toBeInTheDocument();
+      expect(hanaFetchMock).toHaveBeenCalledWith('/api/preferences/sidebar-ui', expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          projectView: {
+            collapsedProjectIds: [],
+            collapsedFolderIds: [],
+            showAllProjectIds: [],
+          },
+        }),
+      }));
+    });
+  });
+
+  it('renders catalog folders and persists folder row expansion state', async () => {
+    useStore.setState({
+      sessions: [
+        {
+          path: '/tmp/agents/hana/sessions/project-1.jsonl',
+          title: 'Folder child session',
+          firstMessage: 'hello',
+          modified: new Date().toISOString(),
+          messageCount: 1,
+          agentId: 'hana',
+          agentName: 'Hana',
+          cwd: '/tmp/project',
+          projectId: 'project-child',
+          pinnedAt: null,
+          hasSummary: false,
+        },
+      ],
+    });
+    hanaFetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/browser/session-states') return jsonResponse({});
+      if (url === '/api/session-projects') {
+        return jsonResponse({
+          catalog: {
+            folders: [{ id: 'folder-work', name: 'Work Folder', order: 0 }],
+            projects: [{ id: 'project-child', name: 'Child Project', folderId: 'folder-work', order: 0 }],
+          },
+        });
+      }
+      if (url === '/api/preferences/sidebar-ui' && !init) {
+        return jsonResponse({ sidebarUi: { projectView: { collapsedProjectIds: [], collapsedFolderIds: ['folder-work'], showAllProjectIds: [] } } });
+      }
+      return jsonResponse({});
+    });
+
+    render(<SessionList />);
+    await switchToProjectView();
+
+    expect(await screen.findByText('Work Folder')).toBeInTheDocument();
+    expect(screen.queryByText('Child Project')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Work Folder'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Child Project')).toBeInTheDocument();
+      expect(hanaFetchMock).toHaveBeenCalledWith('/api/preferences/sidebar-ui', expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          projectView: {
+            collapsedProjectIds: [],
+            collapsedFolderIds: [],
+            showAllProjectIds: [],
+          },
+        }),
+      }));
     });
   });
 
@@ -650,11 +774,11 @@ describe('SessionList context menu', () => {
     await waitFor(() => {
       expect(hanaFetchMock).toHaveBeenCalledWith(`/api/session-projects/projects/${encodeURIComponent(alphaId)}`, expect.objectContaining({
         method: 'PATCH',
-        body: JSON.stringify({ name: 'alpha-project' }),
+        body: JSON.stringify({ name: 'alpha-project', folderId: null }),
       }));
       expect(hanaFetchMock).toHaveBeenCalledWith(`/api/session-projects/projects/${encodeURIComponent(betaId)}`, expect.objectContaining({
         method: 'PATCH',
-        body: JSON.stringify({ name: 'beta-project' }),
+        body: JSON.stringify({ name: 'beta-project', folderId: null }),
       }));
       expect(hanaFetchMock).toHaveBeenCalledWith('/api/session-projects/projects/reorder', expect.objectContaining({
         method: 'POST',

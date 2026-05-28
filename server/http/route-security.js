@@ -75,6 +75,9 @@ export function classifyHttpRoute({ method = "GET", path = "" } = {}) {
   if (routePath === "/api/session-projects" || routePath.startsWith("/api/session-projects/")) {
     return scoped("chat");
   }
+  if (routePath === "/api/preferences/sidebar-ui") {
+    return (verb === "GET" || verb === "PUT") ? scoped("chat") : LOCAL_ONLY;
+  }
   if (isSettingsReadRoute(verb, routePath)) return scoped("settings.read");
   if (isSettingsWriteRoute(verb, routePath)) return scoped("settings.write");
   if (isProviderManagementRoute(verb, routePath)) return scoped("providers.manage");

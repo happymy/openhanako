@@ -615,6 +615,9 @@ export class HanaEngine {
   async abortSessionByPath(p) { return this._sessionCoord.abortSessionByPath(p); }
   async listSessions() { return this._sessionCoord.listSessions(); }
   getSessionProjectCatalog() { return this._sessionProjects.getCatalog(); }
+  createSessionProjectFolder(input) { return this._sessionProjects.createFolder(input); }
+  updateSessionProjectFolder(id, patch) { return this._sessionProjects.updateFolder(id, patch); }
+  reorderSessionProjectFolders(input) { return this._sessionProjects.reorderFolders(input); }
   createSessionProject(input) { return this._sessionProjects.createProject(input); }
   updateSessionProject(id, patch) { return this._sessionProjects.updateProject(id, patch); }
   reorderSessionProjects(input) { return this._sessionProjects.reorderProjects(input); }
@@ -865,6 +868,8 @@ export class HanaEngine {
   setAppearance(p) { return this._prefs.setAppearance(p); }
   getWorkspaceUiState(workspaceRoot, surface) { return this._prefs.getWorkspaceUiState(workspaceRoot, surface); }
   setWorkspaceUiState(workspaceRoot, surface, state) { return this._prefs.setWorkspaceUiState(workspaceRoot, surface, state); }
+  getSidebarUiPrefs() { return this._prefs.getSidebarUiPrefs(); }
+  setSidebarUiPrefs(partial) { return this._prefs.setSidebarUiPrefs(partial); }
   getPluginUiPrefs() { return this._prefs.getPluginUiPrefs(); }
   setPluginUiPrefs(partial) { return this._prefs.setPluginUiPrefs(partial); }
   getPluginDevToolsEnabled() { return this._prefs.getPluginDevToolsEnabled(); }

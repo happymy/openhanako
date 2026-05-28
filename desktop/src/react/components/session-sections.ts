@@ -15,7 +15,14 @@ export interface SessionProject {
   order: number;
 }
 
+export interface SessionProjectFolder {
+  id: string;
+  name: string;
+  order: number;
+}
+
 export interface SessionProjectCatalog {
+  folders?: SessionProjectFolder[];
   projects: SessionProject[];
 }
 
@@ -31,6 +38,14 @@ export interface SessionProjectGroup {
 export interface SessionProjectView {
   pinned: Session[];
   rootProjects: SessionProjectGroup[];
+  folders: SessionProjectFolderGroup[];
+}
+
+export interface SessionProjectFolderGroup {
+  id: string;
+  name: string;
+  order: number;
+  projects: SessionProjectGroup[];
 }
 
 export type SessionSection =
@@ -149,6 +164,8 @@ export function buildSessionProjectView(
     .sort((a, b) => pinnedTime(b) - pinnedTime(a) || compareByPath(a, b));
   const regular = sessions.filter(session => !isPinnedSession(session));
 
+  const catalogFolders = normalizeCatalogFolders(catalog.folders);
+  const folderIds = new Set(catalogFolders.map(folder => folder.id));
   const catalogProjects = normalizeCatalogProjects(catalog.projects);
   const projectById = new Map<string, SessionProjectGroup>();
 
@@ -156,7 +173,7 @@ export function buildSessionProjectView(
     projectById.set(project.id, {
       id: project.id,
       name: project.name,
-      folderId: null,
+      folderId: project.folderId && folderIds.has(project.folderId) ? project.folderId : null,
       order: project.order,
       source: 'catalog',
       items: [],
@@ -176,10 +193,20 @@ export function buildSessionProjectView(
     project.items.sort((a, b) => modifiedTime(b) - modifiedTime(a) || compareByPath(a, b));
   }
 
-  const rootProjects = Array.from(projectById.values())
+  const allProjects = Array.from(projectById.values());
+  const rootProjects = allProjects
+    .filter(project => !project.folderId)
     .sort(compareProjectGroups);
+  const folders = catalogFolders
+    .map(folder => ({
+      ...folder,
+      projects: allProjects
+        .filter(project => project.folderId === folder.id)
+        .sort(compareProjectGroups),
+    }))
+    .sort(compareFolders);
 
-  return { pinned, rootProjects };
+  return { pinned, rootProjects, folders };
 }
 
 function ensureProjectGroup(
@@ -210,8 +237,21 @@ function normalizeCatalogProjects(
     .map((project, index) => ({
       id: project.id,
       name: project.name,
-      folderId: null,
+      folderId: typeof project.folderId === 'string' && project.folderId.trim() ? project.folderId.trim() : null,
       order: Number.isFinite(project.order) ? project.order : index,
+    }));
+}
+
+function normalizeCatalogFolders(
+  folders: SessionProjectFolder[] | undefined,
+): SessionProjectFolder[] {
+  if (!Array.isArray(folders)) return [];
+  return folders
+    .filter(folder => !!folder && typeof folder.id === 'string' && typeof folder.name === 'string')
+    .map((folder, index) => ({
+      id: folder.id,
+      name: folder.name,
+      order: Number.isFinite(folder.order) ? folder.order : index,
     }));
 }
 
@@ -226,4 +266,10 @@ function compareProjectGroups(a: SessionProjectGroup, b: SessionProjectGroup): n
 
 function latestModifiedTime(project: SessionProjectGroup): number {
   return project.items.reduce((latest, session) => Math.max(latest, modifiedTime(session)), 0);
+}
+
+function compareFolders(a: SessionProjectFolderGroup, b: SessionProjectFolderGroup): number {
+  return a.order - b.order
+    || a.name.localeCompare(b.name)
+    || a.id.localeCompare(b.id);
 }
