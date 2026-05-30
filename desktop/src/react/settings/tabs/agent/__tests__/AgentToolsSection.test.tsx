@@ -45,11 +45,11 @@ describe("AgentToolsSection", () => {
   it("renders registered optional toggles while ignoring global tools", () => {
     const { container } = render(
       <AgentToolsSection
-        availableTools={["automation", "beautify", "browser", "computer", "cron", "dm", "install_skill", "update_settings", "read"]}
+        availableTools={["automation", "beautify", "browser", "computer", "cron", "dm", "install_skill", "update_settings", "workflow", "read"]}
         disabled={[]}
       />
     );
-    expect(container.querySelectorAll("[data-tool-name]")).toHaveLength(7);
+    expect(container.querySelectorAll("[data-tool-name]")).toHaveLength(8);
     expect(getRow(container, "automation")).toBeTruthy();
     expect(getRow(container, "beautify")).toBeTruthy();
     expect(getRow(container, "browser")).toBeTruthy();
@@ -58,6 +58,8 @@ describe("AgentToolsSection", () => {
     expect(getRow(container, "dm")).toBeTruthy();
     expect(getRow(container, "install_skill")).toBeTruthy();
     expect(getRow(container, "update_settings")).toBeTruthy();
+    expect(getRow(container, "workflow")).toBeTruthy();
+    expect(getRow(container, "computer")).toBeNull();
   });
 
   it("renders built-in optional toggles while availableTools is not returned yet", () => {
@@ -67,11 +69,12 @@ describe("AgentToolsSection", () => {
         disabled={["update_settings", "dm"]}
       />
     );
-    expect(container.querySelectorAll("[data-tool-name]")).toHaveLength(7);
+    expect(container.querySelectorAll("[data-tool-name]")).toHaveLength(8);
     expect(getRow(container, "automation")).toBeTruthy();
     expect(getRow(container, "beautify")).toBeTruthy();
     expect(getRow(container, "browser")).toBeTruthy();
     expect(getRow(container, "computer")).toBeNull();
+    expect(getRow(container, "workflow")).toBeTruthy();
   });
 
   it("hides dm row when dm is not in availableTools (single agent env)", () => {

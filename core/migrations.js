@@ -110,6 +110,8 @@ const migrations = {
   32: migrateAgentPhoneRuntimeOutOfProjection,
   // 小花美术默认显式关闭；旧 Agent 配置只有用户手动开启后才可用
   33: migrateBeautifyDefaultExplicitOff,
+  // workflow 默认显式关闭：从全局设置页开关迁移为 per-agent 工具开关后，老 agent 补 disabled
+  34: migrateWorkflowDefaultExplicitOff,
 };
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -939,6 +941,37 @@ function migrateBeautifyDefaultExplicitOff(ctx) {
     if (existing.includes("beautify")) continue;
     saveConfig(cfgPath, { tools: { disabled: [...existing, "beautify"] } });
     log(`[migrations] #33: beautify defaulted to disabled for "${dir.name}"`);
+  }
+}
+
+/**
+ * #34 — workflow 工具默认显式关闭
+ *
+ * workflow 从全局高权限设置页开关迁移为 per-agent 工具开关，默认 opt-in 关闭。
+ * 老配置的 tools.disabled 里不会有 workflow（旧机制下它不是 per-agent 工具），
+ * 迁移显式把 workflow 补进 disabled，让升级用户默认关，需在助手页手动开启。
+ * 已含则跳过（幂等），用户后续手动开关会正常覆盖。
+ */
+function migrateWorkflowDefaultExplicitOff(ctx) {
+  const { agentsDir, log } = ctx;
+  let dirs;
+  try {
+    dirs = fs.readdirSync(agentsDir, { withFileTypes: true }).filter(d => d.isDirectory());
+  } catch {
+    return;
+  }
+
+  for (const dir of dirs) {
+    const cfgPath = path.join(agentsDir, dir.name, "config.yaml");
+    if (!fs.existsSync(cfgPath)) continue;
+    const config = safeReadYAMLSync(cfgPath, null, YAML);
+    if (!config) continue;
+    const existing = Array.isArray(config.tools?.disabled)
+      ? config.tools.disabled
+      : DEFAULT_DISABLED_TOOL_NAMES.filter((name) => name !== "workflow");
+    if (existing.includes("workflow")) continue;
+    saveConfig(cfgPath, { tools: { disabled: [...existing, "workflow"] } });
+    log(`[migrations] #34: workflow defaulted to disabled for "${dir.name}"`);
   }
 }
 
