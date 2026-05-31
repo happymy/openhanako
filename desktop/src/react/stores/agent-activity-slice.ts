@@ -21,6 +21,8 @@ export interface AgentActivityEntry {
   label?: string | null;
   phaseLabel?: string | null;
   tokens?: number | null;
+  // subagent 复用实例后缀（区分同名实例，如 毛毛·探索）；非复用为 null。
+  reuseInstance?: string | null;
 }
 
 export interface AgentActivitySlice {

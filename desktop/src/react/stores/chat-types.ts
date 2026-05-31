@@ -174,6 +174,7 @@ export type RichBlock =
     streamKey: string;
     streamStatus: 'running' | 'done' | 'failed' | 'aborted';
     summary?: string;
+    reuseInstance?: string | null;
   }
   | {
     // workflow inline 概览块（聊天流工具卡）：只携带「名 + 状态 + 时长」，不展开实时流。

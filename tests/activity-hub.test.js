@@ -22,6 +22,14 @@ describe("ActivityHub", () => {
     expect(hub.list()).toHaveLength(1);
   });
 
+  it("upsert 透传 reuseInstance（subagent 复用实例后缀），缺省为 null", () => {
+    const hub = new ActivityHub();
+    hub.upsert({ ...baseEntry, reuseInstance: "探索" });
+    expect(hub.get("subagent-1").reuseInstance).toBe("探索");
+    hub.upsert({ id: "s2", kind: "subagent", status: "running", sessionPath: "/s/a.jsonl" });
+    expect(hub.get("s2").reuseInstance).toBeNull();
+  });
+
   it("upsert 同 id 合并：running→done 保留 startedAt/sessionPath/summary，补 finishedAt", () => {
     const hub = new ActivityHub();
     hub.upsert(baseEntry);

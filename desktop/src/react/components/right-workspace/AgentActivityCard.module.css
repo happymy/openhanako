@@ -107,6 +107,14 @@
     text-overflow: ellipsis;
 }
 
+/* 复用实例后缀（如 ·探索）：不收缩、低对比度，作身份标注 */
+.instance {
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-left: 2px;
+}
+
 .summary {
     min-width: 0;
     font-size: 0.74rem;

@@ -125,6 +125,7 @@ export const BLOCK_EXTRACTORS = {
       streamKey: details.sessionPath || "",
       streamStatus: details.streamStatus || "running",
       summary: details.summary || null,
+      reuseInstance: details.reuseInstance || null,
     }];
   },
 

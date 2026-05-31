@@ -1670,6 +1670,14 @@
     color: var(--text-muted);
 }
 
+/* 复用实例后缀（如 毛毛·探索）：紧贴名字、低对比度，作身份标注而非状态 */
+.subagentInstance {
+    font-weight: normal;
+    font-size: 0.78rem;
+    margin-left: 5px;
+    color: var(--text-muted);
+}
+
 .subagent-done .subagentStatus {
     color: #7a9e7a;
 }
