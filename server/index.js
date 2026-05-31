@@ -77,6 +77,7 @@ import { DeferredResultStore } from "../lib/deferred-result-store.js";
 import { SubagentRunStore } from "../lib/subagent-run-store.js";
 import { ReusableSubagentStore } from "../lib/reusable-subagent-store.js";
 import { ActivityHub } from "../lib/activity-hub.js";
+import { WorkflowActivityStore } from "../lib/workflow-activity-store.js";
 import { normalizeDeferredResolveResult } from "../lib/deferred-result-payload.js";
 import { createDeferredResultExtension } from "../lib/extensions/deferred-result-ext.js";
 import { createCompactionGuardExtension } from "../lib/extensions/compaction-guard-ext.js";
@@ -409,7 +410,17 @@ engine.setReusableSubagentStore(reusableSubagentStore);
 
 // 统一 Agent Activity 实时真相源（内存广播层）：subagent / workflow / 巡检 都往这推，
 // 前端按当前对话 sessionPath 订阅。广播走 engine.emitEvent → WS（与 block_update 同一路）。
-const activityHub = new ActivityHub({ emit: (event, sp) => engine.emitEvent(event, sp) });
+// workflow / workflow_agent 另有持久化背书（重启不丢右侧卡）：启动先按 72h 修剪冷活动，
+// 再交给 ActivityHub 回灌（构造时把遗留 running 判孤儿、标 failed）。
+const WORKFLOW_ACTIVITY_TTL_MS = 72 * 60 * 60 * 1000;
+const workflowActivityStore = new WorkflowActivityStore(
+  path.join(hanakoHome, "workflow-activity.json"),
+);
+workflowActivityStore.prune(WORKFLOW_ACTIVITY_TTL_MS, Date.now());
+const activityHub = new ActivityHub(
+  { emit: (event, sp) => engine.emitEvent(event, sp) },
+  workflowActivityStore,
+);
 engine.setActivityHub(activityHub);
 
 // Bus handlers for plugin access

@@ -126,3 +126,82 @@ describe("ActivityHub", () => {
     expect(e.startedAt).toBe(1000);
   });
 });
+
+// ── 持久化背书（重启不丢右侧 workflow 卡）──
+
+function makeFakeStore(initial = []) {
+  const map = new Map(initial.map((e) => [e.id, { ...e }]));
+  return {
+    upsert: vi.fn((e) => { map.set(e.id, { ...e }); return { ...e }; }),
+    removeBySession: vi.fn((sp) => {
+      let n = 0;
+      for (const [id, e] of map) if (e.sessionPath === sp) { map.delete(id); n++; }
+      return n;
+    }),
+    list: () => [...map.values()].map((e) => ({ ...e })),
+    get: (id) => (map.has(id) ? { ...map.get(id) } : null),
+    _map: map,
+  };
+}
+
+describe("ActivityHub 持久化背书", () => {
+  it("workflow / workflow_agent 写穿 store；subagent / heartbeat 不写（各有自己的源）", () => {
+    const store = makeFakeStore();
+    const hub = new ActivityHub(null, store);
+    hub.upsert({ id: "wf-1", kind: "workflow", status: "running", sessionPath: "/s/a.jsonl" });
+    hub.upsert({ id: "wf-1::n1", kind: "workflow_agent", status: "running", sessionPath: "/s/a.jsonl", parentTaskId: "wf-1" });
+    hub.upsert({ id: "sub-1", kind: "subagent", status: "running", sessionPath: "/s/a.jsonl" });
+    hub.upsert({ id: "hb-1", kind: "heartbeat", status: "running", sessionPath: "/s/a.jsonl" });
+
+    const persistedIds = store.upsert.mock.calls.map((c) => c[0].id);
+    expect(persistedIds).toContain("wf-1");
+    expect(persistedIds).toContain("wf-1::n1");
+    expect(persistedIds).not.toContain("sub-1");
+    expect(persistedIds).not.toContain("hb-1");
+  });
+
+  it("构造时从 store 回灌；上一进程遗留的 running 判为孤儿 → 标 failed（不再永久转圈）", () => {
+    const store = makeFakeStore([
+      { id: "wf-done", kind: "workflow", status: "done", sessionPath: "/s/a.jsonl", startedAt: 1000, finishedAt: 2000, summary: "完成的" },
+      { id: "wf-orphan", kind: "workflow", status: "running", sessionPath: "/s/a.jsonl", startedAt: 1000, summary: "中断的" },
+      { id: "wf-orphan::n1", kind: "workflow_agent", status: "running", sessionPath: "/s/a.jsonl", parentTaskId: "wf-orphan", startedAt: 1000 },
+    ]);
+    const hub = new ActivityHub(null, store);
+    expect(hub.get("wf-done").status).toBe("done");          // 终态原样回灌
+    expect(hub.get("wf-orphan").status).toBe("failed");      // 孤儿 running → failed
+    expect(hub.get("wf-orphan").finishedAt).toBe(1000);      // 用 startedAt 兜 finishedAt
+    expect(hub.get("wf-orphan::n1").status).toBe("failed");  // 子节点同理
+    // 孤儿修正写回 store，保持落盘一致
+    expect(store.get("wf-orphan").status).toBe("failed");
+  });
+
+  it("rebroadcastSession 重发该 session 的活动（重启后让前端 slice 重新填充）", () => {
+    const bus = makeBus();
+    const store = makeFakeStore([
+      { id: "wf-a", kind: "workflow", status: "done", sessionPath: "/s/a.jsonl", startedAt: 1, finishedAt: 2 },
+      { id: "wf-b", kind: "workflow", status: "done", sessionPath: "/s/b.jsonl", startedAt: 1, finishedAt: 2 },
+    ]);
+    const hub = new ActivityHub(bus, store);
+    bus.emit.mockClear(); // 忽略回灌期间可能的 emit
+    hub.rebroadcastSession("/s/a.jsonl");
+    const emitted = bus.emit.mock.calls.filter((c) => c[0]?.type === "agent_activity").map((c) => c[0].entry.id);
+    expect(emitted).toContain("wf-a");
+    expect(emitted).not.toContain("wf-b");
+  });
+
+  it("clearBySession 同时清 store（会话退场，持久化也回收）", () => {
+    const store = makeFakeStore();
+    const hub = new ActivityHub(null, store);
+    hub.upsert({ id: "wf-1", kind: "workflow", status: "running", sessionPath: "/s/a.jsonl" });
+    hub.clearBySession("/s/a.jsonl");
+    expect(hub.get("wf-1")).toBeNull();
+    expect(store.removeBySession).toHaveBeenCalledWith("/s/a.jsonl");
+  });
+
+  it("无 store 时一切照旧（纯内存，无写穿/回灌）", () => {
+    const hub = new ActivityHub();
+    expect(hub.upsert({ id: "wf-1", kind: "workflow", status: "running", sessionPath: "/s/a.jsonl" })).toBeTruthy();
+    expect(typeof hub.rebroadcastSession).toBe("function");
+    hub.rebroadcastSession("/s/a.jsonl"); // 不抛
+  });
+});

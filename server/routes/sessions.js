@@ -334,6 +334,12 @@ export function createSessionsRoute(engine, hub = null) {
         lifecycleLog.warn(`reusable subagent cleanup failed for ${sessionPath}: ${err.message}`);
       }
       try {
+        // 右侧 workflow 卡活动随对话退场（内存 + 持久化背书一并清，按 sessionPath 归属）。
+        engine.activityHub?.clearBySession?.(sessionPath);
+      } catch (err) {
+        lifecycleLog.warn(`activity hub cleanup failed for ${sessionPath}: ${err.message}`);
+      }
+      try {
         engine.deferredResults?.suppressBySession?.(sessionPath, reason);
       } catch (err) {
         lifecycleLog.warn(`deferred cleanup failed for ${sessionPath}: ${err.message}`);
@@ -748,6 +754,13 @@ export function createSessionsRoute(engine, hub = null) {
       // 从历史中提取最新 todo 状态：branch-aware，沿当前 leaf 回溯到 root，
       // 只在当前分支路径上找最新合法快照。避免从抛弃的分支取到错误状态。
       const todos = extractLatestTodos(sourceMessages);
+
+      // 重启后右侧 workflow 卡复原：ActivityHub 已从持久化背书回灌该会话的 workflow 活动，
+      // 这里在「首屏载入」（非翻页）时重发一遍，让前端 agent-activity slice 重新填充。
+      // 翻页（beforeId != null）不重发，避免重复广播。WS 是全局广播、前端按 sessionPath 入库。
+      if (beforeId == null && resolvedSessionPath) {
+        engine.activityHub?.rebroadcastSession?.(resolvedSessionPath);
+      }
 
       return c.json({ messages, blocks: slicedBlocks, todos, hasMore, sessionFiles });
     } catch (err) {

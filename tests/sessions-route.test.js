@@ -862,6 +862,56 @@ describe("sessions route", () => {
     expect(wf.streamStatus).toBe("running");
   });
 
+  it("首屏载入重发该会话的 workflow 活动（重启后右侧卡复原）", async () => {
+    const { createSessionsRoute } = await import("../server/routes/sessions.js");
+    const msgUtils = await import("../core/message-utils.js");
+    const app = new Hono();
+
+    vi.mocked(msgUtils.extractTextContent)
+      .mockReturnValueOnce({ text: "hi", images: [], thinking: "", toolUses: [] });
+    vi.mocked(msgUtils.loadSessionHistoryMessages).mockResolvedValueOnce([
+      { role: "assistant", content: "hi" },
+    ]);
+
+    const rebroadcastSession = vi.fn();
+    const engine = {
+      agentsDir: "/tmp/agents",
+      deferredResults: null,
+      subagentRuns: null,
+      activityHub: { rebroadcastSession },
+    };
+
+    app.route("/api", createSessionsRoute(engine));
+    const res = await app.request(`/api/sessions/messages?path=${encodeURIComponent("/s/a.jsonl")}`);
+    expect(res.status).toBe(200);
+    expect(rebroadcastSession).toHaveBeenCalledWith("/s/a.jsonl");
+  });
+
+  it("翻页（before）不重发 workflow 活动（避免重复广播）", async () => {
+    const { createSessionsRoute } = await import("../server/routes/sessions.js");
+    const msgUtils = await import("../core/message-utils.js");
+    const app = new Hono();
+
+    vi.mocked(msgUtils.extractTextContent)
+      .mockReturnValueOnce({ text: "hi", images: [], thinking: "", toolUses: [] });
+    vi.mocked(msgUtils.loadSessionHistoryMessages).mockResolvedValueOnce([
+      { role: "assistant", content: "hi" },
+    ]);
+
+    const rebroadcastSession = vi.fn();
+    const engine = {
+      agentsDir: "/tmp/agents",
+      deferredResults: null,
+      subagentRuns: null,
+      activityHub: { rebroadcastSession },
+    };
+
+    app.route("/api", createSessionsRoute(engine));
+    const res = await app.request(`/api/sessions/messages?path=${encodeURIComponent("/s/a.jsonl")}&before=5`);
+    expect(res.status).toBe(200);
+    expect(rebroadcastSession).not.toHaveBeenCalled();
+  });
+
   it("includes session entry timestamps on displayable history messages", async () => {
     const { createSessionsRoute } = await import("../server/routes/sessions.js");
     const msgUtils = await import("../core/message-utils.js");
