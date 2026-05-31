@@ -151,6 +151,19 @@ export function toNotificationWsMessage(event) {
   };
 }
 
+// ActivityHub（统一 Agent Activity 真相源）广播：subagent / workflow / 巡检 / cron。
+// 必须带顶层 sessionPath —— wsClientCanReceiveEvent 靠它给非本地（PWA/远程）client 做
+// session 订阅校验，缺失会 fail-closed。优先用 listener 第二参数（emit 时的权威 sessionPath），
+// entry.sessionPath 兜底。
+export function toAgentActivityWsMessage(event, sessionPath) {
+  if (!event || event.type !== "agent_activity") return null;
+  return {
+    type: "agent_activity",
+    entry: event.entry,
+    sessionPath: sessionPath ?? event.entry?.sessionPath ?? null,
+  };
+}
+
 export const DEFAULT_DISCONNECT_ABORT_GRACE_MS = 5 * 60_000;
 
 export function resolveDisconnectAbortGraceMs(value = process.env.HANA_WS_DISCONNECT_ABORT_GRACE_MS) {
@@ -598,6 +611,10 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
       });
     } else if (event.type === "activity_update") {
       broadcast({ type: "activity_update", activity: event.activity });
+    } else if (event.type === "agent_activity") {
+      // ActivityHub 统一活动真相源 → WS（右侧「子助手 / workflow」卡数据源）。
+      const agentActivityMsg = toAgentActivityWsMessage(event, sessionPath);
+      if (agentActivityMsg) broadcast(agentActivityMsg);
     } else if (event.type === "bridge_message") {
       broadcast({ type: "bridge_message", message: event.message });
     } else if (event.type === "bridge_status") {
