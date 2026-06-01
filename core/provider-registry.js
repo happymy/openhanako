@@ -29,6 +29,7 @@ const _defaultModels = JSON.parse(
 
 const MALFORMED_PROVIDER_CONFIG = "malformed_provider_config";
 const INVALID_MODELS_CONFIG = "invalid_models_config";
+const DELETED_PROVIDERS_KEY = "_deleted_providers";
 const PROVIDER_RUNTIME_META_KEYS = new Set(["_config_error"]);
 const MEDIA_CAPABILITY_KEYS = {
   image_generation: "imageGeneration",
@@ -46,6 +47,16 @@ const MEDIA_USER_CONFIG_KEYS = {
 
 function isPlainObject(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function cloneData(value) {
+  return structuredClone(value);
+}
+
+function normalizeDeletedProviders(value) {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((id) => typeof id === "string" && id.trim()).map((id) => id.trim()))]
+    : [];
 }
 
 function normalizeProviderUserConfig(value) {
@@ -489,19 +500,19 @@ export class ProviderRegistry {
     try {
       const mtime = fs.statSync(ymlPath).mtimeMs;
       if (this._addedModelsCache && mtime === this._addedModelsMtime) {
-        return this._addedModelsCache;
+        return cloneData(this._addedModelsCache);
       }
       const raw = safeReadYAMLSync(ymlPath, {}, YAML) || {};
       this._addedModelsCache = normalizeProviderUserConfigMap(raw.providers);
       this._addedModelsMtime = mtime;
-      return this._addedModelsCache;
+      return cloneData(this._addedModelsCache);
     } catch {
       return {};
     }
   }
 
   /** 将 providers 对象写入 _hanakoHome/added-models.yaml */
-  _saveAddedModels(providers) {
+  _saveAddedModels(providers, meta = {}) {
     const ymlPath = path.join(this._hanakoHome, "added-models.yaml");
     // 读取现有文件以保留 _migrated 等顶层元数据
     const existing = safeReadYAMLSync(ymlPath, {}, YAML) || {};
@@ -509,6 +520,11 @@ export class ProviderRegistry {
       "# HanaAgent 供应商配置（全局，跨 agent 共享）\n" +
       "# 由设置页面管理\n\n";
     const data = { ...existing, providers: stripProviderRuntimeMetaMap(providers) };
+    if (Array.isArray(meta.deletedProviders)) {
+      const deletedProviders = normalizeDeletedProviders(meta.deletedProviders);
+      if (deletedProviders.length > 0) data[DELETED_PROVIDERS_KEY] = deletedProviders;
+      else delete data[DELETED_PROVIDERS_KEY];
+    }
     const yamlStr = header + YAML.dump(data, {
       indent: 2,
       lineWidth: -1,
@@ -828,7 +844,10 @@ export class ProviderRegistry {
     const userConfig = this._loadAddedModels();
     if (!Object.prototype.hasOwnProperty.call(userConfig, providerId)) return;
     delete userConfig[providerId];
-    this._saveAddedModels(userConfig);
+    const existing = safeReadYAMLSync(path.join(this._hanakoHome, "added-models.yaml"), {}, YAML) || {};
+    const deletedProviders = normalizeDeletedProviders(existing[DELETED_PROVIDERS_KEY]);
+    if (!deletedProviders.includes(providerId)) deletedProviders.push(providerId);
+    this._saveAddedModels(userConfig, { deletedProviders });
     this._entries.delete(providerId);
     // 如果有内置插件声明，以默认值重建 entry
     if (this._plugins.has(providerId)) {
@@ -1167,7 +1186,10 @@ export class ProviderRegistry {
 
     validateProviderModels(providerId, nextProvider.models, { baseUrl: nextProvider.base_url });
     userConfig[providerId] = nextProvider;
-    this._saveAddedModels(userConfig);
+    const existing = safeReadYAMLSync(path.join(this._hanakoHome, "added-models.yaml"), {}, YAML) || {};
+    const deletedProviders = normalizeDeletedProviders(existing[DELETED_PROVIDERS_KEY])
+      .filter((id) => id !== providerId);
+    this._saveAddedModels(userConfig, { deletedProviders });
     this._entries.clear();
   }
 

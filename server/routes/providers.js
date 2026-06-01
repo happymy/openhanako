@@ -7,7 +7,7 @@ import os from "os";
 import { Hono } from "hono";
 import { emitAppEvent } from "../app-events.js";
 import { safeJson } from "../hono-helpers.js";
-import { buildProviderAuthHeaders, normalizeProviderBaseUrlForApi, probeProvider } from "../../lib/llm/provider-client.js";
+import { appendProviderApiPath, buildProviderAuthHeaders, normalizeProviderBaseUrlForApi, probeProvider, withDefaultProviderHeaders } from "../../lib/llm/provider-client.js";
 import { filterDiscoveredProviderModels } from "../../shared/provider-model-validation.js";
 import { listKnownProviderModels, lookupKnown } from "../../shared/known-models.js";
 import { clearConfigCache } from "../../lib/memory/config-loader.js";
@@ -359,9 +359,11 @@ export function createProvidersRoute(engine) {
     if (effectiveBaseUrl) {
       try {
         const base = effectiveBaseUrl.replace(/\/+$/, "");
-        const url = effectiveApi === "anthropic-messages" ? `${base}/v1/models?limit=1000` : `${base}/models`;
+        const url = effectiveApi === "anthropic-messages"
+          ? appendProviderApiPath(base, "/v1/models?limit=1000")
+          : `${base}/models`;
 
-        let headers = { "Content-Type": "application/json" };
+        let headers = withDefaultProviderHeaders({ "Content-Type": "application/json" });
         if (effectiveKey) {
           if (!effectiveApi) {
             return c.json({ error: "api is required when api_key is present", models: [] });

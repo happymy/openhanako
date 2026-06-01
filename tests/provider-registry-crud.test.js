@@ -462,6 +462,27 @@ describe("getAllProvidersRaw", () => {
     expect(raw).toEqual({});
   });
 
+  it("returns snapshots so callers cannot mutate the registry cache", () => {
+    writeAddedModels({
+      "test-provider": {
+        api_key: "sk-x",
+        models: ["model-a"],
+      },
+    });
+    const reg = makeRegistry();
+
+    const raw = reg.getAllProvidersRaw();
+    raw["test-provider"].models.push("polluted-model");
+    raw["new-provider"] = { api_key: "sk-polluted" };
+
+    expect(reg.getAllProvidersRaw()).toEqual({
+      "test-provider": {
+        api_key: "sk-x",
+        models: ["model-a"],
+      },
+    });
+  });
+
   it("normalizes malformed provider records to empty configs at the registry boundary", () => {
     const ymlPath = path.join(tmpDir, "added-models.yaml");
     fs.writeFileSync(ymlPath, [
@@ -918,6 +939,22 @@ describe("removeProvider", () => {
     const persisted = readAddedModels();
     expect(persisted["test-provider"]).toBeUndefined();
     expect(persisted["keep-me"]).toBeDefined();
+  });
+
+  it("records an explicit deletion tombstone and clears it when provider is saved again", () => {
+    writeAddedModels({
+      "test-provider": { api_key: "sk-x" },
+    });
+    const reg = makeRegistry();
+
+    reg.removeProvider("test-provider");
+    let raw = YAML.load(fs.readFileSync(path.join(tmpDir, "added-models.yaml"), "utf-8"));
+    expect(raw._deleted_providers).toContain("test-provider");
+
+    reg.saveProvider("test-provider", { api_key: "sk-new" });
+    raw = YAML.load(fs.readFileSync(path.join(tmpDir, "added-models.yaml"), "utf-8"));
+    expect(raw._deleted_providers || []).not.toContain("test-provider");
+    expect(raw.providers["test-provider"].api_key).toBe("sk-new");
   });
 
   it("删除不存在的 provider 不报错", () => {
