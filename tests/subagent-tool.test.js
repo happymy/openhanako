@@ -480,7 +480,7 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
     });
   });
 
-  it("does not time out subagent work before the 15 minute default", async () => {
+  it("does not time out subagent work before the 30 minute default", async () => {
     vi.useFakeTimers();
     const pendingExecute = vi.fn().mockImplementation((_prompt, opts) => {
       opts?.onSessionReady?.("/test/child.jsonl");
@@ -502,10 +502,10 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
     const result = await tool.execute("call_1", { task: "长任务" }, null, null, mockCtx());
     expect(result.details.streamStatus).toBe("running");
 
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    await vi.advanceTimersByTimeAsync(29 * 60 * 1000);
     expect(mockStore.fail).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+    await vi.advanceTimersByTimeAsync(60 * 1000);
     await vi.waitFor(() => {
       expect(mockStore.fail).toHaveBeenCalledWith(
         expect.stringMatching(/^subagent-/),

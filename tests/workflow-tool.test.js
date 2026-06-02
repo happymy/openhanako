@@ -1,5 +1,5 @@
 // tests/workflow-tool.test.js
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWorkflowTool } from "../lib/tools/workflow-tool.js";
 
 function makeCtx() {
@@ -15,6 +15,10 @@ const META = `export const meta = { name: 'demo', description: 'd' }\n`;
 const flush = async () => { await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0)); };
 
 describe("workflow tool", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("工具形状正确", () => {
     const tool = createWorkflowTool({ executeIsolated: async () => ({}) });
     expect(tool.name).toBe("workflow");
@@ -168,6 +172,31 @@ describe("workflow tool", () => {
     const bu = evts.find((e) => e.type === "block_update" && e.patch?.streamStatus === "failed");
     expect(bu).toBeTruthy();
     expect(bu.taskId).toBe(res.details.taskId);
+  });
+
+  it("workflow deadline 是 10 分钟，10 分钟前不 fail，到点后 fail", async () => {
+    vi.useFakeTimers();
+    const store = makeStore();
+    const tool = createWorkflowTool({
+      executeIsolated: async () => new Promise(() => {}),
+      emitEvent: () => {},
+      getDeferredStore: () => store,
+      getSubagentRunStore: () => makeRunStore(),
+    });
+
+    const res = await tool.execute("c1", { script: META + `return await agent('x')` }, undefined, undefined, makeCtx());
+    expect(res.details.streamStatus).toBe("running");
+
+    await vi.advanceTimersByTimeAsync(9 * 60 * 1000);
+    expect(store.fail).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(60 * 1000);
+    await vi.waitFor(() => {
+      expect(store.fail).toHaveBeenCalledWith(
+        res.details.taskId,
+        expect.stringMatching(/超时|timeout/i),
+      );
+    });
   });
 
   it("脚本里 agent() → ActivityHub workflow_agent 子 entry（parentTaskId/label/childSessionPath）", async () => {
