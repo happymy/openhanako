@@ -1202,6 +1202,25 @@
       "compiledEmpty": "還沒有編譯過記憶",
       "compiledClear": "清空",
       "compiledCleared": "編譯記憶已清空",
+      "health": {
+        "healthy": "記憶整理正常",
+        "degraded": "記憶整理有延遲",
+        "unhealthy": "記憶整理需要處理",
+        "disabled": "記憶已關閉",
+        "unavailable": "記憶狀態暫不可用",
+        "stepSeparator": "、",
+        "failedSteps": "異常步驟：{steps}",
+        "lastError": "最近錯誤：{time}",
+        "errorMessage": "錯誤：{message}",
+        "steps": {
+          "rollingSummary": "滾動摘要",
+          "compileToday": "今日記憶",
+          "compileWeek": "本週記憶",
+          "compileLongterm": "長期記憶",
+          "compileFacts": "事實記憶",
+          "deepMemory": "深層記憶"
+        }
+      },
       "allMemories": "所有記憶",
       "tokenBudget": "記憶容量",
       "tokenBudgetHint": "memory.md 的目標 token 預算",

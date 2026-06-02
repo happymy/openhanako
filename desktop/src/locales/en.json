@@ -1210,6 +1210,25 @@
       "compiledEmpty": "No compiled memories yet",
       "compiledClear": "Clear",
       "compiledCleared": "Compiled memory cleared",
+      "health": {
+        "healthy": "Memory maintenance is healthy",
+        "degraded": "Memory maintenance is delayed",
+        "unhealthy": "Memory maintenance needs attention",
+        "disabled": "Memory is turned off",
+        "unavailable": "Memory status is unavailable",
+        "stepSeparator": ", ",
+        "failedSteps": "Affected steps: {steps}",
+        "lastError": "Last error: {time}",
+        "errorMessage": "Error: {message}",
+        "steps": {
+          "rollingSummary": "Rolling summary",
+          "compileToday": "Today memory",
+          "compileWeek": "Week memory",
+          "compileLongterm": "Long-term memory",
+          "compileFacts": "Fact memory",
+          "deepMemory": "Deep memory"
+        }
+      },
       "allMemories": "All Memories",
       "tokenBudget": "Memory capacity",
       "tokenBudgetHint": "Target token budget for memory.md",

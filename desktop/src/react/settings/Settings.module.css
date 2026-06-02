@@ -5593,6 +5593,75 @@ a.about-link:hover {
     background: rgba(var(--coral-rgb), 0.08);
 }
 
+.memory-health-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.58rem 0.68rem;
+    margin-bottom: var(--space-lg);
+    border: 1px solid var(--overlay-light);
+    border-radius: 6px;
+    background: var(--overlay-subtle);
+    color: var(--text-light);
+}
+
+.memory-health-main {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.memory-health-dot {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    background: var(--text-muted);
+}
+
+.memory-health-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.memory-health-detail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.8rem;
+    padding-left: 0.87rem;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    line-height: 1.5;
+}
+
+.memory-health-ok .memory-health-dot {
+    background: var(--sage, #8aa083);
+}
+
+.memory-health-attention {
+    border-color: rgba(var(--gold-rgb, 180, 138, 68), 0.35);
+    background: rgba(var(--gold-rgb, 180, 138, 68), 0.08);
+}
+
+.memory-health-attention .memory-health-dot {
+    background: var(--gold, #b48a44);
+}
+
+.memory-health-error {
+    border-color: rgba(var(--coral-rgb), 0.35);
+    background: rgba(var(--coral-rgb), 0.08);
+}
+
+.memory-health-error .memory-health-dot {
+    background: var(--coral);
+}
+
+.memory-health-muted .memory-health-dot {
+    background: var(--text-muted);
+}
+
 /* 清除确认浮层 */
 .memory-confirm-overlay {
     display: none;

@@ -1210,6 +1210,25 @@
       "compiledEmpty": "还没有编译过记忆",
       "compiledClear": "清空",
       "compiledCleared": "编译记忆已清空",
+      "health": {
+        "healthy": "记忆整理正常",
+        "degraded": "记忆整理有延迟",
+        "unhealthy": "记忆整理需要处理",
+        "disabled": "记忆已关闭",
+        "unavailable": "记忆状态暂不可用",
+        "stepSeparator": "、",
+        "failedSteps": "异常步骤：{steps}",
+        "lastError": "最近错误：{time}",
+        "errorMessage": "错误：{message}",
+        "steps": {
+          "rollingSummary": "滚动摘要",
+          "compileToday": "今日记忆",
+          "compileWeek": "本周记忆",
+          "compileLongterm": "长期记忆",
+          "compileFacts": "事实记忆",
+          "deepMemory": "深层记忆"
+        }
+      },
       "allMemories": "所有记忆",
       "tokenBudget": "记忆容量",
       "tokenBudgetHint": "memory.md 的目标 token 预算",

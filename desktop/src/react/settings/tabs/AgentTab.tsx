@@ -348,6 +348,7 @@ export function AgentTab() {
       {/* 以下是本 phase 需要改造的部分：Memory / Experience / Tools */}
 
       <MemorySection
+        agentId={selectedSettingsAgentId}
         hasUtilityModel={hasUtilityModel}
         memoryEnabled={memoryEnabled}
         currentPins={currentPins}

@@ -1210,6 +1210,25 @@
       "compiledEmpty": "コンパイル済みの記憶はまだありません",
       "compiledClear": "クリア",
       "compiledCleared": "コンパイル済みの記憶をクリアしました",
+      "health": {
+        "healthy": "記憶の整理は正常です",
+        "degraded": "記憶の整理に遅れがあります",
+        "unhealthy": "記憶の整理に対応が必要です",
+        "disabled": "記憶はオフです",
+        "unavailable": "記憶の状態を取得できません",
+        "stepSeparator": "、",
+        "failedSteps": "異常のあるステップ：{steps}",
+        "lastError": "直近のエラー：{time}",
+        "errorMessage": "エラー：{message}",
+        "steps": {
+          "rollingSummary": "ローリング要約",
+          "compileToday": "今日の記憶",
+          "compileWeek": "今週の記憶",
+          "compileLongterm": "長期記憶",
+          "compileFacts": "事実記憶",
+          "deepMemory": "深層記憶"
+        }
+      },
       "allMemories": "すべての記憶",
       "tokenBudget": "記憶容量",
       "tokenBudgetHint": "memory.md の目標 token 予算",
