@@ -499,6 +499,12 @@
     "count": "{n} tools",
     "running": "{n} tools running"
   },
+  "processFold": {
+    "summary": "✨ {name} worked for a while",
+    "tools": "{n} tools",
+    "thinking": "{n} thoughts",
+    "unsuccessful": "{n} attempts not successful"
+  },
   "tool": {
     "web_search": {
       "running": "🌐 {name} is surfing the web",

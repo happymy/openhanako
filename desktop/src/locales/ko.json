@@ -499,6 +499,12 @@
     "count": "{n}개 도구",
     "running": "{n}개 도구 실행 중"
   },
+  "processFold": {
+    "summary": "✨ {name}이(가) 한동안 바쁘게 움직였어요",
+    "tools": "{n}개 도구",
+    "thinking": "{n}번 생각",
+    "unsuccessful": "{n}번 시도 미성공"
+  },
   "tool": {
     "web_search": {
       "running": "🌐 {name}이(가) 인터넷 서핑 중이에요",

@@ -499,6 +499,12 @@
     "count": "{n} 個のツール",
     "running": "{n} 個のツール実行中"
   },
+  "processFold": {
+    "summary": "✨ {name} がしばらく動き回りました",
+    "tools": "{n} 個のツール",
+    "thinking": "{n} 回の思考",
+    "unsuccessful": "{n} 回の試行が未成功"
+  },
   "tool": {
     "web_search": {
       "running": "🌐 {name} はネットサーフィン中",

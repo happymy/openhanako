@@ -499,6 +499,12 @@
     "count": "{n} 个工具",
     "running": "{n} 个工具运行中"
   },
+  "processFold": {
+    "summary": "✨ {name}忙活了一阵子",
+    "tools": "{n} 个工具",
+    "thinking": "{n} 次思考",
+    "unsuccessful": "{n} 次尝试未成功"
+  },
   "tool": {
     "web_search": {
       "running": "🌐 {name} 正在互联网冲浪",
