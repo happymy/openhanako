@@ -933,6 +933,7 @@
       "updateNeedInstall": "请先将 HanaAgent 移动到应用程序文件夹",
       "updateDiskSpace": "磁盘空间不足，无法下载更新",
       "launchAtLogin": "开机自启",
+      "keepAwake": "锁屏时保持运行",
       "betaUpdates": "接收测试版更新",
       "autoCheckUpdates": "自动检查更新"
     },

@@ -892,6 +892,7 @@
       "updateNeedInstall": "먼저 HanaAgent를 응용 프로그램 폴더로 이동하세요",
       "updateDiskSpace": "디스크 공간이 부족하여 업데이트를 다운로드할 수 없습니다",
       "launchAtLogin": "로그인 시 자동 실행",
+      "keepAwake": "잠금 중에도 계속 실행",
       "betaUpdates": "베타 업데이트 수신",
       "autoCheckUpdates": "업데이트 자동 확인"
     },

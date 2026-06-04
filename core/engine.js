@@ -1034,6 +1034,8 @@ export class HanaEngine {
   setUpdateChannel(ch) { this._prefs.setUpdateChannel(ch); }
   getAutoCheckUpdates() { return this._prefs.getAutoCheckUpdates(); }
   setAutoCheckUpdates(v) { this._prefs.setAutoCheckUpdates(v); }
+  getKeepAwake() { return this._prefs.getKeepAwake(); }
+  setKeepAwake(v) { this._prefs.setKeepAwake(v); }
   setMemoryEnabled(v) { return this._configCoord.setMemoryEnabled(v); }
   setMemoryMasterEnabled(id, v) { return this._configCoord.setMemoryMasterEnabled(id, v); }
   persistSessionMeta() { return this._configCoord.persistSessionMeta(); }

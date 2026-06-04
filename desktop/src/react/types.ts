@@ -23,6 +23,13 @@ export interface AutoLaunchStatus {
   executableWillLaunchAtLogin?: boolean | null;
 }
 
+export interface KeepAwakeStatus {
+  enabled: boolean;
+  active: boolean;
+  blockerId: number | null;
+  type: 'prevent-app-suspension';
+}
+
 // ── 核心数据结构 ──
 
 export type SessionPermissionMode = 'auto' | 'operate' | 'ask' | 'read_only';
@@ -381,6 +388,8 @@ export interface PlatformApi {
   onAutoUpdateState?(callback: (state: AutoUpdateState) => void): (() => void) | void;
   getAutoLaunchStatus?(): Promise<AutoLaunchStatus>;
   setAutoLaunchEnabled?(enabled: boolean): Promise<AutoLaunchStatus>;
+  getKeepAwakeStatus?(): Promise<KeepAwakeStatus>;
+  setKeepAwakeEnabled?(enabled: boolean): Promise<KeepAwakeStatus>;
 
   // ── Skill viewer overlay ──
   onShowSkillViewer?(callback: (data: unknown) => void): void;

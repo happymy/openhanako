@@ -8,6 +8,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 
 const getAutoLaunchStatus = vi.fn();
 const setAutoLaunchEnabled = vi.fn();
+const getKeepAwakeStatus = vi.fn();
+const setKeepAwakeEnabled = vi.fn();
 const autoSaveConfig = vi.fn();
 const loadSettingsConfig = vi.fn();
 
@@ -29,17 +31,19 @@ vi.mock('../../widgets/Toggle', () => ({
     on,
     onChange,
     label,
+    ariaLabel,
     disabled,
   }: {
     on: boolean;
     onChange: (next: boolean) => void;
     label?: string;
+    ariaLabel?: string;
     disabled?: boolean;
   }) => (
     <button
       type="button"
-      aria-label={label}
-      data-testid={`${label}-${on ? 'on' : 'off'}`}
+      aria-label={ariaLabel || label}
+      data-testid={`${ariaLabel || label}-${on ? 'on' : 'off'}`}
       disabled={disabled}
       onClick={() => onChange(!on)}
     >
@@ -55,6 +59,8 @@ afterEach(() => {
   cleanup();
   getAutoLaunchStatus.mockReset();
   setAutoLaunchEnabled.mockReset();
+  getKeepAwakeStatus.mockReset();
+  setKeepAwakeEnabled.mockReset();
   autoSaveConfig.mockReset();
   loadSettingsConfig.mockReset();
   useSettingsStore.setState({ settingsConfig: null });
@@ -71,6 +77,8 @@ function installHana(overrides: Record<string, unknown> = {}) {
       openExternal: vi.fn(),
       getAutoLaunchStatus,
       setAutoLaunchEnabled,
+      getKeepAwakeStatus,
+      setKeepAwakeEnabled,
       ...overrides,
     },
   }));
@@ -79,7 +87,7 @@ function installHana(overrides: Record<string, unknown> = {}) {
 describe('AboutTab auto launch setting', () => {
   it('renders launch-at-login above automatic update settings when supported', async () => {
     installHana();
-    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable', keep_awake: false } });
     getAutoLaunchStatus.mockResolvedValue({
       supported: true,
       openAtLogin: false,
@@ -98,7 +106,7 @@ describe('AboutTab auto launch setting', () => {
 
   it('updates the launch-at-login row from the main-process result', async () => {
     installHana();
-    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable', keep_awake: false } });
     getAutoLaunchStatus.mockResolvedValue({
       supported: true,
       openAtLogin: false,
@@ -122,7 +130,7 @@ describe('AboutTab auto launch setting', () => {
 
   it('does not render launch-at-login on unsupported platforms', async () => {
     installHana();
-    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable', keep_awake: false } });
     getAutoLaunchStatus.mockResolvedValue({
       supported: false,
       openAtLogin: false,
@@ -134,5 +142,53 @@ describe('AboutTab auto launch setting', () => {
 
     await waitFor(() => expect(getAutoLaunchStatus).toHaveBeenCalled());
     expect(screen.queryByText('settings.about.launchAtLogin')).toBeNull();
+  });
+
+  it('renders keep-awake directly below launch-at-login', async () => {
+    installHana();
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable', keep_awake: false } });
+    getAutoLaunchStatus.mockResolvedValue({
+      supported: true,
+      openAtLogin: false,
+      openedAtLogin: false,
+      status: null,
+    });
+
+    render(<AboutTab />);
+
+    const launchRow = await screen.findByText('settings.about.launchAtLogin');
+    const keepAwakeRow = screen.getByText('settings.about.keepAwake');
+    const autoUpdateRow = screen.getByText('settings.about.autoCheckUpdates');
+
+    expect(launchRow.compareDocumentPosition(keepAwakeRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(keepAwakeRow.compareDocumentPosition(autoUpdateRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId('settings.about.keepAwake-off')).toBeTruthy();
+  });
+
+  it('persists keep-awake preference before applying it in the main process', async () => {
+    installHana();
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable', keep_awake: false } });
+    getAutoLaunchStatus.mockResolvedValue({
+      supported: true,
+      openAtLogin: false,
+      openedAtLogin: false,
+      status: null,
+    });
+    autoSaveConfig.mockResolvedValue(undefined);
+    loadSettingsConfig.mockResolvedValue(undefined);
+    setKeepAwakeEnabled.mockResolvedValue({
+      enabled: true,
+      active: true,
+      blockerId: 42,
+      type: 'prevent-app-suspension',
+    });
+
+    render(<AboutTab />);
+
+    fireEvent.click(await screen.findByTestId('settings.about.keepAwake-off'));
+
+    await waitFor(() => expect(autoSaveConfig).toHaveBeenCalledWith({ keep_awake: true }, { silent: true }));
+    await waitFor(() => expect(setKeepAwakeEnabled).toHaveBeenCalledWith(true));
+    expect(autoSaveConfig.mock.invocationCallOrder[0]).toBeLessThan(setKeepAwakeEnabled.mock.invocationCallOrder[0]);
   });
 });

@@ -98,6 +98,13 @@ function emitConfigAppEvents(engine, { globalFields, agentPartial, providersChan
       network_proxy: typeof engine.getNetworkProxy === "function" ? engine.getNetworkProxy() : networkProxy,
     });
   }
+
+  const keepAwake = getGlobalValue(globalFields, "keep_awake");
+  if (keepAwake !== undefined) {
+    emitAppEvent(engine, "keep-awake-changed", {
+      keep_awake: typeof engine.getKeepAwake === "function" ? engine.getKeepAwake() : keepAwake === true,
+    });
+  }
 }
 
 function latestIso(values) {

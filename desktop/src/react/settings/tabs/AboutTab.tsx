@@ -15,11 +15,14 @@ import styles from '../Settings.module.css';
 export function AboutTab() {
   const hana = window.hana;
   const settingsConfig = useSettingsStore(s => s.settingsConfig);
+  const showToast = useSettingsStore(s => s.showToast);
   const [version, setVersion] = useState('');
   const [autoLaunch, setAutoLaunch] = useState<AutoLaunchStatus | null>(null);
   const [autoLaunchSaving, setAutoLaunchSaving] = useState(false);
+  const [keepAwakeSaving, setKeepAwakeSaving] = useState(false);
   const autoUpdate = useAutoUpdateState();
   const isBeta = settingsConfig?.update_channel === 'beta';
+  const keepAwake = settingsConfig?.keep_awake === true;
   // 默认 true：老用户（preferences 里没写这个字段）保持原有"自动检查"行为
   const autoCheck = settingsConfig?.auto_check_updates !== false;
 
@@ -75,6 +78,25 @@ export function AboutTab() {
       setAutoLaunchSaving(false);
     }
   }, [autoLaunch, hana]);
+
+  const handleKeepAwakeToggle = useCallback(async (on: boolean) => {
+    if (!hana?.setKeepAwakeEnabled) return;
+    const previous = settingsConfig?.keep_awake === true;
+    setKeepAwakeSaving(true);
+    try {
+      const saved = await autoSaveConfig({ keep_awake: on }, { silent: true });
+      if (saved === false) return;
+      await hana.setKeepAwakeEnabled(on);
+    } catch (err: any) {
+      if (previous !== on) {
+        await autoSaveConfig({ keep_awake: previous }, { silent: true });
+        await loadSettingsConfig();
+      }
+      showToast(t('settings.saveFailed') + ': ' + (err?.message || String(err)), 'error');
+    } finally {
+      setKeepAwakeSaving(false);
+    }
+  }, [hana, settingsConfig?.keep_awake, showToast]);
 
   return (
     <div className={`${styles['settings-tab-content']} ${styles['active']}`} data-tab="about">
@@ -133,12 +155,23 @@ export function AboutTab() {
               <Toggle
                 on={autoLaunch.openAtLogin}
                 onChange={handleAutoLaunchToggle}
-                label={t('settings.about.launchAtLogin')}
+                ariaLabel={t('settings.about.launchAtLogin')}
                 disabled={autoLaunchSaving}
               />
             }
           />
         )}
+        <SettingsRow
+          label={t('settings.about.keepAwake')}
+          control={
+            <Toggle
+              on={keepAwake}
+              onChange={handleKeepAwakeToggle}
+              ariaLabel={t('settings.about.keepAwake')}
+              disabled={keepAwakeSaving || !hana?.setKeepAwakeEnabled}
+            />
+          }
+        />
         <SettingsRow
           label={t('settings.about.autoCheckUpdates')}
           control={<Toggle on={autoCheck} onChange={handleAutoCheckToggle} />}

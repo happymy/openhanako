@@ -616,6 +616,18 @@ export class PreferencesManager {
     this.savePreferences(prefs);
   }
 
+  /** 读取桌面保活开关。默认关闭。 */
+  getKeepAwake() {
+    return this._cache.keep_awake === true;
+  }
+
+  /** 保存桌面保活开关。 */
+  setKeepAwake(value) {
+    const prefs = this._mutableCopy();
+    prefs.keep_awake = value === true;
+    this.savePreferences(prefs);
+  }
+
   /** 读取 primary agent ID */
   getPrimaryAgent() {
     return this._cache.primaryAgent || null;

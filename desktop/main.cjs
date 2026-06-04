@@ -8,7 +8,7 @@
  * 4. 关闭 splash，显示主窗口
  * 5. 优雅关闭
  */
-const { app, BrowserWindow, WebContentsView, globalShortcut, ipcMain, dialog, session, shell, nativeTheme, Tray, Menu, nativeImage, systemPreferences, Notification, webContents, screen } = require("electron");
+const { app, BrowserWindow, WebContentsView, globalShortcut, ipcMain, dialog, session, shell, nativeTheme, Tray, Menu, nativeImage, systemPreferences, Notification, webContents, screen, powerSaveBlocker } = require("electron");
 const os = require("os");
 const path = require("path");
 const { spawn, execFile } = require("child_process");
@@ -20,6 +20,7 @@ const {
   getAutoLaunchStatus,
   setAutoLaunchEnabled,
 } = require("./login-item-settings.cjs");
+const { createKeepAwakeManager } = require("./keep-awake.cjs");
 const { createFileWatchRegistry } = require("./file-watch-registry.cjs");
 const { createStableFileWatcher } = require("./file-watch-adapter.cjs");
 const { createWorkspaceWatchRegistry } = require("./workspace-watch-registry.cjs");
@@ -140,6 +141,8 @@ process.env.HANA_HOME = hanakoHome;
 ensureHanaPiSdkDirs(hanakoHome);
 configureProcessPiSdkEnv(hanakoHome);
 
+const keepAwakeManager = createKeepAwakeManager({ powerSaveBlocker });
+
 function redactMainLogText(value) {
   return redactLogText(value, { homeDir: os.homedir(), extraPaths: [hanakoHome] });
 }
@@ -148,6 +151,12 @@ function readNetworkProxyPreference() {
   const prefsPath = path.join(hanakoHome, "user", "preferences.json");
   const prefs = safeReadJSON(prefsPath, {});
   return normalizeNetworkProxyConfig(prefs?.network_proxy);
+}
+
+function readKeepAwakePreference() {
+  const prefsPath = path.join(hanakoHome, "user", "preferences.json");
+  const prefs = safeReadJSON(prefsPath, {});
+  return prefs?.keep_awake === true;
 }
 
 async function applyDesktopNetworkProxy(config, { reason = "runtime" } = {}) {
@@ -3096,6 +3105,8 @@ wrapIpcHandler("check-update", () => {
 });
 wrapIpcHandler("get-auto-launch-status", () => getAutoLaunchStatus({ app }));
 wrapIpcHandler("set-auto-launch-enabled", (_event, enabled) => setAutoLaunchEnabled({ app, enabled: enabled === true }));
+wrapIpcHandler("get-keep-awake-status", () => keepAwakeManager.getStatus());
+wrapIpcHandler("set-keep-awake-enabled", (_event, enabled) => keepAwakeManager.setEnabled(enabled === true));
 
 wrapIpcBestEffortHandler("open-settings", (_event, tab, theme) => createSettingsWindow(tab, theme));
 
@@ -3226,6 +3237,13 @@ wrapIpcOn("settings-changed", (_event, type, data) => {
     applyDesktopNetworkProxy(data?.network_proxy || readNetworkProxyPreference(), { reason: "settings" }).catch(err => {
       console.error("[desktop] apply network proxy failed:", redactMainLogText(err.message));
     });
+  }
+  if (type === "keep-awake-changed") {
+    try {
+      keepAwakeManager.setEnabled(data?.keep_awake === true);
+    } catch (err) {
+      console.error("[desktop] apply keep awake failed:", redactMainLogText(err.message));
+    }
   }
   if (type === "locale-changed") {
     resetMainI18n();
@@ -3838,6 +3856,7 @@ app.whenReady().then(async () => {
     const splashShownAt = Date.now();
     await resolveLoginShellPath();
     await applyDesktopNetworkProxy(readNetworkProxyPreference(), { reason: "startup" });
+    keepAwakeManager.setEnabled(readKeepAwakePreference());
 
     // 2. 后台启动 server（PATH 已就绪）
     if (process.platform === "win32") {
@@ -3973,6 +3992,7 @@ app.on("activate", () => {
 
 // ── 优雅关闭 ──
 app.on("will-quit", () => {
+  keepAwakeManager.dispose();
   globalShortcut.unregisterAll();
   // 销毁托盘图标
   if (tray && !tray.isDestroyed()) {

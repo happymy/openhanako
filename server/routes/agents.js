@@ -171,6 +171,13 @@ function emitAgentConfigAppEvents(engine, agentId, { globalFields, agentPartial,
     });
   }
 
+  const keepAwake = getGlobalValue(globalFields, "keep_awake");
+  if (keepAwake !== undefined) {
+    emitAppEvent(engine, "keep-awake-changed", {
+      keep_awake: typeof engine.getKeepAwake === "function" ? engine.getKeepAwake() : keepAwake === true,
+    });
+  }
+
   if (hasOwn(agentPartial, "skills")) {
     emitAppEvent(engine, "skills-changed", { agentId });
   }
