@@ -267,13 +267,14 @@ const UserAttachmentsView = memo(function UserAttachmentsView({ attachments, des
         const imageSrc = !expired && isImage(att) ? getUserAttachmentImageSrc(att) : null;
         const kind = att.isDir ? 'directory' : kindOfFileName(att.name || att.path, att.mimeType);
         if (!expired && kind === 'audio') {
-          const transcriptText = att.presentation === 'voice-input' && att.transcription?.status === 'ready'
+          const isVoiceInput = att.presentation === 'voice-input';
+          const transcriptText = isVoiceInput && att.transcription?.status === 'ready'
             ? att.transcription.text?.trim()
             : '';
-          if (transcriptText) {
+          if (isVoiceInput) {
             return (
               <div key={att.fileId || att.path || att.name || `att-${i}`} className={styles.voiceInputCard}>
-                <div className={styles.voiceInputTranscript}>{transcriptText}</div>
+                {transcriptText && <div className={styles.voiceInputTranscript}>{transcriptText}</div>}
                 <AudioAttachmentChip
                   file={{
                     path: att.path,

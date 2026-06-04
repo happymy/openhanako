@@ -263,6 +263,43 @@ describe('expired session file presentation', () => {
     expect(audioInstances[0].currentTime).toBeCloseTo(2);
   });
 
+  it('renders voice-input audio messages inside the voice card even before transcription is ready', () => {
+    const { container } = render(
+      <UserMessage
+        showAvatar={false}
+        sessionPath="/sessions/main.jsonl"
+        readOnly
+        message={{
+          id: 'u-voice-input-pending',
+          role: 'user',
+          text: '',
+          attachments: [
+            {
+              fileId: 'sf_audio',
+              path: '/cache/voice.wav',
+              name: '录音 1.wav',
+              isDir: false,
+              mimeType: 'audio/wav',
+              presentation: 'voice-input',
+              listed: false,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.queryByText('录音 1.wav')).not.toBeInTheDocument();
+    const wave = screen.getByTestId('audio-attachment-wave');
+    const voiceCard = wave.closest('[class*="voiceInputCard"]');
+    expect(voiceCard).toBeTruthy();
+    expect(voiceCard).toContainElement(wave);
+    const userTextBubble = Array.from(container.querySelectorAll('div')).find((node) => {
+      const className = String(node.getAttribute('class') || '');
+      return className.includes('messageUser') && !className.includes('messageGroupUser');
+    });
+    expect(userTextBubble).toBeUndefined();
+  });
+
   it('renders voice-input audio messages as waveform-only chips without visible filenames', () => {
     render(
       <UserMessage
