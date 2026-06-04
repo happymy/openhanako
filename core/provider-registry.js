@@ -250,7 +250,7 @@ function inferMediaProtocolId(providerId, capability, modelId) {
   if (capabilityKey(capability) === "speechRecognition") {
     const id = String(modelId || "");
     if (providerId === "openai" && (id.includes("transcribe") || id === "whisper-1")) return "openai-audio-transcriptions";
-    if (providerId === "mimo" && id.includes("asr")) return "mimo-chat-completions-asr";
+    if ((providerId === "mimo" || providerId === "mimo-token-plan") && id.includes("asr")) return "mimo-chat-completions-asr";
     if (providerId === "dashscope" && id.includes("asr")) return "dashscope-qwen-asr-chat";
     if (providerId === "volcengine-speech" && id.includes("bigasr")) return "volcengine-bigasr-transcription";
     if (providerId === "system-speech") return "system-speech-recognition";
@@ -321,6 +321,7 @@ import { baiduCloudPlugin } from "../lib/providers/baidu-cloud.js";
 import { modelscopePlugin } from "../lib/providers/modelscope.js";
 import { infiniPlugin } from "../lib/providers/infini.js";
 import { mimoPlugin } from "../lib/providers/mimo.js";
+import { mimoTokenPlanPlugin } from "../lib/providers/mimo-token-plan.js";
 import { systemSpeechPlugin } from "../lib/providers/system-speech.js";
 // 国际
 import { groqPlugin } from "../lib/providers/groq.js";
@@ -358,6 +359,7 @@ const BUILTIN_PLUGINS = [
   modelscopePlugin,
   infiniPlugin,
   mimoPlugin,
+  mimoTokenPlanPlugin,
   systemSpeechPlugin,
   // 国际
   groqPlugin,

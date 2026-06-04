@@ -1216,6 +1216,7 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
                   audios: msg.audios,
                   uiContext: msg.uiContext ?? null,
                   displayMessage: msg.displayMessage,
+                  sessionFileRefs: msg.sessionFileRefs,
                 });
               } catch (err) {
                 const isUserAbort = err.name === 'AbortError'

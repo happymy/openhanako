@@ -45,6 +45,10 @@ function makeFakeSession({ replyText = "desktop reply", toolMedia = [], toolMedi
   };
 }
 
+function sessionFileMarker({ fileId, sessionPath, label, kind = "attachment" }) {
+  return `[SessionFile] ${JSON.stringify({ fileId, sessionPath, label, kind })}`;
+}
+
 describe("submitDesktopSessionMessage", () => {
   it("rejects concurrent submissions for the same session before streaming status is emitted", async () => {
     const session = makeFakeSession();
@@ -286,7 +290,7 @@ describe("submitDesktopSessionMessage", () => {
     );
   });
 
-  it("keeps display-only audio attachments on the legacy text path", async () => {
+  it("adds SessionFile references for display-only audio attachments", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-display-audio-"));
     try {
       const filePath = path.join(tmpDir, "voice.wav");
@@ -338,7 +342,11 @@ describe("submitDesktopSessionMessage", () => {
 
       expect(engine.promptSession).toHaveBeenCalledWith(
         sessionPath,
-        `[附件] ${filePath}`,
+        `${sessionFileMarker({
+          fileId: "sf_audio_attachment",
+          sessionPath,
+          label: "voice.wav",
+        })}\n[附件] ${filePath}`,
         undefined,
       );
     } finally {
@@ -408,7 +416,11 @@ describe("submitDesktopSessionMessage", () => {
       });
       expect(engine.promptSession).toHaveBeenCalledWith(
         sessionPath,
-        `[attached_audio: ${filePath}]\nhear this`,
+        `${sessionFileMarker({
+          fileId: "sf_audio_attachment",
+          sessionPath,
+          label: "voice.wav",
+        })}\n[attached_audio: ${filePath}]\nhear this`,
         {
           audios: [{ type: "audio", data: "BASE64", mimeType: "audio/wav" }],
           audioAttachmentPaths: [filePath],
@@ -490,7 +502,11 @@ describe("submitDesktopSessionMessage", () => {
       });
       expect(engine.promptSession).toHaveBeenCalledWith(
         sessionPath,
-        `[attached_audio: ${voicePath}]`,
+        `${sessionFileMarker({
+          fileId: "sf_voice_input",
+          sessionPath,
+          label: "录音 1.wav",
+        })}\n[attached_audio: ${voicePath}]`,
         {
           audios: [{ type: "audio", data: "BASE64", mimeType: "audio/wav" }],
           audioAttachmentPaths: [voicePath],
@@ -577,7 +593,11 @@ describe("submitDesktopSessionMessage", () => {
       expect(emittedAttachment).not.toHaveProperty("base64Data");
       expect(engine.promptSession).toHaveBeenCalledWith(
         sessionPath,
-        `[attached_image: ${filePath}]\nlocal file`,
+        `${sessionFileMarker({
+          fileId: "sf_desktop_attachment",
+          sessionPath,
+          label: "desk.png",
+        })}\n[attached_image: ${filePath}]\nlocal file`,
         expect.objectContaining({
           imageAttachmentPaths: [filePath],
         }),
@@ -652,7 +672,11 @@ describe("submitDesktopSessionMessage", () => {
       );
       expect(engine.promptSession).toHaveBeenCalledWith(
         sessionPath,
-        `[attached_image: ${savedPath}]\nsee bridge image`,
+        `${sessionFileMarker({
+          fileId: "sf_rc_inbound",
+          sessionPath,
+          label: "bridge.png",
+        })}\n[attached_image: ${savedPath}]\nsee bridge image`,
         expect.objectContaining({
           imageAttachmentPaths: [savedPath],
         }),

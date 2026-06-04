@@ -1376,9 +1376,22 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
         )
       ) : [];
 
+      const sessionPathForSend = useStore.getState().currentSessionPath;
+      const sessionFileRefs = otherFiles
+        .filter(f => f.fileId)
+        .map(f => ({
+          fileId: f.fileId,
+          sessionPath: sessionPathForSend,
+          label: f.name || f.path,
+          kind: f.isDirectory ? 'directory' : 'attachment',
+        }));
+
       let finalText = text;
       if (otherFiles.length > 0) {
-        const fileBlock = otherFiles.map(f => f.isDirectory ? `[目录] ${f.path}` : `[附件] ${f.path}`).join('\n');
+        const fileBlock = otherFiles.map(f => {
+          const label = f.fileId ? (f.name || f.path) : f.path;
+          return f.isDirectory ? `[目录] ${label}` : `[附件] ${label}`;
+        }).join('\n');
         finalText = text ? `${text}\n\n${fileBlock}` : fileBlock;
       }
 
@@ -1487,7 +1500,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
       const wsMsg: Record<string, unknown> = {
         type: 'prompt',
         text: finalText,
-        sessionPath: useStore.getState().currentSessionPath,
+        sessionPath: sessionPathForSend,
         uiContext: collectUiContext(useStore.getState()),
         displayMessage: {
           text,
@@ -1510,6 +1523,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
           }) : undefined,
         },
       };
+      if (sessionFileRefs.length > 0) wsMsg.sessionFileRefs = sessionFileRefs;
       if (images.length > 0) wsMsg.images = images;
       if (videos.length > 0) wsMsg.videos = videos;
       if (audios.length > 0) wsMsg.audios = audios;

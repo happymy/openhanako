@@ -302,12 +302,14 @@
     "thinkingLevel": {
       "off": "オフ",
       "auto": "自動",
+      "medium": "中",
       "high": "深い",
       "xhigh": "最大"
     },
     "thinkingDesc": {
       "off": "推論なし",
       "auto": "モデルが深さを判断",
+      "medium": "バランス推論",
       "high": "深い推論",
       "xhigh": "フル推論"
     },

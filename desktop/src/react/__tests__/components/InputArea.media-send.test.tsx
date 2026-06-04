@@ -607,8 +607,55 @@ describe('InputArea media send', () => {
     });
     const payload = JSON.parse(String(mocks.wsSend.mock.calls[0][0]));
     expect(payload.audios).toBeUndefined();
-    expect(payload.text).toBe('[附件] /tmp/hana/session-files/voice.wav');
+    expect(payload.text).toBe('[附件] voice.wav');
+    expect(payload.sessionFileRefs).toEqual([{
+      fileId: 'sf_voice',
+      sessionPath: '/session/media.jsonl',
+      label: 'voice.wav',
+      kind: 'attachment',
+    }]);
     expect(window.platform.readFileBase64).not.toHaveBeenCalled();
+  });
+
+  it('sends ordinary attachments by fileId instead of using visible path text as the machine contract', async () => {
+    useStore.setState({
+      attachedFiles: [{
+        fileId: 'sf_cjk_digits',
+        path: '/Users/tangli/Desktop/测试123/报告2026.txt',
+        name: '报告2026.txt',
+        isDirectory: false,
+      }],
+      attachedFilesBySession: {
+        '/session/media.jsonl': [{
+          fileId: 'sf_cjk_digits',
+          path: '/Users/tangli/Desktop/测试123/报告2026.txt',
+          name: '报告2026.txt',
+          isDirectory: false,
+        }],
+      },
+    } as never);
+
+    render(React.createElement(InputArea));
+
+    fireEvent.click(screen.getByTestId('send'));
+
+    await waitFor(() => {
+      expect(mocks.wsSend).toHaveBeenCalledTimes(1);
+    });
+    const payload = JSON.parse(String(mocks.wsSend.mock.calls[0][0]));
+    expect(payload.text).toBe('[附件] 报告2026.txt');
+    expect(payload.text).not.toContain('/Users/tangli/Desktop/测试123');
+    expect(payload.sessionFileRefs).toEqual([{
+      fileId: 'sf_cjk_digits',
+      sessionPath: '/session/media.jsonl',
+      label: '报告2026.txt',
+      kind: 'attachment',
+    }]);
+    expect(payload.displayMessage.attachments[0]).toMatchObject({
+      fileId: 'sf_cjk_digits',
+      path: '/Users/tangli/Desktop/测试123/报告2026.txt',
+      name: '报告2026.txt',
+    });
   });
 
   it('does not send while an agent switch session is still pending', async () => {

@@ -4,6 +4,7 @@ import path from "path";
 import { describe, expect, it, vi } from "vitest";
 import { SessionFileRegistry } from "../lib/session-files/session-file-registry.js";
 import { SpeechRecognitionService } from "../core/speech-recognition-service.js";
+import { ProviderRegistry } from "../core/provider-registry.js";
 
 function makeProviderRegistry() {
   return {
@@ -136,6 +137,76 @@ describe("SpeechRecognitionService", () => {
         fileId: file.id,
         transcription: expect.objectContaining({ status: "ready", text: "今晚我们先把语音输入跑通。" }),
       }), sessionPath);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves MiMo Token Plan STT with Token Plan credentials and base URL", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-speech-token-plan-"));
+    try {
+      fs.writeFileSync(path.join(tmpDir, "added-models.yaml"), [
+        "providers:",
+        "  mimo-token-plan:",
+        "    api_key: tp-mimo-key",
+        "    base_url: https://token-plan-cn.xiaomimimo.com/v1",
+        "    api: openai-completions",
+        "",
+      ].join("\n"), "utf-8");
+      const providerRegistry = new ProviderRegistry(tmpDir);
+      providerRegistry.reload();
+
+      const sessionPath = path.join(tmpDir, "session.jsonl");
+      const voicePath = path.join(tmpDir, "voice.wav");
+      fs.writeFileSync(sessionPath, "{}\n");
+      fs.writeFileSync(voicePath, "RIFF");
+      const sessionFiles = new SessionFileRegistry();
+      const file = sessionFiles.registerFile({
+        sessionPath,
+        filePath: voicePath,
+        label: "voice.wav",
+        origin: "voice_input",
+        storageKind: "managed_cache",
+        presentation: "voice-input",
+        listed: false,
+      });
+      const adapter = {
+        id: "mimo",
+        protocolId: "mimo-chat-completions-asr",
+        types: ["speechRecognition"],
+        transcribe: vi.fn(async () => ({ text: "token plan ready", language: "auto" })),
+      };
+      const service = new SpeechRecognitionService({
+        providerRegistry,
+        preferences: {
+          getSpeechRecognitionConfig: () => ({
+            enabled: true,
+            defaultModel: { provider: "mimo-token-plan", id: "mimo-v2.5-asr" },
+          }),
+        },
+        sessionFiles,
+        emitEvent: vi.fn(),
+      });
+      service.registerAdapter(adapter);
+
+      const result = await service.transcribeVoiceAttachment({ sessionPath, fileId: file.id });
+
+      expect(result).toMatchObject({
+        status: "ready",
+        providerId: "mimo-token-plan",
+        protocolId: "mimo-chat-completions-asr",
+      });
+      expect(adapter.transcribe).toHaveBeenCalledWith(expect.objectContaining({
+        provider: expect.objectContaining({
+          id: "mimo-token-plan",
+          baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+        }),
+        credentials: expect.objectContaining({
+          apiKey: "tp-mimo-key",
+          baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+          api: "openai-completions",
+        }),
+      }));
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

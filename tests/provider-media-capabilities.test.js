@@ -59,6 +59,18 @@ describe("ProviderRegistry media capabilities", () => {
     expect(byId.get("mimo")?.models).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "mimo-v2.5-asr", protocolId: "mimo-chat-completions-asr" }),
     ]));
+    expect(registry.get("mimo-token-plan")).toMatchObject({
+      id: "mimo-token-plan",
+      baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+      api: "openai-completions",
+    });
+    expect(byId.get("mimo-token-plan")).toMatchObject({
+      providerId: "mimo-token-plan",
+      displayName: "Xiaomi MiMo Token Plan",
+    });
+    expect(byId.get("mimo-token-plan")?.models).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "mimo-v2.5-asr", protocolId: "mimo-chat-completions-asr" }),
+    ]));
     expect(byId.get("dashscope")?.models).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "qwen3-asr-flash", protocolId: "dashscope-qwen-asr-chat" }),
     ]));

@@ -1761,6 +1761,10 @@ export class HanaEngine {
         : this._readPreferences().sandbox_network !== false,
       getExternalReadPaths,
       getSessionPath,
+      resolveSessionFile: (fileId, options = {}) => {
+        const lookupSessionPath = options?.sessionPath || getSessionPath() || null;
+        return this.getSessionFile?.(fileId, { sessionPath: lookupSessionPath }) || null;
+      },
       recordFileOperation: (entry) => this.recordSessionFileOperation(entry),
       getVisionBridge: () => this.getVisionBridge(),
       isVisionAuxiliaryEnabled: () => this.isVisionAuxiliaryEnabled(),

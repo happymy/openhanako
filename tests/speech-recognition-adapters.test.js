@@ -94,6 +94,25 @@ describe("speech recognition adapters", () => {
     });
   });
 
+  it("calls MiMo Token Plan ASR through the Token Plan OpenAI-compatible base URL", async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+      choices: [{ message: { content: "令牌计划识别成功" } }],
+    }), { status: 200 }));
+
+    const result = await mimoSpeechRecognitionAdapter.transcribe(makeInput({
+      provider: { id: "mimo-token-plan", baseUrl: "https://token-plan-cn.xiaomimimo.com/v1" },
+      model: { id: "mimo-v2.5-asr", protocolId: "mimo-chat-completions-asr" },
+      credentials: { apiKey: "tp-mimo-key", baseUrl: "https://token-plan-cn.xiaomimimo.com/v1", api: "openai-completions" },
+      fetch: fetchImpl,
+    }));
+
+    expect(result.text).toBe("令牌计划识别成功");
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://token-plan-cn.xiaomimimo.com/v1/chat/completions");
+    expect(url).not.toContain("/anthropic");
+    expect(init.headers).toMatchObject({ "api-key": "tp-mimo-key", "Content-Type": "application/json" });
+  });
+
   it("calls DashScope Qwen ASR through the OpenAI-compatible input_audio shape", async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
       choices: [{ message: { content: "你好" } }],

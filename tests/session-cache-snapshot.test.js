@@ -70,6 +70,41 @@ describe("session cache snapshot", () => {
     expect(snapshot.messages[0].content[1]).toEqual({ type: "input_audio", audio_url: "file://voice.wav" });
   });
 
+  it("canonicalizes legacy auto thinking params before hashing snapshots", () => {
+    const snapshot = buildSessionCacheSnapshot({
+      sessionPath: "/sessions/a.jsonl",
+      model,
+      cacheKeyParams: { thinkingLevel: "auto", reasoning: "auto", toolChoice: "auto" },
+      systemPrompt: "stable system",
+      tools: [tool("read")],
+      messages: [{ role: "user", content: "first" }],
+      reason: "compaction",
+    });
+
+    expect(snapshot.cacheKeyParams).toEqual({
+      reasoning: "medium",
+      thinkingLevel: "medium",
+      toolChoice: "auto",
+    });
+
+    const requestContract = buildSessionSnapshotRequestContract({
+      snapshot,
+      model,
+      cacheKeyParams: { thinkingLevel: "auto", reasoning: "auto", toolChoice: "auto" },
+      systemPrompt: "stable system",
+      tools: [tool("read")],
+      messages: [{ role: "user", content: "first" }],
+      prefixMessageCount: 1,
+    });
+
+    expect(requestContract.cacheKeyParams).toEqual(snapshot.cacheKeyParams);
+    expect(assertSessionSnapshotRequest(snapshot, requestContract)).toMatchObject({
+      ok: true,
+      strict: true,
+      diffs: [],
+    });
+  });
+
   it("accepts a side request that appends only an internal suffix", () => {
     const snapshot = buildSessionCacheSnapshot({
       sessionPath: "/sessions/a.jsonl",

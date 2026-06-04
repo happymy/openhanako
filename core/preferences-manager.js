@@ -29,6 +29,7 @@ import {
 import { normalizeWorkspacePath } from "../shared/workspace-history.js";
 import { normalizeNetworkProxyConfig } from "../shared/network-proxy.js";
 import { createModuleLogger } from "../lib/debug-log.js";
+import { normalizeSessionThinkingLevel } from "./session-thinking-level.js";
 
 const log = createModuleLogger("preferences");
 
@@ -434,13 +435,13 @@ export class PreferencesManager {
 
   /** 读取 thinking level 偏好（用户全局，跨 agent / session） */
   getThinkingLevel() {
-    return this._cache.thinking_level || "auto";
+    return normalizeSessionThinkingLevel(this._cache.thinking_level);
   }
 
   /** 保存 thinking level 偏好 */
   setThinkingLevel(level) {
     const prefs = this._mutableCopy();
-    prefs.thinking_level = level;
+    prefs.thinking_level = normalizeSessionThinkingLevel(level);
     this.savePreferences(prefs);
   }
 

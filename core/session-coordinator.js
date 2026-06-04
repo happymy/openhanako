@@ -44,6 +44,10 @@ import {
   pruneSessionInlineMediaHistory,
   repairSessionInlineMediaEntriesInFile,
 } from "./session-inline-media-prune.js";
+import {
+  repairOversizedSessionEntries,
+  repairOversizedSessionEntriesInFile,
+} from "./session-jsonl-file.js";
 import { createVisionContextInjectionExtension } from "./vision-context-injector.js";
 import {
   modelSupportsDirectAudioInput,
@@ -1452,6 +1456,8 @@ export class SessionCoordinator {
     // 说明用户已经撞到了"反复 empty_stream"循环，给前端发警告事件让 UI 提示用户
     // 新建会话或修复。restore 本身仍然继续，避免破坏用户预期。
     this._emitSessionHealthWarning(sessionPath);
+    // 在 open 前修复巨型/坏 JSONL 行，避免 SessionManager.open 整文件 parse 卡住。
+    this._repairOversizedSessionHistory(sessionPath);
     // #1285: 在 open 前修复坏会话的孤儿 toolResult（必须早于 SessionManager.open）
     this._repairOrphanToolHistory(sessionPath);
     this._repairInlineMediaHistory(sessionPath);
@@ -1510,6 +1516,38 @@ export class SessionCoordinator {
     }
   }
 
+  _repairOversizedSessionHistory(sessionPath) {
+    try {
+      const result = repairOversizedSessionEntriesInFile(sessionPath);
+      if (result.repaired) {
+        log.warn(
+          `session restore: ${path.basename(sessionPath)} repaired oversized JSONL lines `
+          + `(projected=${result.projected}, skipped=${result.skipped})`
+        );
+      }
+    } catch (err) {
+      log.warn(`oversized session history repair failed for ${path.basename(sessionPath)}: ${err.message}`);
+    }
+  }
+
+  _projectOversizedSessionHistory(session, sessionPath) {
+    try {
+      const manager = session?.sessionManager;
+      if (!Array.isArray(manager?.fileEntries)) return;
+      const result = repairOversizedSessionEntries(manager.fileEntries);
+      if (result.projected === 0) return;
+      manager.fileEntries = result.entries;
+      manager._buildIndex?.();
+      manager._rewriteFile?.();
+      log.warn(
+        `session turn: ${path.basename(sessionPath || manager.getSessionFile?.() || "session")} `
+        + `projected ${result.projected} oversized JSONL entries`
+      );
+    } catch (err) {
+      log.warn(`oversized session projection failed: ${err.message}`);
+    }
+  }
+
   _repairInlineMediaHistory(sessionPath) {
     try {
       const result = repairSessionInlineMediaEntriesInFile(sessionPath);
@@ -1556,6 +1594,7 @@ export class SessionCoordinator {
     } finally {
       engine?.endCurrentTurnNativeMedia?.(nativeMediaTurn);
       pruneSessionInlineMediaHistory(this._session);
+      this._projectOversizedSessionHistory(this._session, sp);
       if (sp) this._scheduleRuntimePressureCheck(sp, "prompt");
     }
     if (sp) {
@@ -1643,6 +1682,7 @@ export class SessionCoordinator {
     } finally {
       engine?.endCurrentTurnNativeMedia?.(nativeMediaTurn);
       pruneSessionInlineMediaHistory(entry.session);
+      this._projectOversizedSessionHistory(entry.session, sessionPath);
       this._scheduleRuntimePressureCheck(sessionPath, "prompt_session");
     }
     const agent = this._d.getAgentById(entry.agentId) || this._d.getAgent();
@@ -2547,6 +2587,7 @@ export class SessionCoordinator {
     try {
       // #521: attach 路径同样要做健康度评估，否则 bridge / RC 自动恢复时也会反复失败
       this._emitSessionHealthWarning(sessionPath);
+      this._repairOversizedSessionHistory(sessionPath);
       // #1285: 在 open 前修复坏会话的孤儿 toolResult（必须早于 SessionManager.open）
       this._repairOrphanToolHistory(sessionPath);
       this._repairInlineMediaHistory(sessionPath);
@@ -3280,6 +3321,7 @@ export class SessionCoordinator {
         && opts.resumeSessionPath.trim()
         && fs.existsSync(opts.resumeSessionPath);
       if (resumeExisting) {
+        this._repairOversizedSessionHistory(opts.resumeSessionPath);
         this._repairOrphanToolHistory(opts.resumeSessionPath);
         this._repairInlineMediaHistory(opts.resumeSessionPath);
         tempSessionMgr = SessionManager.open(opts.resumeSessionPath, sessionDir);

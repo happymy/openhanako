@@ -302,12 +302,14 @@
     "thinkingLevel": {
       "off": "off",
       "auto": "auto",
+      "medium": "medium",
       "high": "high",
       "xhigh": "max"
     },
     "thinkingDesc": {
       "off": "no reasoning",
       "auto": "model decides depth",
+      "medium": "balanced reasoning",
       "high": "deep reasoning",
       "xhigh": "full reasoning"
     },

@@ -302,12 +302,14 @@
     "thinkingLevel": {
       "off": "끔",
       "auto": "자동",
+      "medium": "중간",
       "high": "깊은",
       "xhigh": "최대"
     },
     "thinkingDesc": {
       "off": "추론 없음",
       "auto": "모델이 깊이를 결정",
+      "medium": "균형 추론",
       "high": "깊은 추론",
       "xhigh": "전체 추론"
     },

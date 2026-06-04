@@ -302,12 +302,14 @@
     "thinkingLevel": {
       "off": "关闭",
       "auto": "自动",
+      "medium": "中等",
       "high": "深度",
       "xhigh": "极限"
     },
     "thinkingDesc": {
       "off": "不推理",
       "auto": "模型决定深度",
+      "medium": "平衡推理",
       "high": "深度推理",
       "xhigh": "最强推理"
     },
@@ -1380,7 +1382,7 @@
       "homeFolderPlaceholder": "未设置（每次手动选择）",
       "homeFolderClear": "清除",
       "homeFolderBrowse": "选择文件夹",
-      "contextFilesTitle": "工作区说明注入",
+      "contextFilesTitle": "工作台说明注入",
       "contextFilesDesc": "把当前工作台项目里的 AGENTS.md / CLAUDE.md 注入到新建会话的系统提示词中，位置在记忆之前。",
       "injectAgentsMd": "注入 AGENTS.md",
       "injectAgentsMdDesc": "开启后，新会话会读取当前工作目录到 Git 根目录之间的 AGENTS.md。",
