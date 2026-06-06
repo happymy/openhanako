@@ -24,7 +24,7 @@ describe("deferred result interlude", () => {
       taskId: "subagent-1",
       sourceKind: "subagent",
       sourceLabel: "明 · 大纲评估",
-      text: "小花收到了来自 明 · 大纲评估 的回复",
+      text: "小花 收到了来自 明 · 大纲评估 的回复",
       detailMarkdown: "整理完成",
     });
   });
@@ -45,7 +45,7 @@ describe("deferred result interlude", () => {
     expect(block).toMatchObject({
       sourceKind: "subagent",
       sourceLabel: "Hanako · 凌晨诗行",
-      text: "Hanako收到了来自 Hanako · 凌晨诗行 的回复",
+      text: "Hanako 收到了来自 Hanako · 凌晨诗行 的回复",
     });
     expect(block.sourceLabel).not.toContain("写一首");
     expect(block.text).not.toContain("五点三十九分");

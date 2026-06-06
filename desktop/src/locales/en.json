@@ -2981,18 +2981,18 @@
     "interlude": {
       "subagent": {
         "success": "{receiver} received a reply from {source}",
-        "failed": "{receiver} received a failed reply from {source}",
-        "aborted": "{receiver} stopped the reply from {source}"
+        "failed": "{receiver} received a reply from {source}",
+        "aborted": "{receiver} received a reply from {source}"
       },
       "workflow": {
-        "success": "{receiver} received a reply from {source} workflow",
-        "failed": "{receiver} received a failed reply from {source} workflow",
-        "aborted": "{receiver} stopped {source} workflow"
+        "success": "{receiver} received results from {source} workflow",
+        "failed": "{receiver} received results from {source} workflow",
+        "aborted": "{receiver} received results from {source} workflow"
       },
       "tool": {
-        "success": "{receiver} got results from {source} tool",
-        "failed": "{receiver} did not get results from {source} tool",
-        "aborted": "{receiver} stopped results from {source} tool"
+        "success": "{receiver} received results from {source} tool",
+        "failed": "{receiver} received results from {source} tool",
+        "aborted": "{receiver} received results from {source} tool"
       }
     },
     "noReason": "The background task did not return a displayable reason.",

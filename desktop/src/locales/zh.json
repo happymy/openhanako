@@ -2876,19 +2876,19 @@
     },
     "interlude": {
       "subagent": {
-        "success": "{receiver}收到了来自 {source} 的回复",
-        "failed": "{receiver}收到了来自 {source} 的失败回复",
-        "aborted": "{receiver}停止了来自 {source} 的回复"
+        "success": "{receiver} 收到了来自 {source} 的回复",
+        "failed": "{receiver} 收到了来自 {source} 的回复",
+        "aborted": "{receiver} 收到了来自 {source} 的回复"
       },
       "workflow": {
-        "success": "{receiver}收到了来自 {source} workflow 的回复",
-        "failed": "{receiver}收到了来自 {source} workflow 的失败回复",
-        "aborted": "{receiver}停止了 {source} workflow"
+        "success": "{receiver} 收到了来自 {source} workflow 的结果",
+        "failed": "{receiver} 收到了来自 {source} workflow 的结果",
+        "aborted": "{receiver} 收到了来自 {source} workflow 的结果"
       },
       "tool": {
-        "success": "{receiver}拿到了来自 {source} 工具的结果",
-        "failed": "{receiver}没有拿到来自 {source} 工具的结果",
-        "aborted": "{receiver}停止了来自 {source} 工具的结果"
+        "success": "{receiver} 收到了来自 {source} 工具的结果",
+        "failed": "{receiver} 收到了来自 {source} 工具的结果",
+        "aborted": "{receiver} 收到了来自 {source} 工具的结果"
       }
     },
     "noReason": "后台任务没有返回可展示的原因。",

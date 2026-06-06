@@ -293,7 +293,7 @@ describe('streamBufferManager.ensureMessage 自愈', () => {
         status: 'success',
         sourceKind: 'tool',
         sourceLabel: '图片生成',
-        text: '小花拿到了来自 图片生成 工具的结果',
+        text: '小花 收到了来自 图片生成 工具的结果',
         detailMarkdown: '生成文件：\n- quiet.png',
       },
     });
@@ -320,7 +320,7 @@ describe('streamBufferManager.ensureMessage 自愈', () => {
     expect(interludeItem.data).toMatchObject({
       type: 'interlude',
       taskId: 'task-interlude-img',
-      text: '小花拿到了来自 图片生成 工具的结果',
+      text: '小花 收到了来自 图片生成 工具的结果',
     });
 
     const assistantItems = getItems().filter((item) => item.type === 'message' && item.data.role === 'assistant');
@@ -356,7 +356,7 @@ describe('streamBufferManager.ensureMessage 自愈', () => {
         status: 'success',
         sourceKind: 'workflow',
         sourceLabel: 'ten-writers',
-        text: 'Hanako收到了来自 ten-writers workflow 的回复',
+        text: 'Hanako 收到了来自 ten-writers workflow 的结果',
         detailMarkdown: 'workflow result',
       },
     });
@@ -405,7 +405,7 @@ describe('streamBufferManager.ensureMessage 自愈', () => {
         status: 'success',
         sourceKind: 'workflow',
         sourceLabel: '冒烟测试',
-        text: 'Hanako收到了来自 冒烟测试 workflow 的回复',
+        text: 'Hanako 收到了来自 冒烟测试 workflow 的结果',
       },
     });
 

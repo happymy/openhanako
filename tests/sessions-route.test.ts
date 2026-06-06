@@ -1105,7 +1105,7 @@ describe("sessions route", () => {
       taskId: "subagent-1",
       sourceKind: "subagent",
       sourceLabel: "明 · 大纲评估",
-      text: "小花收到了来自 明 · 大纲评估 的回复",
+      text: "小花 收到了来自 明 · 大纲评估 的回复",
       detailMarkdown: "子助手完整回复",
     });
     expect(interlude.text).not.toContain("长任务说明");
@@ -1618,7 +1618,7 @@ describe("sessions route", () => {
         taskId: "task-img",
         sourceKind: "tool",
         sourceLabel: "图片生成",
-        text: "Hana拿到了来自 图片生成 工具的结果",
+        text: "Hana 收到了来自 图片生成 工具的结果",
         detailMarkdown: expect.stringContaining("generated.png"),
       }),
       {
@@ -1750,7 +1750,7 @@ describe("sessions route", () => {
         taskId: "task-img",
         sourceKind: "tool",
         sourceLabel: "图片生成",
-        text: "Hana拿到了来自 图片生成 工具的结果",
+        text: "Hana 收到了来自 图片生成 工具的结果",
         detailMarkdown: "生成文件：\n- generated.png (image)",
       }),
       {
