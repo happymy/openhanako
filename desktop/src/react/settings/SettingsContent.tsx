@@ -10,7 +10,7 @@ import {
   type ServerConnection,
 } from '../services/server-connection';
 import { t } from './helpers';
-import { loadAgents, loadAvatars, loadSettingsConfig, loadSettingsSnapshot } from './actions';
+import { loadAgents, loadAvatars, loadSettingsSnapshot } from './actions';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SettingsNav } from './SettingsNav';
 import { Toast } from './Toast';
@@ -295,12 +295,13 @@ export function SettingsContent({
 async function initSettings() {
   const platform = window.platform;
   const store = useSettingsStore.getState();
+  store.set({ ready: false });
 
   // 超时保护：15 秒后强制显示，防止无限白屏
   const timeout = setTimeout(() => {
-    if (!store.ready) {
+    if (!useSettingsStore.getState().ready) {
       console.warn('[settings] init timeout (15s), forcing ready');
-      store.set({ ready: true });
+      useSettingsStore.getState().set({ ready: true });
     }
   }, 15_000);
 

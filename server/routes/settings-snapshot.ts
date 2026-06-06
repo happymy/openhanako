@@ -6,6 +6,8 @@ import { injectGlobalFields } from "../../shared/config-scope.ts";
 import { computeSettingsAvailableToolNames } from "../../shared/tool-categories.ts";
 import { readPinnedMemoryItems } from "../../lib/memory/pinned-memory-store.ts";
 import { listExperienceDocuments } from "../../lib/tools/experience.ts";
+import { createAccessSummary, getLanAddresses } from "./access.ts";
+import { buildBridgeStatus } from "./bridge.ts";
 import { normalizeNotificationPreferences } from "../../shared/notification-preferences.ts";
 import { normalizeQuickChatPreferences } from "../../shared/quick-chat-preferences.ts";
 import { normalizeSearchApiKeys, SEARCH_API_PROVIDER_IDS } from "../../shared/search-providers.ts";
@@ -175,7 +177,22 @@ function buildBridgePreferences(engine: any) {
   };
 }
 
-export function createSettingsSnapshotRoute(engine: any) {
+function resolveBridgeManager(ref: any) {
+  if (!ref) return null;
+  if (typeof ref.get === "function") return ref.get() || null;
+  return ref;
+}
+
+function buildAccessSnapshot(engine: any, canSeeLocalPaths: boolean, options: Record<string, any>) {
+  if (!canSeeLocalPaths || !engine?.hanakoHome) return null;
+  return createAccessSummary(
+    engine,
+    options.runtimeState || {},
+    options.listLanAddresses || getLanAddresses,
+  );
+}
+
+export function createSettingsSnapshotRoute(engine: any, options: Record<string, any> = {}) {
   const route = new Hono();
 
   route.get("/settings/snapshot", async (c) => {
@@ -183,6 +200,10 @@ export function createSettingsSnapshotRoute(engine: any) {
       const agentId = resolveSnapshotAgentId(engine, c.req.query("agentId"));
       const baseDir = agentDir(engine, agentId);
       const config = await buildAgentConfig(engine, agentId);
+      const runtimeAgent = engine.getAgent?.(agentId);
+      const snapshotAgent = runtimeAgent?.config
+        ? runtimeAgent
+        : { ...(runtimeAgent || {}), id: agentId, config };
       const [identity, ishiki, publicIshiki] = await Promise.all([
         readTextFile(path.join(baseDir, "identity.md")),
         readTextFile(path.join(baseDir, "ishiki.md")),
@@ -206,6 +227,10 @@ export function createSettingsSnapshotRoute(engine: any) {
           speechRecognition: engine.speechRecognition?.getConfig?.() || engine.getSpeechRecognitionConfig?.() || { enabled: false },
           experiments: listResolvedExperiments(engine.preferences),
         },
+        access: buildAccessSnapshot(engine, canSeeLocalPaths, options),
+        bridgeStatus: snapshotAgent
+          ? buildBridgeStatus(engine, resolveBridgeManager(options.bridgeManagerRef), snapshotAgent)
+          : null,
         plugins: buildPluginSettings(engine, canSeeLocalPaths),
       });
     } catch (err: any) {

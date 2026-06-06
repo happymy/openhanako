@@ -735,7 +735,10 @@ app.route("/api", createChannelsRoute(engine, hub));
 app.route("/api", createDmRoute(engine, hub));
 app.route("/api", createFsRoute(engine));
 app.route("/api", createPreferencesRoute(engine));
-app.route("/api", createSettingsSnapshotRoute(engine));
+app.route("/api", createSettingsSnapshotRoute(engine, {
+  bridgeManagerRef,
+  runtimeState: serverRuntimeState,
+}));
 app.route("/api", createExperimentsRoute(engine));
 app.route("/api", createBridgeRoute(engine, bridgeManagerRef));
 app.route("/api", createAuthRoute(engine));

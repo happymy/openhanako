@@ -78,6 +78,8 @@ export interface SettingsSnapshot {
     speechRecognition: Record<string, any>;
     experiments: any[];
   };
+  access?: Record<string, any> | null;
+  bridgeStatus?: Record<string, any> | null;
   plugins: {
     allowFullAccess: boolean;
     devToolsEnabled: boolean;

@@ -68,12 +68,17 @@ export function AccessTab() {
   const showToast = useSettingsStore(s => s.showToast);
   const activeConnection = useSettingsStore(s => s.activeServerConnection);
   const serverConnections = useSettingsStore(s => s.serverConnections);
+  const snapshotAccess = useSettingsStore(s => s.settingsSnapshot.data?.access as AccessSummary | null | undefined);
   const localConnection = serverConnections[LOCAL_CONNECTION_ID] ?? null;
   const effectiveConnection = activeConnection ?? localConnection;
   const isLocalOwner = isLocalOwnerConnection(effectiveConnection);
-  const [summary, setSummary] = useState<AccessSummary | null>(null);
-  const [mode, setMode] = useState<AccessMode | null>(null);
-  const [port, setPort] = useState('');
+  const [summary, setSummary] = useState<AccessSummary | null>(() => snapshotAccess || null);
+  const [mode, setMode] = useState<AccessMode | null>(() => snapshotAccess?.network?.mode || null);
+  const [port, setPort] = useState(() => (
+    Number.isInteger(snapshotAccess?.network?.configuredPort)
+      ? String(snapshotAccess!.network.configuredPort)
+      : ''
+  ));
   const [mobileKey, setMobileKey] = useState('');
   const [desktopKey, setDesktopKey] = useState('');
   const [generatingMobileKey, setGeneratingMobileKey] = useState(false);
@@ -85,6 +90,17 @@ export function AccessTab() {
   const [savingNetwork, setSavingNetwork] = useState(false);
   const [accountDraft, setAccountDraft] = useState({ username: '', displayName: '' });
   const [passwordDraft, setPasswordDraft] = useState('');
+
+  useEffect(() => {
+    if (!snapshotAccess) return;
+    setSummary(snapshotAccess);
+    setMode(snapshotAccess.network.mode);
+    setPort(String(snapshotAccess.network.configuredPort));
+    setAccountDraft({
+      username: snapshotAccess.account.username || '',
+      displayName: snapshotAccess.account.displayName || '',
+    });
+  }, [snapshotAccess]);
 
   const loadSummary = useCallback(async () => {
     if (!isLocalOwner) {

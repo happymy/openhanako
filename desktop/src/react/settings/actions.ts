@@ -208,7 +208,7 @@ export function updateSettingsSnapshot(mutator: (snapshot: SettingsSnapshot) => 
   });
 }
 
-export async function loadSettingsSnapshot() {
+export async function loadSettingsSnapshot(options: { retainSameKeyData?: boolean } = {}) {
   const store = useSettingsStore.getState();
   const myVersion = ++_settingsSnapshotLoadVersion;
   if (_settingsSnapshotAbortController) {
@@ -221,10 +221,11 @@ export async function loadSettingsSnapshot() {
   const currentResource = store.settingsSnapshot || createRemoteResource<SettingsSnapshot>();
   const requestId = currentResource.requestId + 1;
   const configKey = makeSettingsResourceKey('config', agentId, store.activeServerConnectionId);
-  const keepSameConfigOwnerData = store.settingsConfigKey === configKey;
+  const retainSameKeyData = options.retainSameKeyData === true;
+  const keepSameConfigOwnerData = retainSameKeyData && store.settingsConfigKey === configKey;
 
   store.set({
-    settingsSnapshot: startRemoteLoad(currentResource, resourceKey, requestId, { retainSameKeyData: true }),
+    settingsSnapshot: startRemoteLoad(currentResource, resourceKey, requestId, { retainSameKeyData }),
     settingsConfigKey: configKey,
     settingsConfigStatus: 'loading',
     settingsConfigError: null,

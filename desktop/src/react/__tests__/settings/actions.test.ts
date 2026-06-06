@@ -54,6 +54,12 @@ function resetState() {
     globalModelsConfig: null,
     homeFolder: null,
     currentPins: [],
+    pluginSettingsStatus: 'idle',
+    pluginSettingsError: null,
+    pluginAllowFullAccess: undefined,
+    pluginDevToolsEnabled: undefined,
+    pluginUserDir: '',
+    pluginSettingsTabs: [],
     set: vi.fn((patch: Record<string, unknown>) => Object.assign(mockState, patch)),
     getSettingsAgentId: () => mockState.settingsAgentId || mockState.currentAgentId,
     showToast: vi.fn(),
@@ -277,6 +283,110 @@ describe('settings actions', () => {
     expect(mockState.pluginAllowFullAccess).toBe(true);
     expect(mockState.pluginDevToolsEnabled).toBe(true);
     expect(mockState.pluginSettingsTabs).toHaveLength(1);
+  });
+
+  it('clears same-owner stale snapshot data while a fresh settings snapshot is loading', async () => {
+    let resolveSnapshot: (value: Response) => void = () => {};
+    mockState.settingsConfigKey = 'local:config:agent-a';
+    mockState.settingsConfigStatus = 'ready';
+    mockState.settingsConfig = { agent: { id: 'agent-a', name: 'Stale Agent' }, keep_awake: false };
+    mockState.globalModelsConfig = { models: { utility: { id: 'old-u' } } };
+    mockState.homeFolder = '/old/home';
+    mockState.currentPins = ['old-pin'];
+    mockState.pluginSettingsStatus = 'ready';
+    mockState.pluginAllowFullAccess = false;
+    mockState.pluginDevToolsEnabled = false;
+    mockState.pluginUserDir = '/old/plugins';
+    mockState.pluginSettingsTabs = [{ pluginId: 'old', id: 'old-tab', title: 'Old', nativeComponent: 'OldSettings' }];
+    mockState.settingsSnapshot = {
+      key: 'local:snapshot:agent-a',
+      status: 'ready',
+      data: {
+        agentId: 'agent-a',
+        config: { agent: { id: 'agent-a', name: 'Stale Agent' }, keep_awake: false },
+        identity: 'old-identity',
+        ishiki: '',
+        publicIshiki: '',
+        userProfile: '',
+        experience: '',
+        pinned: { pins: ['old-pin'] },
+        globalModels: { models: { utility: { id: 'old-u' } } },
+        preferences: {
+          quickChat: {},
+          notifications: {},
+          bridge: { permissionMode: 'auto', readOnly: false, receiptEnabled: true },
+          speechRecognition: { enabled: false },
+          experiments: [],
+        },
+        plugins: {
+          allowFullAccess: false,
+          devToolsEnabled: false,
+          userDir: '/old/plugins',
+          settingsTabs: [{ pluginId: 'old', id: 'old-tab', title: 'Old', nativeComponent: 'OldSettings' }],
+        },
+        access: { network: { mode: 'loopback' } },
+        bridgeStatus: { agentId: 'agent-a', telegram: { enabled: false } },
+      },
+      error: null,
+      requestId: 3,
+      updatedAt: Date.now(),
+    };
+    mockFetch.mockImplementation((path: string) => {
+      if (path === '/api/settings/snapshot?agentId=agent-a') {
+        return new Promise<Response>((resolve) => {
+          resolveSnapshot = resolve;
+        });
+      }
+      throw new Error(`unexpected path: ${path}`);
+    });
+
+    const { loadSettingsSnapshot } = await import('../../settings/actions');
+
+    const pending = loadSettingsSnapshot();
+
+    expect(mockState.settingsSnapshot).toMatchObject({
+      key: 'local:snapshot:agent-a',
+      status: 'loading',
+      data: null,
+    });
+    expect(mockState.settingsConfig).toBeNull();
+    expect(mockState.globalModelsConfig).toBeNull();
+    expect(mockState.currentPins).toEqual([]);
+    expect(mockState.pluginAllowFullAccess).toBeUndefined();
+    expect(mockState.pluginDevToolsEnabled).toBeUndefined();
+    expect(mockState.pluginSettingsTabs).toEqual([]);
+
+    resolveSnapshot(jsonResponse({
+      agentId: 'agent-a',
+      config: { agent: { id: 'agent-a', name: 'Fresh Agent' }, keep_awake: true },
+      identity: 'fresh-identity',
+      ishiki: '',
+      publicIshiki: '',
+      userProfile: '',
+      experience: '',
+      pinned: { pins: ['fresh-pin'] },
+      globalModels: { models: { utility: { id: 'new-u' } } },
+      preferences: {
+        quickChat: {},
+        notifications: {},
+        bridge: { permissionMode: 'operate', readOnly: false, receiptEnabled: true },
+        speechRecognition: { enabled: true },
+        experiments: [],
+      },
+      plugins: {
+        allowFullAccess: true,
+        devToolsEnabled: true,
+        userDir: '/fresh/plugins',
+        settingsTabs: [],
+      },
+      access: { network: { mode: 'lan' } },
+      bridgeStatus: { agentId: 'agent-a', telegram: { enabled: true } },
+    }));
+    await pending;
+
+    expect(mockState.settingsConfig.agent.name).toBe('Fresh Agent');
+    expect(mockState.settingsSnapshot.data.access.network.mode).toBe('lan');
+    expect(mockState.pluginAllowFullAccess).toBe(true);
   });
 
   it('setPrimaryAgent updates only primary ownership and keeps the current focus', async () => {

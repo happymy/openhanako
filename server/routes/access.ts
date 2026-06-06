@@ -228,7 +228,7 @@ export function createAccessRoute({
   return route;
 }
 
-function createAccessSummary(engine, runtimeState, listLanAddresses) {
+export function createAccessSummary(engine, runtimeState, listLanAddresses = getLanAddresses) {
   const network = loadServerNetworkConfig(engine.hanakoHome);
   const registries = loadDeviceAccessRegistries(engine.hanakoHome);
   return {
@@ -380,7 +380,7 @@ function sanitizeCredential(credential) {
   return safe;
 }
 
-function getLanAddresses() {
+export function getLanAddresses() {
   const out = [];
   const interfaces = os.networkInterfaces();
   for (const entries of Object.values(interfaces)) {
