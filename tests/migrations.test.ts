@@ -11,7 +11,7 @@ import { getAgentPhoneProjectionPath, safeConversationStem } from "../lib/conver
 
 // ── 测试工具 ────────────────────────────────────────────────────────────────
 
-const LATEST_DATA_VERSION = 39;
+const LATEST_DATA_VERSION = 40;
 
 function makeTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "hana-migrations-"));
@@ -101,6 +101,44 @@ describe("runMigrations runner", () => {
     agentsDir = path.join(tmpDir, "agents");
     userDir = path.join(tmpDir, "user");
     fs.mkdirSync(agentsDir, { recursive: true });
+  });
+
+  it("migration #40 canonicalizes legacy session permission sidecars without changing explicit session modes", () => {
+    const prefs = makePrefs(userDir);
+    prefs.savePreferences({ _dataVersion: 39 });
+    const sessionMetaPath = path.join(agentsDir, "hana", "sessions", "session-meta.json");
+    writeJson(sessionMetaPath, {
+      "legacy-readonly.jsonl": { planMode: true },
+      "legacy-operate.jsonl": { accessMode: "operate" },
+      "explicit-ask.jsonl": { permissionMode: "ask", accessMode: "operate" },
+      "unknown.jsonl": { title: "leave me alone" },
+    });
+
+    runMigrations({
+      hanakoHome: tmpDir,
+      agentsDir,
+      prefs,
+      providerRegistry: makeRegistry([]),
+      log: () => {},
+    });
+
+    const meta = readJson(sessionMetaPath);
+    expect(meta["legacy-readonly.jsonl"]).toMatchObject({
+      permissionMode: "read_only",
+      accessMode: "read_only",
+      planMode: true,
+    });
+    expect(meta["legacy-operate.jsonl"]).toMatchObject({
+      permissionMode: "operate",
+      accessMode: "operate",
+      planMode: false,
+    });
+    expect(meta["explicit-ask.jsonl"]).toMatchObject({
+      permissionMode: "ask",
+      accessMode: "operate",
+    });
+    expect(meta["unknown.jsonl"]).toEqual({ title: "leave me alone" });
+    expect(prefs.getPreferences()._dataVersion).toBe(LATEST_DATA_VERSION);
   });
 
   afterEach(() => { fs.rmSync(tmpDir, { recursive: true, force: true }); });

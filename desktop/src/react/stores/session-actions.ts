@@ -19,6 +19,7 @@ import { snapshotStreamBuffer, type StreamBufferSnapshot } from './stream-invali
 import { renderMarkdown } from '../utils/markdown';
 import type { ChatMessage, ContentBlock } from './chat-types';
 import { readMessageLiveVersion } from './message-live-version';
+import type { SessionPermissionMode } from '../types';
 
 // ── 防竞争计数器 ──
 
@@ -71,6 +72,23 @@ function isPendingNewSessionDraftView(): boolean {
   return state.pendingNewSession === true
     && state.currentSessionPath === null
     && !state.pendingSessionSwitchPath;
+}
+
+const SESSION_PERMISSION_MODES = new Set(['auto', 'operate', 'ask', 'read_only']);
+
+function normalizeSessionPermissionMode(mode: unknown): SessionPermissionMode {
+  return typeof mode === 'string' && SESSION_PERMISSION_MODES.has(mode)
+    ? mode as SessionPermissionMode
+    : 'ask';
+}
+
+function emitSessionPermissionMode(mode: unknown): SessionPermissionMode {
+  const normalized = normalizeSessionPermissionMode(mode);
+  useStore.getState().setSessionPermissionMode?.(normalized);
+  window.dispatchEvent(new CustomEvent('hana-plan-mode', {
+    detail: { enabled: normalized === 'read_only', mode: normalized },
+  }));
+  return normalized;
 }
 
 function findSessionProjection(path: string): any | null {
@@ -404,13 +422,7 @@ export async function switchSession(path: string): Promise<void> {
 
     useStore.getState().clearQuotedSelection();
 
-    // Sync plan mode for the switched-to session
-    window.dispatchEvent(new CustomEvent('hana-plan-mode', {
-      detail: {
-        enabled: data.permissionMode === 'read_only' || data.accessMode === 'read_only' || data.planMode === true,
-        mode: data.permissionMode || data.accessMode,
-      },
-    }));
+    emitSessionPermissionMode(data.permissionMode || data.accessMode);
     if (data.thinkingLevel) {
       useStore.getState().setThinkingLevel(data.thinkingLevel);
     }
@@ -517,9 +529,7 @@ async function switchDeletedAgentSession(path: string, version: number): Promise
   if (version !== _switchVersion) return;
 
   useStore.getState().clearQuotedSelection();
-  window.dispatchEvent(new CustomEvent('hana-plan-mode', {
-    detail: { enabled: true, mode: 'read_only' },
-  }));
+  emitSessionPermissionMode('read_only');
 
   const hasData = !!useStore.getState().chatSessions?.[path];
   if (!hasData) {
@@ -569,6 +579,7 @@ export async function createNewSession(options: CreateNewSessionOptions = {}): P
     pendingNewSession: true,
     pendingProjectId,
     pendingNewSessionThinkingLevel: null,
+    pendingNewSessionPermissionMode: null,
     attachedFiles: [],
     deskContextAttached: false,
     docContextAttached: false,
@@ -585,11 +596,9 @@ export async function createNewSession(options: CreateNewSessionOptions = {}): P
     const res = await hanaFetch('/api/session-permission-mode');
     const data = await res.json();
     const mode = data.defaultMode || data.mode || 'ask';
-    window.dispatchEvent(new CustomEvent('hana-plan-mode', {
-      detail: { enabled: mode === 'read_only', mode },
-    }));
+    if (isPendingNewSessionDraftView()) emitSessionPermissionMode(mode);
   } catch {
-    window.dispatchEvent(new CustomEvent('hana-plan-mode', { detail: { enabled: false, mode: 'ask' } }));
+    if (isPendingNewSessionDraftView()) emitSessionPermissionMode('ask');
   }
 
   try {
@@ -633,6 +642,9 @@ export async function ensureSession(): Promise<boolean> {
     if (s.pendingNewSessionThinkingLevel) {
       body.thinkingLevel = s.pendingNewSessionThinkingLevel;
     }
+    if (s.pendingNewSessionPermissionMode) {
+      body.permissionMode = s.pendingNewSessionPermissionMode;
+    }
     if (s.selectedAgentId && s.selectedAgentId !== s.currentAgentId) {
       body.agentId = s.selectedAgentId;
     }
@@ -662,6 +674,7 @@ export async function ensureSession(): Promise<boolean> {
       selectedWorkspaceLabel: null,
       pendingProjectId: null,
       pendingNewSessionThinkingLevel: null,
+      pendingNewSessionPermissionMode: null,
       workspaceFolders: Array.isArray(data.workspaceFolders) ? data.workspaceFolders : [],
       selectedAgentId: null,
     };
@@ -705,12 +718,7 @@ export async function ensureSession(): Promise<boolean> {
       workspaceLabel: data.workspaceLabel || s.selectedWorkspaceLabel || null,
     });
 
-    window.dispatchEvent(new CustomEvent('hana-plan-mode', {
-      detail: {
-        enabled: data.permissionMode === 'read_only' || data.accessMode === 'read_only' || data.planMode === true,
-        mode: data.permissionMode || data.accessMode,
-      },
-    }));
+    emitSessionPermissionMode(data.permissionMode || data.accessMode || s.pendingNewSessionPermissionMode);
 
     await loadSessions();
 

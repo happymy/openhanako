@@ -26,6 +26,8 @@ const initialStateFactory = (): MockState => ({
   pendingNewSession: false,
   pendingProjectId: null,
   pendingNewSessionThinkingLevel: null,
+  pendingNewSessionPermissionMode: null,
+  sessionPermissionMode: 'ask',
   sessions: [] as Array<{ path: string }>,
   chatSessions: {} as Record<string, unknown>,
   sessionRegistryFilesByPath: {} as Record<string, unknown>,
@@ -219,6 +221,13 @@ function installStoreMethods() {
   s.requestInputFocus = vi.fn();
   s.setThinkingLevel = vi.fn((level: string) => { mockState.thinkingLevel = level; });
   s.setPendingNewSessionThinkingLevel = vi.fn((level: string | null) => { mockState.pendingNewSessionThinkingLevel = level; });
+  s.setSessionPermissionMode = vi.fn((mode: string) => {
+    mockState.sessionPermissionMode = mode;
+    if (mockState.pendingNewSession === true) {
+      mockState.pendingNewSessionPermissionMode = mode;
+    }
+  });
+  s.setPendingNewSessionPermissionMode = vi.fn((mode: string | null) => { mockState.pendingNewSessionPermissionMode = mode; });
   s.setDeskBasePath = vi.fn((path: string) => { mockState.deskBasePath = path; });
   s.setDeskCurrentPath = vi.fn((path: string) => { mockState.deskCurrentPath = path; });
   s.setDeskFiles = vi.fn((files: unknown[]) => { mockState.deskFiles = files; });
@@ -494,6 +503,8 @@ function jsonResponse(body: unknown, ok = true): Response {
 
       const permissionEvent = dispatchedEvents.filter(e => e.type === 'hana-plan-mode').at(-1);
       expect(permissionEvent?.detail).toEqual({ enabled: true, mode: 'read_only' });
+      expect(mockState.sessionPermissionMode).toBe('read_only');
+      expect(mockState.pendingNewSessionPermissionMode).toBe('read_only');
     });
 
     it('initializes pending new-session thinking from the server default', async () => {
@@ -642,6 +653,40 @@ function jsonResponse(body: unknown, ok = true): Response {
       expect(mockState.thinkingLevel).toBe('high');
     });
 
+    it('carries the pending new-session permission draft into session creation', async () => {
+      Object.assign(mockState, {
+        pendingNewSession: true,
+        memoryEnabled: true,
+        selectedFolder: '/workspace-a',
+        pendingNewSessionPermissionMode: 'auto',
+      });
+      mockFetch.mockResolvedValueOnce(jsonResponse({
+        ok: true,
+        path: '/session/new.jsonl',
+        cwd: '/workspace-a',
+        workspaceFolders: [],
+        permissionMode: 'auto',
+      }));
+      mockFetch.mockResolvedValueOnce(jsonResponse([]));
+
+      await expect(ensureSession()).resolves.toBe(true);
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        '/api/sessions/new',
+        expect.objectContaining({
+          body: JSON.stringify({
+            memoryEnabled: true,
+            cwd: '/workspace-a',
+            permissionMode: 'auto',
+            currentSessionPath: null,
+          }),
+        }),
+      );
+      expect(mockState.pendingNewSessionPermissionMode).toBeNull();
+      expect(mockState.sessionPermissionMode).toBe('auto');
+    });
+
     it('carries an explicit project id from the new-session draft into session creation', async () => {
       await createNewSession({ projectId: 'project-hana', cwd: '/workspace/project-hana' });
       mockFetch.mockResolvedValueOnce(jsonResponse({
@@ -662,6 +707,7 @@ function jsonResponse(body: unknown, ok = true): Response {
             memoryEnabled: true,
             cwd: '/workspace/project-hana',
             projectId: 'project-hana',
+            permissionMode: 'ask',
             currentSessionPath: null,
           }),
         }),

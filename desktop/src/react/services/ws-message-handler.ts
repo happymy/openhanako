@@ -37,6 +37,12 @@ declare function t(key: string, vars?: Record<string, string>): any;
 
 let requestContextUsage: (sessionPath: string) => void = () => {};
 
+function syncSessionPermissionMode(mode: unknown) {
+  if (mode === 'auto' || mode === 'operate' || mode === 'ask' || mode === 'read_only') {
+    useStore.getState().setSessionPermissionMode?.(mode);
+  }
+}
+
 export function configureWsMessageHandler(options: {
   requestContextUsage?: (sessionPath: string) => void;
 }): void {
@@ -658,8 +664,10 @@ export function handleServerMessage(msg: any): void {
     case 'plan_mode': {
       const sp = msg.sessionPath;
       if (!sp || sp === useStore.getState().currentSessionPath) {
+        const mode = msg.mode || (msg.enabled ? 'read_only' : 'operate');
+        syncSessionPermissionMode(mode);
         window.dispatchEvent(new CustomEvent('hana-plan-mode', {
-          detail: { enabled: !!msg.enabled, mode: msg.mode || (msg.enabled ? 'read_only' : 'operate') },
+          detail: { enabled: !!msg.enabled, mode },
         }));
       }
       break;
@@ -668,6 +676,7 @@ export function handleServerMessage(msg: any): void {
     case 'permission_mode': {
       const sp = msg.sessionPath;
       if (!sp || sp === useStore.getState().currentSessionPath) {
+        syncSessionPermissionMode(msg.mode);
         window.dispatchEvent(new CustomEvent('hana-plan-mode', {
           detail: { enabled: msg.mode === 'read_only', mode: msg.mode },
         }));
@@ -678,10 +687,12 @@ export function handleServerMessage(msg: any): void {
     case 'access_mode': {
       const sp = msg.sessionPath;
       if (!sp || sp === useStore.getState().currentSessionPath) {
+        const mode = msg.permissionMode || msg.mode;
+        syncSessionPermissionMode(mode);
         window.dispatchEvent(new CustomEvent('hana-plan-mode', {
           detail: {
             enabled: msg.readOnly === true,
-            mode: msg.permissionMode || msg.mode,
+            mode,
           },
         }));
       }

@@ -224,7 +224,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     });
   });
 
-  it("persists the last selected permission mode as the global new-session default", async () => {
+  it("keeps active-session permission changes out of the global new-session default", async () => {
     currentAgentConfig = { tools: { disabled: [] } };
     const { sessionPath: firstPath } = await coord.createSession(null, tmpDir, true);
 
@@ -242,9 +242,9 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     const { sessionPath: secondPath } = await coord.createSession(null, tmpDir, true);
 
     expect(coord.getPermissionMode(firstPath)).toBe("operate");
-    expect(coord.getPermissionMode(secondPath)).toBe("operate");
-    expect(coord.getPermissionModeDefault()).toBe("operate");
-    expect(defaultModeSaveSpy).toHaveBeenCalledWith("operate");
+    expect(coord.getPermissionMode(secondPath)).toBe("ask");
+    expect(coord.getPermissionModeDefault()).toBe("ask");
+    expect(defaultModeSaveSpy).not.toHaveBeenCalled();
   });
 
   it("can stage a pending new-session permission mode without mutating the active session", async () => {
@@ -354,7 +354,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     });
   });
 
-  it("can persist an explicit loaded session permission change as the global default by contract", async () => {
+  it("does not let explicit loaded-session permission changes rewrite the global default", async () => {
     currentAgentConfig = { tools: { disabled: [] } };
     const { sessionPath } = await coord.createSession(null, tmpDir, true);
 
@@ -362,8 +362,8 @@ describe("session-coordinator tool snapshot (createSession)", () => {
 
     expect(result).toMatchObject({ ok: true, mode: "auto", enabled: false });
     expect(coord.getPermissionMode(sessionPath)).toBe("auto");
-    expect(coord.getPermissionModeDefault()).toBe("auto");
-    expect(defaultModeSaveSpy).toHaveBeenCalledWith("auto");
+    expect(coord.getPermissionModeDefault()).toBe("ask");
+    expect(defaultModeSaveSpy).not.toHaveBeenCalled();
   });
 
   it("can switch an explicit loaded session permission mode without relying on focus", async () => {
@@ -387,8 +387,8 @@ describe("session-coordinator tool snapshot (createSession)", () => {
 
     expect(result).toMatchObject({ ok: true, mode: "operate", enabled: false });
     expect(coord.getPermissionMode(firstPath)).toBe("operate");
-    expect(coord.getPermissionMode(secondPath)).toBe("read_only");
-    expect(coord.getPermissionModeDefault()).toBe("read_only");
+    expect(coord.getPermissionMode(secondPath)).toBe("ask");
+    expect(coord.getPermissionModeDefault()).toBe("ask");
   });
 
   it("new session with pending read-only access mode keeps tool schema stable", async () => {
@@ -770,7 +770,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
 
   // ── Runtime permission mode after session creation ─────────────────────
 
-  it("updates setPlanMode after session creation, persists the default, and leaves active tools unchanged", async () => {
+  it("updates setPlanMode after session creation without changing the default or active tools", async () => {
     currentAgentConfig = { tools: { disabled: ["browser"] } };
     const { sessionPath } = await coord.createSession(null, tmpDir, true);
     expect(activeToolsSpy).toHaveBeenCalledTimes(1); // initial snapshot apply
@@ -779,8 +779,8 @@ describe("session-coordinator tool snapshot (createSession)", () => {
 
     expect(result).toMatchObject({ ok: true, mode: "read_only", enabled: true });
     expect(activeToolsSpy).toHaveBeenCalledTimes(1);
-    expect(defaultModeSaveSpy).toHaveBeenCalledWith("read_only");
-    expect(coord.getPermissionModeDefault()).toBe("read_only");
+    expect(defaultModeSaveSpy).not.toHaveBeenCalled();
+    expect(coord.getPermissionModeDefault()).toBe("ask");
     expect(coord.getAccessMode()).toBe("read_only");
     expect(coord.getPermissionMode(sessionPath)).toBe("read_only");
   });

@@ -2433,7 +2433,7 @@ export class SessionCoordinator {
     return this._applyPermissionModeToEntry(sp, entry, nextMode);
   }
 
-  setSessionPermissionMode(sessionPath: any, mode: any, { persistDefault = false }: any = {}) {
+  setSessionPermissionMode(sessionPath: any, mode: any, _options: any = {}) {
     const nextMode = normalizeSessionPermissionMode(mode);
     if (!sessionPath) {
       return {
@@ -2446,11 +2446,7 @@ export class SessionCoordinator {
     if (!entry) {
       const meta = this._hibernatedSessionMeta.get(sessionPath);
       if (meta) {
-        const result = this._applyPermissionModeToEntry(sessionPath, meta, nextMode);
-        if (result.ok && persistDefault === true) {
-          this._setDefaultPermissionMode(nextMode);
-        }
-        return result;
+        return this._applyPermissionModeToEntry(sessionPath, meta, nextMode);
       }
       return {
         ok: false,
@@ -2458,17 +2454,12 @@ export class SessionCoordinator {
         mode: this.getPermissionMode(sessionPath),
       };
     }
-    const result = this._applyPermissionModeToEntry(sessionPath, entry, nextMode);
-    if (result.ok && persistDefault === true) {
-      this._setDefaultPermissionMode(nextMode);
-    }
-    return result;
+    return this._applyPermissionModeToEntry(sessionPath, entry, nextMode);
   }
 
   setPermissionMode(mode: any) {
     const nextMode = normalizeSessionPermissionMode(mode);
     const sp = this.currentSessionPath;
-    this._setDefaultPermissionMode(nextMode);
     if (sp) {
       const entry = this._sessions.get(sp);
       if (!entry) {

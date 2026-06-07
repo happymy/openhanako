@@ -326,7 +326,8 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
   }, [currentSessionItems]);
 
   // Local state
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>('ask');
+  const permissionMode = useStore(s => s.sessionPermissionMode);
+  const setPermissionMode = useStore(s => s.setSessionPermissionMode);
   const [sending, setSending] = useState(false);
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashSelected, setSlashSelected] = useState(0);
@@ -1292,7 +1293,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     };
     window.addEventListener('hana-plan-mode', handler);
     return () => window.removeEventListener('hana-plan-mode', handler);
-  }, [activeServerConnection, setThinkingLevel, surface]);
+  }, [activeServerConnection, setPermissionMode, setThinkingLevel, surface]);
 
   // ── Handle slash selection (builtin vs skill) ──
   const handleSlashSelect = useCallback((item: SlashItem) => {

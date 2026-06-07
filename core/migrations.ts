@@ -28,7 +28,12 @@ import { SubagentThreadStore } from "../lib/subagent-thread-store.ts";
 import { persistBrowserScreenshotFileSync } from "../lib/session-files/browser-screenshot-file.ts";
 import { getInvalidProviderModelIds } from "../shared/provider-model-validation.ts";
 import { normalizeThinkingLevelForModel } from "./session-thinking-level.ts";
-import { normalizeBridgePermissionMode, SESSION_PERMISSION_MODES } from "./session-permission-mode.ts";
+import {
+  legacyAccessModeFromPermissionMode,
+  normalizeBridgePermissionMode,
+  normalizeSessionPermissionMode,
+  SESSION_PERMISSION_MODES,
+} from "./session-permission-mode.ts";
 import { lookupKnown } from "../shared/known-models.ts";
 import { SESSION_PREFIX_MAP } from "../lib/bridge/session-key.ts";
 import { migrateLegacyApiKeyAuthToProviders } from "./provider-auth-migration.ts";
@@ -124,6 +129,8 @@ const migrations = {
   38: migrateDirectNotifyAutomationsToAgentRuns,
   // automation 归属修复：所有可运行任务必须能确定执行 Agent；旧 plugin/direct 执行器收敛为 Agent Run
   39: repairAutomationOwnershipAfterAgentRunConsolidation,
+  // session permission mode 收敛：旧 sidecar 的 planMode/accessMode 补齐 canonical permissionMode
+  40: migrateSessionPermissionModeSidecars,
 };
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -2428,6 +2435,85 @@ function collectAgentSessionMetaPaths(agentsDir) {
     }
   }
   return out;
+}
+
+function migrateSessionPermissionModeSidecars(ctx) {
+  const { agentsDir, log } = ctx;
+  const metaPaths = collectAgentSessionMetaPaths(agentsDir);
+  let patched = 0;
+  for (const metaPath of metaPaths) {
+    patched += repairSessionMetaPermissionModes(metaPath, log);
+  }
+  log?.(`[migrations] #40: session permission sidecars canonicalized (${patched})`);
+}
+
+function repairSessionMetaPermissionModes(metaPath, log) {
+  let raw;
+  try {
+    raw = fs.readFileSync(metaPath, "utf-8");
+  } catch {
+    return 0;
+  }
+
+  let meta;
+  try {
+    meta = JSON.parse(raw);
+  } catch (err) {
+    log?.(`[migrations] #40: skipped unreadable session-meta ${metaPath}: ${err.message}`);
+    return 0;
+  }
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return 0;
+
+  let patched = 0;
+  for (const [sessionFile, entry] of Object.entries(meta) as [string, any][]) {
+    if (!shouldCanonicalizeSessionPermissionMode(entry)) continue;
+    const permissionMode = normalizeSessionPermissionMode(entry);
+    const accessMode = legacyAccessModeFromPermissionMode(permissionMode);
+    const planMode = permissionMode === SESSION_PERMISSION_MODES.READ_ONLY;
+    if (
+      entry.permissionMode === permissionMode
+      && entry.accessMode === accessMode
+      && entry.planMode === planMode
+    ) {
+      continue;
+    }
+    meta[sessionFile] = {
+      ...entry,
+      permissionMode,
+      accessMode,
+      planMode,
+    };
+    patched++;
+  }
+
+  if (patched === 0) return 0;
+  backupSessionMetaBeforeV40(metaPath, raw, log);
+  const tmp = metaPath + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(meta, null, 2) + "\n", "utf-8");
+  fs.renameSync(tmp, metaPath);
+  return patched;
+}
+
+function shouldCanonicalizeSessionPermissionMode(entry) {
+  return entry
+    && typeof entry === "object"
+    && !Array.isArray(entry)
+    && (
+      typeof entry.permissionMode === "string"
+      || typeof entry.accessMode === "string"
+      || typeof entry.planMode === "boolean"
+    );
+}
+
+function backupSessionMetaBeforeV40(metaPath, raw, log) {
+  const backupPath = `${metaPath}.pre-v40.bak`;
+  try {
+    fs.writeFileSync(backupPath, raw, { encoding: "utf-8", flag: "wx" });
+  } catch (err) {
+    if (err.code === "EEXIST") return;
+    log?.(`[migrations] #40: failed to write session-meta backup ${backupPath}: ${err.message}`);
+    throw err;
+  }
 }
 
 function repairSessionMetaThinkingLevels(metaPath, log) {
