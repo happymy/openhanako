@@ -107,26 +107,23 @@ function requireAgentId(agent, key) {
   return agentId;
 }
 
-/**
- * 设置注册表
- */
-const SETTINGS_REGISTRY = {
+const USER_ONLY_SETTINGS = {
   sandbox: {
     type: "toggle",
     get label() { return t("toolDef.updateSettings.sandbox"); },
     get description() { return t("toolDef.updateSettings.sandboxDesc"); },
-    searchTerms: ["security", "安全", "权限", "セキュリティ", "보안"],
-    get: (engine, _agent) => String(engine.preferences.getSandbox()),
-    apply: (engine, _agent, v) => engine.setSandbox(v),
   },
   sandbox_network: {
     type: "toggle",
     get label() { return t("toolDef.updateSettings.sandboxNetwork"); },
     get description() { return t("toolDef.updateSettings.sandboxNetworkDesc"); },
-    searchTerms: ["security", "network", "internet", "联网", "curl", "pip", "npm"],
-    get: (engine, _agent) => String(engine.preferences.getSandboxNetwork()),
-    apply: (engine, _agent, v) => engine.setSandboxNetwork(v),
   },
+};
+
+/**
+ * 设置注册表
+ */
+const SETTINGS_REGISTRY = {
   file_backup: {
     type: "toggle",
     get label() { return t("toolDef.updateSettings.fileBackup"); },
@@ -379,6 +376,24 @@ function displayLabelForUpdate(key, reg) {
   return reg?.label || key;
 }
 
+function createUserOnlySettingsResult(key, reg) {
+  const label = displayLabelForUpdate(key, reg);
+  return createSettingsToolResult({
+    status: "blocked",
+    action: "core.apply",
+    key,
+    title: `${label} is user-only`,
+    summary: `${label} controls the execution boundary. Ask the user to open Settings > Security to change it.`,
+  }, {
+    settingKey: key,
+    cardType: reg?.type || "text",
+    currentValue: "",
+    proposedValue: "",
+    label,
+    confirmed: false,
+  });
+}
+
 function parseSettingsPayload(value) {
   const raw = String(value ?? "").trim();
   if (!raw) return {};
@@ -441,7 +456,7 @@ export function createUpdateSettingsTool(deps: Record<string, any> = {}) {
   return {
     name: "update_settings",
     userFacingName: "Settings",
-    description: "Modify HanaAgent's settings. When the user mentions changing settings without naming a specific app, assume this application. For preferences like appearance/theme, language/region, model selection, security/permissions, memory, personal info, working directory, or MCP connectors, use this tool, and do not search the web or edit config files directly. Two actions available:\n- search + query: Search settings by keyword, see current values and options\n- apply + key + value: Change a setting (requires user confirmation)\n\nIf you already know the exact key, you can apply directly. When intent is clear, apply directly and report the result in one sentence; when unsure, search first.",
+    description: "Modify HanaAgent's settings. When the user mentions changing settings without naming a specific app, assume this application. For preferences like appearance/theme, language/region, model selection, memory, personal info, working directory, or MCP connectors, use this tool, and do not search the web or edit config files directly. Sandbox and execution-boundary controls are user-only: tell the user to open Settings > Security instead of applying them. Two actions available:\n- search + query: Search settings by keyword, see current values and options\n- apply + key + value: Change a setting (requires user confirmation)\n\nIf you already know the exact key, you can apply directly. When intent is clear, apply directly and report the result in one sentence; when unsure, search first.",
     parameters: Type.Object({
       action: StringEnum(
         ["search", "apply"],
@@ -484,6 +499,10 @@ export function createUpdateSettingsTool(deps: Record<string, any> = {}) {
 
           if (!engine) {
             return { content: [{ type: "text", text: t("error.settingsNotReady") }] };
+          }
+
+          if (Object.hasOwn(USER_ONLY_SETTINGS, key)) {
+            return createUserOnlySettingsResult(key, USER_ONLY_SETTINGS[key]);
           }
 
           if (Object.hasOwn(MCP_SETTINGS_ACTIONS, key)) {
