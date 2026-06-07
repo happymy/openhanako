@@ -1628,6 +1628,39 @@
     border-color: var(--accent);
 }
 
+.agent-name-save-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 4rem;
+    margin: var(--space-sm) auto 0;
+    padding: 0.4rem 0;
+    font-family: inherit;
+    font-size: 0.82rem;
+    line-height: 1;
+    color: white;
+    background: color-mix(in srgb, var(--accent) 70%, transparent);
+    border: 1px solid rgba(var(--accent-rgb), 0.25);
+    border-radius: var(--radius-card, 8px);
+    cursor: default;
+    transition:
+        background var(--duration-fast) var(--ease-out),
+        color var(--duration-fast) var(--ease-out),
+        border-color var(--duration-fast) var(--ease-out),
+        opacity var(--duration-fast) var(--ease-out);
+}
+
+.agent-name-save-btn:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.agent-name-save-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* 胶囊控件：标签 + 输入/选框合为一体 */
 .model-capsule {
     display: inline-flex;

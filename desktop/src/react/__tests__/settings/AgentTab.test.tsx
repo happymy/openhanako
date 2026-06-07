@@ -8,7 +8,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSettingsStore } from '../../settings/store';
 
-type MockResponse = { json: () => Promise<any> };
+type MockResponse = { json: () => Promise<unknown> };
 
 const hanaFetchMock = vi.fn(async (_url: string, _opts?: RequestInit): Promise<MockResponse> => ({
   json: async () => ({ models: [] }),
@@ -146,7 +146,7 @@ describe('AgentTab settings agent selection', () => {
   });
 
   it('confirms character-card export from the live preview overlay', async () => {
-    hanaFetchMock.mockImplementation(async (url: string, opts?: RequestInit): Promise<MockResponse> => {
+    hanaFetchMock.mockImplementation(async (url: string, _opts?: RequestInit): Promise<MockResponse> => {
       if (url === '/api/models') return { json: async () => ({ models: [] }) };
       if (url === '/api/character-cards/export/preview') {
         return {
@@ -226,6 +226,37 @@ describe('AgentTab settings agent selection', () => {
     }) as [string, RequestInit | undefined] | undefined;
     expect(cfgCall).toBeTruthy();
     expect(JSON.parse(String(cfgCall?.[1]?.body))).toEqual({ agent: { name: 'NewName' } });
+  });
+
+  it('saves only the agent name from the compact name save button', async () => {
+    const { AgentTab } = await import('../../settings/tabs/AgentTab');
+    const { container } = render(<AgentTab />);
+
+    const nameInput = screen.getByPlaceholderText('settings.agent.agentNameHint');
+    const identityInput = container.querySelectorAll('textarea')[0];
+    expect(identityInput).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.change(nameInput, { target: { value: 'NewName' } });
+      fireEvent.change(identityInput, { target: { value: 'changed identity' } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: 'settings.save' })[0]);
+      await Promise.resolve();
+    });
+
+    const cfgCall = hanaFetchMock.mock.calls.find((call) => {
+      const [url, opts] = call as [string, RequestInit | undefined];
+      return url === '/api/agents/hana/config' && opts?.method === 'PUT';
+    }) as [string, RequestInit | undefined] | undefined;
+    const identityCall = hanaFetchMock.mock.calls.find((call) => {
+      const [url, opts] = call as [string, RequestInit | undefined];
+      return url === '/api/agents/hana/identity' && opts?.method === 'PUT';
+    });
+
+    expect(cfgCall).toBeTruthy();
+    expect(JSON.parse(String(cfgCall?.[1]?.body))).toEqual({ agent: { name: 'NewName' } });
+    expect(identityCall).toBeUndefined();
   });
 
   it('does not save on Enter while composing with an IME (#1306)', async () => {
