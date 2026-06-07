@@ -224,6 +224,46 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     });
   });
 
+  it("projects persisted permission mode for cold sessions in the session list", async () => {
+    fs.writeFileSync(fakeSessionPath, [
+      JSON.stringify({
+        type: "session",
+        id: "cold-auto",
+        cwd: tmpDir,
+        timestamp: "2026-06-08T08:00:00.000Z",
+      }),
+      JSON.stringify({
+        type: "message",
+        message: {
+          role: "user",
+          content: "hello",
+          timestamp: "2026-06-08T08:01:00.000Z",
+        },
+      }),
+    ].join("\n") + "\n");
+    fs.writeFileSync(
+      path.join(sessionDir, "session-meta.json"),
+      JSON.stringify({
+        [path.basename(fakeSessionPath)]: {
+          permissionMode: "auto",
+          accessMode: "operate",
+          planMode: false,
+        },
+      }, null, 2),
+    );
+    coord._d.listAgents = () => [{ id: "test", name: "Test" }];
+
+    const sessions = await coord.listSessions();
+
+    expect(coord._sessions.has(fakeSessionPath)).toBe(false);
+    expect(sessions).toEqual([
+      expect.objectContaining({
+        path: fakeSessionPath,
+        permissionMode: "auto",
+      }),
+    ]);
+  });
+
   it("keeps active-session permission changes out of the global new-session default", async () => {
     currentAgentConfig = { tools: { disabled: [] } };
     const { sessionPath: firstPath } = await coord.createSession(null, tmpDir, true);

@@ -540,6 +540,14 @@ function sessionExperimentFlagsForMeta(value: any) {
   return flags.deepseekRoleplayReasoningPatch === true ? flags : null;
 }
 
+function hasSessionPermissionModeFields(value: any) {
+  return !!value && typeof value === "object" && (
+    typeof value.permissionMode === "string"
+    || typeof value.accessMode === "string"
+    || value.planMode === true
+  );
+}
+
 function normalizeSessionWorkspaceMount(value: any) {
   const mountId = typeof value?.workspaceMountId === "string" && value.workspaceMountId.trim()
     ? value.workspaceMountId.trim()
@@ -3070,6 +3078,12 @@ export class SessionCoordinator {
           }
           const sessKey = path.basename(s.path);
           const metaEntry = meta[sessKey];
+          const runtimeEntry = this._sessions.get(s.path) || this._hibernatedSessionMeta.get(s.path);
+          if (hasSessionPermissionModeFields(runtimeEntry)) {
+            s.permissionMode = normalizeSessionPermissionMode(runtimeEntry);
+          } else if (hasSessionPermissionModeFields(metaEntry)) {
+            s.permissionMode = normalizeSessionPermissionMode(metaEntry);
+          }
           s.pinnedAt = typeof metaEntry?.pinnedAt === "string" ? metaEntry.pinnedAt : null;
           s.projectId = typeof metaEntry?.projectId === "string" && metaEntry.projectId.trim()
             ? metaEntry.projectId.trim()

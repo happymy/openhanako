@@ -640,6 +640,39 @@ describe("sessions route", () => {
     expect(getSessionPermissionMode).toHaveBeenCalledWith(session.path);
   });
 
+  it("keeps cold-start session permission mode from the session list projection", async () => {
+    const { createSessionsRoute } = await import("../server/routes/sessions.ts");
+    const app = new Hono();
+    const session = {
+      path: "/tmp/agents/hana/sessions/auto.jsonl",
+      title: "Auto review chat",
+      firstMessage: "",
+      modified: new Date("2026-06-08T08:00:00.000Z"),
+      messageCount: 1,
+      cwd: "/tmp/work",
+      agentId: "hana",
+      agentName: "Hana",
+      permissionMode: "auto",
+    };
+    const getSessionPermissionMode = vi.fn(() => "ask");
+
+    app.route("/api", createSessionsRoute({
+      listSessions: vi.fn(async () => [session]),
+      getSessionPermissionMode,
+      rcState: null,
+    }));
+
+    const res = await app.request("/api/sessions");
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data[0]).toMatchObject({
+      path: session.path,
+      permissionMode: "auto",
+    });
+    expect(getSessionPermissionMode).not.toHaveBeenCalled();
+  });
+
   it("marks deleted-agent sessions read-only in the session list response", async () => {
     const { createSessionsRoute } = await import("../server/routes/sessions.ts");
     const app = new Hono();
