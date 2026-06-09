@@ -81,7 +81,7 @@ export function ensureFirstRun(hanakoHome, productDir) {
 function hasReadableAgentConfig(agentDir) {
   const cfgPath = path.join(agentDir, "config.yaml");
   if (!fs.existsSync(cfgPath)) return false;
-  YAML.load(fs.readFileSync(cfgPath, "utf-8")) || {};
+  void YAML.load(fs.readFileSync(cfgPath, "utf-8"));
   return true;
 }
 
@@ -93,7 +93,7 @@ function validateAgentDirectoryForStartup(agentsDir, agentId) {
     throw new Error(`invalid agent directory "${agentId}": config.yaml missing`);
   }
   try {
-    YAML.load(fs.readFileSync(cfgPath, "utf-8")) || {};
+    void YAML.load(fs.readFileSync(cfgPath, "utf-8"));
   } catch (err) {
     throw new Error(`invalid agent directory "${agentId}": config.yaml is not readable: ${err.message}`);
   }
