@@ -82,6 +82,14 @@
     min-width: 0;
 }
 
+/* InteractiveCard 等宽内容块需要 message 撑满可用宽度。
+ * 正常情况下 .messageGroupAssistant { align-items: flex-start }
+ * 导致 .message shrink-wrap 到内容宽度；但当消息包含 interactive card 时，
+ * 强制撑到 92% 以便卡片拿到合理的渲染宽度。 */
+.messageHasWideBlock {
+    width: 92%;
+}
+
 .message + .message {
     margin-top: var(--space-xs);
 }

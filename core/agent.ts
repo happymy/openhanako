@@ -41,6 +41,8 @@ import { createStopTaskTool } from "../lib/tools/stop-task-tool.ts";
 import { createCurrentStatusTool } from "../lib/tools/current-status-tool.ts";
 import { createTerminalTool } from "../lib/tools/terminal-tool.ts";
 import { createWorkflowTool } from "../lib/tools/workflow-tool.ts";
+import { createCardGuideTool } from "../lib/tools/card-guide-tool.ts";
+import { createShowCardTool } from "../lib/tools/show-card-tool.ts";
 import { runCompatChecks } from "../lib/compat/index.ts";
 import { getPlatformPromptNote } from "./platform-prompt.ts";
 import { assertAgentConfigPatchYuan, getAgentConfigRepairState } from "./yuan-registry.ts";
@@ -139,6 +141,8 @@ export class Agent {
   declare _utilityModel: any;
   declare _webFetchTool: any;
   declare _webSearchTool: any;
+  declare _cardGuideTool: any;
+  declare _showCardTool: any;
   declare _workflowTool: any;
   declare agentDir: any;
   declare agentName: any;
@@ -230,6 +234,8 @@ export class Agent {
     this._subagentTool = null;
     this._subagentReplyTool = null;
     this._subagentCloseTool = null;
+    this._cardGuideTool = null;
+    this._showCardTool = null;
     this._workflowTool = null;
     this._currentStatusTool = null;
     this._terminalTool = null;
@@ -663,6 +669,10 @@ export class Agent {
       getJournalDir: () => path.join(this.agentDir, "workflow-journals"),
     });
 
+    // 14. Interactive Card 工具（设计手册 + 渲染工具）
+    this._cardGuideTool = createCardGuideTool();
+    this._showCardTool = createShowCardTool();
+
     // 12. 组装 system prompt（按 master 构建，与 per-session 开关解耦）
     log(`  [agent] 9. buildSystemPrompt...`);
     this._systemPrompt = this.buildSystemPrompt({ forceMemoryEnabled: this._memoryMasterEnabled });
@@ -867,6 +877,8 @@ export class Agent {
       this._checkDeferredTool,
       this._currentStatusTool,
       this._terminalTool,
+      this._cardGuideTool,
+      this._showCardTool,
     ].filter(Boolean);
   }
   get tools() {

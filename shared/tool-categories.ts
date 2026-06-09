@@ -42,6 +42,8 @@ export const STANDARD_TOOL_NAMES = [
   "session_folders",
   "stop_task",
   "terminal",
+  "hana_card_guide",
+  "show_card",
 ];
 
 export const GLOBAL_TOOL_NAMES = [

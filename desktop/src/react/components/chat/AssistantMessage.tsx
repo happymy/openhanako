@@ -14,6 +14,7 @@ import { WorkflowInlineCard } from './WorkflowInlineCard';
 import { InterludeBlock } from './InterludeBlock';
 import { SettingsConfirmCard } from './SettingsConfirmCard';
 import { SettingsUpdateCard } from './SettingsUpdateCard';
+import { InteractiveCard } from './InteractiveCard';
 import { MessageActions } from './MessageActions';
 import { MessageFooterActions, formatMessageTime, type MessageFooterAction } from './MessageFooterActions';
 import { ChatResourceCard } from './ChatResourceCard';
@@ -101,6 +102,7 @@ export const AssistantMessage = memo(function AssistantMessage({
     [message.blocks],
   );
   const isInterludeOnly = blocks.length > 0 && blocks.every(block => block.type === 'interlude');
+  const hasWideBlock = blocks.some(b => b.type === 'interactive_card');
 
   const [copied, setCopied] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -170,7 +172,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           <span className={styles.avatarName}>{displayName}</span>
         </div>
       )}
-      <div className={`${styles.message} ${styles.messageAssistant}${isInterludeOnly ? ` ${styles.messageAssistantInterludeOnly}` : ''}`}>
+      <div className={`${styles.message} ${styles.messageAssistant}${hasWideBlock ? ` ${styles.messageHasWideBlock}` : ''}${isInterludeOnly ? ` ${styles.messageAssistantInterludeOnly}` : ''}`}>
         {blocks.map((block, i) => (
           <ContentBlockErrorBoundary
             key={`block-${i}`}
@@ -1060,3 +1062,4 @@ BLOCK_RENDERERS['cron_confirm'] = CronConfirmBlock;
 BLOCK_RENDERERS['suggestion_card'] = CronConfirmBlock;
 BLOCK_RENDERERS['settings_confirm'] = SettingsConfirmBlock;
 BLOCK_RENDERERS['settings_update'] = SettingsUpdateBlock;
+BLOCK_RENDERERS['interactive_card'] = InteractiveCard;
