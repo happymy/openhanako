@@ -218,7 +218,6 @@ font-weight: 500;
 cursor: pointer;
 \`\`\`
 Hover: \`background: var(--accent-light)\`. No :active scale animation (Hana quiet motion principle).
-If the button triggers sendPrompt, append \` ↗\` to the label text.
 
 ### Blockquote (\`<blockquote>\`)
 \`\`\`css
@@ -276,14 +275,6 @@ code { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text); }
 - **Grid overflow safety**: always use \`minmax(0, 1fr)\` instead of bare \`1fr\` to prevent children from pushing columns past the container width.
 
 Card container width is approximately 680-900px depending on the chat viewport.
-
-## §10 sendPrompt(text)
-
-A global function injected by the host. Calling it sends a message to chat as if the user typed it — use it for "let the user ask a follow-up" interactions.
-
-Only use for actions that need the Agent to think. Sorting, filtering, calculation, and other pure-data interactions should be handled locally in JS.
-
-If a button triggers sendPrompt, append \` ↗\` to its visible label.
 
 ## §11 SVG rules
 
@@ -413,7 +404,6 @@ When no template above fits:
 - Explanatory content → editorial layout (no card)
 - Bounded object → card layout
 - All design rules still apply
-- Use sendPrompt() for follow-up actions that need Agent thinking
 `;
 
 export function createCardGuideTool() {

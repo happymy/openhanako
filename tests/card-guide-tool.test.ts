@@ -96,14 +96,6 @@ describe("hana_card_guide tool", () => {
     expect(text).toContain("inline style");
   });
 
-  it("handbook contains sendPrompt documentation", async () => {
-    const tool = makeTool();
-    const result = await tool.execute("call_1", {});
-    const text = result.content[0].text;
-
-    expect(text).toContain("sendPrompt");
-  });
-
   it("handbook contains accessibility guidance", async () => {
     const tool = makeTool();
     const result = await tool.execute("call_1", {});
