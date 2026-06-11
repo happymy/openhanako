@@ -5,6 +5,7 @@ import {
   createTaskId,
   imageDeferredMeta,
   normalizeSessionPath,
+  assertAdapterReferenceImageLimit,
   resolveImageTarget,
   runSubmitInBackground,
 } from "./image-task-runner.ts";
@@ -40,6 +41,7 @@ export async function submitImageGeneration({ input = {}, ctx, metadata = null, 
     ...(target.credentialLaneId ? { credentialLaneId: target.credentialLaneId } : {}),
     ...(target.credentialProviderId ? { credentialProviderId: target.credentialProviderId } : {}),
   };
+  assertAdapterReferenceImageLimit(adapter, params);
 
   const resolvedDeliveryTarget = deliveryTarget === undefined ? bridgeDeliveryTarget(ctx) : deliveryTarget;
   const deferredMeta = {

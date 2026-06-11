@@ -897,7 +897,7 @@ this.register(
 | `media:generate-image` | 通过内置媒体任务管线提交生图任务，完成后以 `SessionFile` 交付 |
 | `media:generate` / `media:generate-video` / `media:transcribe-audio` | 通过原生 Media Manager 提交通用媒体任务、视频生成任务或音频转录任务 |
 
-插件后端优先使用 `@hana/plugin-runtime` helpers。插件页面或插件 route handler 如果已经有宿主 HTTP 凭证，也可以使用原生 façade：`POST /api/media/generate`、`POST /api/media/image/generate`、`POST /api/media/video/generate`、`POST /api/media/asr/transcribe`。这些入口需要 chat scope，图片/视频必须传 `sessionPath` 和 `prompt`，ASR 必须传 `sessionPath` 和 `fileId`，图片参考图只接受 `{ kind: "session_file", fileId }` 这类 SessionFile 引用，底层仍进入同一个 Media Manager 任务管线。
+插件后端优先使用 `@hana/plugin-runtime` helpers。插件页面或插件 route handler 如果已经有宿主 HTTP 凭证，也可以使用原生 façade：`POST /api/media/generate`、`POST /api/media/image/generate`、`POST /api/media/video/generate`、`POST /api/media/asr/transcribe`。这些入口需要 chat scope，图片/视频必须传 `sessionPath` 和 `prompt`，ASR 必须传 `sessionPath` 和 `fileId`，图片参考图只接受 `{ kind: "session_file", fileId }` 这类 SessionFile 引用，底层仍进入同一个 Media Manager 任务管线。图片 adapter 默认允许多张参考图；只支持单张参考图的 adapter 应声明 `maxReferenceImages: 1`，任务管线会在入队前拒绝超量请求。
 
 `session:send.context` 只注入到当轮 provider 请求，不会改写可见用户消息，也不会写入用户消息文本。插件可以在自己的 RAG、世界观、mood、角色状态系统里生成这些片段，然后在发送时附带：
 

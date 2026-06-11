@@ -189,7 +189,7 @@ const { text } = await sampleText(ctx, {
 });
 ```
 
-Media helpers expose Hana's configured provider stack. `listMediaProviders()` and `resolveMediaModel()` read configured image/video/speech-capable providers. `generateImage()` submits an image generation task through the built-in media task pipeline and returns a task/batch result; generated files are delivered as `SessionFile` resources when the task completes. Use `referenceImages` with `SessionFile` references for multi-reference image generation. `generateVideo()`, `generateMedia()`, and `transcribeAudio()` use the same native media manager for video tasks and ASR. `transcribeAudio()` returns `{ ok: true, transcription }`.
+Media helpers expose Hana's configured provider stack. `listMediaProviders()` and `resolveMediaModel()` read configured image/video/speech-capable providers. `generateImage()` submits an image generation task through the built-in media task pipeline and returns a task/batch result; generated files are delivered as `SessionFile` resources when the task completes. Use `referenceImages` with `SessionFile` references for multi-reference image generation. Image adapters accept multiple reference images by default; adapters that only support one reference should declare `maxReferenceImages: 1`, and the task pipeline will reject larger requests before enqueueing. `generateVideo()`, `generateMedia()`, and `transcribeAudio()` use the same native media manager for video tasks and ASR. `transcribeAudio()` returns `{ ok: true, transcription }`.
 
 ```js
 const result = await generateImage(ctx, {

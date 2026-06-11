@@ -156,6 +156,31 @@ describe("image generation retry", () => {
     }));
   });
 
+  it("rejects retry when the adapter no longer allows the saved reference image count", async () => {
+    const task = makeFailedTask({
+      params: {
+        type: "image",
+        prompt: "same prompt",
+        image: ["/tmp/ref-a.png", "/tmp/ref-b.png"],
+      },
+    });
+    const { ctx, adapter, store, poller, bus } = makeCtx(task, {
+      maxReferenceImages: 1,
+    });
+
+    const result = await retryImageTask({ taskId: "task-img", ctx });
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 400,
+      error: expect.stringContaining("最多支持 1 张参考图"),
+    });
+    expect(adapter.submit).not.toHaveBeenCalled();
+    expect(store.update).not.toHaveBeenCalled();
+    expect(poller.add).not.toHaveBeenCalled();
+    expect(bus.request).not.toHaveBeenCalled();
+  });
+
   it("rejects tasks that are already pending", async () => {
     const task = makeFailedTask({ status: "pending", submitState: "submitted" });
     const { ctx, adapter, store, poller, bus } = makeCtx(task);

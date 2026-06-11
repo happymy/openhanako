@@ -158,7 +158,7 @@ export default definePlugin({
 });
 ```
 
-For backend code, prefer these helpers so permission checks, `sessionPath`, and task delivery stay coupled. Plugin pages or plugin route handlers that already have host HTTP credentials can call the native facade directly: `POST /api/media/image/generate`, `POST /api/media/video/generate`, `POST /api/media/generate`, and `POST /api/media/asr/transcribe`. The submit routes require chat scope, image references must use `SessionFile` references such as `{ kind: 'session_file', fileId }`, and all requests forward into the same native Media Manager pipeline.
+For backend code, prefer these helpers so permission checks, `sessionPath`, and task delivery stay coupled. Plugin pages or plugin route handlers that already have host HTTP credentials can call the native facade directly: `POST /api/media/image/generate`, `POST /api/media/video/generate`, `POST /api/media/generate`, and `POST /api/media/asr/transcribe`. The submit routes require chat scope, image references must use `SessionFile` references such as `{ kind: 'session_file', fileId }`, and all requests forward into the same native Media Manager pipeline. Image adapters accept multiple reference images by default; adapters that only support one reference should declare `maxReferenceImages: 1`.
 
 Declare ordinary needs in manifest `capabilities`, such as `session`, `agent`,
 `model.sample`, and `media.generate`. `sensitiveCapabilities` records future

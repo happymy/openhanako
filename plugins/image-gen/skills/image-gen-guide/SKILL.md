@@ -21,7 +21,7 @@ description: 使用图片/视频生成工具时必读。包含工具参数、非
 - `prompt`（必填）：图片描述，中英文均可
 - `count`：并发生成张数（1-9），用户说"多来几张"/"再抽几张"时用
 - `image`：参考图路径（图生图、图片编辑、风格迁移时传入）
-- `referenceImages`：多张参考图路径数组。用户明确给了多张参考图时使用它；只有一张参考图时继续用 `image` 也可以
+- `referenceImages`：多张参考图路径数组。用户明确给了多张参考图时使用它；只有一张参考图时继续用 `image` 也可以。最终可用张数由 adapter 的 `maxReferenceImages` 声明把关
 - `ratio`：长宽比（1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 21:9）
 - `resolution`：统一分辨率档位（1k, 2k, 4k），adapter 会映射为供应商最接近的尺寸
 - `quality`：画质（low, medium, high, auto）
