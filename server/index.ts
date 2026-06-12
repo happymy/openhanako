@@ -249,7 +249,13 @@ await bindServerTransportOwnership(server, {
 
 // ── 首次运行播种 ──
 log.log("① ensureFirstRun...");
-ensureFirstRun(hanakoHome, productDir);
+const firstRunReport = ensureFirstRun(hanakoHome, productDir);
+for (const invalid of firstRunReport.invalidAgentDirs) {
+  log.warn(`① 发现无效 agent 目录（已跳过启动校验）: "${invalid.id}" (${invalid.reason})`);
+}
+if (firstRunReport.defaultConfigBackupPath) {
+  log.warn(`① 默认助手 config.yaml 已损坏，原文件备份于: ${firstRunReport.defaultConfigBackupPath}`);
+}
 log.log("① ensureFirstRun 完成");
 
 log.log("① ensureLocalIdentityRegistries...");
