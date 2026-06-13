@@ -814,6 +814,12 @@
     "fileChangedOnDisk": "ファイルが外部で変更されたため、古い保存をスキップしました",
     "noChanges": "変更はありません",
     "autoSaved": "自動保存しました ✿",
+    "settingsSearch": {
+      "placeholder": "設定を検索",
+      "clear": "検索をクリア",
+      "results": "検索結果",
+      "noResults": "一致する設定がありません"
+    },
     "tabs": {
       "interface": "インターフェース",
       "general": "一般",

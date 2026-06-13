@@ -814,6 +814,12 @@
     "fileChangedOnDisk": "檔案已被外部修改，已略過舊版本儲存",
     "noChanges": "沒有需要儲存的變更",
     "autoSaved": "已自動儲存 ✿",
+    "settingsSearch": {
+      "placeholder": "搜尋設定",
+      "clear": "清空搜尋",
+      "results": "搜尋結果",
+      "noResults": "沒有找到相關設定"
+    },
     "tabs": {
       "interface": "介面",
       "general": "通用",

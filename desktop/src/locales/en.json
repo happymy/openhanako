@@ -871,6 +871,12 @@
     "fileChangedOnDisk": "The file changed on disk, so the stale save was skipped",
     "noChanges": "Nothing to save",
     "autoSaved": "Auto-saved ✿",
+    "settingsSearch": {
+      "placeholder": "Search settings",
+      "clear": "Clear search",
+      "results": "Search results",
+      "noResults": "No matching settings"
+    },
     "tabs": {
       "interface": "Interface",
       "general": "General",

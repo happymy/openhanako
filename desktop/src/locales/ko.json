@@ -814,6 +814,12 @@
     "fileChangedOnDisk": "파일이 외부에서 변경되어 오래된 저장을 건너뛰었습니다",
     "noChanges": "저장할 내용이 없어요",
     "autoSaved": "자동 저장됨 ✿",
+    "settingsSearch": {
+      "placeholder": "설정 검색",
+      "clear": "검색 지우기",
+      "results": "검색 결과",
+      "noResults": "일치하는 설정이 없습니다"
+    },
     "tabs": {
       "interface": "인터페이스",
       "general": "일반",

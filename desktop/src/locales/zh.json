@@ -871,6 +871,12 @@
     "fileChangedOnDisk": "文件已被外部修改，已跳过旧版本保存",
     "noChanges": "没有需要保存的更改",
     "autoSaved": "已自动保存 ✿",
+    "settingsSearch": {
+      "placeholder": "搜索设置",
+      "clear": "清空搜索",
+      "results": "搜索结果",
+      "noResults": "没有找到相关设置"
+    },
     "tabs": {
       "interface": "界面",
       "general": "通用",
