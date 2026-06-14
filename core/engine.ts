@@ -1338,6 +1338,7 @@ export class HanaEngine {
       this.syncWorkspaceSkillPaths(this.currentSessionPath ? this.cwd : null, {
         reload: true,
         emitEvent: true,
+        agentId: this.currentAgentId || null,
       }).catch(() => {});
     }
     return {
@@ -1352,6 +1353,7 @@ export class HanaEngine {
     await this.syncWorkspaceSkillPaths(this.currentSessionPath ? this.cwd : null, {
       reload: true,
       emitEvent: true,
+      agentId: this.currentAgentId || null,
     });
   }
 
@@ -1401,7 +1403,13 @@ export class HanaEngine {
     });
   }
 
-  async syncWorkspaceSkillPaths(cwd = null, { reload = true, emitEvent = false, force = false } = {}) {
+  async syncWorkspaceSkillPaths(cwd = null, options: any = {}) {
+    const {
+      reload = true,
+      emitEvent = false,
+      force = false,
+      agentId = this._agentMgr?.activeAgentId || null,
+    } = options;
     if (!this._skills) return false;
     const resolved = this._getResolvedExternalSkillPaths(cwd);
     const changed = !this._sameExternalSkillPaths(this._skills._externalPaths || [], resolved);
@@ -1409,7 +1417,7 @@ export class HanaEngine {
 
     this._skills.setExternalPaths(resolved);
     if (reload) await this.reloadSkills();
-    if (emitEvent) this._emitAppEvent("skills-changed", { agentId: null });
+    if (emitEvent) this._emitAppEvent("skills-changed", { agentId: agentId || null });
     return true;
   }
 
