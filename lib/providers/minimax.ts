@@ -16,7 +16,7 @@ import {
 } from "./media-schema-helpers.ts";
 
 const MINIMAX_IMAGE_PROPERTIES = {
-  ratio: enumParam(COMMON_IMAGE_RATIOS, "1:1"),
+  ratio: enumParam(COMMON_IMAGE_RATIOS, "3:2"),
   width: integerParam({ minimum: 512, maximum: 2048 }),
   height: integerParam({ minimum: 512, maximum: 2048 }),
   n: integerParam({ minimum: 1, maximum: 9, defaultValue: 1 }),
@@ -33,8 +33,8 @@ function minimaxImageModel(id, displayName) {
     outputs: ["image"],
     supportsEdit: true,
     modes: [
-      mediaMode("text2image", "Text to image", MINIMAX_IMAGE_PROPERTIES, {}, noReferenceImages()),
-      mediaMode("image2image", "Subject reference", MINIMAX_IMAGE_PROPERTIES, {}, referenceImages()),
+      mediaMode("text2image", "Text to image", MINIMAX_IMAGE_PROPERTIES, { ratio: "3:2" }, noReferenceImages()),
+      mediaMode("image2image", "Subject reference", MINIMAX_IMAGE_PROPERTIES, { ratio: "3:2" }, referenceImages()),
     ],
     ratios: [...COMMON_IMAGE_RATIOS],
   };

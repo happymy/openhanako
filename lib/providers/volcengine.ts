@@ -16,26 +16,40 @@ import {
   noReferenceImages,
   numberParam,
   referenceImages,
-  stringParam,
 } from "./media-schema-helpers.ts";
 
-const SEEDREAM_BASE_PROPERTIES = {
-  ratio: enumParam(COMMON_IMAGE_RATIOS, "1:1"),
-  resolution: enumParam(["1k", "2k", "4k"], "2k"),
-  size: stringParam(),
-  watermark: booleanParam(false),
-};
+const SEEDREAM_DEFAULT_RATIO = "3:2";
+
+function seedreamBaseProperties(resolutions) {
+  return {
+    ratio: enumParam(COMMON_IMAGE_RATIOS, SEEDREAM_DEFAULT_RATIO),
+    resolution: enumParam(resolutions, resolutions[resolutions.length - 1]),
+    watermark: booleanParam(false),
+  };
+}
+
+function seedreamDefaults(resolutions) {
+  return {
+    ratio: SEEDREAM_DEFAULT_RATIO,
+    resolution: resolutions[resolutions.length - 1],
+  };
+}
+
+const SEEDREAM_3_RESOLUTIONS = ["1K"];
+const SEEDREAM_REFERENCE_RESOLUTIONS = ["1K", "2K", "4K"];
 
 const SEEDREAM_3_PROPERTIES = {
-  ...SEEDREAM_BASE_PROPERTIES,
+  ...seedreamBaseProperties(SEEDREAM_3_RESOLUTIONS),
   guidance_scale: numberParam({ minimum: 1, maximum: 10 }),
   seed: integerParam({ minimum: 0, maximum: 2147483647 }),
 };
 
 const SEEDREAM_5_PROPERTIES = {
-  ...SEEDREAM_BASE_PROPERTIES,
+  ...seedreamBaseProperties(SEEDREAM_REFERENCE_RESOLUTIONS),
   format: enumParam(["jpeg", "png"], "jpeg"),
 };
+
+const SEEDREAM_REFERENCE_PROPERTIES = seedreamBaseProperties(SEEDREAM_REFERENCE_RESOLUTIONS);
 
 function seedreamTextOnlyModel(id, displayName, aliases) {
   return {
@@ -46,14 +60,14 @@ function seedreamTextOnlyModel(id, displayName, aliases) {
     outputs: ["image"],
     aliases,
     modes: [
-      mediaMode("text2image", "文生图", SEEDREAM_3_PROPERTIES, {}, noReferenceImages()),
+      mediaMode("text2image", "文生图", SEEDREAM_3_PROPERTIES, seedreamDefaults(SEEDREAM_3_RESOLUTIONS), noReferenceImages()),
     ],
     ratios: [...COMMON_IMAGE_RATIOS],
-    resolutions: ["1k", "2k", "4k"],
+    resolutions: SEEDREAM_3_RESOLUTIONS,
   };
 }
 
-function seedreamReferenceModel(id, displayName, aliases, properties = SEEDREAM_BASE_PROPERTIES) {
+function seedreamReferenceModel(id, displayName, aliases, properties = SEEDREAM_REFERENCE_PROPERTIES) {
   return {
     id,
     displayName,
@@ -63,11 +77,11 @@ function seedreamReferenceModel(id, displayName, aliases, properties = SEEDREAM_
     aliases,
     supportsEdit: true,
     modes: [
-      mediaMode("text2image", "文生图", properties, {}, noReferenceImages()),
-      mediaMode("image2image", "参考图生图", properties, {}, referenceImages()),
+      mediaMode("text2image", "文生图", properties, seedreamDefaults(SEEDREAM_REFERENCE_RESOLUTIONS), noReferenceImages()),
+      mediaMode("image2image", "参考图生图", properties, seedreamDefaults(SEEDREAM_REFERENCE_RESOLUTIONS), referenceImages()),
     ],
     ratios: [...COMMON_IMAGE_RATIOS],
-    resolutions: ["1k", "2k", "4k"],
+    resolutions: SEEDREAM_REFERENCE_RESOLUTIONS,
   };
 }
 

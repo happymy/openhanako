@@ -295,6 +295,32 @@ describe("media parameter input limits", () => {
     expect(result.resolvedParameters).not.toHaveProperty("size");
   });
 
+  it("rejects image resolution values outside the selected mode schema instead of falling back", () => {
+    expect(() => resolveMediaParameters({
+      kind: "image",
+      providerId: "openai-codex-oauth",
+      input: {
+        prompt: "a classroom cover",
+        resolution: "4K",
+        ratio: "3:2",
+      },
+      model: {
+        id: "gpt-image-2",
+        modes: [{
+          id: "text2image",
+          parameterSchema: {
+            type: "object",
+            properties: {
+              resolution: { type: "string", enum: ["1K", "2K"], default: "2K" },
+              ratio: { type: "string", enum: ["1:1", "3:2"], default: "3:2" },
+            },
+          },
+          defaults: { resolution: "2K", ratio: "3:2" },
+        }],
+      },
+    })).toThrow(/resolution.*1K, 2K/);
+  });
+
   it("rejects reference images when the selected model mode is text-only", () => {
     expect(() => resolveMediaParameters({
       kind: "image",

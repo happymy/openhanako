@@ -130,6 +130,88 @@ describe("ProviderRegistry media capabilities", () => {
     expect(gemini31ImageMode?.inputLimits.referenceImages.max).toBe(14);
   });
 
+  it("exposes provider-authored image ratios and resolution tiers without invented 4K fallbacks", () => {
+    const registry = new ProviderRegistry(tmpHome);
+    registry.reload();
+
+    const providers = registry.getMediaProviders("image_generation");
+    const byId = new Map(providers.map((provider) => [provider.providerId, provider]));
+    const model = (providerId, modelId) => byId.get(providerId)?.models.find((item) => item.id === modelId);
+    const mode = (providerId, modelId, modeId = "text2image") => model(providerId, modelId)?.modes.find((item) => item.id === modeId);
+    const prop = (providerId, modelId, modeId, key) => mode(providerId, modelId, modeId)?.parameterSchema.properties[key];
+    const defaults = (providerId, modelId, modeId = "text2image") => mode(providerId, modelId, modeId)?.defaults || {};
+
+    expect(prop("openai", "gpt-image-1.5", "text2image", "ratio")).toMatchObject({
+      enum: ["1:1", "3:2", "2:3"],
+      default: "3:2",
+    });
+    expect(prop("openai", "gpt-image-1.5", "text2image", "resolution")).toMatchObject({
+      enum: ["1K"],
+      default: "1K",
+    });
+    expect(defaults("openai", "gpt-image-1.5")).toMatchObject({ ratio: "3:2", resolution: "1K" });
+
+    expect(prop("openai-codex-oauth", "gpt-image-2", "text2image", "resolution")).toMatchObject({
+      enum: ["1K", "2K"],
+      default: "2K",
+    });
+    expect(prop("openai-codex-oauth", "gpt-image-2", "text2image", "resolution").enum).not.toContain("4K");
+    expect(defaults("openai-codex-oauth", "gpt-image-2")).toMatchObject({ ratio: "3:2", resolution: "2K" });
+
+    expect(prop("dashscope", "wan2.7-image-pro", "text2image", "resolution")).toMatchObject({
+      enum: ["1K", "2K", "4K"],
+      default: "4K",
+    });
+    expect(prop("dashscope", "wan2.7-image-pro", "image2image", "resolution")).toMatchObject({
+      enum: ["1K", "2K"],
+      default: "2K",
+    });
+    expect(prop("dashscope", "wan2.7-image", "text2image", "resolution")).toMatchObject({
+      enum: ["1K", "2K"],
+      default: "2K",
+    });
+    expect(prop("dashscope", "qwen-image-2.0-pro", "text2image", "resolution")).toMatchObject({
+      enum: ["2K"],
+      default: "2K",
+    });
+    expect(prop("dashscope", "qwen-image-2.0-pro", "text2image", "ratio")).toMatchObject({
+      enum: ["16:9", "4:3", "1:1", "3:4", "9:16"],
+      default: "4:3",
+    });
+    expect(prop("dashscope", "qwen-image-plus", "text2image", "resolution")).toMatchObject({
+      enum: ["1K"],
+      default: "1K",
+    });
+
+    expect(prop("gemini", "gemini-3.1-flash-image-preview", "text2image", "resolution")).toMatchObject({
+      enum: ["512", "1K", "2K", "4K"],
+      default: "4K",
+    });
+    expect(prop("gemini", "gemini-3.1-flash-image-preview", "text2image", "ratio")).toMatchObject({
+      default: "3:2",
+    });
+    expect(defaults("gemini", "gemini-3.1-flash-image-preview")).toMatchObject({ ratio: "3:2", resolution: "4K" });
+
+    expect(prop("volcengine", "doubao-seedream-3-0-t2i", "text2image", "resolution")).toMatchObject({
+      enum: ["1K"],
+      default: "1K",
+    });
+    expect(prop("volcengine", "doubao-seedream-5-0-lite-260128", "text2image", "resolution")).toMatchObject({
+      enum: ["1K", "2K", "4K"],
+      default: "4K",
+    });
+    expect(defaults("volcengine", "doubao-seedream-5-0-lite-260128")).toMatchObject({ ratio: "3:2", resolution: "4K" });
+
+    expect(prop("minimax", "image-01", "text2image", "ratio")).toMatchObject({ default: "3:2" });
+    expect(prop("minimax", "image-01", "text2image", "resolution")).toBeUndefined();
+
+    expect(prop("agnes", "agnes-image-2.1-flash", "text2image", "ratio")).toMatchObject({ default: "3:2" });
+    expect(prop("agnes", "agnes-image-2.1-flash", "text2image", "resolution")).toMatchObject({
+      enum: ["1K"],
+      default: "1K",
+    });
+  });
+
   it("exposes Agnes chat, image, and video capabilities from its provider plugin", () => {
     const registry = new ProviderRegistry(tmpHome);
     registry.reload();
@@ -163,6 +245,26 @@ describe("ProviderRegistry media capabilities", () => {
         protocolId: "agnes-videos",
       }),
     });
+
+    const providers = registry.getMediaProviders("video_generation");
+    const agnes = providers.find((provider) => provider.providerId === "agnes");
+    const video = agnes?.models.find((model) => model.id === "agnes-video-v2.0");
+    const textMode = video?.modes?.find((mode) => mode.id === "text2video");
+    const properties = textMode?.parameterSchema?.properties || {};
+    expect(video?.ratios).toEqual(["3:2"]);
+    expect(video?.resolutions).toEqual(["720p"]);
+    expect(textMode?.defaults).toMatchObject({
+      ratio: "3:2",
+      video_resolution: "720p",
+      duration: 5,
+      frame_rate: 24,
+    });
+    expect(properties.ratio).toMatchObject({ enum: ["3:2"], default: "3:2" });
+    expect(properties.video_resolution).toMatchObject({ enum: ["720p"], default: "720p" });
+    expect(properties.duration).toMatchObject({ type: "integer", minimum: 3, maximum: 18, default: 5 });
+    expect(properties.num_frames).toMatchObject({ type: "integer", minimum: 81, maximum: 441 });
+    expect(properties).not.toHaveProperty("width");
+    expect(properties).not.toHaveProperty("height");
   });
 
   it("uses MiniMax Token Plan credentials as a MiniMax image generation lane", () => {

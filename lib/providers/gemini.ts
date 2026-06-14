@@ -18,13 +18,17 @@ import {
 
 function geminiImageProperties(ratios, resolutions = null) {
   return {
-    ratio: enumParam(ratios, "1:1"),
-    ...(resolutions ? { resolution: enumParam(resolutions, resolutions[0]) } : {}),
+    ratio: enumParam(ratios, ratios.includes("3:2") ? "3:2" : ratios[0]),
+    ...(resolutions ? { resolution: enumParam(resolutions, resolutions[resolutions.length - 1]) } : {}),
   };
 }
 
 function geminiImageModel(id, displayName, aliases, ratios, resolutions, maxReferenceImages) {
   const properties = geminiImageProperties(ratios, resolutions);
+  const defaults = {
+    ratio: ratios.includes("3:2") ? "3:2" : ratios[0],
+    ...(resolutions ? { resolution: resolutions[resolutions.length - 1] } : {}),
+  };
   return {
     id,
     displayName,
@@ -34,8 +38,8 @@ function geminiImageModel(id, displayName, aliases, ratios, resolutions, maxRefe
     supportsEdit: true,
     aliases,
     modes: [
-      mediaMode("text2image", "Text to image", properties, {}, noReferenceImages()),
-      mediaMode("image2image", "Image edit/reference", properties, {}, referenceImages({ max: maxReferenceImages })),
+      mediaMode("text2image", "Text to image", properties, defaults, noReferenceImages()),
+      mediaMode("image2image", "Image edit/reference", properties, defaults, referenceImages({ max: maxReferenceImages })),
     ],
     ratios: [...ratios],
     ...(resolutions ? { resolutions: [...resolutions] } : {}),

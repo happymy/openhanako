@@ -45,6 +45,7 @@ function geminiImageCapabilities(modelId) {
     return {
       ratios: new Set(GEMINI_31_FLASH_RATIOS),
       imageSizes: new Set(GEMINI_31_FLASH_SIZES),
+      defaultImageSize: "4K",
       maxReferenceImages: 14,
       supportsImageSize: true,
     };
@@ -53,6 +54,7 @@ function geminiImageCapabilities(modelId) {
     return {
       ratios: new Set(GEMINI_3_PRO_RATIOS),
       imageSizes: new Set(GEMINI_3_SIZES),
+      defaultImageSize: "4K",
       maxReferenceImages: 14,
       supportsImageSize: true,
     };
@@ -60,6 +62,7 @@ function geminiImageCapabilities(modelId) {
   return {
     ratios: new Set(GEMINI_25_RATIOS),
     imageSizes: new Set(),
+    defaultImageSize: null,
     maxReferenceImages: 3,
     supportsImageSize: false,
   };
@@ -87,11 +90,12 @@ function normalizeGeminiImageSize(value, fieldName, capabilities, modelId) {
 function normalizeGeminiImageConfig(params, modelId) {
   const capabilities = geminiImageCapabilities(modelId);
   const imageConfig: any = {};
-  const aspectRatio = normalizeGeminiAspectRatio(params.aspect_ratio || params.aspectRatio || params.ratio, capabilities);
+  const aspectRatio = normalizeGeminiAspectRatio(params.aspect_ratio || params.aspectRatio || params.ratio || "3:2", capabilities);
   if (aspectRatio) imageConfig.aspectRatio = aspectRatio;
 
   const size = normalizeGeminiImageSize(params.size, "size", capabilities, modelId);
-  const resolution = normalizeGeminiImageSize(params.resolution, "resolution", capabilities, modelId);
+  const defaultResolution = params.size ? null : capabilities.defaultImageSize;
+  const resolution = normalizeGeminiImageSize(params.resolution || defaultResolution, "resolution", capabilities, modelId);
   if (size && resolution && size !== resolution) {
     throw new Error(`Gemini image size "${params.size}" conflicts with resolution "${params.resolution}"`);
   }

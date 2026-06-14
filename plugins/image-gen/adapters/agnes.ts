@@ -13,6 +13,11 @@ const DEFAULT_BASE_URL = "https://apihub.agnes-ai.com/v1";
 const DEFAULT_IMAGE_MODEL = "agnes-image-2.1-flash";
 const DEFAULT_VIDEO_MODEL = "agnes-video-v2.0";
 const DEFAULT_VIDEO_FRAME_RATE = 24;
+const DEFAULT_VIDEO_RATIO = "3:2";
+const DEFAULT_VIDEO_RESOLUTION = "720p";
+const DEFAULT_VIDEO_DURATION = 5;
+const MIN_VIDEO_FRAMES = 81;
+const MAX_VIDEO_FRAMES = 441;
 
 const AGNES_IMAGE_SIZES = {
   "1:1": "1024x1024",
@@ -26,15 +31,9 @@ const AGNES_IMAGE_SIZES = {
 };
 
 const AGNES_VIDEO_SIZES = {
-  "1:1": { width: 1024, height: 1024 },
-  "4:3": { width: 1024, height: 768 },
-  "3:4": { width: 768, height: 1024 },
-  "3:2": { width: 1152, height: 768 },
-  "2:3": { width: 768, height: 1152 },
-  "16:9": { width: 1280, height: 720 },
-  "9:16": { width: 720, height: 1280 },
-  "21:9": { width: 1344, height: 576 },
+  "3:2": { width: 1152, height: 768, resolution: DEFAULT_VIDEO_RESOLUTION },
 };
+const AGNES_VIDEO_SIZE_VALUES = Object.values(AGNES_VIDEO_SIZES).map((size) => `${size.width}x${size.height}`);
 
 function stripV1(base) {
   return String(base || "").replace(/\/+$/, "").replace(/\/v1$/i, "");
@@ -60,9 +59,26 @@ async function getCredentials(ctx, params: any = {}) {
 
 function resolveImageSize(params, providerDefaults: any = {}) {
   const explicit = params.size || params.resolution || providerDefaults.size || providerDefaults.resolution;
-  if (typeof explicit === "string" && /^\d+x\d+$/i.test(explicit.trim())) return explicit.trim();
   const ratio = params.aspect_ratio || params.aspectRatio || params.ratio || providerDefaults.aspect_ratio || providerDefaults.ratio;
-  return AGNES_IMAGE_SIZES[ratio] || null;
+  if (typeof explicit === "string" && /^\d+x\d+$/i.test(explicit.trim())) {
+    const size = explicit.trim();
+    if (!Object.values(AGNES_IMAGE_SIZES).includes(size)) {
+      throw new Error(`Agnes image size "${size}" is unsupported`);
+    }
+    return size;
+  }
+  if (explicit) {
+    const resolution = String(explicit).trim().toUpperCase();
+    if (resolution !== "1K") {
+      throw new Error(`Agnes image resolution "${explicit}" is unsupported; supported resolutions: 1K`);
+    }
+  }
+  const effectiveRatio = ratio || "3:2";
+  const size = AGNES_IMAGE_SIZES[effectiveRatio];
+  if (!size) {
+    throw new Error(`Agnes image ratio "${effectiveRatio}" is unsupported`);
+  }
+  return size;
 }
 
 function collectResponseImages(data) {
@@ -104,24 +120,77 @@ async function downloadVideoUrl(url, dataDir, filenameBase) {
 }
 
 function resolveVideoSize(params, providerDefaults: any = {}) {
-  if (params.width && params.height) {
-    return {
-      width: Number(params.width),
-      height: Number(params.height),
-    };
+  const resolution = params.video_resolution
+    || params.videoResolution
+    || params.resolution
+    || providerDefaults.video_resolution
+    || providerDefaults.videoResolution
+    || providerDefaults.resolution
+    || DEFAULT_VIDEO_RESOLUTION;
+  if (String(resolution).trim().toLowerCase() !== DEFAULT_VIDEO_RESOLUTION) {
+    throw new Error(`Agnes video resolution "${resolution}" is unsupported; supported resolutions: ${DEFAULT_VIDEO_RESOLUTION}`);
   }
-  const ratio = params.aspect_ratio || params.aspectRatio || params.ratio || providerDefaults.aspect_ratio || providerDefaults.ratio || "16:9";
-  return AGNES_VIDEO_SIZES[ratio] || AGNES_VIDEO_SIZES["16:9"];
+
+  const explicitSize = params.size || providerDefaults.size;
+  if (explicitSize) {
+    const size = String(explicitSize).trim().toLowerCase();
+    if (!AGNES_VIDEO_SIZE_VALUES.includes(size)) {
+      throw new Error(`Agnes video size "${explicitSize}" is unsupported; supported sizes: ${AGNES_VIDEO_SIZE_VALUES.join(", ")}`);
+    }
+    const [width, height] = size.split("x").map((part) => Number(part));
+    return { width, height };
+  }
+
+  const hasWidth = params.width !== undefined || providerDefaults.width !== undefined;
+  const hasHeight = params.height !== undefined || providerDefaults.height !== undefined;
+  if (hasWidth || hasHeight) {
+    const width = Number(params.width ?? providerDefaults.width);
+    const height = Number(params.height ?? providerDefaults.height);
+    const size = `${width}x${height}`;
+    if (!Number.isInteger(width) || !Number.isInteger(height) || !AGNES_VIDEO_SIZE_VALUES.includes(size)) {
+      throw new Error(`Agnes video size "${size}" is unsupported; supported sizes: ${AGNES_VIDEO_SIZE_VALUES.join(", ")}`);
+    }
+    return { width, height };
+  }
+
+  const ratio = params.aspect_ratio
+    || params.aspectRatio
+    || params.ratio
+    || providerDefaults.aspect_ratio
+    || providerDefaults.aspectRatio
+    || providerDefaults.ratio
+    || DEFAULT_VIDEO_RATIO;
+  const size = AGNES_VIDEO_SIZES[ratio];
+  if (!size) {
+    throw new Error(`Agnes video ratio "${ratio}" is unsupported; supported ratios: ${Object.keys(AGNES_VIDEO_SIZES).join(", ")}`);
+  }
+  return { width: size.width, height: size.height };
 }
 
 function resolveVideoFrameCount(params, providerDefaults: any = {}) {
-  const frameRate = Number(params.frameRate || params.frame_rate || providerDefaults.frameRate || providerDefaults.frame_rate || DEFAULT_VIDEO_FRAME_RATE);
-  const explicit = Number(params.numFrames || params.num_frames || providerDefaults.numFrames || providerDefaults.num_frames);
-  if (Number.isFinite(explicit) && explicit > 0) return { frameRate, numFrames: Math.floor(explicit) };
-  const duration = Number(params.duration || params.seconds || providerDefaults.duration || providerDefaults.seconds || 5);
-  const safeFrameRate = Number.isFinite(frameRate) && frameRate > 0 ? Math.floor(frameRate) : DEFAULT_VIDEO_FRAME_RATE;
-  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 5;
-  return { frameRate: safeFrameRate, numFrames: Math.max(1, Math.round(safeDuration * safeFrameRate) + 1) };
+  const frameRate = Number(params.frameRate ?? params.frame_rate ?? providerDefaults.frameRate ?? providerDefaults.frame_rate ?? DEFAULT_VIDEO_FRAME_RATE);
+  const explicitRaw = params.numFrames ?? params.num_frames ?? providerDefaults.numFrames ?? providerDefaults.num_frames;
+  const hasExplicit = explicitRaw !== undefined && explicitRaw !== null && explicitRaw !== "";
+  const explicit = Number(explicitRaw);
+  if (!Number.isInteger(frameRate) || frameRate < 1 || frameRate > 60) {
+    throw new Error(`Agnes video frame_rate "${frameRate}" is unsupported; supported range: 1-60`);
+  }
+  if (hasExplicit) {
+    const numFrames = Math.floor(explicit);
+    if (!Number.isInteger(explicit) || numFrames < MIN_VIDEO_FRAMES || numFrames > MAX_VIDEO_FRAMES || (numFrames - 1) % 8 !== 0) {
+      throw new Error(`Agnes video num_frames "${explicit}" is unsupported; it must be 8n+1 between ${MIN_VIDEO_FRAMES} and ${MAX_VIDEO_FRAMES}`);
+    }
+    return { frameRate, numFrames };
+  }
+  const duration = Number(params.duration ?? params.seconds ?? providerDefaults.duration ?? providerDefaults.seconds ?? DEFAULT_VIDEO_DURATION);
+  if (!Number.isInteger(duration) || duration < 3 || duration > 18) {
+    throw new Error(`Agnes video duration "${duration}" is unsupported; supported range: 3-18 seconds`);
+  }
+  const targetFrames = Math.round(duration * frameRate) + 1;
+  if (targetFrames < MIN_VIDEO_FRAMES || targetFrames > MAX_VIDEO_FRAMES || (targetFrames - 1) % 8 !== 0) {
+    throw new Error(`Agnes video duration "${duration}" with frame_rate "${frameRate}" cannot be represented as a supported 8n+1 frame count`);
+  }
+  return { frameRate, numFrames: targetFrames };
 }
 
 function videoUrlFromResponse(data) {
@@ -223,7 +292,7 @@ export const agnesVideoAdapter = {
   types: ["video"],
   capabilities: {
     ratios: Object.keys(AGNES_VIDEO_SIZES),
-    resolutions: ["480p", "720p", "1080p"],
+    resolutions: [DEFAULT_VIDEO_RESOLUTION],
   },
 
   async checkAuth(ctx) {

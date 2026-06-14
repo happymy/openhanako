@@ -23,11 +23,11 @@ function imageMode(id, label, inputLimits) {
     parameterSchema: {
       type: "object",
       properties: {
-        ratio: { type: "string", enum: IMAGE_RATIOS, default: "1:1" },
-        resolution: { type: "string", enum: ["2k", "4k"], default: "2k" },
+        ratio: { type: "string", enum: IMAGE_RATIOS, default: "3:2" },
+        resolution: { type: "string", enum: ["2k", "4k"], default: "4k" },
       },
     },
-    defaults: { resolution: "2k" },
+    defaults: { ratio: "3:2", resolution: "4k" },
     inputLimits,
   };
 }
@@ -37,7 +37,7 @@ function textVideoSchema(resolutions = ["720p"]) {
     type: "object",
     properties: {
       ratio: { type: "string", enum: VIDEO_RATIOS, default: "16:9" },
-      duration: { type: "number", minimum: 4, maximum: 15, default: 5 },
+      duration: { type: "integer", minimum: 4, maximum: 15, default: 5 },
       video_resolution: { type: "string", enum: resolutions, default: "720p" },
     },
   };
@@ -47,7 +47,7 @@ function imageVideoSchema({ min, max, resolutions = ["720p"] }) {
   return {
     type: "object",
     properties: {
-      duration: { type: "number", minimum: min, maximum: max, default: 5 },
+      duration: { type: "integer", minimum: min, maximum: max, default: 5 },
       video_resolution: { type: "string", enum: resolutions, default: "720p" },
     },
   };

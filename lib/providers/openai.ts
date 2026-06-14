@@ -12,9 +12,9 @@ import {
 } from "./media-schema-helpers.ts";
 
 const GPT_IMAGE_PROPERTIES = {
-  ratio: enumParam(OPENAI_IMAGE_RATIOS, "1:1"),
-  size: enumParam(["auto", "1024x1024", "1536x1024", "1024x1536"], "auto"),
-  resolution: enumParam(["1k"], "1k"),
+  ratio: enumParam(OPENAI_IMAGE_RATIOS, "3:2"),
+  size: enumParam(["auto", "1024x1024", "1536x1024", "1024x1536"], "1536x1024"),
+  resolution: enumParam(["1K"], "1K"),
   quality: enumParam(["auto", "low", "medium", "high"], "auto"),
   format: enumParam(["png", "jpeg", "webp"], "jpeg"),
   background: enumParam(["auto", "opaque", "transparent"], "auto"),
@@ -24,12 +24,15 @@ const GPT_IMAGE_PROPERTIES = {
 };
 
 const DALL_E_3_PROPERTIES = {
-  ratio: enumParam(["1:1", "16:9", "9:16"], "1:1"),
-  size: enumParam(["1024x1024", "1792x1024", "1024x1792"], "1024x1024"),
+  ratio: enumParam(["1:1", "16:9", "9:16"], "16:9"),
+  size: enumParam(["1024x1024", "1792x1024", "1024x1792"], "1792x1024"),
   quality: enumParam(["standard", "hd"], "standard"),
   style: enumParam(["vivid", "natural"], "vivid"),
   n: integerParam({ minimum: 1, maximum: 1, defaultValue: 1 }),
 };
+
+const GPT_IMAGE_DEFAULTS = { ratio: "3:2", resolution: "1K" };
+const DALL_E_3_DEFAULTS = { ratio: "16:9", size: "1792x1024" };
 
 function gptImageModel(id, displayName, aliases) {
   return {
@@ -41,11 +44,11 @@ function gptImageModel(id, displayName, aliases) {
     supportsEdit: true,
     aliases,
     modes: [
-      mediaMode("text2image", "Text to image", GPT_IMAGE_PROPERTIES, {}, noReferenceImages()),
-      mediaMode("image2image", "Image edit/reference", GPT_IMAGE_PROPERTIES, {}, referenceImages()),
+      mediaMode("text2image", "Text to image", GPT_IMAGE_PROPERTIES, GPT_IMAGE_DEFAULTS, noReferenceImages()),
+      mediaMode("image2image", "Image edit/reference", GPT_IMAGE_PROPERTIES, GPT_IMAGE_DEFAULTS, referenceImages()),
     ],
     ratios: [...OPENAI_IMAGE_RATIOS],
-    resolutions: ["1k"],
+    resolutions: ["1K"],
   };
 }
 
@@ -72,10 +75,10 @@ export const openaiPlugin = {
             outputs: ["image"],
             aliases: ["dalle3"],
             modes: [
-              mediaMode("text2image", "Text to image", DALL_E_3_PROPERTIES, {}, noReferenceImages()),
+              mediaMode("text2image", "Text to image", DALL_E_3_PROPERTIES, DALL_E_3_DEFAULTS, noReferenceImages()),
             ],
             ratios: ["1:1", "16:9", "9:16"],
-            resolutions: ["1k"],
+            resolutions: ["1K"],
           },
         ],
       },

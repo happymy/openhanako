@@ -11,6 +11,12 @@ export const COMMON_IMAGE_RATIOS = Object.freeze([
 
 export const OPENAI_IMAGE_RATIOS = Object.freeze([
   "1:1",
+  "3:2",
+  "2:3",
+]);
+
+export const OPENAI_FLEXIBLE_IMAGE_RATIOS = Object.freeze([
+  "1:1",
   "4:3",
   "3:4",
   "16:9",

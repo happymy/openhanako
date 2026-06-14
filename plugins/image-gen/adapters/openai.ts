@@ -4,8 +4,10 @@ import path from "path";
 import { saveImage } from "../lib/download.ts";
 import { resolveModelId } from "../lib/model-catalog.ts";
 import {
-  IMAGE_RESOLUTION_TIERS,
-  OPENAI_IMAGE_RATIOS,
+  OPENAI_FLEXIBLE_IMAGE_RATIOS,
+  OPENAI_FLEXIBLE_RESOLUTION_TIERS,
+  OPENAI_STANDARD_IMAGE_RATIOS,
+  OPENAI_STANDARD_RESOLUTION_TIERS,
   resolveOpenAiImageSize,
 } from "../lib/resolution-tiers.ts";
 import { t } from "../../../lib/i18n.ts";
@@ -95,8 +97,8 @@ export const openaiImageAdapter = {
   name: "OpenAI Image",
   types: ["image"],
   capabilities: {
-    ratios: [...OPENAI_IMAGE_RATIOS],
-    resolutions: [...IMAGE_RESOLUTION_TIERS],
+    ratios: [...OPENAI_STANDARD_IMAGE_RATIOS],
+    resolutions: [...OPENAI_STANDARD_RESOLUTION_TIERS],
   },
 
   async checkAuth(ctx) {
@@ -156,6 +158,14 @@ export const openaiImageAdapter = {
         {
           sourceName: "OpenAI image",
           flexible: String(modelId).startsWith("gpt-image-2"),
+          supportedRatios: String(modelId).startsWith("gpt-image-2")
+            ? OPENAI_FLEXIBLE_IMAGE_RATIOS
+            : OPENAI_STANDARD_IMAGE_RATIOS,
+          supportedResolutions: String(modelId).startsWith("gpt-image-2")
+            ? OPENAI_FLEXIBLE_RESOLUTION_TIERS
+            : OPENAI_STANDARD_RESOLUTION_TIERS,
+          defaultRatio: String(modelId).startsWith("gpt-image-2") ? "3:2" : "3:2",
+          defaultResolution: String(modelId).startsWith("gpt-image-2") ? "2K" : "1K",
         },
       );
     if (size) body.size = size;

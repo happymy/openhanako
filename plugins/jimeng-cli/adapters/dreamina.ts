@@ -10,7 +10,12 @@ const execFileAsync = promisify(execFile);
 export const JIMENG_INSTALL_COMMAND = "curl -s https://jimeng.jianying.com/cli | bash";
 
 const IMAGE_RATIOS = ["21:9", "16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16"];
+const IMAGE_RATIOS_SET = new Set(IMAGE_RATIOS);
 const VIDEO_RATIOS = ["1:1", "3:4", "16:9", "4:3", "9:16", "21:9"];
+const VIDEO_RATIOS_SET = new Set(VIDEO_RATIOS);
+const DEFAULT_VIDEO_RATIO = "16:9";
+const DEFAULT_VIDEO_DURATION = 5;
+const DEFAULT_VIDEO_RESOLUTION = "720p";
 const RESULT_EXTS = new Set([".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm"]);
 const PENDING_STATUSES = new Set(["querying", "pending", "running", "processing", "submitted"]);
 const SUCCESS_STATUSES = new Set(["success", "succeeded", "done", "completed"]);
@@ -184,8 +189,81 @@ function imageResolution(params: any = {}, defaults: any = {}) {
   return params.resolution_type || params.resolutionType || params.resolution || defaults.resolution_type || defaults.resolution;
 }
 
+function supportedImageResolutions(modelVersion) {
+  const version = String(modelVersion || "").trim();
+  if (/^(3\.0|3\.1)$/.test(version)) return ["1k", "2k"];
+  return ["2k", "4k"];
+}
+
+function normalizeImageResolution(value) {
+  if (!value) return "";
+  const match = String(value).trim().toLowerCase().match(/^([124])\s*k$/);
+  return match ? `${match[1]}k` : String(value).trim();
+}
+
+function resolveImageResolution(params: any = {}, defaults: any = {}, modelVersion = "") {
+  const supported = supportedImageResolutions(modelVersion);
+  const raw = imageResolution(params, defaults) || supported[supported.length - 1];
+  const resolution = normalizeImageResolution(raw);
+  if (!supported.includes(resolution)) {
+    throw new Error(`Jimeng image resolution "${raw}" is unsupported for model "${modelVersion}"; supported resolutions: ${supported.join(", ")}`);
+  }
+  return resolution;
+}
+
+function resolveImageRatio(params: any = {}, defaults: any = {}) {
+  const ratio = params.ratio || params.aspect_ratio || params.aspectRatio || defaults.ratio || "3:2";
+  if (!IMAGE_RATIOS_SET.has(ratio)) {
+    throw new Error(`Jimeng image ratio "${ratio}" is unsupported`);
+  }
+  return ratio;
+}
+
 function videoResolution(params: any = {}, defaults: any = {}) {
   return params.video_resolution || params.videoResolution || params.resolution || defaults.video_resolution || defaults.videoResolution || defaults.resolution;
+}
+
+function supportedVideoResolutions(modelVersion) {
+  return modelVersion === "seedance2.0_vip" ? ["720p", "1080p"] : ["720p"];
+}
+
+function normalizeVideoResolution(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function resolveVideoResolution(params: any = {}, defaults: any = {}, modelVersion = "") {
+  const supported = supportedVideoResolutions(modelVersion);
+  const raw = videoResolution(params, defaults) || DEFAULT_VIDEO_RESOLUTION;
+  const resolution = normalizeVideoResolution(raw);
+  if (!supported.includes(resolution)) {
+    throw new Error(`Dreamina video resolution "${raw}" is unsupported for model "${modelVersion}"; supported resolutions: ${supported.join(", ")}`);
+  }
+  return resolution;
+}
+
+function videoDurationRange(modelVersion) {
+  const normalized = String(modelVersion || "").replace(/_/g, "");
+  if (/^3\.0/.test(normalized)) return { min: 3, max: 10 };
+  if (normalized === "3.5pro") return { min: 4, max: 12 };
+  return { min: 4, max: 15 };
+}
+
+function resolveVideoDuration(params: any = {}, defaults: any = {}, modelVersion = "") {
+  const raw = params.duration ?? params.seconds ?? defaults.duration ?? defaults.seconds ?? DEFAULT_VIDEO_DURATION;
+  const duration = Number(raw);
+  const range = videoDurationRange(modelVersion);
+  if (!Number.isInteger(duration) || duration < range.min || duration > range.max) {
+    throw new Error(`Dreamina video duration "${raw}" is unsupported for model "${modelVersion}"; supported range: ${range.min}-${range.max}s`);
+  }
+  return duration;
+}
+
+function resolveVideoRatio(params: any = {}, defaults: any = {}) {
+  const ratio = params.ratio || params.aspect_ratio || params.aspectRatio || defaults.ratio || DEFAULT_VIDEO_RATIO;
+  if (!VIDEO_RATIOS_SET.has(ratio)) {
+    throw new Error(`Dreamina video ratio "${ratio}" is unsupported; supported ratios: ${VIDEO_RATIOS.join(", ")}`);
+  }
+  return ratio;
 }
 
 function imageProviderDefaults(ctx: any = {}, providerId = "jimeng-cli") {
@@ -354,8 +432,8 @@ function buildImageSubmitArgs(params: any = {}, ctx: any = {}) {
   }
   appendStringArg(args, "--prompt", params.prompt);
   appendStringArg(args, "--model_version", modelVersion);
-  appendStringArg(args, "--ratio", params.ratio || params.aspect_ratio || params.aspectRatio || defaults.ratio);
-  appendStringArg(args, "--resolution_type", imageResolution(params, defaults));
+  appendStringArg(args, "--ratio", resolveImageRatio(params, defaults));
+  appendStringArg(args, "--resolution_type", resolveImageResolution(params, defaults, modelVersion));
   appendStringArg(args, "--poll", 0);
   return args;
 }
@@ -364,8 +442,6 @@ function buildVideoSubmitArgs(params: any = {}, ctx: any = {}) {
   const defaults = videoProviderDefaults(ctx, params.providerId || "jimeng-cli");
   const images = imagesFromParams(params);
   const modelVersion = normalizeVideoModelVersion(params.modelId || params.model || defaults.model || "seedance2.0fast");
-  const duration = params.duration || params.seconds || defaults.duration || defaults.seconds;
-  const resolution = videoResolution(params, defaults);
   const mode = params.mode || (images.length === 1 ? "image2video" : "text2video");
   if (mode === "text2video" && images.length !== 0) {
     throw new Error("Dreamina text2video does not accept reference images");
@@ -385,12 +461,14 @@ function buildVideoSubmitArgs(params: any = {}, ctx: any = {}) {
   if (mode === "image2video" && !IMAGE_TO_VIDEO_MODELS.has(modelVersion)) {
     throw new Error(`Dreamina model "${modelVersion}" does not support image2video`);
   }
+  const duration = resolveVideoDuration(params, defaults, modelVersion);
+  const resolution = resolveVideoResolution(params, defaults, modelVersion);
   const args = [mode];
   if (images.length === 1) appendStringArg(args, "--image", images[0]);
   appendStringArg(args, "--prompt", params.prompt);
   appendStringArg(args, "--model_version", modelVersion);
   if (images.length === 0) {
-    appendStringArg(args, "--ratio", params.ratio || params.aspect_ratio || params.aspectRatio || defaults.ratio);
+    appendStringArg(args, "--ratio", resolveVideoRatio(params, defaults));
   }
   appendStringArg(args, "--duration", duration);
   appendStringArg(args, "--video_resolution", resolution);
@@ -422,7 +500,7 @@ export function createJimengVideoAdapter(options: any = {}) {
     type: "video",
     capabilities: {
       ratios: VIDEO_RATIOS,
-      resolutions: ["720p", "1080p"],
+      resolutions: [DEFAULT_VIDEO_RESOLUTION],
       duration: { min: 4, max: 15 },
       referenceImages: { min: 0, max: 1 },
     },

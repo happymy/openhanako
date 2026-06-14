@@ -72,7 +72,7 @@ describe("volcengine adapter", () => {
     expect(body.model).toBe("doubao-seedream-4-0-250828");
     expect(body.prompt).toBe("a cat");
     expect(body.response_format).toBe("b64_json");
-    expect(body.size).toBe("2K");
+    expect(body.size).toBe("2496x1664");
     expect(body).not.toHaveProperty("output_format");
 
     expect(result.files).toHaveLength(1);
@@ -100,7 +100,7 @@ describe("volcengine adapter", () => {
     expect(body.output_format).toBe("png");
   });
 
-  it("maps generic 1k resolution to the nearest Seedream size tier", async () => {
+  it("keeps Seedream 1K at a 1K pixel size instead of silently upgrading to 2K", async () => {
     const { volcengineImageAdapter } = await import("../plugins/image-gen/adapters/volcengine.ts");
 
     const fakeB64 = Buffer.from("img").toString("base64");
@@ -118,7 +118,20 @@ describe("volcengine adapter", () => {
     }, ctx);
 
     const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(body.size).toBe("2048x2048");
+    expect(body.size).toBe("1024x1024");
+  });
+
+  it("rejects Seedream 3 unsupported resolution tiers before calling Volcengine", async () => {
+    const { volcengineImageAdapter } = await import("../plugins/image-gen/adapters/volcengine.ts");
+
+    const ctx = makeBusCtx("key", "https://test.com");
+    await expect(volcengineImageAdapter.submit({
+      prompt: "a cat",
+      model: "doubao-seedream-3-0-t2i",
+      ratio: "3:2",
+      resolution: "4K",
+    }, ctx)).rejects.toThrow(/Seedream.*resolution.*4K/i);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("applies Seedream 3-only providerDefaults without leaking them to newer models", async () => {
@@ -454,6 +467,20 @@ describe("agnes adapters", () => {
     expect(body).not.toHaveProperty("image");
   });
 
+  it("rejects unsupported Agnes image sizes before calling the API", async () => {
+    const { agnesImageAdapter } = await import("../plugins/image-gen/adapters/agnes.ts");
+
+    const ctx = makeBusCtx("agnes-key", "https://apihub.agnes-ai.com/v1", "agnes");
+    await expect(agnesImageAdapter.submit({
+      prompt: "a quiet handmade notebook",
+      modelId: "agnes-image-2.1-flash",
+      size: "2048x2048",
+      providerId: "agnes",
+      credentialProviderId: "agnes",
+    }, ctx)).rejects.toThrow(/Agnes.*size.*2048x2048/i);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it("submits Agnes video tasks and queries completed videos from the recommended video_id endpoint", async () => {
     const { agnesVideoAdapter } = await import("../plugins/image-gen/adapters/agnes.ts");
 
@@ -485,6 +512,7 @@ describe("agnes adapters", () => {
       prompt: "slow camera move over a notebook",
       modelId: "agnes-video-v2.0",
       ratio: "3:2",
+      video_resolution: "720p",
       duration: 5,
       providerId: "agnes",
       credentialProviderId: "agnes",
@@ -501,6 +529,8 @@ describe("agnes adapters", () => {
       prompt: "slow camera move over a notebook",
       width: 1152,
       height: 768,
+      frame_rate: 24,
+      num_frames: 121,
     });
 
     const queryResult = await agnesVideoAdapter.query("video_123", ctx);
@@ -511,6 +541,74 @@ describe("agnes adapters", () => {
       status: "success",
       files: ["video_123.mp4"],
     });
+  });
+
+  it("uses the Agnes documented 720p 3:2 video defaults", async () => {
+    const { agnesVideoAdapter } = await import("../plugins/image-gen/adapters/agnes.ts");
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        task_id: "task_123",
+        video_id: "video_123",
+        status: "queued",
+      }),
+    });
+
+    const ctx = makeBusCtx("agnes-key", "https://apihub.agnes-ai.com/v1", "agnes");
+    await agnesVideoAdapter.submit({
+      prompt: "slow camera move over a notebook",
+      modelId: "agnes-video-v2.0",
+      providerId: "agnes",
+      credentialProviderId: "agnes",
+    }, ctx);
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body).toMatchObject({
+      model: "agnes-video-v2.0",
+      prompt: "slow camera move over a notebook",
+      width: 1152,
+      height: 768,
+      frame_rate: 24,
+      num_frames: 121,
+    });
+  });
+
+  it("rejects unsupported Agnes video resolution and ratio before calling the API", async () => {
+    const { agnesVideoAdapter } = await import("../plugins/image-gen/adapters/agnes.ts");
+
+    const ctx = makeBusCtx("agnes-key", "https://apihub.agnes-ai.com/v1", "agnes");
+    await expect(agnesVideoAdapter.submit({
+      prompt: "slow camera move over a notebook",
+      modelId: "agnes-video-v2.0",
+      video_resolution: "1080p",
+      providerId: "agnes",
+      credentialProviderId: "agnes",
+    }, ctx)).rejects.toThrow(/Agnes.*resolution.*1080p/i);
+    await expect(agnesVideoAdapter.submit({
+      prompt: "slow camera move over a notebook",
+      modelId: "agnes-video-v2.0",
+      ratio: "16:9",
+      providerId: "agnes",
+      credentialProviderId: "agnes",
+    }, ctx)).rejects.toThrow(/Agnes.*ratio.*16:9/i);
+    await expect(agnesVideoAdapter.submit({
+      prompt: "slow camera move over a notebook",
+      modelId: "agnes-video-v2.0",
+      width: 1280,
+      height: 720,
+      providerId: "agnes",
+      credentialProviderId: "agnes",
+    }, ctx)).rejects.toThrow(/Agnes.*size.*1280x720/i);
+    await expect(agnesVideoAdapter.submit({
+      prompt: "slow camera move over a notebook",
+      modelId: "agnes-video-v2.0",
+      duration: 5,
+      frame_rate: 30,
+      providerId: "agnes",
+      credentialProviderId: "agnes",
+    }, ctx)).rejects.toThrow(/8n\+1 frame count/i);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("falls back to the Agnes legacy task_id result endpoint when video_id query is unavailable", async () => {
@@ -611,7 +709,7 @@ describe("openai codex oauth adapter", () => {
     });
     expect(body.tools[0]).toMatchObject({
       type: "image_generation",
-      size: "1024x1024",
+      size: "2048x2048",
       quality: "high",
       output_format: "png",
     });
@@ -700,16 +798,8 @@ describe("openai codex oauth adapter", () => {
     }, ctx)).rejects.toThrow(/account/i);
   });
 
-  it("maps generic 4k resolution to the nearest Codex image tool size", async () => {
+  it("rejects unsupported Codex 4K resolution before calling the backend", async () => {
     const { openaiCodexImageAdapter } = await import("../plugins/image-gen/adapters/openai-codex.ts");
-
-    const fakeB64 = Buffer.from("fake-codex-image").toString("base64");
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        output: [{ type: "image_generation_call", result: fakeB64 }],
-      }),
-    });
 
     const ctx = makeBusCtx("oauth-token", "https://chatgpt.com/backend-api", "openai-codex-oauth");
     ctx.bus.request = vi.fn(async (type, payload) => {
@@ -724,19 +814,12 @@ describe("openai codex oauth adapter", () => {
       return { error: "not_found" };
     });
 
-    await openaiCodexImageAdapter.submit({
+    await expect(openaiCodexImageAdapter.submit({
       prompt: "a quiet notebook",
       ratio: "16:9",
       resolution: "4K",
-    }, ctx);
-
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(body.tools[0]).toMatchObject({
-      type: "image_generation",
-      size: "3840x2160",
-    });
-    expect(body.tools[0]).not.toHaveProperty("resolution");
-    expect(body.tools[0]).not.toHaveProperty("ratio");
+    }, ctx)).rejects.toThrow(/Codex.*resolution.*4K/i);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("accepts generic Codex size tiers but still rejects impossible pixel sizes", async () => {
@@ -767,7 +850,7 @@ describe("openai codex oauth adapter", () => {
       prompt: "a quiet notebook",
       size: "2K",
     }, ctx);
-    expect(JSON.parse(mockFetch.mock.calls[0][1].body).tools[0].size).toBe("2048x2048");
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).tools[0].size).toBe("2048x1360");
 
     mockFetch.mockReset();
     await expect(openaiCodexImageAdapter.submit({
@@ -1115,6 +1198,51 @@ describe("dashscope image adapter", () => {
     expect(body.model).toBe("qwen-image-2.0-pro");
     expect(body.input.messages[0].content).toEqual([{ text: "a bilingual poster" }]);
     expect(submitted.files).toHaveLength(1);
+  });
+
+  it("maps Qwen 2 resolution and ratio to a documented DashScope size", async () => {
+    const { dashscopeImageAdapter } = await import("../plugins/image-gen/adapters/dashscope.ts");
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        output: {
+          choices: [{
+            message: { content: [{ image: "https://dashscope-result.example/qwen.png" }] },
+          }],
+        },
+      }),
+    }).mockResolvedValueOnce({
+      ok: true,
+      headers: { get: () => "image/png" },
+      arrayBuffer: async () => Buffer.from("qwen-image"),
+    });
+
+    const ctx = makeBusCtx("dash-key", "https://dashscope.aliyuncs.com/compatible-mode/v1", "dashscope");
+    await dashscopeImageAdapter.submit({
+      prompt: "a bilingual poster",
+      modelId: "qwen-image-2.0-pro",
+      resolution: "2K",
+      ratio: "4:3",
+      providerId: "dashscope",
+    }, ctx);
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.parameters.size).toBe("2368*1728");
+  });
+
+  it("rejects unsupported Qwen 2 4K resolution before calling DashScope", async () => {
+    const { dashscopeImageAdapter } = await import("../plugins/image-gen/adapters/dashscope.ts");
+
+    const ctx = makeBusCtx("dash-key", "https://dashscope.aliyuncs.com/compatible-mode/v1", "dashscope");
+    await expect(dashscopeImageAdapter.submit({
+      prompt: "a bilingual poster",
+      modelId: "qwen-image-2.0-pro",
+      resolution: "4K",
+      ratio: "4:3",
+      providerId: "dashscope",
+    }, ctx)).rejects.toThrow(/Qwen.*resolution.*4K/i);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("submits Qwen async text-to-image models with input.prompt", async () => {
