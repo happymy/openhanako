@@ -4370,6 +4370,50 @@ describe("SessionCoordinator", () => {
     expect(onSessionRuntimeDiscarded).toHaveBeenNthCalledWith(2, hibernatedPath, "archive");
   });
 
+  it("discardSessionRuntime can skip memory session-end notification for archived sessions", async () => {
+    const notifySessionEnd = vi.fn(async () => {});
+    const agent = {
+      id: "hana",
+      agentName: "小花",
+      sessionDir: path.join(tempDir, "agents", "hana", "sessions"),
+      _memoryTicker: { notifySessionEnd },
+    };
+    const livePath = path.join(agent.sessionDir, "skip-memory.jsonl");
+    fs.mkdirSync(agent.sessionDir, { recursive: true });
+    const session = {
+      isStreaming: false,
+      dispose: vi.fn(),
+      sessionManager: { getSessionFile: () => livePath },
+    };
+    const coordinator = new SessionCoordinator({
+      agentsDir: path.join(tempDir, "agents"),
+      getAgent: () => agent,
+      getActiveAgentId: () => "hana",
+      getModels: () => ({ authStorage: {}, modelRegistry: {}, resolveThinkingLevel: () => "medium" }),
+      getResourceLoader: () => ({ getSystemPrompt: () => "BASE" }),
+      getSkills: () => null,
+      buildTools: () => ({ tools: [], customTools: [] }),
+      emitEvent: () => {},
+      getHomeCwd: () => "/tmp/home",
+      agentIdFromSessionPath: () => "hana",
+      switchAgentOnly: async () => {},
+      getConfig: () => ({}),
+      getPrefs: () => ({ getThinkingLevel: () => "medium" }),
+      getAgents: () => new Map(),
+      getActivityStore: () => null,
+      getAgentById: () => agent,
+      listAgents: () => [{ id: "hana", name: "小花" }],
+      getConfirmStore: () => ({ abortBySession: vi.fn() }),
+      getDeferredResultStore: () => ({ clearBySession: vi.fn() }),
+      closeTerminalsForSession: vi.fn(),
+    });
+    coordinator._sessions.set(livePath, { session, agentId: "hana", unsub: vi.fn() });
+
+    await expect(coordinator.discardSessionRuntime(livePath, "parent session archived", { skipMemory: true })).resolves.toBe(true);
+
+    expect(notifySessionEnd).not.toHaveBeenCalled();
+  });
+
   it("discardSessionRuntime keeps a completed discard successful when the discard hook rejects", async () => {
     const agent = {
       id: "hana",

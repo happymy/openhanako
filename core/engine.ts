@@ -835,7 +835,7 @@ export class HanaEngine {
   /** /rc 接管态 + pending-selection 内存 store（Phase 2-A） */
   get rcState() { return this._slashSystem?.rcState ?? null; }
   async closeSession(p) { return this._sessionCoord.closeSession(p); }
-  async discardSessionRuntime(p, reason) { return this._sessionCoord.discardSessionRuntime(p, reason); }
+  async discardSessionRuntime(p, reason, options) { return this._sessionCoord.discardSessionRuntime(p, reason, options); }
   getSessionByPath(p) { return this._sessionCoord.getSessionByPath(p); }
   getSessionContextUsage(p) { return this._sessionCoord.getSessionContextUsage(p); }
   /** 确保桌面 session 已加载进 cache 但不改 UI 焦点（Phase 2-C：/rc 接管态用） */

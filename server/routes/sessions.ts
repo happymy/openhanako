@@ -402,7 +402,7 @@ export function createSessionsRoute(engine, hub = null) {
     return [...new Set((paths || []).filter((p) => typeof p === "string" && p.trim()))];
   }
 
-  async function cleanupSessionLifecycle(sessionPaths, reason) {
+  async function cleanupSessionLifecycle(sessionPaths, reason, options: { skipMemory?: boolean } = {}) {
     const bm = BrowserManager.instance();
     for (const sessionPath of uniqueLifecyclePaths(sessionPaths)) {
       try {
@@ -438,7 +438,11 @@ export function createSessionsRoute(engine, hub = null) {
       }
       try {
         if (typeof engine.discardSessionRuntime === "function") {
-          await engine.discardSessionRuntime(sessionPath, reason);
+          if (options && Object.keys(options).length > 0) {
+            await engine.discardSessionRuntime(sessionPath, reason, options);
+          } else {
+            await engine.discardSessionRuntime(sessionPath, reason);
+          }
         } else {
           await engine.abortSessionByPath?.(sessionPath);
         }
@@ -1638,7 +1642,7 @@ export function createSessionsRoute(engine, hub = null) {
       if (await pathExists(sessionFileSidecarPath(destPath))) {
         return c.json({ error: "Stage file sidecar destination already exists" }, 409);
       }
-      await cleanupSessionLifecycle([sessionPath, destPath], "parent session archived");
+      await cleanupSessionLifecycle([sessionPath, destPath], "parent session archived", { skipMemory: true });
 
       // 再从 engine 的 session map 中移除。
       await engine.setSessionPinned(sessionPath, false);

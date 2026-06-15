@@ -2808,16 +2808,18 @@ export class SessionCoordinator {
 
   // ── Session 关闭 ──
 
-  async discardSessionRuntime(sessionPath: any, reason = "discard") {
+  async discardSessionRuntime(sessionPath: any, reason = "discard", options: { skipMemory?: boolean } = {}) {
     if (!sessionPath) return false;
     this._clearRuntimePressureTimer(sessionPath);
     const hadHibernated = this._hibernatedSessionMeta.delete(sessionPath);
     const entry = this._sessions.get(sessionPath);
     if (entry) {
       const agent = this._d.getAgentById(entry.agentId) || this._d.getAgent();
-      agent?._memoryTicker?.notifySessionEnd(sessionPath).catch((err) =>
-        log.warn(`discardSessionRuntime ${path.basename(sessionPath)}: notifySessionEnd failed: ${err.message}`),
-      );
+      if (options.skipMemory !== true) {
+        agent?._memoryTicker?.notifySessionEnd(sessionPath).catch((err) =>
+          log.warn(`discardSessionRuntime ${path.basename(sessionPath)}: notifySessionEnd failed: ${err.message}`),
+        );
+      }
       if (entry.session.isStreaming) {
         this._forceReleaseStreamingSession(entry, sessionPath, reason);
       } else {
