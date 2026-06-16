@@ -161,7 +161,7 @@ export const description = "...";       // required
 export const parameters = { ... };      // JSON Schema, optional
 export async function execute(input, toolCtx) {  // required
   // input: user-provided parameters
-  // toolCtx: { pluginId, pluginDir, dataDir, sessionPath, bus, config, log, registerSessionFile, stageFile }
+  // toolCtx: { pluginId, pluginDir, dataDir, sessionPath, bus, network, config, log, registerSessionFile, stageFile }
   return "result";
 }
 ```
@@ -220,6 +220,46 @@ Boundaries:
 - User uploads, Bridge inbound attachments, browser screenshots, and legacy `create_artifact` compatibility outputs are registered by the framework as `managed_cache`
 - Install sources such as `.skill`, plugin folders, or zip files are registered by install routes as `install_source`
 - Cards own interactive presentation; files remain resources. If a card needs a file, reference the `SessionFile` instead of embedding file bytes in the card payload
+
+#### External Data Access
+
+When a plugin needs live scores, weather, prices, external search results, or third-party platform data, new code should use the host-provided `ctx.network.fetch()` helper for outbound HTTP APIs. The iframe page calls only this plugin's own route, such as `hana.api.fetch("api/live-scores")`; the route handler then calls `ctx.network.fetch("https://...")`. This keeps iframe authentication, outbound host declarations, timeouts, caching, and response-size limits inside the host runtime boundary.
+
+`ctx.network.fetch()` requires an explicit `network.fetch` capability plus allowed hosts in the manifest:
+
+```json
+{
+  "trust": "full-access",
+  "capabilities": ["network.fetch"],
+  "network": {
+    "allowedHosts": ["site.api.espn.com"],
+    "methods": ["GET"],
+    "defaultTimeoutMs": 8000,
+    "maxResponseBytes": 1048576
+  }
+}
+```
+
+```js
+// routes/api.js
+route.get("/live-scores", async (c) => {
+  const ctx = c.get("pluginCtx");
+  const res = await ctx.network.fetch(
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard",
+    { cacheTtlMs: 30_000 },
+  );
+  return c.json(await res.json());
+});
+```
+
+Boundaries:
+
+- `allowedHosts` contains hostnames; `*.example.com` matches subdomains; an empty list rejects every external host
+- The default method set is `GET`; declare `POST`, `PUT`, or other methods in `network.methods` when needed
+- HTTPS is required by default; `http://127.0.0.1`, `localhost`, and private-network targets require `"allowLocalhost": true`
+- `timeoutMs`, `cacheTtlMs`, and `maxResponseBytes` may override manifest defaults per call
+- API keys, tokens, and cookies must not live in `assets/` or iframe JS; store them through configuration schema and read them on the route side
+- Older plugins that already call Node `fetch()` directly from routes remain compatible; new plugins, templates, and Agent-generated code should use `ctx.network.fetch()` so diagnostics can point to missing capability, host, method, or size declarations
 
 #### Scheduled Automation Actions
 
@@ -641,6 +681,7 @@ Most plugins don't need a manifest. Only required for:
 - Declaring `trust: "full-access"` for full permissions
 - Declaring iframe UI host capabilities (`ui.hostCapabilities`)
 - Declaring ordinary plugin capabilities (`capabilities`) or future user-granted sensitive capabilities (`sensitiveCapabilities`)
+- Declaring outbound HTTP data boundaries (`network.allowedHosts`, `network.methods`, etc.)
 - Configuration schema (JSON Schema declarations)
 - Plugin metadata (name, version, description for the management UI)
 - Soft dependency declarations
@@ -654,8 +695,14 @@ Most plugins don't need a manifest. Only required for:
   "description": "What this plugin does",
   "trust": "full-access",
   "activationEvents": ["onToolCall:search"],
-  "capabilities": ["session", "agent", "model.sample", "media.generate"],
+  "capabilities": ["session", "agent", "model.sample", "media.generate", "network.fetch"],
   "sensitiveCapabilities": ["filesystem.write"],
+  "network": {
+    "allowedHosts": ["api.example.com"],
+    "methods": ["GET", "POST"],
+    "defaultTimeoutMs": 8000,
+    "maxResponseBytes": 1048576
+  },
   "ui": {
     "hostCapabilities": ["external.open"]
   },
@@ -671,6 +718,8 @@ Most plugins don't need a manifest. Only required for:
 Without a manifest, `id` is derived from the directory name, other fields default to empty, and permission is restricted.
 
 `capabilities` are ordinary declarations and are exposed as `ctx.capabilities`; in the current version, declared ordinary capabilities can be used directly through the SDK or EventBus. `sensitiveCapabilities` records intent for the future user-granted permission system and is exposed as `ctx.sensitiveCapabilities`.
+
+`network` describes the outbound HTTP boundary only; it does not grant a capability by itself. Code that calls `ctx.network.fetch()` must still declare `network.fetch` in `capabilities` or `sensitiveCapabilities`. New plugins should fetch live data, third-party API payloads, search results, and dynamic website-conversion data from route code, then return sanitized JSON to the iframe. `network` is not a static resource serving config; packaged images, videos, CSS, and JS still belong under `assets/`.
 
 ### Activation Events
 

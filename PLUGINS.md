@@ -202,7 +202,7 @@ export const description = "...";       // 必须
 export const parameters = { ... };      // JSON Schema，可选
 export async function execute(input, toolCtx) {  // 必须
   // input: 用户传入的参数
-  // toolCtx: { pluginId, pluginDir, dataDir, sessionPath, bus, config, log, registerSessionFile, stageFile }
+  // toolCtx: { pluginId, pluginDir, dataDir, sessionPath, bus, network, config, log, registerSessionFile, stageFile }
   return "result";
 }
 ```
@@ -262,6 +262,46 @@ return {
 - 用户上传、Bridge 入站、浏览器截图、旧 `create_artifact` 兼容工具输出等临时产物由框架登记为 `managed_cache`
 - 安装来源（`.skill`、plugin 目录或 zip）：由安装 route 登记为 `install_source`
 - Card 负责呈现交互界面，文件仍然是资源；卡片需要引用文件时，应引用 `SessionFile`，不要把文件内容塞进 card payload
+
+#### 外部数据访问
+
+插件需要实时比分、天气、行情、外部搜索结果或第三方平台数据时，新代码应通过宿主提供的 `ctx.network.fetch()` 访问外部 HTTP API。iframe 页面只调用本插件自己的 route，例如 `hana.api.fetch("api/live-scores")`；route handler 再调用 `ctx.network.fetch("https://...")`。这样 iframe 认证、外部域名声明、超时、缓存和响应大小限制都在宿主边界内统一处理。
+
+`ctx.network.fetch()` 需要 manifest 显式声明 `network.fetch`，并列出允许访问的主机：
+
+```json
+{
+  "trust": "full-access",
+  "capabilities": ["network.fetch"],
+  "network": {
+    "allowedHosts": ["site.api.espn.com"],
+    "methods": ["GET"],
+    "defaultTimeoutMs": 8000,
+    "maxResponseBytes": 1048576
+  }
+}
+```
+
+```js
+// routes/api.js
+route.get("/live-scores", async (c) => {
+  const ctx = c.get("pluginCtx");
+  const res = await ctx.network.fetch(
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard",
+    { cacheTtlMs: 30_000 },
+  );
+  return c.json(await res.json());
+});
+```
+
+边界规则：
+
+- `allowedHosts` 必须写主机名，可用 `*.example.com` 匹配子域；空列表拒绝所有外部主机
+- 默认只允许 `GET`；需要 `POST`、`PUT` 等方法时在 `network.methods` 中显式声明
+- 默认只允许 HTTPS；`http://127.0.0.1`、`localhost`、私网地址必须额外声明 `"allowLocalhost": true`
+- `timeoutMs`、`cacheTtlMs`、`maxResponseBytes` 可在单次调用覆盖 manifest 默认值
+- API key、token、cookie 不得写进 `assets/` 或 iframe JS；用 configuration schema 保存，由 route 在服务端读取
+- 旧插件已经直接在 Node route 中使用 `fetch()` 的路径继续兼容；新插件、模板和 Agent 生成代码应使用 `ctx.network.fetch()`，这样诊断能指出缺少能力声明、域名、方法或大小限制
 
 #### 可视化卡片
 
@@ -730,6 +770,7 @@ Widget 同样通过 iframe 渲染，需要发送 `ready` 握手信号。
 - 声明 `trust: "full-access"` 获取完整权限
 - 声明 iframe UI 需要的宿主能力（`ui.hostCapabilities`）
 - 声明插件希望使用的普通能力（`capabilities`）或未来需要用户授权的敏感能力（`sensitiveCapabilities`）
+- 声明外部 HTTP 数据访问边界（`network.allowedHosts`、`network.methods` 等）
 - Configuration schema（JSON Schema 声明）
 - Plugin 元信息（名称、版本、描述，给管理 UI 展示）
 - 软依赖声明
@@ -743,8 +784,14 @@ Widget 同样通过 iframe 渲染，需要发送 `ready` 握手信号。
   "description": "What this plugin does",
   "trust": "full-access",
   "activationEvents": ["onToolCall:search"],
-  "capabilities": ["session", "agent", "model.sample", "media.generate"],
+  "capabilities": ["session", "agent", "model.sample", "media.generate", "network.fetch"],
   "sensitiveCapabilities": ["filesystem.write"],
+  "network": {
+    "allowedHosts": ["api.example.com"],
+    "methods": ["GET", "POST"],
+    "defaultTimeoutMs": 8000,
+    "maxResponseBytes": 1048576
+  },
   "ui": {
     "hostCapabilities": ["external.open"]
   },
@@ -760,6 +807,8 @@ Widget 同样通过 iframe 渲染，需要发送 `ready` 握手信号。
 没有 manifest 时，`id` 从目录名推导，其他字段默认空，权限为 restricted。
 
 `capabilities` 是普通能力声明，加载后会出现在 `ctx.capabilities`，当前版本声明后即可通过 SDK / EventBus 使用对应稳定能力。`sensitiveCapabilities` 只记录插件意图，加载后出现在 `ctx.sensitiveCapabilities`；用户授权式权限系统接入后，文件系统写入、凭证读取、外部网络等高危能力会从这里进入授权流程。
+
+`network` 只描述外部 HTTP 访问边界，本身不授予能力；使用 `ctx.network.fetch()` 时仍必须在 `capabilities` 或 `sensitiveCapabilities` 中声明 `network.fetch`。新插件应把实时数据、第三方 API、搜索、网页转插件所需的动态业务数据放在 route 层获取，再把净化后的 JSON 返回给 iframe。`network` 不是静态资源服务配置；图片、视频、CSS、JS 等随插件分发的资源仍应放进 `assets/`。
 
 ## 有状态 Plugin（生命周期）⚡ full-access
 

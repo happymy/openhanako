@@ -80,6 +80,43 @@ export default definePlugin({
 Use `ctx.bus.listCapabilities?.()` or `ctx.bus.getCapability?.(type)` to inspect
 the host EventBus capability directory before making optional requests.
 
+## External HTTP APIs
+
+Use `ctx.network.fetch()` when runtime plugin code needs public HTTP data such as
+live scores, weather, prices, search, or third-party platform APIs. Browser
+iframe code should call this plugin's own route with `hana.api.fetch(...)`; the
+route then calls `ctx.network.fetch(...)`.
+
+```json
+{
+  "trust": "full-access",
+  "capabilities": ["network.fetch"],
+  "network": {
+    "allowedHosts": ["site.api.espn.com"],
+    "methods": ["GET"],
+    "defaultTimeoutMs": 8000,
+    "maxResponseBytes": 1048576
+  }
+}
+```
+
+```ts
+route.get('/live-scores', async (c) => {
+  const ctx = c.get('pluginCtx');
+  const res = await ctx.network.fetch(
+    'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard',
+    { cacheTtlMs: 30_000 },
+  );
+  return c.json(await res.json());
+});
+```
+
+`ctx.network.fetch()` returns a standard `Response`. It validates the
+`network.fetch` capability, manifest host allowlist, HTTP method, HTTPS scheme,
+private-network targets, timeout, cache TTL, and response byte limit. Keep API
+keys in plugin configuration and read them from route or lifecycle code; do not
+ship secrets in iframe assets.
+
 ## Session, Agent, model, and media helpers
 
 Plugins that need their own chat surface should use the typed helpers instead of

@@ -41,6 +41,7 @@ Hana plugins can provide:
 - Session and Agent control through `@hana/plugin-runtime`: create/list/update/send/abort/history sessions, subscribe to session events, create/read/update plugin-owned agents, and hide plugin-private resources from the main Hana UI.
 - Per-turn model context injection through `sendSessionMessage(..., { context })` or `session:send.context`, suitable for plugin-owned RAG, world lore, mood, character state, or routing hints. This affects only the current provider request and does not rewrite visible user text.
 - Non-streaming utility model calls through `sampleText()` for plugin-side summarization, RAG query rewriting, routing, and classification.
+- External HTTP data access through runtime `ctx.network.fetch()` with manifest-declared hosts, methods, timeout, cache, and response-size boundaries.
 - Media discovery and generation through `listMediaProviders()`, `resolveMediaModel()`, and `generateImage()`, with generated files delivered as `SessionFile` resources.
 - Provider contributions for chat and media capabilities, including image/video/speech providers backed by HTTP, OAuth HTTP, local CLI, browser CLI, or plugin runtimes.
 - Pi SDK extension-style integrations under `extensions/*.js` where the plugin must observe or transform the LLM request pipeline.
@@ -85,6 +86,7 @@ Behavior:
    - User-installed plugin: the directory reported by `/api/plugins/settings` or `${HANA_HOME}/plugins`.
 6. Generate the scaffold with the bundled script, then adjust names, descriptions, tools, routes, capabilities, and UI to the user's request.
    - When converting an existing website or single-page app into a Hana iframe plugin, rewrite same-plugin browser `fetch('/api/...')` calls to `hana.api.fetch(...)`, move static files under `assets/`, and use `hana.assets.url(...)` for browser-side asset references.
+   - If the website depends on live third-party data, create a plugin route and call `ctx.network.fetch(...)` from that route. Add `network.fetch` and `network.allowedHosts` to the manifest instead of calling the third-party API directly from iframe JavaScript.
 7. Use the Plugin Dev Loop when available:
    - confirm the user has enabled Settings -> Plugins -> "Allow Agent plugin dev tools";
    - install source with `plugin.dev.install`;
@@ -141,6 +143,10 @@ python3 skills2set/hana-plugin-creator/scripts/create_hana_plugin.py "Jimeng Pro
 - Do not create custom plugin routes only to serve static files, such as `/api/video`, `/api/file`, or `/assets/*`, in new Agent-generated code. Existing plugins with static-file compatibility handlers may continue to run; if editing them, prefer adding the official `assets/` references without removing the existing handler unless the user explicitly asks for cleanup.
 - Dev authority is not a manifest permission. Hana grants it from the remembered dev install slot under `${HANA_HOME}/plugins-dev/`, and Agent dev tools are hidden until the user enables the dev tools setting.
 - Declare ordinary SDK needs in manifest `capabilities`, such as `session`, `agent`, `model.sample`, and `media.generate`. Put future high-risk needs in `sensitiveCapabilities`.
+- For external HTTP APIs, declare `"network.fetch"` in `capabilities` and add a top-level `network` object with `allowedHosts`, `methods`, `defaultTimeoutMs`, and `maxResponseBytes`. Use `ctx.network.fetch(url, { cacheTtlMs })` from Node-side tools, routes, or lifecycle code.
+- Iframe browser code must not call third-party APIs directly. It should call a same-plugin route with `hana.api.fetch(...)`; the route reads config/secrets server-side and calls `ctx.network.fetch(...)`.
+- Do not invent custom external-data permission fields, custom ticket query params, custom proxy routes, or global fetch wrappers. Existing plugins that already use direct Node `fetch()` remain compatible, but new or refactored Agent-generated code should use `ctx.network.fetch()` so diagnostics can explain missing capabilities, hosts, methods, and response-size limits.
+- Store API keys, bearer tokens, and cookies through configuration schema and `ctx.config`; never place secrets in `assets/`, iframe JavaScript, route shell HTML, or checked-in examples.
 - Prefer runtime helpers over raw bus calls for stable host capabilities: `createSession`, `getSession`, `listSessions`, `updateSession`, `sendSessionMessage`, `subscribeSessionEvents`, `createAgent`, `updateAgent`, `sampleText`, `listMediaProviders`, `resolveMediaModel`, `generateImage`, `generateMedia`, `generateVideo`, and `transcribeAudio`.
 - `createSession()` creates a detached Hana session and does not switch the main UI focus. Use `visibility: "plugin_private"` and `ownerPluginId` for plugin-only sessions or Tavern-style parallel chat surfaces.
 - `createAgent()` / `updateAgent()` can create plugin-owned hidden agents. Keep plugin-only characters and resources marked `visibility: "plugin_private"` unless the user expects them in the main Agent list.
@@ -186,6 +192,8 @@ python3 skills2set/hana-plugin-creator/scripts/create_hana_plugin.py "Jimeng Pro
 
 - Split the source website into a route shell plus `assets/`. Keep HTML structure in the shell, compiled or copied JS/CSS/media in `assets/`, and business APIs in `routes/*.js`.
 - Large media such as MP4 backgrounds must stay as files under `assets/`; do not base64-inline them and do not stream them through custom plugin routes.
+- Live data APIs belong behind plugin routes that call `ctx.network.fetch()`. The browser page calls `hana.api.fetch('api/...')`, receives sanitized JSON, and renders it locally.
 - First paint must not auto-call LLM APIs. Trigger model calls only from an explicit user action, then call a plugin backend route with `hana.api.fetch(...)`; the backend route may use `sampleText()` or other runtime helpers.
-- After generating or editing a UI plugin, check for disallowed patterns before installing: `pluginIframeTicket` in asset/API URLs, hard-coded `/api/plugins/{pluginId}` in browser code, custom static-file routes in new code, missing `assets/` files, and page-load LLM calls.
+- After generating or editing a UI plugin, check for disallowed patterns before installing: `pluginIframeTicket` in asset/API URLs, hard-coded `/api/plugins/{pluginId}` in browser code, direct third-party `fetch()` from iframe assets, custom static-file routes in new code, missing `assets/` files, and page-load LLM calls.
+- If the user asks to turn a login-backed or browser-operated website into a plugin, explain that the stable API today is iframe UI plus route-backed data APIs. Do not create ad hoc browser-control interfaces; note that a future web-session capability should own persistent cookies, navigation, and user-mediated external site interaction.
 - Use the dev loop first. Install source into `${HANA_HOME}/plugins-dev/`, reload after edits, run diagnostics and scenarios, then package or install into the normal plugin directory only after the dev copy works. Existing installed plugins may include compatibility handlers; treat them as cleanup candidates, not broken plugins.

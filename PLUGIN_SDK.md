@@ -99,6 +99,8 @@ const res = await hana.api.fetch('api/translate', {
 
 Website-to-plugin conversions should rewrite same-plugin `fetch('/api/...')` calls to `hana.api.fetch(...)`. Do not hard-code `/api/plugins/{pluginId}/...` in browser code, and do not reuse `pluginIframeTicket` for XHR/fetch calls; that ticket is only for the iframe document load.
 
+Browser-side code should not call third-party APIs directly. If a plugin needs live data from the public internet, call a same-plugin route with `hana.api.fetch(...)`; the route should use the runtime `ctx.network.fetch()` helper described below. This keeps API keys out of iframe assets and lets Hana diagnose missing host, method, timeout, and response-size declarations.
+
 Use `hana.assets.url(path)` for browser-side references to files bundled under the plugin's `assets/` directory:
 
 ```ts
@@ -167,6 +169,51 @@ Scheduled automation plugin actions reuse plugin tools in v0. A cron executor sa
 Lifecycle plugins should declare `activationEvents` in `manifest.json` when they do not need to start on app launch. Existing lifecycle plugins without this field still activate on startup for compatibility.
 
 Long-running plugins should use the runtime task helpers (`registerTask`, `updateTask`, `completeTask`, `failTask`, `cancelTask`, `scheduleTask`) instead of hand-writing EventBus payloads.
+
+### Runtime External HTTP API
+
+Use `ctx.network.fetch()` for external HTTP APIs such as live scores, weather, prices, search, or third-party platform data. It is intentionally a runtime helper, not an iframe helper: iframe code calls a plugin route with `hana.api.fetch(...)`, and the route performs the outbound request.
+
+Manifest:
+
+```json
+{
+  "trust": "full-access",
+  "capabilities": ["network.fetch"],
+  "network": {
+    "allowedHosts": ["site.api.espn.com"],
+    "methods": ["GET"],
+    "defaultTimeoutMs": 8000,
+    "maxResponseBytes": 1048576
+  }
+}
+```
+
+Route:
+
+```js
+// routes/api.js
+route.get('/live-scores', async (c) => {
+  const ctx = c.get('pluginCtx');
+  const res = await ctx.network.fetch(
+    'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard',
+    { cacheTtlMs: 30_000 },
+  );
+  return c.json(await res.json());
+});
+```
+
+`ctx.network.fetch(input, init)` returns a standard `Response`. Extra options are:
+
+- `timeoutMs`: per-call timeout, defaulting to `network.defaultTimeoutMs` or 15 seconds
+- `cacheTtlMs`: in-memory GET cache TTL for this plugin context
+- `maxResponseBytes`: per-call response body cap, defaulting to `network.maxResponseBytes` or 5 MiB
+
+The host validates `network.fetch` capability declaration, `network.allowedHosts`, HTTP method, HTTPS scheme, private-network targets, timeout, cache, and response size. Direct Node `fetch()` in older plugins remains compatible, but new and refactored plugins should use `ctx.network.fetch()` so diagnostics can explain the missing manifest declaration instead of failing later in plugin code.
+
+Do not put API keys, bearer tokens, or cookies in `assets/` or browser JavaScript. Define configuration schema fields and read them from `ctx.config` inside the route or lifecycle code.
+
+Browser automation, login-backed websites, and turning a full external web app into a persistent plugin should use a separate future web-session capability rather than inventing ad hoc browser-control routes. Until that API exists, document the gap and keep ordinary data APIs on `ctx.network.fetch()`.
 
 ### Runtime Session and Agent API
 
