@@ -6,8 +6,12 @@ import { HanaEngine } from "../core/engine.ts";
 
 describe("HanaEngine.buildTools", () => {
   let tmpDir;
+  let engines: HanaEngine[] = [];
 
-  afterEach(() => {
+  afterEach(async () => {
+    for (const engine of engines.splice(0).reverse()) {
+      await engine.dispose();
+    }
     if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
     tmpDir = null;
   });
@@ -146,6 +150,7 @@ describe("HanaEngine.buildTools", () => {
       productDir: tmpDir,
       agentId: "hana",
     } as any);
+    engines.push(engine);
     engine.resolveUtilityConfig = vi.fn(() => ({
       utility: { id: "small-reviewer", provider: "test" },
       utility_large: { id: "large-reviewer", provider: "test" },

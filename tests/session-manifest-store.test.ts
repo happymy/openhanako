@@ -6,6 +6,7 @@ import {
   SESSION_MANIFEST_DB_USER_VERSION,
   SessionManifestStore,
 } from "../core/session-manifest/store.ts";
+import { sessionLocatorKey } from "../core/session-manifest/path-normalizer.ts";
 
 describe("SessionManifestStore", () => {
   let tmpDir;
@@ -48,7 +49,7 @@ describe("SessionManifestStore", () => {
     expect(manifest.domain).toBe("home");
     expect(manifest.kind).toBe("chat");
     expect(manifest.currentLocator.path).toBe(fs.realpathSync.native(sessionPath));
-    expect(manifest.currentLocator.key).toBe(manifest.currentLocator.path);
+    expect(manifest.currentLocator.key).toBe(sessionLocatorKey(sessionPath));
     expect(manifest.memoryPolicy).toEqual({ mode: "inherit", inheritedFrom: "agent_default" });
     expect(manifest.permissionModeSnapshot.mode).toBe("ask");
     expect(store.getBySessionId(manifest.sessionId)?.sessionId).toBe(manifest.sessionId);
