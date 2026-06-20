@@ -65,6 +65,10 @@ describe('ChatTranscript turn timestamps', () => {
     window.t = ((key: string) => ({
       'thinking.done': '思考完成',
       'common.regenerate': '重新生成',
+      'common.copyText': '复制文本',
+      'common.screenshot': '截图',
+      'common.selectAllMessages': '全选消息',
+      'common.selectMessage': '选择消息',
     }[key] || key)) as typeof window.t;
     useStore.setState({
       agents: [],
@@ -86,7 +90,7 @@ describe('ChatTranscript turn timestamps', () => {
     cleanup();
   });
 
-  it('shows time on user messages and the final assistant message of each turn only', () => {
+  it('shows each user and assistant message time in its own footer', () => {
     const items: ChatListItem[] = [
       user('u1', new Date(2026, 4, 7, 8, 0).getTime(), '第一轮'),
       assistant('a1-tool', new Date(2026, 4, 7, 8, 1).getTime(), [thinking('读文件')]),
@@ -104,10 +108,10 @@ describe('ChatTranscript turn timestamps', () => {
     );
 
     expect(screen.getByText('08:00')).toBeInTheDocument();
-    expect(screen.queryByText('08:01')).not.toBeInTheDocument();
+    expect(screen.getByText('08:01')).toBeInTheDocument();
     expect(screen.getByText('08:02')).toBeInTheDocument();
     expect(screen.getByText('09:00')).toBeInTheDocument();
-    expect(screen.queryByText('09:01')).not.toBeInTheDocument();
+    expect(screen.getByText('09:01')).toBeInTheDocument();
     expect(screen.getByText('09:02')).toBeInTheDocument();
   });
 
