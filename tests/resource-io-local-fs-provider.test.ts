@@ -4,6 +4,24 @@ import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LocalFsProvider } from "../lib/resource-io/providers/local-fs-provider.ts";
 
+const CAPABILITY_KEYS = [
+  "stat",
+  "read",
+  "write",
+  "writeExpectedVersion",
+  "edit",
+  "list",
+  "search",
+  "watch",
+  "materialize",
+  "copy",
+  "rename",
+  "move",
+  "trash",
+  "delete",
+  "mkdir",
+].sort();
+
 describe("LocalFsProvider", () => {
   let tempRoot: string | null = null;
 
@@ -26,6 +44,12 @@ describe("LocalFsProvider", () => {
       provider: new LocalFsProvider({ cwd, guard: { check }, trashRoot }),
     };
   }
+
+  it("declares the complete provider capability matrix", () => {
+    const { provider } = makeProvider();
+
+    expect(Object.keys(provider.capabilities()).sort()).toEqual(CAPABILITY_KEYS);
+  });
 
   it("writes and stats a local file through PathGuard", async () => {
     const { cwd, realCwd, check, provider } = makeProvider();

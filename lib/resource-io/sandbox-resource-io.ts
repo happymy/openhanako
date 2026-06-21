@@ -7,6 +7,7 @@ import { UrlProvider } from "./providers/url-provider.ts";
 import { ResourceAccessPolicy } from "./resource-access-policy.ts";
 import { ResourceEventBus } from "./resource-event-bus.ts";
 import { ResourceIO } from "./resource-io.ts";
+import type { ResourceProvider as ResourceIoProvider } from "./types.ts";
 
 type Options = {
   cwd: string;
@@ -60,7 +61,7 @@ export function createSandboxResourceIO({
 
   const trashRoot = path.join(hanakoHome, "trash");
   const localFsProviderFactory = ({ cwd: providerCwd, guard }) => new LocalFsProvider({ cwd: providerCwd, guard, trashRoot });
-  const providers: Record<string, any> = {
+  const providers: Record<string, ResourceIoProvider> = {
     local_fs: localFsProviderFactory({ cwd, guard: resourceAccessGuard }),
     url: new UrlProvider({ materializeRoot: urlMaterializeRoot }),
   };

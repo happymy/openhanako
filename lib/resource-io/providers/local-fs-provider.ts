@@ -33,6 +33,8 @@ type LocalFsProviderOptions = {
 const SEARCH_SKIP_DIRS = new Set([".git", "node_modules", "dist", "build", "coverage"]);
 
 export class LocalFsProvider {
+  readonly id = "local_fs" as const;
+
   declare cwd: string;
   declare guard: Guard | null;
   declare trashRoot: string | null;

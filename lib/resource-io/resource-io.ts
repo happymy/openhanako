@@ -1,6 +1,6 @@
 import type { ResourceEventBus } from "./resource-event-bus.ts";
 import { capabilityDenied, crossProviderCopyUnsupported, crossProviderMoveUnsupported, providerNotAvailable } from "./errors.ts";
-import { normalizeResourceRef } from "./resource-refs.ts";
+import { normalizeResourceRef, providerIdForResourceRef } from "./resource-refs.ts";
 import type {
   MaterializeResult,
   ResourceDeletedEvent,
@@ -9,6 +9,7 @@ import type {
   ResourceListResult,
   ResourceMutationResult,
   ResourceMoveResult,
+  ResourceProvider,
   ResourceReadResult,
   ResourceRef,
   ResourceSearchResult,
@@ -20,34 +21,8 @@ import type {
   ResourceWriteExpectedVersionResult,
 } from "./types.ts";
 
-type Provider = {
-  capabilities?: (ref: ResourceRef) => Record<string, boolean | undefined>;
-  watchTarget?: (ref: ResourceRef) => {
-    ref?: ResourceRef;
-    filePath: string;
-    isDirectory?: boolean;
-    resourceKey: string;
-    resource: any;
-    toResource?: (changedPath: string) => { resourceKey: string; resource: any; filePath?: string };
-  };
-  stat?: (ref: ResourceRef) => Promise<ResourceStat>;
-  read?: (ref: ResourceRef) => Promise<ResourceReadResult>;
-  write?: (ref: ResourceRef, content: string | Buffer) => Promise<ResourceMutationResult>;
-  writeExpectedVersion?: (ref: ResourceRef, content: string | Buffer, expectedVersion: ResourceVersion) => Promise<ResourceWriteExpectedVersionResult>;
-  edit?: (ref: ResourceRef, edits: ResourceEdit[]) => Promise<ResourceMutationResult>;
-  mkdir?: (ref: ResourceRef) => Promise<ResourceMutationResult>;
-  delete?: (ref: ResourceRef) => Promise<ResourceMutationResult>;
-  list?: (ref: ResourceRef) => Promise<ResourceListResult>;
-  search?: (ref: ResourceRef, options?: Record<string, unknown>) => Promise<ResourceSearchResult>;
-  materialize?: (ref: ResourceRef) => Promise<MaterializeResult>;
-  copy?: (from: ResourceRef, to: ResourceRef) => Promise<ResourceMutationResult>;
-  rename?: (from: ResourceRef, to: ResourceRef) => Promise<ResourceMoveResult>;
-  move?: (from: ResourceRef, to: ResourceRef) => Promise<ResourceMoveResult>;
-  trash?: (ref: ResourceRef, options?: ResourceTrashOptions) => Promise<ResourceTrashResult>;
-};
-
 type ResourceIOOptions = {
-  providers: Record<string, Provider>;
+  providers: Record<string, ResourceProvider>;
   eventBus?: ResourceEventBus | null;
   getSessionPath?: () => string | null;
 };
@@ -60,7 +35,7 @@ type MutationOptions = {
 };
 
 export class ResourceIO {
-  declare providers: Record<string, Provider>;
+  declare providers: Record<string, ResourceProvider>;
   declare eventBus: ResourceEventBus | null;
   declare getSessionPath: () => string | null;
 
@@ -142,7 +117,7 @@ export class ResourceIO {
     const provider = this.providerFor(ref);
     const capabilities = provider.capabilities?.(ref) || {};
     if (capabilities.watch === false || typeof provider.watchTarget !== "function") {
-      throw capabilityDenied("watch", providerIdForRef(ref));
+      throw capabilityDenied("watch", providerIdForResourceRef(ref));
     }
     return provider.watchTarget(ref);
   }
@@ -151,7 +126,7 @@ export class ResourceIO {
     const fromRef = normalizeResourceRef(from);
     const toRef = normalizeResourceRef(to);
     if (fromRef.kind !== toRef.kind) {
-      throw crossProviderCopyUnsupported(providerIdForRef(fromRef), providerIdForRef(toRef));
+      throw crossProviderCopyUnsupported(providerIdForResourceRef(fromRef), providerIdForResourceRef(toRef));
     }
     const result = await this.callProvider<ResourceMutationResult>(toRef, "copy", fromRef, toRef);
     this.emitChanged(result, options);
@@ -176,26 +151,26 @@ export class ResourceIO {
   async moveLike(capability: "rename" | "move", from: unknown, to: unknown, options: MutationOptions = {}): Promise<ResourceMoveResult> {
     const fromRef = normalizeResourceRef(from);
     const toRef = normalizeResourceRef(to);
-    if (providerIdForRef(fromRef) !== providerIdForRef(toRef)) {
-      throw crossProviderMoveUnsupported(providerIdForRef(fromRef), providerIdForRef(toRef));
+    if (providerIdForResourceRef(fromRef) !== providerIdForResourceRef(toRef)) {
+      throw crossProviderMoveUnsupported(providerIdForResourceRef(fromRef), providerIdForResourceRef(toRef));
     }
     const result = await this.callProvider<ResourceMoveResult>(toRef, capability, fromRef, toRef);
     this.emitRenamed(result, options);
     return result;
   }
 
-  providerFor(ref: ResourceRef): Provider {
-    const id = providerIdForRef(ref);
+  providerFor(ref: ResourceRef): ResourceProvider {
+    const id = providerIdForResourceRef(ref);
     const provider = this.providers[id];
     if (!provider) throw providerNotAvailable(id);
     return provider;
   }
 
-  async callProvider<T>(ref: ResourceRef, capability: keyof Provider, ...args: unknown[]): Promise<T> {
+  async callProvider<T>(ref: ResourceRef, capability: keyof ResourceProvider, ...args: unknown[]): Promise<T> {
     const provider = this.providerFor(ref);
     const capabilities = provider.capabilities?.(ref) || {};
     if (capabilities[capability] === false || typeof provider[capability] !== "function") {
-      throw capabilityDenied(String(capability), providerIdForRef(ref));
+      throw capabilityDenied(String(capability), providerIdForResourceRef(ref));
     }
     return (provider[capability] as (...args: unknown[]) => Promise<T>)(...args);
   }
@@ -240,19 +215,4 @@ export class ResourceIO {
 
 function isWriteConflict(result: ResourceWriteExpectedVersionResult): result is ResourceWriteConflictResult {
   return Boolean((result as any)?.ok === false && (result as any)?.conflict === true);
-}
-
-function providerIdForRef(ref: ResourceRef): string {
-  switch (ref.kind) {
-    case "local-file":
-      return "local_fs";
-    case "mount":
-      return "mount";
-    case "session-file":
-      return "session_file";
-    case "resource":
-      return "resource";
-    case "url":
-      return "url";
-  }
 }

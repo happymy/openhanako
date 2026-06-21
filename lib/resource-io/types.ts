@@ -86,6 +86,15 @@ export type ResourceProviderCapabilities = {
   mkdir?: boolean;
 };
 
+export type ResourceProviderCapability = keyof ResourceProviderCapabilities;
+
+export type ResourceProviderId =
+  | "local_fs"
+  | "mount"
+  | "session_file"
+  | "resource"
+  | "url";
+
 export type ResourceStat = {
   resourceKey: string;
   resource: ResourceDescriptor;
@@ -188,4 +197,46 @@ export type MaterializeResult = {
   resource: ResourceDescriptor;
   filePath: string;
   version?: ResourceVersion;
+};
+
+export type SessionFileResolution = {
+  ref: Extract<ResourceRef, { kind: "session-file" }>;
+  entry: Record<string, any>;
+  filePath: string;
+  sourceRef?: ResourceRef;
+  displayName?: string;
+  storageKind?: string;
+};
+
+export type ResourceWatchTarget = {
+  ref?: ResourceRef;
+  filePath: string;
+  isDirectory?: boolean;
+  resourceKey: string;
+  resource: ResourceDescriptor;
+  toResource?: (changedPath: string) => {
+    resourceKey: string;
+    resource: ResourceDescriptor;
+    filePath?: string;
+  };
+};
+
+export type ResourceProvider = {
+  id: ResourceProviderId;
+  capabilities?: (ref: ResourceRef) => ResourceProviderCapabilities;
+  watchTarget?: (ref: ResourceRef) => ResourceWatchTarget;
+  stat?: (ref: ResourceRef) => Promise<ResourceStat>;
+  read?: (ref: ResourceRef) => Promise<ResourceReadResult>;
+  write?: (ref: ResourceRef, content: string | Buffer) => Promise<ResourceMutationResult>;
+  writeExpectedVersion?: (ref: ResourceRef, content: string | Buffer, expectedVersion: ResourceVersion) => Promise<ResourceWriteExpectedVersionResult>;
+  edit?: (ref: ResourceRef, edits: ResourceEdit[]) => Promise<ResourceMutationResult>;
+  mkdir?: (ref: ResourceRef) => Promise<ResourceMutationResult>;
+  delete?: (ref: ResourceRef) => Promise<ResourceMutationResult>;
+  list?: (ref: ResourceRef) => Promise<ResourceListResult>;
+  search?: (ref: ResourceRef, options?: Record<string, unknown>) => Promise<ResourceSearchResult>;
+  materialize?: (ref: ResourceRef) => Promise<MaterializeResult>;
+  copy?: (from: ResourceRef, to: ResourceRef) => Promise<ResourceMutationResult>;
+  rename?: (from: ResourceRef, to: ResourceRef) => Promise<ResourceMoveResult>;
+  move?: (from: ResourceRef, to: ResourceRef) => Promise<ResourceMoveResult>;
+  trash?: (ref: ResourceRef, options?: ResourceTrashOptions) => Promise<ResourceTrashResult>;
 };

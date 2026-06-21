@@ -83,6 +83,28 @@ describe("ResourceWatchRegistry", () => {
     }
   });
 
+  it("canonicalizes relative local-file watch refs before retaining watches", () => {
+    const close = vi.fn();
+    const watchPath = vi.fn(() => ({ close }));
+    const registry = new ResourceWatchRegistry({
+      emitEvent: vi.fn(),
+      watchPath,
+    });
+
+    const subscription = registry.subscribe({
+      purpose: "preview",
+      resources: [{ kind: "local-file", path: "notes/a.md" }],
+    });
+    const resolved = path.resolve("notes/a.md");
+
+    expect(subscription.resourceKeys).toEqual([resourceKeyForRef({ kind: "local-file", path: resolved })]);
+    expect(watchPath).toHaveBeenCalledWith(resolved, expect.any(Function));
+    expect(registry.diagnostics().watches[0]).toMatchObject({
+      resourceKey: resourceKeyForRef({ kind: "local-file", path: resolved }),
+      filePath: resolved,
+    });
+  });
+
   it("emits a versioned resource.changed event after a watched local file changes", async () => {
     vi.useFakeTimers();
     const filePath = path.join("/workspace", "notes", "a.md");
