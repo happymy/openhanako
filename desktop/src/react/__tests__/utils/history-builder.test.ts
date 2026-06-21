@@ -495,6 +495,66 @@ describe('buildItemsFromHistory user image restoration', () => {
     expect(items[1].data.taskId).toBe('task-img');
   });
 
+  it('有 sourceIndex 时按 JSONL 顺序恢复幕间，媒体结果仍原地替换占位消息', () => {
+    const items = buildItemsFromHistory({
+      messages: [
+        {
+          id: 'a-media',
+          sourceIndex: 10,
+          role: 'assistant',
+          content: '生成图片',
+        },
+        {
+          id: 'a-final',
+          sourceIndex: 20,
+          role: 'assistant',
+          content: '最终报告',
+        },
+        {
+          id: 'a-ack',
+          sourceIndex: 22,
+          role: 'assistant',
+          content: '收到后台回复',
+        },
+      ],
+      blocks: [
+        {
+          type: 'file',
+          afterIndex: 0,
+          sourceIndex: 12,
+          replacesTaskId: 'task-img',
+          filePath: '/tmp/generated.png',
+          label: 'generated.png',
+          ext: 'png',
+        },
+        {
+          type: 'interlude',
+          afterIndex: 0,
+          sourceIndex: 21,
+          id: 'deferred:subagent-1:success:delivery-1',
+          deliveryId: 'delivery-1',
+          variant: 'deferred_result',
+          timelinePlacement: 'after_anchor_message',
+          taskId: 'subagent-1',
+          status: 'success',
+          sourceKind: 'subagent',
+          text: '小花 收到了来自 明 的回复',
+        },
+      ],
+    });
+
+    expect(items.map((item) => (item.type === 'message' ? item.data.id : item.id))).toEqual([
+      'a-media',
+      'a-final',
+      'deferred:subagent-1:success:delivery-1',
+      'a-ack',
+    ]);
+    const mediaMessage = items[0];
+    expect(mediaMessage?.type).toBe('message');
+    if (mediaMessage?.type !== 'message') throw new Error('expected message');
+    expect(mediaMessage.data.blocks?.map((block) => block.type)).toEqual(['text', 'file']);
+  });
+
   it('只有 deferred 幕间消息的历史行不会留下空 assistant 外壳', () => {
     const items = buildItemsFromHistory({
       messages: [{

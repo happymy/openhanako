@@ -222,6 +222,7 @@ export type RichBlock =
   | {
     type: 'interlude';
     id: string;
+    deliveryId?: string;
     variant: 'deferred_result' | string;
     timelinePlacement?: 'after_anchor_message' | string;
     taskId?: string;

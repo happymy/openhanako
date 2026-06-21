@@ -34,7 +34,10 @@ import { AppError } from "../../shared/errors.ts";
 import { errorBus } from "../../shared/error-bus.ts";
 import { createRequestContext } from "../http/boundary.ts";
 import { buildDeferredResultInterludeBlock, resolveDeferredReceiverName } from "../deferred-result-interlude.ts";
-import { TURN_INPUT_PRESENTATION_EVENT_TYPE } from "../../lib/turn-input-presentation.ts";
+import {
+  TURN_INPUT_PRESENTATION_EVENT_TYPE,
+  buildTurnInputPresentationRecord,
+} from "../../lib/turn-input-presentation.ts";
 import { buildAutomationSuggestionBlock } from "../suggestion-blocks.ts";
 import { isAllowedChatImageMime, isChatImageBase64WithinLimit } from "../../shared/image-mime.ts";
 import { isAllowedChatVideoMime, isChatVideoBase64WithinLimit } from "../../shared/video-mime.ts";
@@ -501,11 +504,11 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
   }
 
   function turnInputPresentationAlreadyQueued(items, item) {
-    const block = item?.block;
-    if (!block) return false;
+    const deliveryId = item?.deliveryId || item?.block?.deliveryId || null;
+    if (!deliveryId) return false;
     return items.some((queued) => (
-      (block.id && queued.block?.id === block.id) ||
-      (!!block.taskId && queued.block?.taskId === block.taskId && queued.block?.status === block.status)
+      queued?.deliveryId === deliveryId ||
+      queued?.block?.deliveryId === deliveryId
     ));
   }
 
@@ -526,6 +529,7 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
     const reason = presentation.reason || task?.reason || null;
     return buildDeferredResultInterludeBlock({
       taskId: presentation.taskId,
+      deliveryId: presentation.deliveryId || null,
       status,
       result,
       reason,
@@ -541,12 +545,29 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
     emitStreamEvent(sessionPath, ss, { type: "content_block", block });
   }
 
+  function persistTurnInputPresentation(sessionPath, item) {
+    if (!sessionPath || typeof engine.recordCustomEntry !== "function") return;
+    const record = buildTurnInputPresentationRecord(item?.presentation, item?.block);
+    if (!record) return;
+    try {
+      engine.recordCustomEntry(sessionPath, TURN_INPUT_PRESENTATION_EVENT_TYPE, record);
+    } catch (err) {
+      log.warn(`turn input presentation persistence failed: ${err.message}`);
+    }
+  }
+
   function buildTurnInputPresentationQueueItem(sessionPath, presentation) {
-    const block = buildPreReplyInterludeBlock(sessionPath, presentation);
+    const deliveryId = typeof presentation?.deliveryId === "string" && presentation.deliveryId.trim()
+      ? presentation.deliveryId.trim()
+      : `turn-input:${crypto.randomUUID()}`;
+    const normalizedPresentation = { ...presentation, deliveryId };
+    const block = buildPreReplyInterludeBlock(sessionPath, normalizedPresentation);
     if (!block) return null;
     return {
-      kind: presentation.kind,
-      deliveryMode: presentation.deliveryMode || null,
+      kind: normalizedPresentation.kind,
+      deliveryId,
+      deliveryMode: normalizedPresentation.deliveryMode || null,
+      presentation: normalizedPresentation,
       block,
     };
   }
@@ -582,6 +603,7 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
       !ss.hasToolCall &&
       !ss.hasThinking;
     if (canEmitIntoStartingTriggeredTurn) {
+      persistTurnInputPresentation(sessionPath, item);
       emitTurnInputPresentation(sessionPath, ss, item);
       return;
     }
@@ -593,6 +615,7 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
   function flushPendingTurnInputPresentations(sessionPath, ss) {
     const items = drainTurnInputPresentationItemsForNextTurn(sessionPath, ss);
     for (const item of items) {
+      persistTurnInputPresentation(sessionPath, item);
       emitTurnInputPresentation(sessionPath, ss, item);
     }
   }

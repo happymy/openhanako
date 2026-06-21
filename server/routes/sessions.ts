@@ -19,6 +19,10 @@ import {
   parseDeferredResultRecord,
 } from "../../lib/deferred-result-notification.ts";
 import {
+  TURN_INPUT_PRESENTATION_EVENT_TYPE,
+  parseTurnInputPresentationRecord,
+} from "../../lib/turn-input-presentation.ts";
+import {
   materializeExecutorIdentity,
   normalizeExecutorMetadata,
   readSubagentSessionMetaSync,
@@ -923,21 +927,41 @@ export function createSessionsRoute(engine, hub = null) {
       const blocks = [];
       const mediaGenerationResults = new Map();
       const standaloneMediaGenerationResults = [];
-      const deferredInterludeTaskIds = new Set();
+      const deferredInterludeDeliveryIds = new Set();
       const deferredStore = engine.deferredResults;
       const receiverName = resolveDeferredReceiverName(engine, resolvedSessionPath);
-      const recordMediaGenerationResult = (parsed, afterIndex) => {
+      const recordMediaGenerationResult = (parsed, afterIndex, sourceIndex = null) => {
         if (!parsed?.taskId || !isMediaGenerationDeferredResult(parsed)) return;
         mediaGenerationResults.set(parsed.taskId, parsed);
         if (parsed.status === "success") {
           standaloneMediaGenerationResults.push({
             ...parsed,
             afterIndex,
+            ...(Number.isInteger(sourceIndex) ? { sourceIndex } : {}),
           });
         }
       };
-      const recordDeferredInterlude = (parsed, afterIndex) => {
-        if (!parsed?.taskId || !Number.isInteger(afterIndex) || afterIndex < 0 || deferredInterludeTaskIds.has(parsed.taskId)) return;
+      const recordTurnInputPresentationInterlude = (message, afterIndex, sourceIndex = null) => {
+        if (!Number.isInteger(afterIndex) || afterIndex < 0) return;
+        const parsed = parseTurnInputPresentationRecord(message?.data);
+        const block = parsed?.block;
+        if (!block || block.type !== "interlude") return;
+        const normalizedDeliveryId = typeof parsed.deliveryId === "string" && parsed.deliveryId.trim()
+          ? parsed.deliveryId.trim()
+          : null;
+        if (normalizedDeliveryId && deferredInterludeDeliveryIds.has(normalizedDeliveryId)) return;
+        blocks.push({
+          ...block,
+          ...(normalizedDeliveryId ? { deliveryId: normalizedDeliveryId } : {}),
+          afterIndex,
+          ...(Number.isInteger(sourceIndex) ? { sourceIndex } : {}),
+        });
+        if (normalizedDeliveryId) deferredInterludeDeliveryIds.add(normalizedDeliveryId);
+      };
+      const recordDeferredInterlude = (parsed, afterIndex, deliveryId = null, sourceIndex = null) => {
+        if (!parsed?.taskId || !Number.isInteger(afterIndex) || afterIndex < 0) return;
+        const normalizedDeliveryId = typeof deliveryId === "string" && deliveryId.trim() ? deliveryId.trim() : null;
+        if (normalizedDeliveryId && deferredInterludeDeliveryIds.has(normalizedDeliveryId)) return;
         const task = deferredStore?.query?.(parsed.taskId) || null;
         const run = engine.subagentRuns?.query?.(parsed.taskId) || null;
         const runTask = taskFromSubagentRun(run);
@@ -949,6 +973,7 @@ export function createSessionsRoute(engine, hub = null) {
         };
         const event = {
           taskId: parsed.taskId,
+          deliveryId: normalizedDeliveryId,
           status: parsed.status === "failed" || parsed.status === "aborted" ? parsed.status : "success",
           result: Object.prototype.hasOwnProperty.call(parsed, "result") ? parsed.result : metadataTask?.result,
           reason: parsed.reason || metadataTask?.reason || null,
@@ -956,8 +981,12 @@ export function createSessionsRoute(engine, hub = null) {
         };
         const block = buildDeferredResultInterludeBlock(event, { receiverName });
         if (!block) return;
-        blocks.push({ ...block, afterIndex });
-        deferredInterludeTaskIds.add(parsed.taskId);
+        blocks.push({
+          ...block,
+          afterIndex,
+          ...(Number.isInteger(sourceIndex) ? { sourceIndex } : {}),
+        });
+        if (normalizedDeliveryId) deferredInterludeDeliveryIds.add(normalizedDeliveryId);
       };
       let displayIdx = 0;
 
@@ -972,6 +1001,7 @@ export function createSessionsRoute(engine, hub = null) {
             const visibleImages = filterUnreferencedInlineImages(text, images);
             messages.push({
               id: String(currentIndex),
+              sourceIndex,
               ...(m.id ? { entryId: m.id } : {}),
               role: "user",
               content: text,
@@ -987,6 +1017,7 @@ export function createSessionsRoute(engine, hub = null) {
             const { text, thinking, toolUses } = extractTextContent(m.content, { stripThink: true });
             messages.push({
               id: String(currentIndex),
+              sourceIndex,
               ...(m.id ? { entryId: m.id } : {}),
               role: "assistant",
               content: text,
@@ -1000,7 +1031,7 @@ export function createSessionsRoute(engine, hub = null) {
           if (afterIndex >= pageBounds.startIdx && afterIndex < pageBounds.endIdx) {
             const extracted = extractBlocks(m.toolName, m.details, m);
             for (const b of extracted) {
-              blocks.push({ ...b, afterIndex });
+              blocks.push({ ...b, afterIndex, sourceIndex });
             }
           }
         } else if (m.role === "custom") {
@@ -1008,14 +1039,22 @@ export function createSessionsRoute(engine, hub = null) {
           if (m.display !== false && afterIndex >= pageBounds.startIdx && afterIndex < pageBounds.endIdx) {
             const extracted = extractBlocks(m.customType, m.details, m);
             for (const b of extracted) {
-              blocks.push({ ...b, afterIndex });
+              blocks.push({ ...b, afterIndex, sourceIndex });
             }
           }
           const parsed = parseHistoryDeferredResult(m);
-          recordMediaGenerationResult(parsed, afterIndex);
+          recordMediaGenerationResult(parsed, afterIndex, sourceIndex);
+          if (m.customType === TURN_INPUT_PRESENTATION_EVENT_TYPE) {
+            recordTurnInputPresentationInterlude(m, afterIndex, sourceIndex);
+          }
           if (m.customType === DEFERRED_RESULT_MESSAGE_TYPE) {
             const nextAssistantIndex = nextImmediateDisplayableAssistantIndex(sourceMessages, sourceIndex, displayIdx);
-            recordDeferredInterlude(parsed, nextAssistantIndex == null ? null : nextAssistantIndex - 1);
+            recordDeferredInterlude(
+              parsed,
+              nextAssistantIndex == null ? null : nextAssistantIndex - 1,
+              historyDeferredDeliveryId(m, sourceIndex),
+              sourceIndex,
+            );
           }
         }
       }
@@ -1928,6 +1967,15 @@ function parseHistoryDeferredResult(message) {
     return parseDeferredResultNotification(message.content);
   }
   return null;
+}
+
+function historyDeferredDeliveryId(message, sourceIndex) {
+  const details = message?.details && typeof message.details === "object" ? message.details : null;
+  const fromDetails = typeof details?.deliveryId === "string" && details.deliveryId.trim()
+    ? details.deliveryId.trim()
+    : null;
+  if (fromDetails) return fromDetails;
+  return `history:${sourceIndex}`;
 }
 
 function isTerminalDeferredTask(task) {

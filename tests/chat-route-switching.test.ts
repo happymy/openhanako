@@ -835,6 +835,185 @@ describe("chat route model switch guard", () => {
     handlers.onClose({}, ws);
   });
 
+  it("keeps repeated deliveries for the same task as distinct turn input presentations", () => {
+    let createHandlers;
+    let subscriber;
+    const sessionPath = "/tmp/interlude-repeated-task.jsonl";
+    const upgradeWebSocket = vi.fn((factory) => {
+      createHandlers = factory;
+      return () => new Response(null);
+    });
+    const hub = {
+      subscribe: vi.fn((fn) => {
+        subscriber = fn;
+      }),
+      send: vi.fn(async () => {}),
+    };
+    const engine = {
+      agentName: "Hanako",
+      abortAllStreaming: vi.fn(async () => {}),
+      deferredResults: {
+        query: vi.fn(() => ({
+          status: "resolved",
+          result: "same task result",
+          meta: {
+            type: "subagent",
+            interlude: true,
+            executorAgentNameSnapshot: "Hanako",
+            label: "same-task",
+            summary: "same task delivered twice",
+          },
+        })),
+      },
+      getSessionByPath: vi.fn(() => ({ entries: [], followUpMode: "one-at-a-time" })),
+      isSessionStreaming: vi.fn(() => true),
+      isSessionSwitching: vi.fn(() => false),
+      steerSession: vi.fn(() => false),
+      slashDispatcher: null,
+    };
+
+    createChatRoute(engine, hub, { upgradeWebSocket });
+    const handlers = createHandlers({});
+    const ws = { readyState: 1, send: vi.fn() };
+    handlers.onOpen({}, ws);
+
+    subscriber?.({ type: "session_status", isStreaming: true }, sessionPath);
+    subscriber?.({ type: "turn_start" }, sessionPath);
+    for (let i = 0; i < 2; i += 1) {
+      subscriber?.({
+        type: "turn_input_presentation",
+        presentation: {
+          kind: "pre_reply_interlude",
+          taskId: "task-a",
+          status: "success",
+          resultType: "subagent",
+          result: "same task result",
+          deliveryMode: "followUp",
+        },
+      }, sessionPath);
+    }
+
+    subscriber?.({ type: "turn_end" }, sessionPath);
+    subscriber?.({ type: "turn_start" }, sessionPath);
+    subscriber?.({
+      type: "message_update",
+      assistantMessageEvent: { type: "text_delta", delta: "first repeated delivery reply" },
+    }, sessionPath);
+    subscriber?.({ type: "turn_end" }, sessionPath);
+    subscriber?.({ type: "turn_start" }, sessionPath);
+    subscriber?.({
+      type: "message_update",
+      assistantMessageEvent: { type: "text_delta", delta: "second repeated delivery reply" },
+    }, sessionPath);
+
+    const payloads = ws.send.mock.calls.map(([raw]) => JSON.parse(raw));
+    const firstTextIndex = payloads.findIndex((payload) => payload.type === "text_delta" && payload.delta === "first repeated delivery reply");
+    const secondTextIndex = payloads.findIndex((payload) => payload.type === "text_delta" && payload.delta === "second repeated delivery reply");
+    const interludes = payloads
+      .map((payload, index) => ({ payload, index }))
+      .filter(({ payload }) => payload.type === "content_block" && payload.block?.type === "interlude");
+
+    expect(interludes).toHaveLength(2);
+    expect(interludes.map(({ payload }) => payload.block.taskId)).toEqual(["task-a", "task-a"]);
+    expect(new Set(interludes.map(({ payload }) => payload.block.id)).size).toBe(2);
+    expect(interludes[0].index).toBeLessThan(firstTextIndex);
+    expect(interludes[1].index).toBeGreaterThan(firstTextIndex);
+    expect(interludes[1].index).toBeLessThan(secondTextIndex);
+
+    handlers.onClose({}, ws);
+  });
+
+  it("persists a turn input presentation only when the queued input is consumed for the next assistant turn", () => {
+    let createHandlers;
+    let subscriber;
+    const sessionPath = "/tmp/interlude-persist-on-consume.jsonl";
+    const upgradeWebSocket = vi.fn((factory) => {
+      createHandlers = factory;
+      return () => new Response(null);
+    });
+    const hub = {
+      subscribe: vi.fn((fn) => {
+        subscriber = fn;
+      }),
+      send: vi.fn(async () => {}),
+    };
+    const engine = {
+      agentName: "Hanako",
+      abortAllStreaming: vi.fn(async () => {}),
+      deferredResults: {
+        query: vi.fn(() => ({
+          status: "resolved",
+          result: "done",
+          meta: {
+            type: "subagent",
+            interlude: true,
+            executorAgentNameSnapshot: "Hanako",
+            label: "queued-task",
+          },
+        })),
+      },
+      getSessionByPath: vi.fn(() => ({ entries: [], followUpMode: "one-at-a-time" })),
+      isSessionStreaming: vi.fn(() => true),
+      isSessionSwitching: vi.fn(() => false),
+      recordCustomEntry: vi.fn(),
+      steerSession: vi.fn(() => false),
+      slashDispatcher: null,
+    };
+
+    createChatRoute(engine, hub, { upgradeWebSocket });
+    const handlers = createHandlers({});
+    const ws = { readyState: 1, send: vi.fn() };
+    handlers.onOpen({}, ws);
+
+    subscriber?.({ type: "session_status", isStreaming: true }, sessionPath);
+    subscriber?.({ type: "turn_start" }, sessionPath);
+    subscriber?.({
+      type: "turn_input_presentation",
+      presentation: {
+        kind: "pre_reply_interlude",
+        deliveryId: "delivery-consumed-later",
+        taskId: "task-a",
+        status: "success",
+        resultType: "subagent",
+        result: "done",
+        deliveryMode: "followUp",
+      },
+    }, sessionPath);
+
+    expect(engine.recordCustomEntry).not.toHaveBeenCalled();
+
+    subscriber?.({ type: "turn_end" }, sessionPath);
+    expect(engine.recordCustomEntry).not.toHaveBeenCalled();
+
+    subscriber?.({ type: "turn_start" }, sessionPath);
+    subscriber?.({
+      type: "message_update",
+      assistantMessageEvent: { type: "text_delta", delta: "收到 task-a" },
+    }, sessionPath);
+
+    expect(engine.recordCustomEntry).toHaveBeenCalledTimes(1);
+    expect(engine.recordCustomEntry).toHaveBeenCalledWith(
+      sessionPath,
+      "turn_input_presentation",
+      expect.objectContaining({
+        schemaVersion: 1,
+        deliveryId: "delivery-consumed-later",
+        presentation: expect.objectContaining({
+          kind: "pre_reply_interlude",
+          taskId: "task-a",
+          deliveryMode: "followUp",
+        }),
+        block: expect.objectContaining({
+          type: "interlude",
+          deliveryId: "delivery-consumed-later",
+          taskId: "task-a",
+        }),
+      }),
+    );
+
+    handlers.onClose({}, ws);
+  });
+
   it("drains all follow-up turn input presentations in one SDK turn when followUpMode is all", () => {
     let createHandlers;
     let subscriber;

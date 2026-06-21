@@ -543,12 +543,11 @@ function isInterludeBlock(block: ContentBlock): block is Extract<ContentBlock, {
 
 function hasEquivalentInterludeBlock(blocks: ContentBlock[], block: ContentBlock): boolean {
   if (!isInterludeBlock(block)) return false;
+  const identity = interludeIdentity(block);
+  if (!identity) return false;
   return blocks.some((existing) => (
     isInterludeBlock(existing) &&
-    (
-      (block.id && existing.id === block.id) ||
-      (!!block.taskId && existing.taskId === block.taskId && existing.status === block.status)
-    )
+    interludeIdentity(existing) === identity
   ));
 }
 
@@ -564,8 +563,12 @@ function hasEquivalentInterludeItem(items: ChatListItem[], block: ContentBlock):
 }
 
 function isEquivalentInterlude(existing: Extract<ContentBlock, { type: 'interlude' }>, block: Extract<ContentBlock, { type: 'interlude' }>): boolean {
-  return (
-    (block.id && existing.id === block.id) ||
-    (!!block.taskId && existing.taskId === block.taskId && existing.status === block.status)
-  );
+  const identity = interludeIdentity(block);
+  return !!identity && interludeIdentity(existing) === identity;
+}
+
+function interludeIdentity(block: Extract<ContentBlock, { type: 'interlude' }>): string | null {
+  if (block.deliveryId) return `delivery:${block.deliveryId}`;
+  if (block.id) return `id:${block.id}`;
+  return null;
 }

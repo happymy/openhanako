@@ -56,6 +56,7 @@ describe("SessionCoordinator deferred custom delivery", () => {
       customType: "hana-background-result",
       content: "<hana-background-result task-id=\"task-1\" status=\"success\" type=\"subagent\">done</hana-background-result>",
       display: false,
+      details: { deliveryId: "delivery-1" },
     });
 
     expect(result).toMatchObject({ ok: true, mode: "triggerTurn" });
@@ -71,6 +72,7 @@ describe("SessionCoordinator deferred custom delivery", () => {
         presentation: expect.objectContaining({
           kind: "pre_reply_interlude",
           taskId: "task-1",
+          deliveryId: "delivery-1",
           status: "success",
           resultType: "subagent",
           deliveryMode: "triggerTurn",

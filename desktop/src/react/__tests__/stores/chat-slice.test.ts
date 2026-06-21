@@ -268,6 +268,38 @@ describe('chat-slice', () => {
       ))).toEqual(['u1', 'a-card', 'deferred:workflow-1:success']);
     });
 
+    it('同一 task 的不同 delivery 幕间作为不同输入事件保留', () => {
+      slice.initSession('/a', [
+        { type: 'message', data: { id: 'a-card', role: 'assistant', text: 'card from checked results' } },
+      ], false);
+
+      const first = {
+        type: 'interlude' as const,
+        id: 'deferred:task-a:success:delivery-1',
+        deliveryId: 'delivery-1',
+        variant: 'deferred_result',
+        taskId: 'task-a',
+        status: 'success',
+        sourceKind: 'subagent',
+        text: 'Hanako 收到了来自 A 的回复',
+      };
+      const second = {
+        ...first,
+        id: 'deferred:task-a:success:delivery-2',
+        deliveryId: 'delivery-2',
+      };
+
+      expect(slice.appendInterludeItem('/a', first)).toBe(true);
+      expect(slice.appendInterludeItem('/a', second)).toBe(true);
+      expect(slice.chatSessions['/a']?.items.map((item) => (
+        item.type === 'message' ? item.data.id : item.id
+      ))).toEqual([
+        'a-card',
+        'deferred:task-a:success:delivery-1',
+        'deferred:task-a:success:delivery-2',
+      ]);
+    });
+
   });
 
   describe('truncateSessionFromMessage', () => {
