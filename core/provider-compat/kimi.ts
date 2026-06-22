@@ -18,6 +18,7 @@ import {
 } from "./reasoning-content-replay.ts";
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+const MFJS_PARENT_ANNOTATION_KEYS = new Set(["description", "default"]);
 
 export function matches(model) {
   if (!model || typeof model !== "object") return false;
@@ -81,15 +82,120 @@ function ensureReasoningContentForToolCalls(messages) {
   return ensureReasoningContentForToolCallsBase(messages, { providerLabel: "Kimi" });
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeSchemaForAnyOf(shared, branch) {
+  const merged = { ...shared, ...branch };
+
+  if (isPlainObject(shared.properties) || isPlainObject(branch.properties)) {
+    merged.properties = {
+      ...(isPlainObject(shared.properties) ? shared.properties : {}),
+      ...(isPlainObject(branch.properties) ? branch.properties : {}),
+    };
+  }
+
+  if (Array.isArray(shared.required) || Array.isArray(branch.required)) {
+    merged.required = [
+      ...new Set([
+        ...(Array.isArray(shared.required) ? shared.required : []),
+        ...(Array.isArray(branch.required) ? branch.required : []),
+      ]),
+    ];
+  }
+
+  return merged;
+}
+
+function distributeTypeIntoAnyOf(schema) {
+  if (!Array.isArray(schema.anyOf) || !hasOwn(schema, "type")) return schema;
+
+  const shared: Record<string, any> = {};
+  const parent: Record<string, any> = {};
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === "anyOf") continue;
+    if (MFJS_PARENT_ANNOTATION_KEYS.has(key)) {
+      parent[key] = value;
+    } else {
+      shared[key] = value;
+    }
+  }
+
+  return {
+    ...parent,
+    anyOf: schema.anyOf.map((item) => (
+      isPlainObject(item) ? mergeSchemaForAnyOf(shared, item) : item
+    )),
+  };
+}
+
+function normalizeSchemaForMoonshotMfjs(schema) {
+  if (Array.isArray(schema)) {
+    let changed = false;
+    const next = schema.map((item) => {
+      const normalized = normalizeSchemaForMoonshotMfjs(item);
+      if (normalized !== item) changed = true;
+      return normalized;
+    });
+    return changed ? next : schema;
+  }
+
+  if (!isPlainObject(schema)) return schema;
+
+  let changed = false;
+  const next: Record<string, any> = {};
+  for (const [key, value] of Object.entries(schema)) {
+    const normalized = normalizeSchemaForMoonshotMfjs(value);
+    next[key] = normalized;
+    if (normalized !== value) changed = true;
+  }
+
+  const candidate = changed ? next : schema;
+  const distributed = distributeTypeIntoAnyOf(candidate);
+  return distributed === candidate ? candidate : distributed;
+}
+
+function normalizeToolsForMoonshotMfjs(tools) {
+  if (!Array.isArray(tools)) return tools;
+
+  let changed = false;
+  const nextTools = tools.map((tool) => {
+    const fn = tool?.function;
+    if (!fn || !hasOwn(fn, "parameters")) return tool;
+
+    const parameters = fn.parameters;
+    const normalizedParameters = normalizeSchemaForMoonshotMfjs(parameters);
+    if (normalizedParameters === parameters) return tool;
+
+    changed = true;
+    return {
+      ...tool,
+      function: {
+        ...fn,
+        parameters: normalizedParameters,
+      },
+    };
+  });
+
+  return changed ? nextTools : tools;
+}
+
 export function apply(payload, model, options: Record<string, unknown> = {}) {
   if (!payload || typeof payload !== "object") return payload;
-  if (!Array.isArray(payload.messages)) return payload;
 
   let next = payload;
   const editable = () => {
     if (next === payload) next = { ...payload };
     return next;
   };
+
+  const normalizedTools = normalizeToolsForMoonshotMfjs(next.tools);
+  if (normalizedTools !== next.tools) {
+    editable().tools = normalizedTools;
+  }
+
+  if (!Array.isArray(next.messages)) return next;
 
   if (hasOwn(payload, "max_tokens")) {
     normalizeMaxCompletionTokenField(editable());
