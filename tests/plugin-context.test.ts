@@ -85,10 +85,36 @@ describe("createPluginContext", () => {
 
   it("exposes a ResourceIO-backed resource facade with explicit capability checks", async () => {
     const resourceIO = {
-      read: vi.fn(async (ref) => ({
+      stat: vi.fn(async () => ({
+        resourceKey: "local_fs:/workspace",
+        resource: { kind: "local-file", path: "/workspace" },
+        exists: true,
+        isDirectory: true,
+      })),
+      read: vi.fn(async () => ({
         resourceKey: "local_fs:/workspace/note.md",
         resource: { kind: "local-file", path: "/workspace/note.md" },
         content: Buffer.from("hello"),
+      })),
+      list: vi.fn(async () => ({
+        resourceKey: "local_fs:/workspace",
+        resource: { kind: "local-file", path: "/workspace" },
+        items: [],
+      })),
+      search: vi.fn(async () => ({
+        resourceKey: "mount:docs:",
+        resource: { kind: "mount", mountId: "docs", path: "" },
+        matches: [],
+      })),
+      materialize: vi.fn(async () => ({
+        resourceKey: "session_file:sf_1",
+        resource: { kind: "session-file", fileId: "sf_1" },
+        filePath: "/tmp/session-file.md",
+      })),
+      resolveWatchTarget: vi.fn(() => ({
+        resourceKey: "mount:docs:",
+        resource: { kind: "mount", mountId: "docs", path: "" },
+        filePath: "/tmp/docs",
       })),
       write: vi.fn(async (ref, content, options) => ({
         changeType: "modified",
@@ -111,7 +137,7 @@ describe("createPluginContext", () => {
       pluginDir: "/plugins/resource-plugin",
       dataDir: "/plugin-data/resource-plugin",
       bus: { emit() {}, subscribe() {}, request() {}, hasHandler() {} },
-      capabilities: ["resource.read"],
+      capabilities: ["resource.read", "resource.search", "resource.materialize", "resource.watch"],
       resourceIO,
       runtimeContext: {
         userId: "user_1",
@@ -123,10 +149,56 @@ describe("createPluginContext", () => {
       },
     } as any);
 
+    const expectedPluginContext = (reason: string) => expect.objectContaining({
+      source: "plugin",
+      reason,
+      sessionId: "sess_1",
+      sessionPath: "/sessions/current.jsonl",
+      principal: expect.objectContaining({
+        kind: "plugin",
+        pluginId: "resource-plugin",
+        userId: "user_1",
+        studioId: "studio_1",
+        sessionId: "sess_1",
+        sessionPath: "/sessions/current.jsonl",
+        connectionKind: "local",
+        credentialKind: "loopback_token",
+      }),
+    });
+
+    await ctx.resources.stat({ kind: "local-file", path: "/workspace" });
     const readResult = await ctx.resources.read({ kind: "local-file", path: "/workspace/note.md" });
+    await ctx.resources.list({ kind: "local-file", path: "/workspace" });
+    await ctx.resources.search({ kind: "mount", mountId: "docs", path: "" }, { query: "note" });
+    await ctx.resources.materialize({ kind: "session-file", fileId: "sf_1" });
+    ctx.resources.resolveWatchTarget({ kind: "mount", mountId: "docs", path: "" });
 
     expect(readResult.content.toString("utf-8")).toBe("hello");
-    expect(resourceIO.read).toHaveBeenCalledWith({ kind: "local-file", path: "/workspace/note.md" });
+    expect(resourceIO.stat).toHaveBeenCalledWith(
+      { kind: "local-file", path: "/workspace" },
+      expectedPluginContext("plugin:resource-plugin:stat"),
+    );
+    expect(resourceIO.read).toHaveBeenCalledWith(
+      { kind: "local-file", path: "/workspace/note.md" },
+      expectedPluginContext("plugin:resource-plugin:read"),
+    );
+    expect(resourceIO.list).toHaveBeenCalledWith(
+      { kind: "local-file", path: "/workspace" },
+      expectedPluginContext("plugin:resource-plugin:list"),
+    );
+    expect(resourceIO.search).toHaveBeenCalledWith(
+      { kind: "mount", mountId: "docs", path: "" },
+      { query: "note" },
+      expectedPluginContext("plugin:resource-plugin:search"),
+    );
+    expect(resourceIO.materialize).toHaveBeenCalledWith(
+      { kind: "session-file", fileId: "sf_1" },
+      expectedPluginContext("plugin:resource-plugin:materialize"),
+    );
+    expect(resourceIO.resolveWatchTarget).toHaveBeenCalledWith(
+      { kind: "mount", mountId: "docs", path: "" },
+      expectedPluginContext("plugin:resource-plugin:watch"),
+    );
     await expect(ctx.resources.write({ kind: "local-file", path: "/workspace/note.md" }, "updated"))
       .rejects.toMatchObject({
         code: "PLUGIN_RESOURCE_CAPABILITY_NOT_DECLARED",
@@ -169,12 +241,6 @@ describe("createPluginContext", () => {
         principal: expect.objectContaining({
           kind: "plugin",
           pluginId: "resource-plugin",
-          userId: "user_1",
-          studioId: "studio_1",
-          sessionId: "sess_1",
-          sessionPath: "/sessions/current.jsonl",
-          connectionKind: "local",
-          credentialKind: "loopback_token",
         }),
       }),
     );

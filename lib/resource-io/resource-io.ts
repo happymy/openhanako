@@ -51,14 +51,18 @@ export class ResourceIO {
     this.getSessionPath = getSessionPath;
   }
 
-  async stat(input: unknown): Promise<ResourceStat> {
+  async stat(input: unknown, options: ResourceOperationContext = {}): Promise<ResourceStat> {
     const ref = normalizeResourceRef(input);
-    return this.callProvider<ResourceStat>(ref, "stat", {}, ref);
+    const result = await this.callProvider<ResourceStat>(ref, "stat", options, ref);
+    if (options.auditRead) this.auditAllowed("stat", result, options);
+    return result;
   }
 
-  async read(input: unknown): Promise<ResourceReadResult> {
+  async read(input: unknown, options: ResourceOperationContext = {}): Promise<ResourceReadResult> {
     const ref = normalizeResourceRef(input);
-    return this.callProvider<ResourceReadResult>(ref, "read", {}, ref);
+    const result = await this.callProvider<ResourceReadResult>(ref, "read", options, ref);
+    if (options.auditRead) this.auditAllowed("read", result, options);
+    return result;
   }
 
   async write(input: unknown, content: string | Buffer, options: ResourceOperationContext = {}): Promise<ResourceMutationResult> {
@@ -112,27 +116,35 @@ export class ResourceIO {
     return result;
   }
 
-  async list(input: unknown): Promise<ResourceListResult> {
+  async list(input: unknown, options: ResourceOperationContext = {}): Promise<ResourceListResult> {
     const ref = normalizeResourceRef(input);
-    return this.callProvider<ResourceListResult>(ref, "list", {}, ref);
+    const result = await this.callProvider<ResourceListResult>(ref, "list", options, ref);
+    if (options.auditRead) this.auditAllowed("list", result, options);
+    return result;
   }
 
-  async search(input: unknown, options: Record<string, unknown> = {}): Promise<ResourceSearchResult> {
+  async search(input: unknown, options: Record<string, unknown> = {}, context: ResourceOperationContext = {}): Promise<ResourceSearchResult> {
     const ref = normalizeResourceRef(input);
-    return this.callProvider<ResourceSearchResult>(ref, "search", {}, ref, options);
+    const result = await this.callProvider<ResourceSearchResult>(ref, "search", context, ref, options);
+    if (context.auditRead) this.auditAllowed("search", result, context);
+    return result;
   }
 
-  async materialize(input: unknown): Promise<MaterializeResult> {
+  async materialize(input: unknown, options: ResourceOperationContext = {}): Promise<MaterializeResult> {
     const ref = normalizeResourceRef(input);
-    return this.callProvider<MaterializeResult>(ref, "materialize", {}, ref);
+    const result = await this.callProvider<MaterializeResult>(ref, "materialize", options, ref);
+    if (options.auditRead) this.auditAllowed("materialize", result, options);
+    return result;
   }
 
-  resolveWatchTarget(input: unknown) {
+  resolveWatchTarget(input: unknown, options: ResourceOperationContext = {}) {
     const ref = normalizeResourceRef(input);
     const provider = this.providerFor(ref);
     const capabilities = provider.capabilities?.(ref) || {};
     if (capabilities.watch === false || typeof provider.watchTarget !== "function") {
-      throw capabilityDenied("watch", providerIdForResourceRef(ref));
+      const err = capabilityDenied("watch", providerIdForResourceRef(ref));
+      this.auditDenied("watch", providerIdForResourceRef(ref), options, err);
+      throw err;
     }
     return provider.watchTarget(ref);
   }

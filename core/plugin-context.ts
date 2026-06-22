@@ -305,12 +305,13 @@ function createPluginResources({ pluginId, resourceIO, capabilities, sensitiveCa
       { pluginId, capability },
     );
   };
-  const mutationOptions = (operation, options: any = {}) => {
+  const operationOptions = (operation, options: any = {}) => {
     const sessionId = textOrNull(runtimeScope?.sessionId) || null;
     const sessionPath = textOrNull(runtimeScope?.sessionPath) || null;
     const requestId = textOrNull(runtimeScope?.requestId) || null;
     return {
       ...(options?.emit === false ? { emit: false } : {}),
+      ...(options?.auditRead === true ? { auditRead: true } : {}),
       source: "plugin",
       reason: `plugin:${pluginId}:${operation}`,
       sessionId,
@@ -331,63 +332,63 @@ function createPluginResources({ pluginId, resourceIO, capabilities, sensitiveCa
   };
 
   return Object.freeze({
-    async stat(ref) {
+    async stat(ref, options: any = {}) {
       assertCapability("resource.read");
-      return getResourceIO().stat(ref);
+      return getResourceIO().stat(ref, operationOptions("stat", options));
     },
-    async read(ref) {
+    async read(ref, options: any = {}) {
       assertCapability("resource.read");
-      return getResourceIO().read(ref);
+      return getResourceIO().read(ref, operationOptions("read", options));
     },
-    async list(ref) {
+    async list(ref, options: any = {}) {
       assertCapability("resource.read");
-      return getResourceIO().list(ref);
+      return getResourceIO().list(ref, operationOptions("list", options));
     },
-    async search(ref, options: any = {}) {
+    async search(ref, options: any = {}, operationContext: any = {}) {
       assertCapability("resource.search");
-      return getResourceIO().search(ref, options);
+      return getResourceIO().search(ref, options, operationOptions("search", operationContext));
     },
-    async materialize(ref) {
+    async materialize(ref, options: any = {}) {
       assertCapability("resource.materialize");
-      return getResourceIO().materialize(ref);
+      return getResourceIO().materialize(ref, operationOptions("materialize", options));
     },
     async write(ref, content, options: any = {}) {
       assertCapability("resource.write");
-      return getResourceIO().write(ref, content, mutationOptions("write", options));
+      return getResourceIO().write(ref, content, operationOptions("write", options));
     },
     async writeExpectedVersion(ref, content, expectedVersion, options: any = {}) {
       assertCapability("resource.write");
-      return getResourceIO().writeExpectedVersion(ref, content, expectedVersion, mutationOptions("writeExpectedVersion", options));
+      return getResourceIO().writeExpectedVersion(ref, content, expectedVersion, operationOptions("writeExpectedVersion", options));
     },
     async edit(ref, edits, options: any = {}) {
       assertCapability("resource.write");
-      return getResourceIO().edit(ref, edits, mutationOptions("edit", options));
+      return getResourceIO().edit(ref, edits, operationOptions("edit", options));
     },
     async mkdir(ref, options: any = {}) {
       assertCapability("resource.write");
-      return getResourceIO().mkdir(ref, mutationOptions("mkdir", options));
+      return getResourceIO().mkdir(ref, operationOptions("mkdir", options));
     },
     async delete(ref, options: any = {}) {
       assertCapability("resource.write");
-      return getResourceIO().delete(ref, mutationOptions("delete", options));
+      return getResourceIO().delete(ref, operationOptions("delete", options));
     },
     async copy(from, to, options: any = {}) {
       assertCapability("resource.write");
-      return getResourceIO().copy(from, to, mutationOptions("copy", options));
+      return getResourceIO().copy(from, to, operationOptions("copy", options));
     },
     async rename(from, to, options: any = {}) {
       assertCapability("resource.write");
-      return getResourceIO().rename(from, to, mutationOptions("rename", options));
+      return getResourceIO().rename(from, to, operationOptions("rename", options));
     },
     async move(from, to, options: any = {}) {
       assertCapability("resource.write");
-      return getResourceIO().move(from, to, mutationOptions("move", options));
+      return getResourceIO().move(from, to, operationOptions("move", options));
     },
     async trash(ref, trashOptions: any = {}, options: any = {}) {
       assertCapability("resource.write");
-      return getResourceIO().trash(ref, trashOptions, mutationOptions("trash", options));
+      return getResourceIO().trash(ref, trashOptions, operationOptions("trash", options));
     },
-    resolveWatchTarget(ref) {
+    resolveWatchTarget(ref, options: any = {}) {
       assertCapability("resource.watch");
       const io = getResourceIO();
       if (typeof io.resolveWatchTarget !== "function") {
@@ -397,7 +398,7 @@ function createPluginResources({ pluginId, resourceIO, capabilities, sensitiveCa
           { pluginId },
         );
       }
-      return io.resolveWatchTarget(ref);
+      return io.resolveWatchTarget(ref, operationOptions("watch", options));
     },
   });
 }
