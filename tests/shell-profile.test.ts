@@ -52,6 +52,18 @@ describe("resolveShellProfile", () => {
     expect(profileLabel(profile)).toBe("pwsh");
   });
 
+  it("keeps an explicit pwsh profile separate from the Windows PowerShell profile", () => {
+    const profile = resolveShellProfile({
+      platform: "win32",
+      profile: "pwsh",
+      env: { SystemRoot: "C:\\Windows" },
+    });
+    expect(profile.id).toBe("windows-powershell");
+    expect(profile.family).toBe("powershell");
+    expect(profile.executable).toBe("pwsh.exe");
+    expect(profileLabel(profile)).toBe("pwsh");
+  });
+
   it("keeps explicit cmd as a cmd profile", () => {
     const profile = resolveShellProfile({
       platform: "win32",
