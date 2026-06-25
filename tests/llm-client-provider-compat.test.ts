@@ -837,6 +837,39 @@ describe("callText provider-compat routing", () => {
     expect(body.instructions.trim().length).toBeGreaterThan(0);
   });
 
+  it("strips unsupported Codex Responses utility controls through provider-compat", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ output_text: "Codex OK" }),
+    } as any);
+
+    await callText({
+      api: "openai-codex-responses",
+      apiKey: "oauth-token",
+      baseUrl: "https://chatgpt.com/backend-api",
+      model: {
+        id: "gpt-5.5",
+        provider: "openai-codex-oauth",
+        api: "openai-codex-responses",
+        accountId: "acct_123",
+      },
+      messages: [{ role: "user", content: "Reply OK." }],
+      maxTokens: 1234,
+      temperature: 0,
+      timeoutMs: 5_000,
+    } as any);
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body as string);
+    expect(body).not.toHaveProperty("max_output_tokens");
+    expect(body).not.toHaveProperty("max_completion_tokens");
+    expect(body).not.toHaveProperty("max_tokens");
+    expect(body).not.toHaveProperty("maxOutputTokens");
+    expect(body).not.toHaveProperty("temperature");
+    expect(body.input).toEqual([{ role: "user", content: "Reply OK." }]);
+  });
+
   it("derives the Codex account id from the OAuth token when the model omits it", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
