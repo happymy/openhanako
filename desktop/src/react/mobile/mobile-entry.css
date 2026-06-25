@@ -344,7 +344,7 @@ html[data-platform="linux"] .tb-toggle-right {
 }
 
 .sidebar-title {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     color: var(--text-muted);
     letter-spacing: 0.08em;
@@ -1149,7 +1149,7 @@ body.resizing .jian-sidebar-inner {
 
 .browser-floating-label {
     color: var(--text);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 500;
 }
 
@@ -1275,7 +1275,7 @@ body.resizing .jian-sidebar-inner {
 .onboarding-subtitle {
     margin: 0;
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     line-height: 1.6;
     text-align: center;
     white-space: pre-line;
@@ -1302,7 +1302,7 @@ body.resizing .jian-sidebar-inner {
     border: none;
     border-radius: var(--radius-md, 8px);
     font: inherit;
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     cursor: default;
     transition: all var(--duration-fast);
 }
@@ -1362,7 +1362,7 @@ body.resizing .jian-sidebar-inner {
     background-color: var(--bg-card);
     color: var(--text);
     font: inherit;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     text-align: center;
     cursor: default;
     user-select: none;

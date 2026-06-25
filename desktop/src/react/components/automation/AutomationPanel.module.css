@@ -233,7 +233,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     color: var(--text);
 }

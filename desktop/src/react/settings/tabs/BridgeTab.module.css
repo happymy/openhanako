@@ -47,7 +47,7 @@
 .bridge-permission-trigger {
     min-width: 152px;
     padding: 0.32rem 0.55rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     border-radius: var(--radius-sm);
 }
 

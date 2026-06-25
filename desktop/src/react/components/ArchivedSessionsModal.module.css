@@ -155,7 +155,7 @@
 .rowMain { flex: 1; min-width: 0; }
 
 .rowTitle {
-  font-size: 0.85rem;
+  font-size: var(--fs-ui);
   font-weight: 600;
   color: var(--text, #3b3d3f);
   line-height: 1.35;

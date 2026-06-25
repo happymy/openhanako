@@ -9,7 +9,7 @@
   justify-content: space-between;
   width: 100%;
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--fs-ui);
   line-height: 1.5;
   color: var(--text);
   background-color: var(--bg-card);

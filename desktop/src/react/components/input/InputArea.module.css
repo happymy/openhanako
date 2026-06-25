@@ -626,7 +626,7 @@
     width: 100%;
     padding: 0.4rem 0.6rem;
     font-family: inherit;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     color: var(--text-light);
     background: none;
     border: none;
@@ -720,7 +720,7 @@
 
 .slash-menu-desc {
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     margin-left: auto;
     white-space: nowrap;
     overflow: hidden;
@@ -818,7 +818,7 @@
 .file-mention-empty {
     padding: 8px 10px;
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
 }
 
 .slash-busy-bar {
@@ -827,7 +827,7 @@
     gap: 8px;
     padding: 6px 12px;
     margin-bottom: 6px;
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     color: var(--text-muted);
     background: var(--panel-card-bg);
     border: var(--panel-card-border);
@@ -913,7 +913,7 @@
     gap: 8px;
     padding: 6px 12px;
     margin-bottom: 6px;
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     color: #c08080;
     background: var(--panel-card-bg);
     border: var(--panel-card-border);
@@ -928,7 +928,7 @@
     gap: 8px;
     padding: 6px 12px;
     margin-bottom: 6px;
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     color: var(--text-muted);
     background: var(--panel-card-bg);
     border: var(--panel-card-border);
@@ -1062,7 +1062,7 @@
 }
 
 .session-confirmation-title {
-    font-size: 0.84rem;
+    font-size: var(--fs-ui);
     line-height: 1.28;
     color: var(--text);
     font-weight: 600;
@@ -1358,7 +1358,7 @@
 
 .deleted-agent-title {
     color: var(--text);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     line-height: 1.3;
 }

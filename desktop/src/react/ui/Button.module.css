@@ -39,7 +39,7 @@
 
 .size-md {
     padding: 0.4rem 1rem;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
 }
 
 .size-lg {

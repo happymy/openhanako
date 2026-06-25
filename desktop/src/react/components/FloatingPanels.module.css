@@ -56,7 +56,7 @@
 }
 
 .floatingPanelTitle {
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     color: var(--text);
     margin: 0;
@@ -154,7 +154,7 @@
 }
 
 .detailHeaderName {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     color: var(--text);
     line-height: 1.2;
@@ -599,7 +599,7 @@
 }
 
 .actCardSummary {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text);
     line-height: 1.6;
     margin-bottom: var(--space-xs);
@@ -643,7 +643,7 @@
     text-align: center;
     padding: var(--space-xl) var(--space-sm);
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
 }
 
 /* 只读 session banner */
@@ -792,7 +792,7 @@
     align-items: center;
     gap: 6px;
     padding: 6px 14px;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     font-weight: 500;
     color: var(--text-muted);
     background: none;
@@ -950,7 +950,7 @@
     align-items: center;
     justify-content: center;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
 }
 
 .bridgeChatMessages {
@@ -1049,7 +1049,7 @@
 }
 
 .bridgeOverlayText {
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     line-height: 1.5;
     max-width: 220px;
 }
@@ -1063,7 +1063,7 @@
     border: none;
     background: color-mix(in srgb, var(--text-muted) 10%, transparent);
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     cursor: default;
     transition: background var(--duration-fast);
 }

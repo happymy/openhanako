@@ -25,7 +25,7 @@
   justify-content: center;
   gap: 12px;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-ui);
   z-index: 1;
 }
 .spinner {
@@ -43,7 +43,7 @@
   background: var(--bg-secondary);
   color: var(--text-primary);
   cursor: default;
-  font-size: 0.8rem;
+  font-size: var(--fs-ui);
 }
 .retryBtn:hover {
   background: var(--bg-hover);
@@ -54,5 +54,5 @@
   justify-content: center;
   flex: 1;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-ui);
 }

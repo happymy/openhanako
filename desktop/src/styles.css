@@ -533,7 +533,7 @@ html[data-platform="linux"] .tb-toggle-right {
 }
 
 .sidebar-title {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     color: var(--text-muted);
     letter-spacing: 0.08em;
@@ -708,7 +708,7 @@ html[data-platform="linux"] .tb-toggle-right {
 }
 
 .floating-session-list .session-item-title {
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     color: var(--text);
     line-height: 1.4;
     overflow: hidden;
@@ -1577,7 +1577,7 @@ html[data-platform="linux"] .tb-toggle-right {
 
 .bridge-tutorial-steps {
     padding-left: 1.2em;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-light);
     line-height: 1.8;
 }
@@ -2111,7 +2111,7 @@ html[data-platform="linux"] .tb-toggle-right {
 }
 
 .bridge-card-title {
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     color: var(--text);
 }
@@ -2143,7 +2143,7 @@ html[data-platform="linux"] .tb-toggle-right {
 
 .bridge-card-input {
     flex: 1;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
 }
 
 .bridge-card-actions {
@@ -2682,7 +2682,7 @@ body.resizing .channel-inspector-rail {
     align-items: center;
     justify-content: center;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
 }
 
 .channel-inspector-rail {
@@ -2889,7 +2889,7 @@ body.resizing .channel-inspector-rail {
     min-width: 0;
 }
 .browser-floating-label {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 500;
     color: var(--text);
 }
@@ -2955,7 +2955,7 @@ body.resizing .channel-inspector-rail {
     margin: 0 0 0.8rem;
 }
 .hana-warning-body {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     line-height: 1.7;
     color: var(--text-secondary);
 }
@@ -2974,7 +2974,7 @@ body.resizing .channel-inspector-rail {
 .hana-warning-cancel,
 .hana-warning-confirm {
     font-family: inherit;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     padding: 0.4rem 1rem;
     border-radius: var(--radius-md);
     border: none;
@@ -3074,7 +3074,7 @@ html[data-platform="linux"] .onboarding {
     margin: 0;
 }
 .onboarding-subtitle {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-muted);
     text-align: center;
     line-height: 1.6;
@@ -3136,7 +3136,7 @@ html[data-platform="linux"] .onboarding {
 
 .ob-btn {
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     padding: 0.5rem 1.6rem;
     border-radius: var(--radius-md, 8px);
     border: none;
@@ -3241,7 +3241,7 @@ html[data-platform="linux"] .onboarding {
     border: 1px solid var(--border);
     background-color: var(--bg-card);
     cursor: default;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     color: var(--text);
     text-align: center;
     transition: all var(--duration-fast);
@@ -3317,7 +3317,7 @@ html[data-platform="linux"] .onboarding {
     background: transparent;
     color: var(--text);
     font-family: inherit;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     text-align: left;
     cursor: default;
 }
@@ -3332,7 +3332,7 @@ html[data-platform="linux"] .onboarding {
 .ob-provider-empty {
     padding: 0.75rem 0.7rem;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
 }
 
 /* ── Custom provider ── */
@@ -3394,7 +3394,7 @@ html[data-platform="linux"] .onboarding {
 }
 .ob-test-btn {
     font-family: inherit;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     padding: 5px 14px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md, 8px);
@@ -3426,7 +3426,7 @@ html[data-platform="linux"] .onboarding {
 }
 .model-item {
     padding: 9px 14px;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text);
     cursor: default;
     border-bottom: 1px solid var(--overlay-subtle, rgba(0,0,0,0.04));
@@ -3442,7 +3442,7 @@ html[data-platform="linux"] .onboarding {
 .model-empty {
     padding: 20px;
     text-align: center;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     color: var(--text-muted);
 }
 
@@ -3458,7 +3458,7 @@ html[data-platform="linux"] .onboarding {
     align-items: center;
     gap: var(--space-xs);
     align-self: flex-start;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 500;
     color: var(--text);
 }
@@ -3480,7 +3480,7 @@ html[data-platform="linux"] .onboarding {
     border-radius: var(--radius-md, 8px);
     background: var(--bg-card);
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     text-align: center;
 }
 .ob-added-models-list {
@@ -3516,7 +3516,7 @@ html[data-platform="linux"] .onboarding {
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 500;
 }
 .ob-added-model-id {
@@ -3590,7 +3590,7 @@ html[data-platform="linux"] .onboarding {
     background: var(--bg-card);
     color: var(--text);
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     cursor: default;
 }
 .ob-add-model-trigger:hover {
@@ -3633,7 +3633,7 @@ html[data-platform="linux"] .onboarding {
     background: transparent;
     color: var(--text);
     font-family: inherit;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     text-align: left;
     cursor: default;
 }
@@ -3687,7 +3687,7 @@ html[data-platform="linux"] .onboarding {
 .ob-model-edit-title {
     margin-bottom: var(--space-sm);
     color: var(--text);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 500;
 }
 .ob-model-edit-grid {
@@ -3746,7 +3746,7 @@ html[data-platform="linux"] .onboarding {
     gap: 8px;
 }
 .ob-utility-title {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 500;
     color: var(--text);
 }
@@ -3878,7 +3878,7 @@ html[data-platform="linux"] .onboarding {
     background-color: var(--bg-card);
     color: var(--text);
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     cursor: default;
     transition: all var(--duration-fast);
 }
@@ -4026,7 +4026,7 @@ html[data-platform="linux"] .onboarding {
 
 .yuan-kong-name {
     color: #fff;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 400;
     letter-spacing: 0.08em;
     line-height: 1;

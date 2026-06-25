@@ -299,7 +299,7 @@
 .previewPanelBody :global(.preview-code) {
     padding: var(--space-md);
     font-family: var(--font-mono);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     line-height: 1.6;
     overflow-x: auto;
     white-space: pre;
@@ -355,7 +355,7 @@
 .previewPanelBody :global(.preview-csv) table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     font-family: var(--font-mono);
 }
 
@@ -416,7 +416,7 @@
 }
 
 .previewPanelBody :global(.preview-file-ext) {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-muted);
 }
 

@@ -90,7 +90,7 @@
 .statusIcon {
     text-align: center;
     color: var(--text-light);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     line-height: 1;
 }
 

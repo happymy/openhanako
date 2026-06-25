@@ -58,7 +58,7 @@
     align-items: center;
     gap: 0.3rem;
     font-family: inherit;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     color: var(--accent);
     background: var(--accent-light);
     border: none;

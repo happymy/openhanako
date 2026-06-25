@@ -155,7 +155,7 @@
     height: 34px;
     min-width: 0;
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text);
     background: color-mix(in srgb, var(--overlay-light) 56%, transparent);
     border: 1px solid transparent;
@@ -251,7 +251,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.84rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     color: inherit;
     letter-spacing: 0;
@@ -360,7 +360,7 @@
     align-items: center;
     gap: 0.2rem;
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-muted);
     background: none;
     border: none;
@@ -427,7 +427,7 @@
 .settings-tab-description {
     margin: var(--space-md) 0 0;
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     line-height: 1.5;
 }
 
@@ -919,7 +919,7 @@
     max-width: var(--agent-create-content-width, 448px);
     margin: 0 auto var(--space-sm);
     color: var(--danger, #9f3a32);
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     line-height: 1.45;
 }
 
@@ -939,7 +939,7 @@
     border-radius: var(--radius-card, 8px);
     border: none;
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     cursor: default;
     transition: all var(--duration-fast) var(--ease-out);
 }
@@ -988,7 +988,7 @@
     justify-content: center;
     gap: 10px;
     font-family: inherit;
-    font-size: 0.84rem;
+    font-size: var(--fs-ui);
     cursor: default;
     transition: border-color var(--duration-fast) var(--ease-out),
                 color var(--duration-fast) var(--ease-out),
@@ -1079,7 +1079,7 @@
     color: #203d46;
     padding: 24px 28px;
     font-family: "Songti SC", "STSong", serif;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     text-align: center;
 }
 
@@ -1488,7 +1488,7 @@
 .character-card-detail-bundle {
     display: grid;
     gap: 6px;
-    font-size: 0.84rem;
+    font-size: var(--fs-ui);
 }
 
 .character-card-memory-detail-list {
@@ -1504,7 +1504,7 @@
 
 .character-card-memory-detail-block strong {
     font-family: "Songti SC", "STSong", serif;
-    font-size: 0.84rem;
+    font-size: var(--fs-ui);
     color: #1f3841;
 }
 
@@ -1625,7 +1625,7 @@
 }
 
 .agent-delete-desc {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-light);
     line-height: 1.5;
     margin-bottom: var(--space-sm);
@@ -1648,7 +1648,7 @@
     border-radius: var(--radius-card, 8px);
     border: none;
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     cursor: default;
     transition: all var(--duration-fast) var(--ease-out);
 }
@@ -1787,7 +1787,7 @@
     margin: var(--space-sm) auto 0;
     padding: 0.4rem 0;
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     line-height: 1;
     color: white;
     background: color-mix(in srgb, var(--accent) 70%, transparent);
@@ -1903,7 +1903,7 @@
 }
 
 .settings-subsection-title {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     color: var(--text-light);
     margin-bottom: var(--space-sm);
@@ -1936,7 +1936,7 @@
 }
 
 .settings-form-label {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-light);
     font-weight: 600;
 }
@@ -2100,7 +2100,7 @@
 /* Text input */
 .settings-input {
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     line-height: 1.5;
     color: var(--text);
     background-color: var(--bg-card);
@@ -2122,7 +2122,7 @@
 
 .settings-input[type="number"] {
     font-family: var(--font-mono);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
 }
 
 .settings-input.small {
@@ -2186,7 +2186,7 @@
 }
 
 .skills-system-summary {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     color: var(--text-muted);
     cursor: default;
@@ -2225,7 +2225,7 @@
     border: 1.5px dashed var(--border);
     border-radius: var(--radius-card, 8px);
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     cursor: default;
     transition: border-color var(--duration-fast), background var(--duration-fast), color var(--duration-fast);
     user-select: none;
@@ -2277,7 +2277,7 @@
 }
 
 .capability-row-name {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text);
 }
 
@@ -2355,7 +2355,7 @@
 }
 
 .skills-list-name {
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     color: var(--text);
 }
@@ -2481,7 +2481,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
 }
 
@@ -2590,7 +2590,7 @@
 .skill-bundle-dialog-text {
     margin: 0;
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     line-height: 1.6;
 }
 
@@ -3403,7 +3403,7 @@
     white-space: nowrap;
     padding: 0.4rem var(--space-md);
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: white;
     background: color-mix(in srgb, var(--accent) 70%, transparent);
     backdrop-filter: blur(12px);
@@ -3639,7 +3639,7 @@
 }
 
 .about-tagline {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-muted);
 }
 
@@ -3679,7 +3679,7 @@
     justify-content: space-between;
     align-items: center;
     padding: var(--space-xs) 0;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
 }
 
 .about-label {
@@ -3773,7 +3773,7 @@ a.about-link:hover {
     text-align: center;
     padding: var(--space-lg) var(--space-sm);
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
 }
 
 .provider-item {
@@ -3794,7 +3794,7 @@ a.about-link:hover {
 }
 
 .provider-item-name {
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     color: var(--text);
     letter-spacing: 0.02em;
@@ -3835,7 +3835,7 @@ a.about-link:hover {
     border-radius: var(--radius-input, 6px);
     color: var(--text-muted);
     cursor: default;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     transition: all var(--duration-fast) var(--ease-out);
 }
 
@@ -3869,7 +3869,7 @@ a.about-link:hover {
     width: 100%;
     padding: 0.5rem var(--space-md);
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     color: var(--accent);
     background: var(--accent-light);
     border: none;
@@ -3996,7 +3996,7 @@ a.about-link:hover {
 .oauth-custom-model-trigger:hover { color: var(--text-secondary); }
 
 .oauth-provider-name {
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     color: var(--text);
     flex: 1;
     min-width: 0;
@@ -4055,7 +4055,7 @@ a.about-link:hover {
 
 .oauth-code-input {
     flex: 1;
-    font-size: 0.82rem !important;
+    font-size: var(--fs-ui) !important;
 }
 
 .oauth-code-submit {
@@ -4175,7 +4175,7 @@ a.about-link:hover {
     cursor: default;
     text-align: left;
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-secondary);
     transition: all var(--duration-fast);
     width: 100%;
@@ -4291,7 +4291,7 @@ a.about-link:hover {
     align-items: center;
     gap: 4px;
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-muted);
     background: none;
     border: none;
@@ -4941,7 +4941,7 @@ a.about-link:hover {
 
 /* overlay 里按钮放大：铺满式新建页面需要更大触达面积 */
 .pv-add-overlay .pv-add-form-btn {
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     padding: 8px 18px;
     transition: background var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out);
 }
@@ -4962,7 +4962,7 @@ a.about-link:hover {
 }
 
 .pv-add-form-label {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-muted);
     letter-spacing: 0.02em;
 }
@@ -4976,7 +4976,7 @@ a.about-link:hover {
 
 .pv-setup-activate-btn {
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     padding: 6px 20px;
     background: var(--accent);
     color: #fff;
@@ -5019,7 +5019,7 @@ a.about-link:hover {
     justify-content: center;
     height: 100%;
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
 }
 
 /* ── 凭证区 ── */
@@ -5522,7 +5522,7 @@ a.about-link:hover {
 }
 
 .pv-models-title {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 500;
     color: var(--text);
     display: flex;
@@ -5651,7 +5651,7 @@ a.about-link:hover {
 
 .pv-model-add-btn {
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     width: 28px;
     height: 28px;
     display: flex;
@@ -5703,7 +5703,7 @@ a.about-link:hover {
 }
 
 .pv-confirm-text {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text);
     margin: 0 0 12px;
     line-height: 1.5;
@@ -5745,7 +5745,7 @@ a.about-link:hover {
     text-align: center;
     padding: var(--space-md) var(--space-sm);
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
 }
 
 .pin-item {
@@ -5767,7 +5767,7 @@ a.about-link:hover {
 
 .pin-item-text {
     flex: 1;
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     color: var(--text);
     cursor: default;
     overflow: hidden;
@@ -5804,7 +5804,7 @@ a.about-link:hover {
     border-radius: var(--radius-input, 6px);
     color: var(--text-muted);
     cursor: default;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     transition: all var(--duration-fast) var(--ease-out);
 }
 
@@ -5863,7 +5863,7 @@ a.about-link:hover {
     text-align: center;
     padding: var(--space-lg) var(--space-sm);
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-family: var(--font-serif);
 }
 
@@ -5941,7 +5941,7 @@ a.about-link:hover {
     display: flex;
     gap: 0.4em;
     font-family: var(--font-serif);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-light);
     line-height: 1.65;
     padding: 0.1rem 0;
@@ -5961,7 +5961,7 @@ a.about-link:hover {
 
 .exp-block-editor {
     font-family: var(--font-serif);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text);
     background: transparent;
     border: 1px solid var(--overlay-light);
@@ -6001,7 +6001,7 @@ a.about-link:hover {
 .memory-action-btn {
     flex: 1;
     padding: 0.4rem var(--space-md);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     border: 1px solid var(--overlay-light);
     border-radius: var(--radius-card, 8px);
     background: var(--bg-card, var(--bg));
@@ -6056,7 +6056,7 @@ a.about-link:hover {
 }
 
 .memory-health-title {
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     font-weight: 600;
     line-height: 1.4;
 }
@@ -6138,7 +6138,7 @@ a.about-link:hover {
 
 .memory-confirm-cancel {
     padding: 0.35rem var(--space-lg);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     border: 1px solid var(--overlay-light);
     border-radius: var(--radius-card, 8px);
     background: var(--bg-card, var(--bg));
@@ -6153,7 +6153,7 @@ a.about-link:hover {
 
 .memory-confirm-danger {
     padding: 0.35rem var(--space-lg);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     border: none;
     border-radius: var(--radius-card, 8px);
     background: var(--coral);
@@ -6168,7 +6168,7 @@ a.about-link:hover {
 
 .memory-confirm-primary {
     padding: 0.35rem var(--space-lg);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     border: none;
     border-radius: var(--radius-card, 8px);
     background: var(--accent);
@@ -6260,7 +6260,7 @@ a.about-link:hover {
 :global(.memory-viewer-empty) {
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     padding: var(--space-xl) 0;
 }
 
@@ -6288,7 +6288,7 @@ a.about-link:hover {
 }
 
 .compiled-memory-body {
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
 }
 
 .compiled-memory-md {
@@ -6491,7 +6491,7 @@ a.about-link:hover {
 
 :global(.memory-item) {
     padding: var(--space-xs) 0;
-    font-size: 0.84rem;
+    font-size: var(--fs-ui);
     line-height: 1.6;
 }
 
@@ -6635,7 +6635,7 @@ a.about-link:hover {
 
 .crop-btn {
     font-family: inherit;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     padding: 0.35rem 1rem;
     border-radius: var(--radius-card, 8px);
     border: none;
@@ -6690,7 +6690,7 @@ a.about-link:hover {
     gap: 0.3rem;
     padding: 0.45rem var(--space-md);
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--accent);
     background: var(--accent-light);
     border: none;
@@ -6728,7 +6728,7 @@ a.about-link:hover {
 
 .cml-picker-search {
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     padding: 0.5rem 0.65rem;
     border: none;
     border-bottom: 1px solid var(--overlay-light);
@@ -6764,7 +6764,7 @@ a.about-link:hover {
     width: 100%;
     padding: 0.3rem 0.65rem;
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text);
     background: none;
     border: none;
@@ -6854,7 +6854,7 @@ a.about-link:hover {
 }
 
 .cml-item-name {
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     font-weight: 500;
     color: var(--text);
     min-width: 0;
@@ -7108,7 +7108,7 @@ a.about-link:hover {
     padding: 1.5rem var(--space-md);
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
 }
 
 /* ========================================
@@ -7126,7 +7126,7 @@ a.about-link:hover {
     justify-content: space-between;
     width: 100%;
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: var(--fs-ui);
     line-height: 1.5;
     color: var(--text);
     background-color: var(--bg-card);
@@ -7198,7 +7198,7 @@ a.about-link:hover {
 
 .mdw-search {
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text);
     background: transparent;
     border: none;
@@ -7237,7 +7237,7 @@ a.about-link:hover {
     width: 100%;
     padding: 0.3rem 0.65rem;
     font-family: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     color: var(--text-light);
     background: none;
     border: none;
@@ -7257,7 +7257,7 @@ a.about-link:hover {
 
 .mdw-star {
     flex-shrink: 0;
-    font-size: 0.8rem;
+    font-size: var(--fs-ui);
     color: var(--text-muted);
     cursor: default;
     transition: color var(--duration-fast);
@@ -7335,7 +7335,7 @@ a.about-link:hover {
     text-align: center;
     color: var(--text-muted);
     padding: var(--space-md);
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
 }
 
 /* ── Media settings ── */
@@ -7520,7 +7520,7 @@ a.about-link:hover {
 .bridge-agent-name {
     flex: 1;
     min-width: 0;
-    font-size: 0.82rem;
+    font-size: var(--fs-ui);
     font-weight: 500;
     color: var(--text-primary);
     white-space: nowrap;
