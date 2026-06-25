@@ -114,7 +114,7 @@
     white-space: nowrap;
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     line-height: 1.25;
 }
 
@@ -149,7 +149,7 @@
     background: transparent;
     color: var(--text-muted);
     font: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     padding: 4px 8px;
     cursor: default;
     transition: color var(--duration-fast), background var(--duration-fast), border-color var(--duration-fast);
@@ -169,7 +169,7 @@
 .categoryTabCount {
     min-width: 1.2em;
     color: var(--text-light);
-    font-size: 0.66rem;
+    font-size: var(--fs-hint);
     font-variant-numeric: tabular-nums;
     text-align: center;
 }
@@ -240,7 +240,7 @@
 
 .groupCount,
 .meta {
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     white-space: nowrap;
 }
@@ -340,7 +340,7 @@
     gap: 3px;
     min-width: 0;
     color: var(--text-muted);
-    font-size: 0.66rem;
+    font-size: var(--fs-hint);
 }
 
 .field input,
@@ -352,7 +352,7 @@
     background: var(--bg);
     color: var(--text);
     font: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     outline: none;
 }
 
@@ -392,7 +392,7 @@
     background: var(--bg);
     color: var(--text);
     font: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     line-height: 1;
     transition: background var(--duration-fast), border-color var(--duration-fast), box-shadow var(--duration-fast);
 }
@@ -427,7 +427,7 @@
     background: var(--bg);
     color: var(--text);
     font: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     line-height: 1;
     text-align: left;
     cursor: default;
@@ -531,7 +531,7 @@
     background: rgba(var(--accent-rgb), 0.05);
     color: var(--accent);
     font: inherit;
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     padding: 4px 9px;
     cursor: default;
 }

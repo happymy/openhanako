@@ -137,7 +137,7 @@
 .sectionNote {
     padding: var(--space-sm) var(--space-md);
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     line-height: 1.4;
     position: relative;
 }
@@ -215,7 +215,7 @@
 }
 
 .rowHint {
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     line-height: 1.4;
 }
@@ -416,7 +416,7 @@
     position: relative;
     height: 16px;
     color: var(--text-muted);
-    font-size: 0.66rem;
+    font-size: var(--fs-hint);
     line-height: 1.2;
 }
 

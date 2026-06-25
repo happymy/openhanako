@@ -100,7 +100,7 @@
 }
 
 .sessionSearchSectionTitle {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     font-weight: 600;
     color: var(--text-muted);
     letter-spacing: 0;
@@ -144,7 +144,7 @@
 .sessionSearchSnippet {
     margin-top: 4px;
     color: var(--text-muted);
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     line-height: 1.45;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -156,7 +156,7 @@
 .sessionSearchEmpty {
     padding: 10px var(--space-sm);
     color: var(--text-muted);
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     line-height: 1.5;
 }
 
@@ -222,7 +222,7 @@
 }
 
 .sessionItemMeta {
-    font-size: 0.66rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     margin-top: 1px;
     opacity: 0.8;
@@ -247,7 +247,7 @@
     border-radius: 999px;
     background: rgba(var(--accent-rgb), 0.12);
     color: var(--accent);
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     line-height: 1.2;
     font-weight: 600;
     max-width: calc(100% - 28px);
@@ -266,7 +266,7 @@
     border-radius: 999px;
     background: rgba(var(--accent-rgb), 0.12);
     color: var(--accent);
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     line-height: 1.2;
     font-weight: 600;
     white-space: nowrap;
@@ -390,7 +390,7 @@
 }
 
 :global(.mobile-desktop-root) .sessionItemMeta {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
 }
 
 .sessionItemReadOnly .sessionItemTitle {
@@ -777,7 +777,7 @@
     background: transparent;
     color: var(--text-secondary);
     font: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     cursor: default;
 }
 
@@ -805,7 +805,7 @@
 }
 
 .sessionSummaryTitle {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     line-height: 1.35;
     color: var(--text-muted);
     opacity: 0.78;
@@ -817,14 +817,14 @@
     max-height: 280px;
     overflow-y: auto;
     padding-right: 3px;
-    font-size: 0.66rem;
+    font-size: var(--fs-hint);
     line-height: 1.55;
     color: var(--text-muted);
 }
 
 .sessionSummaryBody h3 {
     margin: 0 0 4px;
-    font-size: 0.66rem;
+    font-size: var(--fs-hint);
     line-height: 1.35;
     font-weight: 600;
     color: var(--text);

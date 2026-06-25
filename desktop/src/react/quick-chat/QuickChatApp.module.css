@@ -111,7 +111,7 @@
   color: var(--text-muted);
   background: var(--bg-card);
   font-family: inherit;
-  font-size: 0.72rem;
+  font-size: var(--fs-hint);
   cursor: default;
   -webkit-app-region: no-drag;
 }
@@ -270,7 +270,7 @@
 
 .errorLine {
   color: var(--danger);
-  font-size: 0.72rem;
+  font-size: var(--fs-hint);
   line-height: 1.35;
   -webkit-app-region: no-drag;
 }

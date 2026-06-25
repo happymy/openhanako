@@ -161,7 +161,7 @@
 }
 
 .detailHeaderSubtitle {
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -218,7 +218,7 @@
     background: none;
     border: 1px solid var(--overlay-light);
     color: var(--text-muted);
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     padding: 3px 10px;
     border-radius: var(--radius-sm);
     cursor: default;
@@ -308,7 +308,7 @@
 }
 
 .autoItemSchedule {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
 }
 
@@ -335,7 +335,7 @@
 }
 
 .autoItemExecutorName {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
 }
 
@@ -410,7 +410,7 @@
     display: block;
     width: 100%;
     text-align: left;
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     font-family: inherit;
     padding: 5px 8px;
     border: none;
@@ -593,7 +593,7 @@
 }
 
 .actCardTime {
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     margin-left: auto;
 }
@@ -609,7 +609,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-md);
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
 }
 
@@ -630,7 +630,7 @@
 .actCardViewHint {
     margin-left: auto;
     color: var(--accent);
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     opacity: 0;
     transition: opacity var(--duration-fast);
 }
@@ -666,7 +666,7 @@
 }
 
 .readonlyBannerTime {
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     opacity: 0.7;
 }
 
@@ -675,7 +675,7 @@
     border: 1px solid var(--overlay-medium);
     border-radius: var(--radius-sm);
     color: var(--text-muted);
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     padding: 3px 10px;
     cursor: default;
     transition: all var(--duration-fast);
@@ -871,7 +871,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     font-weight: 600;
     flex-shrink: 0;
 }
@@ -897,7 +897,7 @@
 }
 
 .bridgeContactTime {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     margin-top: 1px;
 }
@@ -1015,7 +1015,7 @@
 }
 
 .bridgeBubbleTime {
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     margin-top: 2px;
     padding: 0 var(--space-xs);

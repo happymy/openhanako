@@ -12,7 +12,7 @@
     border: 1px solid var(--tooltip-border, transparent);
     border-radius: var(--radius-sm);
     box-shadow: 0 3px 8px var(--tooltip-shadow, rgba(0, 0, 0, 0.16));
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     line-height: 1.25;
     white-space: nowrap;
     pointer-events: none;

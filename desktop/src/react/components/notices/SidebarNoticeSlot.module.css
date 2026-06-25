@@ -79,7 +79,7 @@
     border-radius: 3px;
     cursor: default;
     font: inherit;
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     transition: color var(--duration-fast) var(--ease-out),
                 border-color var(--duration-fast) var(--ease-out),
                 background var(--duration-fast) var(--ease-out);

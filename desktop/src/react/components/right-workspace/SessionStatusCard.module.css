@@ -96,7 +96,7 @@
 }
 
 .label {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-light);
     white-space: nowrap;
 }

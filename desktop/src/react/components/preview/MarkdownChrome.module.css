@@ -101,7 +101,7 @@
 .findCount {
     min-width: 42px;
     text-align: right;
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
 }
 
@@ -137,7 +137,7 @@
     color: var(--text-muted);
     box-shadow: 0 4px 14px var(--shadow, rgba(0, 0, 0, 0.08));
     font-family: var(--font-ui);
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

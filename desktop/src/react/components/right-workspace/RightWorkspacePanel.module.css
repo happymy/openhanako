@@ -91,7 +91,7 @@
     background: transparent;
     color: var(--text-muted);
     font-family: inherit;
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     font-weight: 400;
     cursor: default;
     transition: color var(--duration-fast) var(--ease-out);
@@ -156,7 +156,7 @@
     background: transparent;
     color: var(--text-muted);
     font-family: inherit;
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     line-height: 1;
     cursor: default;
     transition: background var(--duration-fast), color var(--duration-fast);

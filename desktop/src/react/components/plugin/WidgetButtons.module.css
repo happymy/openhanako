@@ -19,7 +19,7 @@
     color: var(--text-muted);
     cursor: default;
     font-family: var(--font-ui);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     font-weight: 500;
     transition: color var(--duration-fast), background var(--duration-fast);
     padding: 0;

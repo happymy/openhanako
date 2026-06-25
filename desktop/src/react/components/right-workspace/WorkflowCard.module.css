@@ -37,7 +37,7 @@
 }
 
 .count {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
 }
 
@@ -125,13 +125,13 @@
 }
 
 .agentCount {
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     white-space: nowrap;
 }
 
 .duration {
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
@@ -200,7 +200,7 @@
 }
 
 .nodeTokens {
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
@@ -292,13 +292,13 @@
 }
 
 .miniEllipsis {
-  font-size: 0.68rem;
+  font-size: var(--fs-hint);
   color: var(--text-muted);
   line-height: 1;
 }
 
 .phaseCount {
-  font-size: 0.7rem;
+  font-size: var(--fs-hint);
   color: var(--text-muted);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -323,7 +323,7 @@
 
 /* tokens 汇总（workflow row 增加） */
 .tokenSum {
-  font-size: 0.7rem;
+  font-size: var(--fs-hint);
   color: var(--text-muted);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;

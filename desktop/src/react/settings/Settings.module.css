@@ -217,7 +217,7 @@
 .settings-search-results-title {
     padding: 3px 10px 5px;
     color: var(--text-muted);
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     font-weight: 600;
     letter-spacing: 0;
 }
@@ -263,7 +263,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     letter-spacing: 0;
 }
 
@@ -406,7 +406,7 @@
     right: 0;
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     opacity: 0.6;
 }
 
@@ -626,7 +626,7 @@
     --card-size: 62px;
     --card-bottom-gap: 16px;
     --arc-headroom: 32px;
-    --name-font-size: 0.65rem;
+    --name-font-size: var(--fs-hint);
     --name-line-height: 1.3;
     --name-gap: 4px;
     --name-area: calc(var(--name-gap) + var(--name-font-size) * var(--name-line-height));
@@ -836,7 +836,7 @@
     color: var(--text-muted);
     cursor: default;
     font-family: inherit;
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     line-height: 1.3;
     opacity: 0.68;
     padding: calc(var(--space-xs) * 0.5) var(--space-sm);
@@ -1251,7 +1251,7 @@
     justify-content: center;
     gap: 6px;
     font-family: "Songti SC", "STSong", serif;
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     line-height: 1.22;
     color: #203d46;
     text-align: center;
@@ -1724,7 +1724,7 @@
     align-items: center;
     justify-content: center;
     color: #fff;
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     letter-spacing: 0.04em;
     pointer-events: none;
 }
@@ -1734,7 +1734,7 @@
 }
 
 .avatar-label {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     letter-spacing: 0.02em;
 }
@@ -1922,7 +1922,7 @@
 }
 
 .settings-subsection-hint {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     font-weight: 400;
 }
@@ -1950,7 +1950,7 @@
 
 .settings-form-hint {
     display: block;
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     line-height: 1.4;
 }
@@ -2019,7 +2019,7 @@
 }
 
 .access-status-item span {
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
 }
 
@@ -2071,7 +2071,7 @@
 
 .access-device-meta,
 .access-empty {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
 }
 
@@ -2087,7 +2087,7 @@
 }
 
 .access-field span {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
 }
 
@@ -2130,7 +2130,7 @@
 }
 
 .settings-muted-note {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     margin-top: var(--space-xs);
     line-height: 1.5;
@@ -2282,7 +2282,7 @@
 }
 
 .capability-row-desc {
-    font-size: 0.71rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     line-height: 1.4;
 }
@@ -2369,7 +2369,7 @@
 }
 
 .skills-list-desc {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     line-height: 1.4;
     overflow: hidden;
@@ -2487,7 +2487,7 @@
 
 .skill-bundle-title small {
     color: var(--text-muted);
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     white-space: nowrap;
 }
 
@@ -2510,7 +2510,7 @@
 .skill-bundle-empty {
     padding: 0.6rem var(--space-md);
     color: var(--text-muted);
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     font-style: italic;
     background: var(--bg-card);
 }
@@ -2709,7 +2709,7 @@
     border: none;
     background: none;
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     cursor: default;
     border-radius: var(--radius-input, 6px);
     opacity: 0;
@@ -2727,7 +2727,7 @@
 
 /* 来源标记 */
 .skills-source-badge {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     opacity: 0.7;
     white-space: nowrap;
@@ -2783,7 +2783,7 @@
 }
 
 .compat-path-value {
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     text-overflow: ellipsis;
     overflow: hidden;
@@ -2873,7 +2873,7 @@
 }
 
 .compat-drawer-path {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     text-overflow: ellipsis;
     overflow: hidden;
@@ -2913,7 +2913,7 @@
     border-top: 1px dashed var(--overlay-light);
     background: none;
     color: var(--text-muted);
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     cursor: default;
     transition: all var(--duration-fast);
 }
@@ -3038,7 +3038,7 @@
     color: var(--text-muted);
     cursor: default;
     font-family: inherit;
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     padding: 0.15rem 0.3rem;
     border-radius: 3px;
     transition: color var(--duration-fast), background var(--duration-fast);
@@ -3265,7 +3265,7 @@
 }
 
 .theme-card-mode {
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     margin-top: 2px;
     letter-spacing: 0.02em;
 }
@@ -3327,7 +3327,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-family: var(--font-ui);
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     line-height: 1.25;
 }
@@ -3352,7 +3352,7 @@
 .settings-btn-primary {
     padding: 0.3rem var(--space-sm);
     font-family: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--accent);
     background: transparent;
     border: 1.5px solid var(--accent);
@@ -3378,7 +3378,7 @@
 .settings-btn-secondary {
     padding: 0.3rem var(--space-sm);
     font-family: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     background: transparent;
     border: 1px solid var(--border);
@@ -3534,7 +3534,7 @@
 }
 
 .search-api-key-label {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-light);
     font-weight: 600;
 }
@@ -3564,7 +3564,7 @@
     padding: 0.35rem 0.75rem;
     border-radius: 0;
     font-family: inherit;
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.4s ease-out;
@@ -3644,7 +3644,7 @@
 }
 
 .about-version {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     opacity: 0.7;
     font-family: var(--font-mono);
@@ -3708,7 +3708,7 @@ a.about-link:hover {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     background: none;
     border: none;
@@ -3726,7 +3726,7 @@ a.about-link:hover {
     padding: var(--space-md);
     background: var(--overlay-light);
     border-radius: var(--radius-input, 6px);
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     line-height: 1.6;
     color: var(--text-muted);
     white-space: pre-wrap;
@@ -3805,7 +3805,7 @@ a.about-link:hover {
 
 .provider-item-count {
     margin-left: auto;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     white-space: nowrap;
     flex-shrink: 0;
@@ -3853,7 +3853,7 @@ a.about-link:hover {
     width: auto;
     height: auto;
     padding: 2px 8px;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--accent);
     white-space: nowrap;
 }
@@ -3971,7 +3971,7 @@ a.about-link:hover {
 }
 
 .oauth-custom-model-add-btn {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     padding: 4px 10px;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
@@ -3984,7 +3984,7 @@ a.about-link:hover {
 .oauth-custom-model-add-btn:hover { background: var(--bg-hover); }
 
 .oauth-custom-model-trigger {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     background: none;
     border: none;
@@ -4006,7 +4006,7 @@ a.about-link:hover {
 }
 
 .oauth-status-badge {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--success, #5a9);
     background: rgba(90, 170, 153, 0.1);
     padding: 2px 8px;
@@ -4147,7 +4147,7 @@ a.about-link:hover {
 }
 
 .pv-list-title {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     font-weight: 500;
     color: var(--text-muted);
     padding: 6px 12px 4px;
@@ -4200,7 +4200,7 @@ a.about-link:hover {
 }
 
 .pv-list-item-count {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     flex-shrink: 0;
 }
@@ -4232,7 +4232,7 @@ a.about-link:hover {
     border: 1px solid rgba(var(--danger-rgb, 200, 81, 67), 0.24);
     background: rgba(var(--danger-rgb, 200, 81, 67), 0.08);
     color: var(--danger, #c85143);
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     line-height: 1.45;
 }
 
@@ -4324,7 +4324,7 @@ a.about-link:hover {
 .usage-note {
     flex-shrink: 0;
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     line-height: 1.45;
 }
 
@@ -4478,7 +4478,7 @@ a.about-link:hover {
 .usage-orbit-center small,
 .usage-eyebrow,
 .usage-hero-meta {
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     line-height: 1.45;
 }
@@ -4500,7 +4500,7 @@ a.about-link:hover {
     flex-wrap: wrap;
     gap: var(--space-sm) var(--space-md);
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     line-height: 1.4;
 }
 
@@ -4549,7 +4549,7 @@ a.about-link:hover {
 
 .usage-hero-stat small {
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     line-height: 1.3;
 }
 
@@ -4606,7 +4606,7 @@ a.about-link:hover {
     background: transparent;
     color: var(--text-muted);
     font-family: var(--font-ui);
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     line-height: 1.2;
     cursor: default;
     white-space: nowrap;
@@ -4706,7 +4706,7 @@ a.about-link:hover {
 
 .usage-group-meta {
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     line-height: 1.35;
 }
 
@@ -4718,7 +4718,7 @@ a.about-link:hover {
     text-align: right;
     font-variant-numeric: tabular-nums;
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
 }
 
 .usage-daily-bars {
@@ -4775,7 +4775,7 @@ a.about-link:hover {
 .usage-day-label {
     min-height: 1em;
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     line-height: 1;
     text-align: center;
     white-space: nowrap;
@@ -4812,7 +4812,7 @@ a.about-link:hover {
 
 .usage-request-detail {
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     line-height: 1.35;
     display: flex;
     flex-wrap: wrap;
@@ -4834,7 +4834,7 @@ a.about-link:hover {
 .usage-status {
     flex-shrink: 0;
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     line-height: 1.35;
 }
 
@@ -4924,7 +4924,7 @@ a.about-link:hover {
 /* 通用小按钮：删除确认、模型编辑等紧凑弹窗场景沿用 */
 .pv-add-form-btn {
     font-family: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     padding: 4px 10px;
     border: 1px solid var(--border);
     border-radius: var(--radius-input, 6px);
@@ -5044,7 +5044,7 @@ a.about-link:hover {
 }
 
 .pv-cred-label {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     width: 60px;
     flex-shrink: 0;
@@ -5059,7 +5059,7 @@ a.about-link:hover {
     white-space: nowrap;
 }
 
-.pv-cred-value.muted { color: var(--text-muted); font-size: 0.72rem; cursor: default; }
+.pv-cred-value.muted { color: var(--text-muted); font-size: var(--fs-hint); cursor: default; }
 
 .pv-cred-url-row {
     flex: 1;
@@ -5078,7 +5078,7 @@ a.about-link:hover {
 }
 
 .pv-cred-badge {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     background: var(--overlay-light);
     padding: 1px 6px;
@@ -5133,7 +5133,7 @@ a.about-link:hover {
 
 .pv-verify-btn {
     font-family: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     padding: 3px 10px;
     background: var(--accent);
     color: #fff;
@@ -5167,7 +5167,7 @@ a.about-link:hover {
 
 .pv-cred-save, .pv-cred-cancel {
     font-family: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     padding: 3px 8px;
     border: 1px solid var(--border);
     border-radius: var(--radius-input, 6px);
@@ -5232,7 +5232,7 @@ a.about-link:hover {
 }
 
 .pv-fav-item-id {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     opacity: 0.6;
     flex: 0 1 min(42%, 18rem);
@@ -5307,7 +5307,7 @@ a.about-link:hover {
 }
 
 .pv-model-edit-label {
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
 }
 
@@ -5362,7 +5362,7 @@ a.about-link:hover {
     align-items: center;
     gap: 4px;
     font-family: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     background: var(--bg-input, var(--bg));
     border: 1px solid var(--border);
@@ -5376,7 +5376,7 @@ a.about-link:hover {
 .pv-fetch-btn-inline:hover { color: var(--accent); border-color: var(--accent); }
 
 .pv-fetch-hint {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     padding: 4px 0;
     animation: hana-hint-fade 2.5s ease forwards;
 }
@@ -5491,7 +5491,7 @@ a.about-link:hover {
 .pv-model-dropdown-option-check {
     color: var(--accent);
     flex-shrink: 0;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
 }
 
 .pv-model-dropdown-empty {
@@ -5531,7 +5531,7 @@ a.about-link:hover {
 }
 
 .pv-models-count {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     background: var(--overlay-light);
     padding: 0 5px;
@@ -5544,7 +5544,7 @@ a.about-link:hover {
     align-items: center;
     gap: 4px;
     font-family: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     background: none;
     border: none;
@@ -5619,7 +5619,7 @@ a.about-link:hover {
 }
 
 .pv-model-ctx {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     flex-shrink: 0;
 }
@@ -5670,7 +5670,7 @@ a.about-link:hover {
 /* ── 删除按钮（标题栏右侧） ── */
 .pv-delete-btn {
     font-family: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--danger, #c55);
     background: transparent;
     border: 1px solid var(--danger, #c55);
@@ -6067,7 +6067,7 @@ a.about-link:hover {
     gap: 0.3rem 0.8rem;
     padding-left: 0.87rem;
     color: var(--text-muted);
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     line-height: 1.5;
 }
 
@@ -6272,7 +6272,7 @@ a.about-link:hover {
 }
 
 .compiled-clear-btn {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--danger, #c44);
     background: none;
     border: 1px solid var(--overlay-light);
@@ -6411,7 +6411,7 @@ a.about-link:hover {
     flex-wrap: wrap;
     gap: var(--space-xs);
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
 }
 
 .experiments-observation-meta span {
@@ -6446,7 +6446,7 @@ a.about-link:hover {
     overflow-wrap: anywhere;
     color: var(--text);
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     line-height: 1.65;
     background: var(--overlay-subtle);
     border: var(--border-width, 1px) solid var(--border);
@@ -6468,7 +6468,7 @@ a.about-link:hover {
     background: transparent;
     border-radius: var(--radius-input, 6px);
     padding: 4px 8px;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     cursor: default;
 }
 
@@ -6512,7 +6512,7 @@ a.about-link:hover {
 }
 
 :global(.memory-item-tag) {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     padding: 1px 6px;
     border-radius: 3px;
     background: var(--overlay-subtle);
@@ -6621,7 +6621,7 @@ a.about-link:hover {
 }
 
 .crop-hint {
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     letter-spacing: 0.02em;
 }
@@ -6748,7 +6748,7 @@ a.about-link:hover {
 }
 
 .cml-picker-group {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     padding: 0.45rem 0.65rem 0.2rem;
     position: sticky;
@@ -6795,13 +6795,13 @@ a.about-link:hover {
 
 .cml-picker-option-provider {
     margin-left: auto;
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     flex-shrink: 0;
 }
 
 .cml-picker-option-added {
-    font-size: 0.65rem;
+    font-size: var(--fs-hint);
     color: var(--accent);
     flex-shrink: 0;
 }
@@ -6836,7 +6836,7 @@ a.about-link:hover {
 .cml-list-header {
     background: var(--overlay-subtle);
     border-bottom: 1px solid var(--overlay-light);
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     letter-spacing: 0.02em;
 }
@@ -6877,7 +6877,7 @@ a.about-link:hover {
 }
 
 .cml-item-remove {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     background: none;
     border: none;
@@ -6901,7 +6901,7 @@ a.about-link:hover {
 
 /* 健康检测按钮 */
 .cml-health-btn {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     background: none;
     border: none;
@@ -6920,7 +6920,7 @@ a.about-link:hover {
 
 /* 编辑按钮 */
 .cml-edit-btn {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     background: none;
     border: none;
@@ -6956,7 +6956,7 @@ a.about-link:hover {
 
 .cml-edit-panel-label {
     display: block;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     white-space: nowrap;
     margin-bottom: 0.2rem;
@@ -6989,7 +6989,7 @@ a.about-link:hover {
 
 .cml-combo-toggle {
     font-family: inherit;
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     padding: 0 0.35rem;
     border: none;
     border-radius: 0 var(--radius-input, 6px) var(--radius-input, 6px) 0;
@@ -7045,7 +7045,7 @@ a.about-link:hover {
 
 .cml-combo-value {
     font-family: var(--font-mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
 }
 
@@ -7058,7 +7058,7 @@ a.about-link:hover {
 
 .cml-edit-panel-btn {
     font-family: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     padding: 0.2rem 0.6rem;
     border-radius: var(--radius-input, 6px);
     border: none;
@@ -7098,7 +7098,7 @@ a.about-link:hover {
 
 .mdw-group-header {
     padding: 0.35rem 0.65rem 0.15rem;
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     letter-spacing: 0.03em;
     user-select: none;
@@ -7162,7 +7162,7 @@ a.about-link:hover {
 
 .mdw-arrow {
     flex-shrink: 0;
-    font-size: 0.7rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     margin-left: var(--space-sm);
     transition: transform var(--duration-slow);
@@ -7220,7 +7220,7 @@ a.about-link:hover {
 }
 
 .mdw-group-label {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     padding: 0.4rem 0.65rem 0.2rem;
     font-weight: 600;
@@ -7284,7 +7284,7 @@ a.about-link:hover {
 
 .mdw-option-provider {
     margin-left: auto;
-    font-size: 0.68rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
     flex-shrink: 0;
 }

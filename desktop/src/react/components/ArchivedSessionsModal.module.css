@@ -166,7 +166,7 @@
 
 .rowMeta {
   margin-top: 0.25rem;
-  font-size: 0.72rem;
+  font-size: var(--fs-hint);
   line-height: 1.4;
   color: var(--text-muted, rgba(0, 0, 0, 0.55));
 }

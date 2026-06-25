@@ -134,7 +134,7 @@
 }
 
 .optionDesc {
-  font-size: 0.68rem;
+  font-size: var(--fs-hint);
   color: var(--text-muted);
   margin-left: auto;
 }
@@ -146,7 +146,7 @@
 
 .groupHeader {
   padding: 0.45rem 0.55rem 0.15rem;
-  font-size: 0.68rem;
+  font-size: var(--fs-hint);
   color: var(--text-muted);
   letter-spacing: 0.04em;
   text-transform: uppercase;

@@ -23,7 +23,7 @@
 }
 
 .count {
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
     color: var(--text-muted);
 }
 
@@ -47,7 +47,7 @@
 .icon {
     text-align: center;
     color: var(--text-light);
-    font-size: 0.72rem;
+    font-size: var(--fs-hint);
 }
 
 .text {
