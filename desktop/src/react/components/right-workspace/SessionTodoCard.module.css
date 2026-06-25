@@ -40,7 +40,7 @@
     grid-template-columns: 15px minmax(0, 1fr);
     gap: 7px;
     align-items: baseline;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     line-height: 1.5;
 }
 
@@ -87,7 +87,7 @@
     margin-top: var(--space-xs);
     padding: var(--space-xs) 0 0;
     font: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     line-height: 1.5;
     color: var(--accent);
     text-align: left;

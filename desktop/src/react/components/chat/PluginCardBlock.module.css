@@ -13,7 +13,7 @@
 }
 .title {
   padding: 0.35rem 0.5rem 0.2rem;
-  font-size: 0.78rem;
+  font-size: var(--fs-caption);
   color: var(--text-muted);
 }
 .description {

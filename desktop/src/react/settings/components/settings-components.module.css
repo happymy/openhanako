@@ -51,7 +51,7 @@
 .sectionDescription {
     margin: 0 0 var(--space-md);
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     line-height: 1.5;
 }
 
@@ -129,7 +129,7 @@
 .sectionWarning {
     padding: var(--space-sm) var(--space-md);
     color: var(--danger, #b56b66);
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     line-height: 1.5;
     position: relative;
 }

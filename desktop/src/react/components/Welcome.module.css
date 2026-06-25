@@ -123,7 +123,7 @@
     gap: 0.35rem;
     min-height: 30px;
     padding: 6px 12px;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     color: var(--text);
     cursor: default;
     transition: background var(--duration-instant);
@@ -194,7 +194,7 @@
     gap: 0.35rem;
     min-height: 30px;
     padding: 6px 12px;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     cursor: default;
     transition: background var(--duration-instant);
@@ -273,7 +273,7 @@
     background: var(--bg-card);
     cursor: default;
     font-family: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     transition: all var(--duration-fast) var(--ease-out);
     -webkit-app-region: no-drag;

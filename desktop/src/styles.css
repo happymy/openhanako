@@ -589,7 +589,7 @@ html[data-platform="linux"] .tb-toggle-right {
     padding: 6px 12px;
     border-radius: var(--radius-sm);
     font-family: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     background: none;
     border: none;
@@ -732,7 +732,7 @@ html[data-platform="linux"] .tb-toggle-right {
     text-align: center;
     padding: var(--space-md) var(--space-sm);
     color: var(--text-muted);
-    font-size: 0.76rem;
+    font-size: var(--fs-caption);
 }
 
 /* Session 列表容器（侧边栏） */
@@ -796,7 +796,7 @@ html[data-platform="linux"] .tb-toggle-right {
     text-align: center;
     padding: var(--space-lg) var(--space-sm);
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
 }
 
 /* ── 统一开关组件 ── */
@@ -860,7 +860,7 @@ html[data-platform="linux"] .tb-toggle-right {
 }
 
 .hana-toggle-label {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
 }
 
@@ -1319,7 +1319,7 @@ html[data-platform="linux"] .tb-toggle-right {
 .bridge-dot-err { background: var(--coral); box-shadow: 0 0 4px rgba(var(--coral-rgb), 0.4); }
 
 .bridge-status-text {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     flex: 1;
 }
@@ -1341,7 +1341,7 @@ html[data-platform="linux"] .tb-toggle-right {
     display: inline-flex;
     align-items: center;
     padding: 0 14px;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     background: var(--overlay-light);
     color: var(--text-light);
     border: 1px solid var(--border);
@@ -1484,7 +1484,7 @@ html[data-platform="linux"] .tb-toggle-right {
 }
 
 .bridge-help-link {
-    font-size: 0.76rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     cursor: default;
     opacity: 0.7;
@@ -1587,7 +1587,7 @@ html[data-platform="linux"] .tb-toggle-right {
 }
 
 .bridge-tutorial-steps code {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     background: var(--overlay-subtle);
     padding: 1px 5px;
     border-radius: 3px;
@@ -1639,7 +1639,7 @@ html[data-platform="linux"] .tb-toggle-right {
     background: var(--bg);
     color: var(--text);
     font-family: inherit;
-    font-size: 0.76rem;
+    font-size: var(--fs-caption);
     cursor: default;
     transition: background var(--duration-instant), border-color var(--duration-instant);
     user-select: none;
@@ -1747,7 +1747,7 @@ html[data-platform="linux"] .tb-toggle-right {
     font-style: italic;
     text-align: center;
     padding: 20px 0;
-    font-size: 0.76rem;
+    font-size: var(--fs-caption);
 }
 
 .devtools-activity-panel {
@@ -1765,7 +1765,7 @@ html[data-platform="linux"] .tb-toggle-right {
 .devtools-act-item:last-child { border-bottom: none; }
 
 .devtools-act-summary {
-    font-size: 0.76rem;
+    font-size: var(--fs-caption);
     color: var(--text);
     line-height: 1.45;
 }
@@ -2130,7 +2130,7 @@ html[data-platform="linux"] .tb-toggle-right {
 
 .bridge-card-label {
     display: block;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     margin-bottom: 4px;
 }
@@ -2427,7 +2427,7 @@ body.resizing .channel-inspector-rail {
     top: 50%;
     transform: translateY(-50%);
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
 }
 
 .context-menu-submenu {
@@ -2730,7 +2730,7 @@ body.resizing .channel-inspector-rail {
 .channel-readonly-notice {
     padding: var(--space-md) var(--space-lg);
     text-align: center;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     border-top: 1px solid var(--overlay-light);
 }
@@ -3110,7 +3110,7 @@ html[data-platform="linux"] .onboarding {
     background: transparent;
     color: var(--text-muted);
     font-family: inherit;
-    font-size: 0.76rem;
+    font-size: var(--fs-caption);
     cursor: default;
     padding: 4px 8px;
 }
@@ -3181,7 +3181,7 @@ html[data-platform="linux"] .onboarding {
     opacity: 0.55;
 }
 .ob-field-label {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     align-self: flex-start;
 }
@@ -3223,7 +3223,7 @@ html[data-platform="linux"] .onboarding {
 }
 
 .ob-memory-hint {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     line-height: 1.55;
     color: var(--text-muted);
 }
@@ -3350,7 +3350,7 @@ html[data-platform="linux"] .onboarding {
     min-width: 0;
 }
 .custom-field .ob-field-label {
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     margin-bottom: 2px;
     display: block;
 }
@@ -3372,7 +3372,7 @@ html[data-platform="linux"] .onboarding {
 }
 .ob-key-row .ob-input { flex: 1; }
 .ob-key-toggle {
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     padding: 6px 10px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md, 8px);
@@ -3406,7 +3406,7 @@ html[data-platform="linux"] .onboarding {
 .ob-test-btn:hover { border-color: var(--accent); }
 .ob-test-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .ob-status {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
 }
 .ob-status.success { color: var(--green, #6b9); }
 .ob-status.error { color: var(--coral, #c66); }
@@ -3665,7 +3665,7 @@ html[data-platform="linux"] .onboarding {
     background: transparent;
     color: var(--text);
     font-family: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     cursor: default;
 }
 .ob-add-model-manual-btn:hover:not(:disabled) {
@@ -3724,7 +3724,7 @@ html[data-platform="linux"] .onboarding {
 }
 .ob-model-edit-actions .ob-btn {
     padding: 0.4rem 1rem;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
 }
 
 /* ── Utility model selectors ── */
@@ -3802,13 +3802,13 @@ html[data-platform="linux"] .onboarding {
     background: var(--bg-secondary);
     color: var(--text);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.76rem;
+    font-size: var(--fs-caption);
     line-height: 1.45;
 }
 .ob-workspace-hint {
     margin: 0;
     color: var(--text-muted);
-    font-size: 0.76rem;
+    font-size: var(--fs-caption);
     line-height: 1.55;
 }
 .ob-workspace-actions {
@@ -3855,7 +3855,7 @@ html[data-platform="linux"] .onboarding {
 }
 .tutorial-card-desc {
     font-family: var(--font-serif, serif);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     line-height: 1.55;
     text-align: center;
@@ -3940,7 +3940,7 @@ html[data-platform="linux"] .onboarding {
     background-color: var(--bg-card);
     cursor: default;
     font-family: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     text-align: center;
     transition: all var(--duration-fast) var(--ease-out);

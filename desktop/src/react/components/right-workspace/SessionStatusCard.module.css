@@ -103,7 +103,7 @@
 
 .value {
     margin: 0;
-    font-size: 0.76rem;
+    font-size: var(--fs-caption);
     color: var(--text);
     text-align: right;
     overflow: hidden;

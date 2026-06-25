@@ -390,7 +390,7 @@ html[data-platform="linux"] .tb-toggle-right {
     background: none;
     color: var(--text-muted);
     font: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     cursor: default;
     flex-shrink: 0;
     transition: all var(--duration-fast) var(--ease-out);
@@ -467,7 +467,7 @@ html[data-platform="linux"] .tb-toggle-right {
 .session-empty {
     padding: var(--space-lg) var(--space-sm);
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     text-align: center;
 }
 
@@ -517,7 +517,7 @@ html[data-platform="linux"] .tb-toggle-right {
 
 .hana-toggle-label {
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
 }
 
 .chat-area {
@@ -1345,7 +1345,7 @@ body.resizing .jian-sidebar-inner {
 .ob-field-label {
     align-self: flex-start;
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
 }
 
 .provider-grid {
@@ -1388,11 +1388,11 @@ body.resizing .jian-sidebar-inner {
 .custom-field .ob-field-label {
     display: block;
     margin-bottom: 2px;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
 }
 
 .ob-status {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
 }
 
 .ob-status.success {

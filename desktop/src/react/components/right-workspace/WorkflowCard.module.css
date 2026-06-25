@@ -80,7 +80,7 @@
     color: inherit;
     text-align: left;
     cursor: default;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
 }
 
 .row:hover {
@@ -164,7 +164,7 @@
     color: inherit;
     text-align: left;
     cursor: default;
-    font-size: 0.74rem;
+    font-size: var(--fs-caption);
 }
 
 .nodeRow:hover {
@@ -216,7 +216,7 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 6px 7px 7px;
-    font-size: 0.74rem;
+    font-size: var(--fs-caption);
 }
 
 .scroll :global(.message) {
@@ -248,7 +248,7 @@
 }
 
 .phaseName {
-  font-size: 0.78rem;
+  font-size: var(--fs-caption);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;

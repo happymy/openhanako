@@ -34,7 +34,7 @@
 
 .size-sm {
     padding: 0.3rem 0.8rem;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
 }
 
 .size-md {

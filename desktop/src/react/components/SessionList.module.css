@@ -59,7 +59,7 @@
     background: transparent;
     color: var(--text);
     font-family: inherit;
-    font-size: 0.76rem;
+    font-size: var(--fs-caption);
     line-height: 24px;
 }
 
@@ -740,7 +740,7 @@
 .projectNameDialogTitle {
     margin-bottom: 8px;
     color: var(--text-secondary);
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     font-weight: 600;
 }
 
@@ -753,7 +753,7 @@
     background: var(--bg);
     color: var(--text-primary);
     font: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     outline: none;
 }
 
@@ -860,5 +860,5 @@
     text-align: center;
     padding: var(--space-lg) var(--space-sm);
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
 }

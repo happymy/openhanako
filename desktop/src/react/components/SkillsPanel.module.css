@@ -23,7 +23,7 @@
     color: var(--text-muted);
     background: rgba(255, 255, 255, 0.24);
     font: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     cursor: default;
     transition: border-color var(--duration-fast), background var(--duration-fast), color var(--duration-fast);
 }
@@ -48,6 +48,6 @@
 .empty {
     padding: var(--space-lg) 0;
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     text-align: center;
 }

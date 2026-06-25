@@ -36,7 +36,7 @@
     background: transparent;
     color: var(--text-muted);
     font-family: var(--font-ui);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     font-weight: 500;
     cursor: default;
     transition: color var(--duration-fast) var(--ease-out);
@@ -184,7 +184,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     flex-shrink: 0;
     color: var(--text-muted);
 }
@@ -462,7 +462,7 @@
     background: var(--bg-card);
     color: var(--accent);
     box-shadow: 0 4px 14px var(--shadow);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     cursor: default;
     z-index: 2;
 }
@@ -721,7 +721,7 @@
 
 .createError {
     color: var(--danger, #b45757);
-    font-size: 0.74rem;
+    font-size: var(--fs-caption);
     line-height: 1.35;
     margin-top: 4px;
 }
@@ -743,7 +743,7 @@
     background: none;
     color: var(--text-light);
     font-family: var(--font-ui);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     cursor: default;
     transition: all var(--duration-fast) var(--ease-out);
 }
@@ -863,7 +863,7 @@
     border-radius: 6px;
     background: rgba(255, 255, 255, 0.26);
     color: var(--text-muted);
-    font-size: 0.74rem;
+    font-size: var(--fs-caption);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1001,7 +1001,7 @@
 }
 
 .agentActivityName {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
@@ -1010,7 +1010,7 @@
 
 .agentActivitySummary {
     min-width: 0;
-    font-size: 0.74rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -1026,7 +1026,7 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 6px 7px 7px;
-    font-size: 0.74rem;
+    font-size: var(--fs-caption);
 }
 
 .agentActivityTranscriptScroll :global(.message) {
@@ -1035,7 +1035,7 @@
 
 .agentActivityTranscriptScroll :global(.messageAssistant),
 .agentActivityTranscriptScroll :global(.messageUser) {
-    font-size: 0.74rem;
+    font-size: var(--fs-caption);
 }
 
 .agentActivityEmpty {

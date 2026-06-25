@@ -108,7 +108,7 @@
     border: none;
     color: var(--text-muted);
     cursor: default;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     padding: 3px 6px;
     border-radius: var(--radius-sm);
     transition: color var(--duration-fast), background var(--duration-fast);
@@ -120,7 +120,7 @@
 }
 
 .floatingPanelSubtitle {
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     flex: 1;
     text-align: center;
@@ -183,7 +183,7 @@
     text-align: left;
     padding: 0.5rem 0.75rem;
     border-radius: var(--radius-md);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     line-height: 1.6;
 }
 
@@ -200,7 +200,7 @@
 }
 
 .activityDetailBubble :global(.md-content) {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
 }
 
 .activityHbToggle {
@@ -283,7 +283,7 @@
 }
 
 .autoItemLabel {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -296,7 +296,7 @@
 }
 
 .autoItemLabelInput {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     font-family: inherit;
     color: var(--text);
     background: var(--bg);
@@ -468,7 +468,7 @@
 }
 
 .automationEmpty {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     text-align: center;
     padding: var(--space-xl) 0;
@@ -541,7 +541,7 @@
     background: var(--panel-card-bg);
     box-shadow: var(--panel-card-shadow);
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     line-height: 1.6;
 }
 
@@ -578,7 +578,7 @@
 }
 
 .actCardAgentName {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text);
     font-weight: 600;
 }
@@ -654,7 +654,7 @@
     padding: var(--space-sm) var(--space-md);
     background: var(--overlay-light);
     border-bottom: 1px solid var(--overlay-medium);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     flex-shrink: 0;
 }
@@ -712,7 +712,7 @@
     border: none;
     border-radius: var(--radius-sm);
     cursor: default;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text);
     transition: background var(--duration-fast);
 }
@@ -767,7 +767,7 @@
     background: none;
     border: none;
     cursor: default;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text);
     text-align: left;
     transition: background var(--duration-instant);
@@ -841,7 +841,7 @@
 .bridgeContactEmpty {
     padding: var(--space-lg) var(--space-md);
     text-align: center;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
 }
 
@@ -889,7 +889,7 @@
 }
 
 .bridgeContactName {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -921,7 +921,7 @@
 .bridgeChatHeaderHidden { display: none; }
 
 .bridgeChatHeaderName {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     font-weight: 600;
     color: var(--text);
 }
@@ -963,7 +963,7 @@
 .bridgeChatNoMsg {
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     padding: var(--space-xl) 0;
 }
 

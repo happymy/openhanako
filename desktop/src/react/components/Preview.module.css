@@ -85,7 +85,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
 }
 
 /* HTML 文件预览：外部网页访问交给内置浏览器，右侧面板只承载本地预览文档。 */
@@ -240,7 +240,7 @@
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     text-align: left;
     cursor: default;
 }
@@ -475,7 +475,7 @@
     background: transparent;
     border-right: 1px solid var(--overlay-light);
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
 }
 
 :global(.preview-editor .cm-activeLineGutter) {

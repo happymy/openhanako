@@ -7,7 +7,7 @@
 }
 
 .wechat-login-info {
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-secondary);
 }
 

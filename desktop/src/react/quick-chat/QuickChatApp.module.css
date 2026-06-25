@@ -48,7 +48,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 0.76rem;
+  font-size: var(--fs-caption);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -142,7 +142,7 @@
 
 .emptyTranscript {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: var(--fs-caption);
   line-height: 1.6;
 }
 

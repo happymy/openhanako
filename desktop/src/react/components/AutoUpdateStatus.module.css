@@ -2,7 +2,7 @@
   width: min(100%, 360px);
   margin-top: var(--space-xs);
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--fs-caption);
   line-height: 1.45;
 }
 

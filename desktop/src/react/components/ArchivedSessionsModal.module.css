@@ -81,7 +81,7 @@
 }
 
 .summaryText {
-  font-size: 0.75rem;
+  font-size: var(--fs-caption);
   color: var(--text-muted, rgba(0, 0, 0, 0.6));
   line-height: 1.45;
 }
@@ -99,7 +99,7 @@
   min-height: 32px;
   padding: 0 var(--space-md);
   cursor: default;
-  font-size: 0.78rem;
+  font-size: var(--fs-caption);
   color: var(--text, inherit);
   font-family: inherit;
   transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) ease;
@@ -131,7 +131,7 @@
   padding: var(--space-xl) var(--space-lg);
   text-align: center;
   color: var(--text-muted, rgba(0, 0, 0, 0.5));
-  font-size: 0.75rem;
+  font-size: var(--fs-caption);
 }
 
 .row {
@@ -186,7 +186,7 @@
   min-height: 32px;
   padding: 0 var(--space-md);
   cursor: default;
-  font-size: 0.78rem;
+  font-size: var(--fs-caption);
   color: var(--text, inherit);
   font-family: inherit;
   transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;

@@ -71,7 +71,7 @@
 }
 
 .avatarName {
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     letter-spacing: 0.02em;
 }
@@ -391,7 +391,7 @@
 .moodArrow {
     display: inline-block;
     font-style: normal;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     transition: transform var(--duration-fast) ease;
 }
 
@@ -404,7 +404,7 @@
     padding: var(--space-sm) var(--space-md);
     color: var(--text-muted);
     font-style: italic;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     line-height: 1.6;
     white-space: pre-wrap;
     border-left: 2px solid var(--mood-accent);
@@ -537,7 +537,7 @@
 
 .cronConfirmMeta {
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     white-space: nowrap;
 }
 
@@ -553,7 +553,7 @@
 .cronConfirmPrompt {
     margin-top: var(--space-xs);
     color: var(--text-light);
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     font-style: italic;
     line-height: 1.4;
 }
@@ -589,7 +589,7 @@
     background: var(--bg);
     color: var(--text);
     font: inherit;
-    font-size: 0.74rem;
+    font-size: var(--fs-caption);
     outline: none;
 }
 
@@ -624,7 +624,7 @@
     padding: 3px 12px;
     border: none;
     border-radius: var(--radius-sm);
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     font-family: inherit;
     cursor: default;
     transition: opacity var(--duration-fast);
@@ -645,7 +645,7 @@
 
 .cronConfirmStatus {
     margin-top: var(--space-xs);
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     font-style: italic;
 }
 
@@ -917,13 +917,13 @@
 
 .settingsConfirmDesc {
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     margin-top: 2px;
     line-height: 1.4;
 }
 
 .settingsConfirmNote {
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     margin-top: var(--space-sm);
 }
@@ -1241,7 +1241,7 @@
 .processFoldArrow {
     flex: 0 0 auto;
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     transition: transform var(--duration-fast) var(--ease-out);
 }
 
@@ -1284,7 +1284,7 @@
     align-items: center;
     gap: 0.5rem;
     min-width: 0;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--tool-text);
     padding: 0.2rem 0;
     line-height: 1.5;
@@ -1408,7 +1408,7 @@
 .thinkingBlockArrow {
     display: inline-block;
     font-style: normal;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     transition: transform var(--duration-fast) ease;
 }
 
@@ -1421,7 +1421,7 @@
     padding: var(--space-sm) var(--space-md);
     color: var(--text-muted);
     font-style: italic;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     line-height: 1.6;
     white-space: pre-wrap;
     border-left: 2px solid var(--border);
@@ -1708,7 +1708,7 @@
 
 .imageOutputName {
     padding: 0.35rem 0.2rem 0;
-    font-size: 0.78rem;
+    font-size: var(--fs-caption);
     color: var(--text-muted);
     text-align: center;
     white-space: nowrap;
@@ -1875,7 +1875,7 @@
 .loadMoreHint {
     text-align: center;
     padding: 0.5rem 0;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     color: var(--text-tertiary, #999);
     min-height: 1.5rem;
 }
@@ -1959,7 +1959,7 @@
     border: none;
     color: var(--text-muted);
     cursor: default;
-    font-size: 0.75rem;
+    font-size: var(--fs-caption);
     padding: 2px 6px;
     border-radius: 4px;
     flex-shrink: 0;
