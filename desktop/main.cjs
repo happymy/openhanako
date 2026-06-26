@@ -4662,6 +4662,14 @@ app.whenReady().then(async () => {
     const migratedSetupComplete = await migrateSetupCompleteViaServerIfNeeded();
     if (isSetupComplete() || migratedSetupComplete) {
       // 已完成配置：直接创建主窗口
+      if (process.platform === "win32") {
+        markGpuStartupPhase({
+          hanakoHome,
+          platform: process.platform,
+          phase: "main-window-starting",
+          startupId: desktopStartupId,
+        });
+      }
       createMainWindow();
       registerQuickChatShortcutBestEffort();
       if (process.platform === "win32") {
@@ -4675,6 +4683,14 @@ app.whenReady().then(async () => {
     } else if (hasExistingConfig()) {
       // 老用户：已有 api_key，跳过填写直接看教程
       console.log("[desktop] 检测到已有配置，跳到教程页");
+      if (process.platform === "win32") {
+        markGpuStartupPhase({
+          hanakoHome,
+          platform: process.platform,
+          phase: "onboarding-window-starting",
+          startupId: desktopStartupId,
+        });
+      }
       createOnboardingWindow({ skipToTutorial: "1" });
       if (process.platform === "win32") {
         markGpuStartupPhase({
@@ -4687,6 +4703,14 @@ app.whenReady().then(async () => {
     } else {
       // 全新用户：完整 onboarding 向导
       console.log("[desktop] 首次启动，显示 Onboarding 向导");
+      if (process.platform === "win32") {
+        markGpuStartupPhase({
+          hanakoHome,
+          platform: process.platform,
+          phase: "onboarding-window-starting",
+          startupId: desktopStartupId,
+        });
+      }
       createOnboardingWindow();
       if (process.platform === "win32") {
         markGpuStartupPhase({

@@ -35,7 +35,7 @@ import type { FileRef } from '../../types/file-ref';
 import { openPreview } from '../../stores/preview-actions';
 import { replayLatestUserMessage } from '../../stores/message-turn-actions';
 import { selectIsStreamingSession, selectSelectedIdsBySession } from '../../stores/session-selectors';
-import { extractSelectedTexts } from '../../utils/message-text';
+import { extractSelectedTexts, extractTextBlockPlainText } from '../../utils/message-text';
 import { AgentAvatar, resolveAgentDisplayInfo } from '../../utils/agent-display';
 import { ScheduleEditor } from '../automation/ScheduleEditor';
 import { SelectWidget, type SelectOption } from '@/ui';
@@ -116,10 +116,7 @@ export const AssistantMessage = memo(function AssistantMessage({
         (b): b is ContentBlock & { type: 'text' } => b.type === 'text'
       );
       if (textBlocks.length === 0) return;
-      // eslint-disable-next-line no-restricted-syntax
-      const tmp = document.createElement('div');
-      tmp.innerHTML = textBlocks.map(b => b.html).join('\n');
-      text = tmp.innerText.trim();
+      text = extractTextBlockPlainText(textBlocks);
     }
     if (!text) return;
     navigator.clipboard.writeText(text).then(() => {

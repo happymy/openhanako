@@ -244,8 +244,13 @@ describe('SkillsPanel', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Mao' }));
     await screen.findByText('Writing Bundle');
 
+    fireEvent.click(screen.getByRole('button', { name: 'settings.skills.expandBundleAriaLabel' }));
+    expect(screen.getByText('reader')).toBeTruthy();
+
     fireEvent.click(screen.getByTestId('skill-bundle-toggle-writing-bundle'));
 
     await waitFor(() => expect(bundleToggled).toBe(true));
+    expect(screen.getByText('reader')).toBeTruthy();
+    expect(screen.queryByText('status.loading')).toBeNull();
   });
 });

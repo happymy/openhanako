@@ -316,7 +316,7 @@ function wrapFileTouchTool(tool, cwd, {
           origin,
           operation,
         }));
-        return appendSessionFileDetails(result, sessionFile);
+        return appendSessionFileDetails(result, sessionFile, absolutePath);
       } catch (err) {
         return appendRegistrationWarning(result, err);
       }
@@ -336,7 +336,7 @@ function addSessionFileParameters(parameters) {
       ...parameters.properties,
       fileId: {
         type: "string",
-        description: "SessionFile id from current_status/session_files or attached [SessionFile] context. Use this instead of path when fileId is available; it is resolved before path.",
+        description: "SessionFile id from current_status/session_files or attached [SessionFile] context. Use this for read/stat/copy access. Do not use fileId for write/edit; use writableLocalRef.path or an ordinary local path for modifications.",
       },
       sessionPath: {
         type: "string",
@@ -389,13 +389,28 @@ function wrapSessionFilePathTool(tool, { getSessionPath, resolveSessionFile }: {
   };
 }
 
-function appendSessionFileDetails(result, sessionFile) {
+function sessionFileRef(sessionFile) {
+  const fileId = sessionFile?.fileId || sessionFile?.id || null;
+  return fileId ? { kind: "session-file", fileId } : null;
+}
+
+function writableLocalRef(filePath) {
+  return typeof filePath === "string" && path.isAbsolute(filePath)
+    ? { kind: "local-file", path: filePath }
+    : null;
+}
+
+function appendSessionFileDetails(result, sessionFile, filePath = null) {
   if (!sessionFile) return result;
+  const sessionRef = sessionFileRef(sessionFile);
+  const writableRef = writableLocalRef(filePath);
   return {
     ...(result || {}),
     details: {
       ...(result?.details || {}),
       sessionFile,
+      ...(sessionRef ? { sessionFileRef: sessionRef } : {}),
+      ...(writableRef ? { writableLocalRef: writableRef } : {}),
     },
   };
 }

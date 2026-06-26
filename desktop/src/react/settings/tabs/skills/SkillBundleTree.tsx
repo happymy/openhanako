@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import type { SkillInfo } from '../../store';
 import { t } from '../../helpers';
 import { SkillRow } from './SkillRow';
@@ -39,6 +39,8 @@ interface SkillBundleTreeProps {
   onRemoveSkillFromBundles?: (skillName: string) => void;
   highlightedSkillName?: string | null;
   highlightedBundleId?: string | null;
+  expandedState?: Record<string, boolean>;
+  onExpandedStateChange?: (next: Record<string, boolean>) => void;
 }
 
 function skillDragType() {
@@ -96,8 +98,19 @@ export function SkillBundleTree({
   onRemoveSkillFromBundles,
   highlightedSkillName,
   highlightedBundleId,
+  expandedState,
+  onExpandedStateChange,
 }: SkillBundleTreeProps) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [internalExpanded, setInternalExpanded] = useState<Record<string, boolean>>({});
+  const expanded = expandedState ?? internalExpanded;
+  const setBundleExpanded = useCallback((bundleId: string, nextExpanded: boolean) => {
+    const next = { ...expanded, [bundleId]: nextExpanded };
+    if (expandedState) {
+      onExpandedStateChange?.(next);
+    } else {
+      setInternalExpanded(next);
+    }
+  }, [expanded, expandedState, onExpandedStateChange]);
   const skillByName = useMemo(() => new Map(skills.map(skill => [skill.name, skill])), [skills]);
   const bundledNames = useMemo(() => new Set(bundles.flatMap(bundle => bundle.skillNames)), [bundles]);
   const looseSkills = skills.filter(skill => !bundledNames.has(skill.name));
@@ -210,7 +223,7 @@ export function SkillBundleTree({
                   type="button"
                   aria-label={isExpanded ? t('settings.skills.collapseBundleAriaLabel') : t('settings.skills.expandBundleAriaLabel')}
                   title={isExpanded ? t('settings.skills.collapseBundleAriaLabel') : t('settings.skills.expandBundleAriaLabel')}
-                  onClick={() => setExpanded(prev => ({ ...prev, [bundle.id]: !isExpanded }))}
+                  onClick={() => setBundleExpanded(bundle.id, !isExpanded)}
                 >
                   {isExpanded ? '⌄' : '›'}
                 </button>

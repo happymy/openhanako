@@ -101,6 +101,48 @@ function normalizeModels(value: any) {
   return models;
 }
 
+function modelIdOf(model: any) {
+  return typeof model === "object" && model !== null ? model.id : model;
+}
+
+function mergeModelEntries(base: any, overlay: any) {
+  const baseIsObject = isPlainObject(base);
+  const overlayIsObject = isPlainObject(overlay);
+  const id = String(modelIdOf(overlay) || modelIdOf(base) || "").trim();
+  if (!id) return null;
+  if (!baseIsObject && !overlayIsObject) return id;
+  return {
+    ...(baseIsObject ? cloneData(base) : { id }),
+    ...(overlayIsObject ? cloneData(overlay) : {}),
+    id,
+  };
+}
+
+export function mergeProviderModelEntries(baseModels: any, overlayModels: any) {
+  const base = normalizeModels(baseModels);
+  const overlay = normalizeModels(overlayModels);
+  if (base.length === 0) return overlay;
+  if (overlay.length === 0) return base;
+
+  const byId = new Map<string, any>();
+  const order: string[] = [];
+  for (const model of base) {
+    const id = String(modelIdOf(model) || "").trim();
+    if (!id) continue;
+    byId.set(id, model);
+    order.push(id);
+  }
+  for (const model of overlay) {
+    const id = String(modelIdOf(model) || "").trim();
+    if (!id) continue;
+    const merged = mergeModelEntries(byId.get(id), model);
+    if (!merged) continue;
+    if (!byId.has(id)) order.push(id);
+    byId.set(id, merged);
+  }
+  return order.map((id) => byId.get(id)).filter(Boolean);
+}
+
 function normalizeCapabilities(config: Record<string, any>) {
   const capabilities = isPlainObject(config.capabilities) ? cloneData(config.capabilities) : {};
   if (isPlainObject(config.media)) {
@@ -170,10 +212,14 @@ export function providerPluginToCatalogDefinition(plugin: any) {
 
 export function splitLocalProviderConfig(providerId: string, config: Record<string, any>, existingPlugin: any = null) {
   const raw = isPlainObject(config) ? cloneData(config) : {};
-  const existingDefinition = existingPlugin ? providerPluginToCatalogDefinition(existingPlugin) : {};
+  const existingDefinition: Record<string, any> = existingPlugin ? providerPluginToCatalogDefinition(existingPlugin) : {};
+  const definitionFields = pickProviderDefinitionFields(raw);
+  if (hasOwn(existingDefinition, "models") || hasOwn(definitionFields, "models")) {
+    definitionFields.models = mergeProviderModelEntries(existingDefinition.models, definitionFields.models);
+  }
   const plugin = normalizeLocalProviderPlugin(providerId, {
     ...existingDefinition,
-    ...pickProviderDefinitionFields(raw),
+    ...definitionFields,
   });
   const overlay: Record<string, any> = {};
   for (const [key, value] of Object.entries(raw)) {
