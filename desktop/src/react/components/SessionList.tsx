@@ -1514,13 +1514,12 @@ const SessionItem = memo(function SessionItem({ session: s, isActive, isPending,
 
   const handleArchive = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isDeletedAgentSession) return;
     archiveSession(s.path);
-  }, [isDeletedAgentSession, s.path]);
+  }, [s.path]);
 
   const handlePin = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isDeletedAgentSession) return;
+    if (isDeletedAgentSession && !isPinned) return;
     pinSession(s.path, !isPinned);
   }, [isDeletedAgentSession, s.path, isPinned]);
 
@@ -1664,22 +1663,20 @@ const SessionItem = memo(function SessionItem({ session: s, isActive, isPending,
               {rcLabel}
             </div>
           )}
-          {!isDeletedAgentSession && (
-            <div className={styles.sessionItemActions} data-session-actions="">
-              {!editing && (
-                <div className={styles.sessionPinBtn} title={t(isPinned ? 'session.unpin' : 'session.pin')} onClick={handlePin}>
-                  <PinIcon />
-                </div>
-              )}
-              <div className={styles.sessionArchiveBtn} title={t('session.archive')} onClick={handleArchive}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="21 8 21 21 3 21 3 8" />
-                  <rect x="1" y="3" width="22" height="5" />
-                  <line x1="10" y1="12" x2="14" y2="12" />
-                </svg>
+          <div className={styles.sessionItemActions} data-session-actions="">
+            {!editing && (!isDeletedAgentSession || isPinned) && (
+              <div className={styles.sessionPinBtn} title={t(isPinned ? 'session.unpin' : 'session.pin')} onClick={handlePin}>
+                <PinIcon />
               </div>
+            )}
+            <div className={styles.sessionArchiveBtn} title={t('session.archive')} onClick={handleArchive}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="21 8 21 21 3 21 3 8" />
+                <rect x="1" y="3" width="22" height="5" />
+                <line x1="10" y1="12" x2="14" y2="12" />
+              </svg>
             </div>
-          )}
+          </div>
         </div>
 
         {!isSingleLine && (
@@ -1751,7 +1748,20 @@ const SessionContextMenu = memo(function SessionContextMenu({
       disabled: session.hasSummary !== true,
       action: () => onShowSummary(position),
     }];
-    if (session.agentDeleted === true) return menuItems;
+    if (session.agentDeleted === true) {
+      if (isPinned) {
+        menuItems.push({
+          label: t('session.unpin'),
+          action: () => pinSession(session.path, false),
+        });
+      }
+      menuItems.push({
+        label: t('session.archive'),
+        danger: true,
+        action: () => archiveSession(session.path),
+      });
+      return menuItems;
+    }
     menuItems.push({
       label: t(isPinned ? 'session.unpin' : 'session.pin'),
       action: () => pinSession(session.path, !isPinned),

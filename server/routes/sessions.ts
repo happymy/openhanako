@@ -169,6 +169,10 @@ function bodyFromRouteError(err) {
   return {
     error: err?.message || String(err),
     ...(err?.code ? { code: err.code } : {}),
+    ...(err?.sessionId ? { sessionId: err.sessionId } : {}),
+    ...(err?.currentPath ? { currentPath: err.currentPath } : {}),
+    ...(err?.requestedPath ? { requestedPath: err.requestedPath } : {}),
+    ...(err?.lifecycle ? { lifecycle: err.lifecycle } : {}),
   };
 }
 
@@ -676,6 +680,61 @@ export function createSessionsRoute(engine, hub = null) {
     return c.json({ error: "agent_deleted", reason: "agent_deleted" }, 409);
   }
 
+  function normalizeRequestSessionId(value) {
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  }
+
+  function resolveSessionLocatorFromBody(body, operation) {
+    const sessionId = normalizeRequestSessionId(body?.sessionId);
+    const legacySessionPath = typeof body?.path === "string" && body.path.trim()
+      ? body.path
+      : typeof body?.sessionPath === "string" && body.sessionPath.trim()
+        ? body.sessionPath
+        : null;
+
+    if (sessionId) {
+      const manifest = engine.getSessionManifest?.(sessionId) || null;
+      const sessionPath = manifest?.currentLocator?.path || null;
+      if (!sessionPath) {
+        throw routeError(`${operation}: session manifest not found`, "session_manifest_not_found", 404);
+      }
+      if (legacySessionPath && path.resolve(legacySessionPath) !== path.resolve(sessionPath)) {
+        const err: any = routeError(
+          `${operation}: supplied path does not match the current session locator`,
+          "session_locator_mismatch",
+          409,
+        );
+        err.sessionId = sessionId;
+        err.requestedPath = legacySessionPath;
+        err.currentPath = sessionPath;
+        err.lifecycle = manifest.lifecycle || null;
+        throw err;
+      }
+      return { sessionId, sessionPath, manifest };
+    }
+
+    if (!legacySessionPath) {
+      throw routeError(`${operation}: sessionId or path is required`, "session_locator_required", 400);
+    }
+    const resolvedSessionId = normalizeRequestSessionId(engine.getSessionIdForPath?.(legacySessionPath));
+    const manifest = resolvedSessionId ? engine.getSessionManifest?.(resolvedSessionId) || null : null;
+    return { sessionId: resolvedSessionId, sessionPath: legacySessionPath, manifest };
+  }
+
+  function assertManifestLifecycle(ref, lifecycle, operation) {
+    if (!ref?.manifest?.lifecycle) return;
+    if (ref.manifest.lifecycle === lifecycle) return;
+    const err: any = routeError(
+      `${operation}: session lifecycle is ${ref.manifest.lifecycle}, expected ${lifecycle}`,
+      "session_lifecycle_mismatch",
+      409,
+    );
+    err.sessionId = ref.sessionId || ref.manifest.sessionId || null;
+    err.currentPath = ref.manifest.currentLocator?.path || null;
+    err.lifecycle = ref.manifest.lifecycle;
+    throw err;
+  }
+
   function sessionFolderScopeResponse(scope) {
     return {
       ok: true,
@@ -875,25 +934,16 @@ export function createSessionsRoute(engine, hub = null) {
     try {
       const requestContext = createRequestContext(c, engine);
       const body = await safeJson(c);
-      const { sessionId, path: legacySessionPath, pinned } = body;
-      let sessionPath = typeof legacySessionPath === "string" ? legacySessionPath : null;
-      if (typeof sessionId === "string" && sessionId.trim()) {
-        const manifest = engine.getSessionManifest?.(sessionId.trim()) || null;
-        if (!manifest?.currentLocator?.path) {
-          return c.json({ error: "Session manifest not found", code: "session_manifest_not_found" }, 404);
-        }
-        sessionPath = manifest.currentLocator.path;
-      }
-      if (!sessionPath) {
-        return c.json({ error: t("error.missingParam", { param: "sessionId" }) }, 400);
-      }
+      const { pinned } = body;
+      const sessionRef = resolveSessionLocatorFromBody(body, "setSessionPinned");
+      const { sessionId, sessionPath } = sessionRef;
       if (typeof pinned !== "boolean") {
         return c.json({ error: t("error.missingParam", { param: "pinned" }) }, 400);
       }
       if (!isValidSessionPath(sessionPath, engine.agentsDir)) {
         return c.json({ error: "Invalid session path" }, 403);
       }
-      if (isDeletedAgentSessionPath(sessionPath)) {
+      if (isDeletedAgentSessionPath(sessionPath) && pinned === true) {
         return rejectDeletedAgentSession(c);
       }
       const auth = authorizeSessionRoute(requestContext, "sessions.write", {
@@ -908,7 +958,7 @@ export function createSessionsRoute(engine, hub = null) {
       }, pinned);
       return c.json({ ok: true, pinnedAt, sessionId: sessionId || engine.getSessionIdForPath?.(sessionPath) || null });
     } catch (err) {
-      return c.json({ error: err.message, code: err.code || undefined }, err.status || 500);
+      return c.json(bodyFromRouteError(err), statusFromRouteError(err));
     }
   });
 
@@ -1672,6 +1722,7 @@ export function createSessionsRoute(engine, hub = null) {
       const response = {
         ok: true,
         path: newSessionPath,
+        sessionId: result.sessionId || engine.getSessionIdForPath?.(newSessionPath) || null,
         cwd: result.cwd || engine.cwd || null,
         workspaceFolders: result.workspaceFolders || engine.getSessionWorkspaceFolders?.(newSessionPath) || [],
         authorizedFolders: result.authorizedFolders || engine.getSessionAuthorizedFolders?.(newSessionPath) || [],
@@ -1946,16 +1997,12 @@ export function createSessionsRoute(engine, hub = null) {
   route.post("/sessions/archive", async (c) => {
     try {
       const body = await safeJson(c);
-      const { path: sessionPath } = body;
-      if (!sessionPath) {
-        return c.json({ error: t("error.missingParam", { param: "path" }) }, 400);
-      }
+      const sessionRef = resolveSessionLocatorFromBody(body, "archiveSession");
+      assertManifestLifecycle(sessionRef, "active", "archiveSession");
+      const { sessionId, sessionPath } = sessionRef;
       // archive 是 lifecycle transition，只允许 active desktop session。
       if (!isActiveDesktopSessionPath(sessionPath, engine.agentsDir)) {
         return c.json({ error: "Invalid session path" }, 403);
-      }
-      if (isDeletedAgentSessionPath(sessionPath)) {
-        return rejectDeletedAgentSession(c);
       }
 
       // 从 session 路径推导归档目录（同 agent 的 sessions/archived/）
@@ -1977,11 +2024,14 @@ export function createSessionsRoute(engine, hub = null) {
         await cleanupSessionLifecycle([sessionPath, destPath], "parent session archived", { skipMemory: true });
 
         // 再从 engine 的 session map 中移除。
-        await engine.setSessionPinned(sessionPath, false);
+        await engine.setSessionPinned({
+          ...(sessionId ? { sessionId } : {}),
+          sessionPath,
+        }, false);
         await engine.closeSession(sessionPath);
 
         await fs.mkdir(archiveDir, { recursive: true });
-        await moveSessionLifecycleOrThrow({
+        const manifest = await moveSessionLifecycleOrThrow({
           fromPath: sessionPath,
           toPath: destPath,
           lifecycle: "archived",
@@ -2008,7 +2058,7 @@ export function createSessionsRoute(engine, hub = null) {
         const nowSec = Date.now() / 1000;
         await fs.utimes(destPath, nowSec, nowSec);
 
-        return c.json({ ok: true });
+        return c.json({ ok: true, sessionId: manifest.sessionId || sessionId || null, archivedPath: destPath });
       });
     } catch (err) {
       return c.json(bodyFromRouteError(err), statusFromRouteError(err));
@@ -2019,10 +2069,9 @@ export function createSessionsRoute(engine, hub = null) {
   route.post("/sessions/restore", async (c) => {
     try {
       const body = await safeJson(c);
-      const { path: sessionPath } = body;
-      if (!sessionPath) {
-        return c.json({ error: t("error.missingParam", { param: "path" }) }, 400);
-      }
+      const sessionRef = resolveSessionLocatorFromBody(body, "restoreSession");
+      assertManifestLifecycle(sessionRef, "archived", "restoreSession");
+      const { sessionId, sessionPath } = sessionRef;
       if (!isArchivedDesktopSessionPath(sessionPath, engine.agentsDir)) {
         return c.json({ error: "Invalid session path" }, 403);
       }
@@ -2057,8 +2106,9 @@ export function createSessionsRoute(engine, hub = null) {
 
         await fs.rename(sessionPath, destPath);
         moveSessionFileSidecarSync(sessionPath, destPath);
+        let manifest = null;
         try {
-          await moveSessionLifecycleOrThrow({
+          manifest = await moveSessionLifecycleOrThrow({
             fromPath: sessionPath,
             toPath: destPath,
             lifecycle: "active",
@@ -2074,7 +2124,7 @@ export function createSessionsRoute(engine, hub = null) {
           }
           throw err;
         }
-        return c.json({ ok: true, restoredPath: destPath });
+        return c.json({ ok: true, restoredPath: destPath, sessionId: manifest?.sessionId || sessionId || null });
       });
     } catch (err) {
       return c.json(bodyFromRouteError(err), statusFromRouteError(err));
@@ -2085,10 +2135,9 @@ export function createSessionsRoute(engine, hub = null) {
   route.post("/sessions/archived/delete", async (c) => {
     try {
       const body = await safeJson(c);
-      const { path: sessionPath } = body;
-      if (!sessionPath) {
-        return c.json({ error: t("error.missingParam", { param: "path" }) }, 400);
-      }
+      const sessionRef = resolveSessionLocatorFromBody(body, "deleteArchivedSession");
+      assertManifestLifecycle(sessionRef, "archived", "deleteArchivedSession");
+      const { sessionId, sessionPath } = sessionRef;
       if (!isArchivedDesktopSessionPath(sessionPath, engine.agentsDir)) {
         return c.json({ error: "Invalid session path" }, 403);
       }
@@ -2110,7 +2159,7 @@ export function createSessionsRoute(engine, hub = null) {
         }
         // 清理 titles.json 孤儿（key = 对应的活跃路径）
         try { await engine.clearSessionTitle(activeKey); } catch {}
-        return c.json({ ok: true });
+        return c.json({ ok: true, sessionId: sessionId || engine.getSessionIdForPath?.(sessionPath) || null });
       });
     } catch (err) {
       return c.json(bodyFromRouteError(err), statusFromRouteError(err));

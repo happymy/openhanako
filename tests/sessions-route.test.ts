@@ -1066,7 +1066,7 @@ describe("sessions route", () => {
     });
   });
 
-  it("rejects write operations against deleted-agent sessions", async () => {
+  it("rejects content/runtime writes but allows safe unpin for deleted-agent sessions", async () => {
     const { createSessionsRoute } = await import("../server/routes/sessions.ts");
     const app = new Hono();
     const deletedPath = "/tmp/agents/deleted/sessions/old.jsonl";
@@ -1087,6 +1087,11 @@ describe("sessions route", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: deletedPath, pinned: true }),
     });
+    const unpin = await app.request("/api/sessions/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: deletedPath, pinned: false }),
+    });
     const rename = await app.request("/api/sessions/rename", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1099,10 +1104,11 @@ describe("sessions route", () => {
     });
 
     expect(pin.status).toBe(409);
+    expect(unpin.status).toBe(200);
     expect(rename.status).toBe(409);
     expect(switchRes.status).toBe(409);
     expect(await pin.json()).toMatchObject({ error: "agent_deleted" });
-    expect(engine.setSessionPinned).not.toHaveBeenCalled();
+    expect(engine.setSessionPinned).toHaveBeenCalledWith({ sessionPath: deletedPath }, false);
     expect(engine.saveSessionTitle).not.toHaveBeenCalled();
     expect(engine.switchSession).not.toHaveBeenCalled();
   });
@@ -1331,6 +1337,7 @@ describe("sessions route", () => {
 
     expect(pinRes.status).toBe(200);
     expect(engine.setSessionPinned).toHaveBeenCalledWith({
+      sessionId: "sess_route_pin",
       sessionPath: "/tmp/agents/hana/sessions/a.jsonl",
     }, true);
     expect(pinData).toEqual({ ok: true, pinnedAt, sessionId: "sess_route_pin" });
@@ -1344,12 +1351,13 @@ describe("sessions route", () => {
 
     expect(unpinRes.status).toBe(200);
     expect(engine.setSessionPinned).toHaveBeenLastCalledWith({
+      sessionId: "sess_route_pin",
       sessionPath: "/tmp/agents/hana/sessions/a.jsonl",
     }, false);
     expect(unpinData).toEqual({ ok: true, pinnedAt: null, sessionId: "sess_route_pin" });
   });
 
-  it("pins sessions by sessionId and treats path as a legacy locator", async () => {
+  it("pins sessions by sessionId and rejects stale locator paths", async () => {
     const { createSessionsRoute } = await import("../server/routes/sessions.ts");
     const app = new Hono();
     const pinnedAt = "2026-04-29T08:00:00.000Z";
@@ -1368,12 +1376,29 @@ describe("sessions route", () => {
 
     app.route("/api", createSessionsRoute(engine));
 
-    const res = await app.request("/api/sessions/pin", {
+    const mismatch = await app.request("/api/sessions/pin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sessionId: "sess_route_pin",
         path: "/tmp/agents/hana/sessions/stale.jsonl",
+        pinned: true,
+      }),
+    });
+    const mismatchData = await mismatch.json();
+
+    expect(mismatch.status).toBe(409);
+    expect(mismatchData).toMatchObject({
+      code: "session_locator_mismatch",
+      sessionId: "sess_route_pin",
+      currentPath,
+    });
+
+    const res = await app.request("/api/sessions/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "sess_route_pin",
         pinned: true,
       }),
     });
@@ -1413,8 +1438,8 @@ describe("sessions route", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data).toEqual({ ok: true });
-    expect(engine.setSessionPinned).toHaveBeenCalledWith(sessionPath, false);
+    expect(data).toMatchObject({ ok: true, sessionId: "sess_archive" });
+    expect(engine.setSessionPinned).toHaveBeenCalledWith({ sessionPath }, false);
     expect(fs.existsSync(path.join(path.dirname(sessionPath), "archived", path.basename(sessionPath)))).toBe(true);
   });
 

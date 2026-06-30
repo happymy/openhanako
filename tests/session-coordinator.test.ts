@@ -3229,6 +3229,7 @@ describe("SessionCoordinator", () => {
     coordinator._freshCompactDeletedAgentContinuation = vi.fn(async () => {
       throw new Error("model unavailable");
     });
+    coordinator.setSessionPinned = vi.fn(async () => null);
     coordinator.discardSessionRuntime = vi.fn(async () => {});
     coordinator.getSessionWorkspaceFolders = vi.fn(() => []);
 
@@ -3245,6 +3246,7 @@ describe("SessionCoordinator", () => {
       content: [{ type: "text", text: "old hello" }],
     }));
     expect(coordinator.discardSessionRuntime).not.toHaveBeenCalled();
+    expect(coordinator.setSessionPinned).toHaveBeenCalledWith(sourcePath, false);
     expect(fs.existsSync(createdPath)).toBe(true);
   });
 
@@ -3288,6 +3290,7 @@ describe("SessionCoordinator", () => {
     }));
     coordinator.writeSessionMeta = vi.fn(async () => {});
     coordinator._freshCompactDeletedAgentContinuation = vi.fn(async () => {});
+    coordinator.setSessionPinned = vi.fn(async () => null);
     coordinator.discardSessionRuntime = vi.fn(async () => {});
     coordinator.getSessionWorkspaceFolders = vi.fn(() => []);
 
@@ -3297,6 +3300,7 @@ describe("SessionCoordinator", () => {
       role: "assistant",
       content: [{ type: "text", text: "[历史压缩摘要]\nold compacted context" }],
     }));
+    expect(coordinator.setSessionPinned).toHaveBeenCalledWith(sourcePath, false);
   });
 
   it("throws a typed 422 when a deleted-agent source session has no displayable transcript", async () => {

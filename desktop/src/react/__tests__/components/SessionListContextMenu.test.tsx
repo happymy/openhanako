@@ -213,6 +213,44 @@ describe('SessionList context menu', () => {
     expect(archiveSessionMock).toHaveBeenCalledWith('/tmp/agents/hana/sessions/with-summary.jsonl');
   });
 
+  it('allows deleted-agent sessions to unpin and archive without exposing rename or pin', async () => {
+    useStore.setState({
+      sessions: [{
+        path: '/tmp/agents/deleted/sessions/pinned.jsonl',
+        title: 'Deleted pinned',
+        firstMessage: 'old',
+        modified: '2026-04-29T08:00:00.000Z',
+        messageCount: 2,
+        agentId: 'deleted',
+        agentName: 'Deleted',
+        cwd: '/tmp/project',
+        pinnedAt: '2026-04-29T08:10:00.000Z',
+        hasSummary: false,
+        agentDeleted: true,
+      }],
+      currentSessionPath: null,
+      pendingSessionSwitchPath: null,
+      pendingNewSession: false,
+      agents: [],
+      streamingSessions: [],
+      unreadOutputSessionPaths: [],
+      browserBySession: {},
+      locale: 'zh',
+    });
+
+    render(<SessionList />);
+
+    fireEvent.contextMenu(sessionButton('Deleted pinned'), { clientX: 24, clientY: 32 });
+    expect(screen.queryByText('session.rename')).not.toBeInTheDocument();
+    expect(screen.queryByText('session.pin')).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByText('session.unpin'));
+    expect(pinSessionMock).toHaveBeenCalledWith('/tmp/agents/deleted/sessions/pinned.jsonl', false);
+
+    fireEvent.contextMenu(sessionButton('Deleted pinned'), { clientX: 24, clientY: 32 });
+    fireEvent.click(await screen.findByText('session.archive'));
+    expect(archiveSessionMock).toHaveBeenCalledWith('/tmp/agents/deleted/sessions/pinned.jsonl');
+  });
+
   it('closes a sidebar browser badge without switching the session row', async () => {
     const browserStates = {
       '/tmp/agents/hana/sessions/with-summary.jsonl': {

@@ -2031,10 +2031,12 @@ export class SessionCoordinator {
       } catch (error) {
         compactionError = error?.message || String(error);
       }
+      await this.setSessionPinned(sourceSessionPath, false);
       (manager as any)._rewriteFile?.();
       return {
         session,
         sessionPath: createdSessionPath,
+        sessionId: this._sessionIdForPath(createdSessionPath),
         agentId: targetAgent.id,
         agentName: targetAgent.agentName || targetAgent.name || targetAgent.id,
         cwd: manager.getCwd?.() || targetCwd,
@@ -4160,7 +4162,12 @@ export class SessionCoordinator {
    * title 的存储 key 仍是活跃路径——从 archived 路径反推活跃路径再查 titles.json。
    */
   async listArchivedSessions() {
-    const agents = this._d.listAgents();
+    const activeAgents = this._d.listAgents();
+    const deletedAgents = this._d.listDeletedAgents?.() || [];
+    const agents = [
+      ...activeAgents.map(agent => ({ ...agent, agentDeleted: false })),
+      ...deletedAgents.map(agent => ({ ...agent, agentDeleted: true })),
+    ];
     const perAgent = await Promise.all(agents.map(async (agent) => {
       const sessionDir = path.join(this._d.agentsDir, agent.id, "sessions");
       const archDir = path.join(sessionDir, "archived");
@@ -4174,13 +4181,36 @@ export class SessionCoordinator {
           try {
             const stat = await fsp.stat(full);
             const activeKey = path.join(sessionDir, f);
+            const archivedManifest = this._resolveSessionManifestForPath(full);
+            const activeManifest = archivedManifest ? null : this._resolveSessionManifestForPath(activeKey);
+            const manifest = archivedManifest
+              || (activeManifest?.sessionId && this._sessionManifestStore?.updateLocatorLifecycle
+                ? this._sessionManifestStore.updateLocatorLifecycle(
+                  activeManifest.sessionId,
+                  full,
+                  "archived",
+                  "archived_session_list_repair",
+                )
+                : null)
+              || this._ensureSessionManifestForPath(full, {
+                ownerAgentId: agent.id,
+                domain: "desktop",
+                kind: "chat",
+                lifecycle: "archived",
+                provenance: { createdBy: "archived_session_list_repair" },
+                locatorReason: "archived_session_list",
+              });
             return {
               path: full,
+              sessionId: manifest?.sessionId || null,
               title: this._sessionTitleFromMap(titles, full, [activeKey]) || null,
               archivedAt: stat.mtime.toISOString(),
               sizeBytes: stat.size,
               agentId: agent.id,
               agentName: agent.name,
+              agentDeleted: agent.agentDeleted === true,
+              readOnlyReason: agent.agentDeleted === true ? "agent_deleted" : null,
+              deletedAt: agent.deletedAt || null,
             };
           } catch {
             return null;

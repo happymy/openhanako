@@ -226,6 +226,79 @@ describe("archive route: mtime semantics", () => {
     }
   });
 
+  it("archives by sessionId and rejects a stale locator path", async () => {
+    const store = new SessionManifestStore({
+      dbPath: path.join(tmpDir, "session-manifest.db"),
+      idGenerator: () => "sess_archive_by_id",
+      now: () => "2026-06-25T01:00:00.000Z",
+    });
+    try {
+      const src = path.join(tmpDir, "agents", "a", "sessions", "s1.jsonl");
+      const dest = path.join(tmpDir, "agents", "a", "sessions", "archived", "s1.jsonl");
+      store.createForPath({
+        sessionPath: src,
+        ownerAgentId: "a",
+        domain: "desktop",
+        kind: "chat",
+        lifecycle: "active",
+      });
+      attachManifestStore(engine, store);
+
+      const mismatch = await app.request("/api/sessions/archive", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "sess_archive_by_id",
+          path: path.join(path.dirname(src), "stale.jsonl"),
+        }),
+      });
+      expect(mismatch.status).toBe(409);
+      await expect(mismatch.json()).resolves.toMatchObject({
+        code: "session_locator_mismatch",
+        sessionId: "sess_archive_by_id",
+        currentPath: path.resolve(src),
+      });
+
+      const res = await app.request("/api/sessions/archive", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: "sess_archive_by_id" }),
+      });
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body).toMatchObject({
+        ok: true,
+        sessionId: "sess_archive_by_id",
+        archivedPath: dest,
+      });
+      expect(fs.existsSync(dest)).toBe(true);
+    } finally {
+      store.close();
+    }
+  });
+
+  it("archives deleted-agent sessions as lifecycle metadata", async () => {
+    const deletedSrc = path.join(tmpDir, "agents", "deleted", "sessions", "old.jsonl");
+    const deletedDest = path.join(tmpDir, "agents", "deleted", "sessions", "archived", "old.jsonl");
+    fs.mkdirSync(path.dirname(deletedSrc), { recursive: true });
+    fs.writeFileSync(deletedSrc, "{}\n");
+    engine.agentIdFromSessionPath = vi.fn((sessionPath) => (
+      path.relative(path.join(tmpDir, "agents"), sessionPath).split(path.sep)[0] || null
+    ));
+    engine.isAgentDeleted = vi.fn((agentId) => agentId === "deleted");
+
+    const res = await app.request("/api/sessions/archive", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: deletedSrc }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(fs.existsSync(deletedDest)).toBe(true);
+    expect(engine.setSessionPinned).toHaveBeenCalledWith({ sessionPath: deletedSrc }, false);
+  });
+
   it("aborts parent tasks and suppresses deferred delivery before moving the active session", async () => {
     const src = path.join(tmpDir, "agents", "a", "sessions", "s1.jsonl");
     const dest = path.join(tmpDir, "agents", "a", "sessions", "archived", "s1.jsonl");
@@ -438,6 +511,55 @@ describe("POST /api/sessions/restore", () => {
     }
   });
 
+  it("restores by sessionId and rejects a stale locator path", async () => {
+    const store = new SessionManifestStore({
+      dbPath: path.join(tmpDir, "session-manifest.db"),
+      idGenerator: () => "sess_restore_by_id",
+      now: () => "2026-06-25T01:00:00.000Z",
+    });
+    try {
+      store.createForPath({
+        sessionPath: archSrc,
+        ownerAgentId: "a",
+        domain: "desktop",
+        kind: "chat",
+        lifecycle: "archived",
+      });
+      attachManifestStore(engine, store);
+
+      const stalePath = path.join(path.dirname(archSrc), "stale.jsonl");
+      const mismatch = await app.request("/api/sessions/restore", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: "sess_restore_by_id", path: stalePath }),
+      });
+      expect(mismatch.status).toBe(409);
+      await expect(mismatch.json()).resolves.toMatchObject({
+        code: "session_locator_mismatch",
+        sessionId: "sess_restore_by_id",
+        currentPath: path.resolve(archSrc),
+        requestedPath: stalePath,
+      });
+
+      const res = await app.request("/api/sessions/restore", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: "sess_restore_by_id" }),
+      });
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body).toMatchObject({
+        ok: true,
+        restoredPath: activeDest,
+        sessionId: "sess_restore_by_id",
+      });
+      expect(fs.existsSync(activeDest)).toBe(true);
+    } finally {
+      store.close();
+    }
+  });
+
   it("repairs an active header-only split state before restore", async () => {
     fs.writeFileSync(activeDest, JSON.stringify({
       type: "session",
@@ -535,6 +657,51 @@ describe("POST /api/sessions/archived/delete", () => {
     expect(fs.existsSync(archPath)).toBe(false);
     expect(fs.existsSync(`${archPath}.files.json`)).toBe(false);
     expect(engine.clearSessionTitle).toHaveBeenCalledWith(activeKey);
+  });
+
+  it("deletes archived sessions by sessionId and validates stale paths", async () => {
+    const store = new SessionManifestStore({
+      dbPath: path.join(tmpDir, "session-manifest.db"),
+      idGenerator: () => "sess_delete_by_id",
+      now: () => "2026-06-25T01:00:00.000Z",
+    });
+    try {
+      store.createForPath({
+        sessionPath: archPath,
+        ownerAgentId: "a",
+        domain: "desktop",
+        kind: "chat",
+        lifecycle: "archived",
+      });
+      attachManifestStore(engine, store);
+
+      const mismatch = await app.request("/api/sessions/archived/delete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "sess_delete_by_id",
+          path: path.join(path.dirname(archPath), "other.jsonl"),
+        }),
+      });
+      expect(mismatch.status).toBe(409);
+      await expect(mismatch.json()).resolves.toMatchObject({
+        code: "session_locator_mismatch",
+        sessionId: "sess_delete_by_id",
+      });
+
+      const res = await app.request("/api/sessions/archived/delete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: "sess_delete_by_id" }),
+      });
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body).toMatchObject({ ok: true, sessionId: "sess_delete_by_id" });
+      expect(fs.existsSync(archPath)).toBe(false);
+    } finally {
+      store.close();
+    }
   });
 
   it("discards active and archived runtime state before permanent delete", async () => {
