@@ -45,6 +45,49 @@ describe("exec_command tools", () => {
     });
   });
 
+  it("routes Windows one-shot commands through commandExec and decodes GBK output without PI bash", async () => {
+    const gbkCopyText = Buffer.from([0xb8, 0xb4, 0xd6, 0xc6]);
+    const bashTool = { execute: vi.fn() };
+    const commandExec = vi.fn(async (_command, _cwd, opts = {}) => {
+      opts.onData(gbkCopyText);
+      return { exitCode: 1 };
+    });
+    const [execCommand] = createExecCommandTools({
+      bashTool,
+      commandExec,
+      getCwd: () => "/tmp/work",
+      platform: "win32",
+    });
+
+    const result: any = await execCommand.execute("call-gbk", {
+      cmd: "copy C:\\missing.txt C:\\target\\",
+      max_output_tokens: 1000,
+    }, null, null, makeCtx());
+
+    expect(bashTool.execute).not.toHaveBeenCalled();
+    expect(commandExec).toHaveBeenCalledWith(
+      "copy C:\\missing.txt C:\\target\\",
+      expect.any(String),
+      expect.objectContaining({
+        timeout: undefined,
+        signal: null,
+        onData: expect.any(Function),
+      }),
+    );
+    expect(result.content[0].text).toContain("复制");
+    expect(result.content[0].text).not.toContain("�");
+    expect(result.details).toMatchObject({
+      outputEncoding: "gbk",
+      outputTranscoded: true,
+      execCommand: {
+        ok: false,
+        exitCode: 1,
+        errorCode: "EXEC_COMMAND_EXIT_NONZERO",
+        shell: "powershell",
+      },
+    });
+  });
+
   it("starts tty processes through the terminal manager and write_stdin writes to the same process id", async () => {
     const manager = {
       start: vi.fn(async (input) => ({ ...input, terminalId: "term_1", status: "running", seq: 0, output: "" })),

@@ -8,6 +8,11 @@ const mkdirSync = vi.fn();
 const statSync = vi.fn<(...args: any[]) => any>(() => ({ isDirectory: () => true }));
 const spawnSync = vi.fn<(...args: any[]) => { status: number; stdout: string; stderr: string }>(() => ({ status: 1, stdout: "", stderr: "" }));
 const systemCmdExe = "C:\\Windows\\System32\\cmd.exe";
+const powershellUtf8Prelude = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [Console]::OutputEncoding";
+
+function withPowerShellUtf8Prelude(command: string) {
+  return `${powershellUtf8Prelude}; ${command}`;
+}
 
 vi.mock("../lib/sandbox/exec-helper.js", () => ({
   spawnAndStream,
@@ -186,7 +191,7 @@ describe("createWin32Exec", () => {
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        'Write-Output "name"',
+        withPowerShellUtf8Prelude('Write-Output "name"'),
       ],
       expect.objectContaining({
         cwd: "C:\\work",
@@ -198,7 +203,7 @@ describe("createWin32Exec", () => {
     );
   });
 
-  it("routes PowerShell script files through -File with argv", async () => {
+  it("routes PowerShell script files through a UTF-8 -Command wrapper with argv", async () => {
     classifyWin32Command.mockReturnValue({ runner: "powershell-file", reason: "powershell-script-file" });
     const powerShellExe = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
     const createWin32Exec = await loadExecFactory();
@@ -218,10 +223,8 @@ describe("createWin32Exec", () => {
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
-        "-File",
-        "C:\\work\\run tests.ps1",
-        "-Name",
-        "Hana",
+        "-Command",
+        withPowerShellUtf8Prelude("& 'C:\\work\\run tests.ps1' '-Name' 'Hana'"),
       ],
       expect.objectContaining({ cwd: "C:\\work" })
     );
@@ -248,7 +251,7 @@ describe("createWin32Exec", () => {
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        "$PSVersionTable.PSVersion",
+        withPowerShellUtf8Prelude("$PSVersionTable.PSVersion"),
       ],
       expect.objectContaining({ cwd: "C:\\work" })
     );
@@ -284,7 +287,7 @@ describe("createWin32Exec", () => {
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        "Write-Output 1",
+        withPowerShellUtf8Prelude("Write-Output 1"),
       ],
       expect.objectContaining({ cwd: "C:\\work" })
     );

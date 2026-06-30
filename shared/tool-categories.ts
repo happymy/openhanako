@@ -13,6 +13,8 @@
 //   OPTIONAL — User-toggleable in AgentTab → Tools section. Some may default off.
 //   GLOBAL   — Built-in, but governed by a global high-permission setting page
 //              rather than per-agent tool toggles.
+//   LEGACY_INTERNAL — Known retired/internal transports kept for replay or direct
+//                     unit coverage. Never registered into the Agent tool surface.
 //
 // Plugin-contributed tools (flagged with _pluginId) are NOT part of this
 // categorization. Plugin lifecycle is managed by PluginsTab. A plugin-backed
@@ -47,6 +49,10 @@ export const STANDARD_TOOL_NAMES = [
 
 export const GLOBAL_TOOL_NAMES = [
   "computer",
+];
+
+export const LEGACY_INTERNAL_TOOL_NAMES = [
+  "terminal",
 ];
 
 export const OPTIONAL_TOOL_NAMES = [
@@ -134,6 +140,7 @@ export function assertAllToolsCategorized(actualToolNames) {
     ...CORE_TOOL_NAMES,
     ...STANDARD_TOOL_NAMES,
     ...GLOBAL_TOOL_NAMES,
+    ...LEGACY_INTERNAL_TOOL_NAMES,
     ...OPTIONAL_TOOL_NAMES,
   ]);
   const missing = actualToolNames.filter((n) => !categorized.has(n));

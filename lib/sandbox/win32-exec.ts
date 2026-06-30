@@ -767,6 +767,69 @@ function powerShellBaseArgs() {
   return ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass"];
 }
 
+const POWERSHELL_UTF8_PRELUDE =
+  "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " +
+  "$OutputEncoding = [Console]::OutputEncoding";
+
+function quotePowerShellSingleArg(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function withPowerShellUtf8Prelude(command) {
+  const raw = String(command || "");
+  return raw.trim()
+    ? `${POWERSHELL_UTF8_PRELUDE}; ${raw}`
+    : POWERSHELL_UTF8_PRELUDE;
+}
+
+function isPowerShellCommandFlag(value) {
+  const flag = String(value || "").toLowerCase();
+  return flag === "-command" || flag === "/command" || flag === "-c";
+}
+
+function isPowerShellEncodedCommandFlag(value) {
+  const flag = String(value || "").toLowerCase();
+  return flag === "-encodedcommand" || flag === "/encodedcommand" || flag === "-enc";
+}
+
+function isPowerShellFileFlag(value) {
+  const flag = String(value || "").toLowerCase();
+  return flag === "-file" || flag === "/file";
+}
+
+function powerShellFileInvocation(script, args) {
+  const scriptPart = quotePowerShellSingleArg(script);
+  const argPart = args.map((arg) => quotePowerShellSingleArg(arg)).join(" ");
+  return `& ${scriptPart}${argPart ? ` ${argPart}` : ""}`;
+}
+
+function powerShellArgsWithUtf8Prelude(args) {
+  if (args.some(isPowerShellEncodedCommandFlag)) return args;
+
+  const commandIndex = args.findIndex(isPowerShellCommandFlag);
+  if (commandIndex >= 0) {
+    if (commandIndex + 1 >= args.length) return args;
+    const next = [...args];
+    next[commandIndex + 1] = withPowerShellUtf8Prelude(next[commandIndex + 1]);
+    return next;
+  }
+
+  const fileIndex = args.findIndex(isPowerShellFileFlag);
+  if (fileIndex >= 0) {
+    if (fileIndex + 1 >= args.length) return args;
+    const before = args.slice(0, fileIndex);
+    const script = args[fileIndex + 1];
+    const scriptArgs = args.slice(fileIndex + 2);
+    return [
+      ...before,
+      "-Command",
+      withPowerShellUtf8Prelude(powerShellFileInvocation(script, scriptArgs)),
+    ];
+  }
+
+  return args;
+}
+
 function resolvePowerShellExecutable(token, env = process.env) {
   return resolveWin32PowerShellExecutable(token, env, {
     resolveOnPath: (commandName) => firstPathResult(commandName, env),
@@ -790,7 +853,7 @@ function parsePowerShellCommand(command, env) {
   }
   return {
     executable: resolvePowerShellExecutable(token, env),
-    args: [...powerShellBaseArgs(), ...args.slice(1)],
+    args: powerShellArgsWithUtf8Prelude([...powerShellBaseArgs(), ...args.slice(1)]),
   };
 }
 
@@ -802,14 +865,22 @@ function parsePowerShellFileCommand(command, env) {
   }
   return {
     executable: resolveDefaultPowerShellExecutable(env),
-    args: [...powerShellBaseArgs(), "-File", script, ...args.slice(1)],
+    args: [
+      ...powerShellBaseArgs(),
+      "-Command",
+      withPowerShellUtf8Prelude(powerShellFileInvocation(script, args.slice(1))),
+    ],
   };
 }
 
 function parseDefaultPowerShellCommand(command, env) {
   return {
     executable: resolveDefaultPowerShellExecutable(env),
-    args: [...powerShellBaseArgs(), "-Command", normalizeBackslashEscapedDoubleQuotes(command)],
+    args: [
+      ...powerShellBaseArgs(),
+      "-Command",
+      withPowerShellUtf8Prelude(normalizeBackslashEscapedDoubleQuotes(command)),
+    ],
   };
 }
 

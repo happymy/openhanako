@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   CORE_TOOL_NAMES,
   GLOBAL_TOOL_NAMES,
+  LEGACY_INTERNAL_TOOL_NAMES,
   STANDARD_TOOL_NAMES,
   OPTIONAL_TOOL_NAMES,
   assertAllToolsCategorized,
@@ -14,17 +15,24 @@ describe("tool-categories constants", () => {
     const core = new Set(CORE_TOOL_NAMES);
     const standard = new Set(STANDARD_TOOL_NAMES);
     const global = new Set(GLOBAL_TOOL_NAMES);
+    const legacyInternal = new Set(LEGACY_INTERNAL_TOOL_NAMES);
     const optional = new Set(OPTIONAL_TOOL_NAMES);
     for (const name of core) {
       expect(standard.has(name)).toBe(false);
       expect(global.has(name)).toBe(false);
+      expect(legacyInternal.has(name)).toBe(false);
       expect(optional.has(name)).toBe(false);
     }
     for (const name of standard) {
       expect(global.has(name)).toBe(false);
+      expect(legacyInternal.has(name)).toBe(false);
       expect(optional.has(name)).toBe(false);
     }
     for (const name of global) {
+      expect(legacyInternal.has(name)).toBe(false);
+      expect(optional.has(name)).toBe(false);
+    }
+    for (const name of legacyInternal) {
       expect(optional.has(name)).toBe(false);
     }
   });
@@ -48,7 +56,14 @@ describe("tool-categories constants", () => {
   it("uses Codex-style command tools as the core Agent command surface", () => {
     expect(CORE_TOOL_NAMES).toEqual(expect.arrayContaining(["exec_command", "write_stdin"]));
     expect(CORE_TOOL_NAMES).not.toContain("bash");
+    expect(CORE_TOOL_NAMES).not.toContain("terminal");
     expect(STANDARD_TOOL_NAMES).not.toContain("terminal");
+  });
+
+  it("keeps retired transports categorized without re-exposing them to agents", () => {
+    expect(new Set(LEGACY_INTERNAL_TOOL_NAMES)).toEqual(new Set(["terminal"]));
+    expect(OPTIONAL_TOOL_NAMES).not.toContain("terminal");
+    expect(GLOBAL_TOOL_NAMES).not.toContain("terminal");
   });
 
   it("GLOBAL_TOOL_NAMES is exactly the global setting governed whitelist", () => {

@@ -11,7 +11,7 @@ import { detectPlatform, checkAvailability } from "./platform.ts";
 import { createSeatbeltExec } from "./seatbelt.ts";
 import { createBwrapExec } from "./bwrap.ts";
 import { createWin32Exec } from "./win32-exec.ts";
-import { wrapBashTool } from "./tool-wrapper.ts";
+import { wrapBashTool, wrapCommandExec } from "./tool-wrapper.ts";
 import { createEnhancedReadFile } from "./read-enhanced.ts";
 import { wrapReadImageWithVisionBridge } from "./read-image-vision.ts";
 import { wrapReadOfficeMedia } from "./read-office-media.ts";
@@ -200,8 +200,9 @@ export function createSandboxedTools(cwd, customTools, {
     emitEvent,
     withResourceTarget: resourceOps.withResourceTarget,
   });
-  const createExecToolsForBash = (bashTool) => createExecCommandTools({
+  const createExecToolsForBash = (bashTool, commandExec = null) => createExecCommandTools({
     bashTool,
+    commandExec,
     getTerminalSessionManager,
     getAgentId,
     getCwd: () => cwd,
@@ -210,26 +211,32 @@ export function createSandboxedTools(cwd, customTools, {
 
   // ── Windows: PathGuard 包装 + restricted-token exec，关闭沙盒时走 direct fallback ──
   if (platform === "win32-restricted-token") {
+    const directWin32Exec = createWin32Exec();
+    const sandboxedWin32Exec = (command, execCwd, execOpts) => createWin32Exec({
+      sandbox: {
+        policy: makePolicy(),
+        hanakoHome,
+        getExternalReadPaths,
+        getSandboxNetworkEnabled: resolveSandboxNetworkEnabled,
+        legacyCleanupQueue,
+      },
+    })(command, execCwd, execOpts);
     const sandboxedBashTool = createBashTool(cwd, {
       operations: {
-        exec: ((command, execCwd, execOpts) => createWin32Exec({
-          sandbox: {
-            policy: makePolicy(),
-            hanakoHome,
-            getExternalReadPaths,
-            getSandboxNetworkEnabled: resolveSandboxNetworkEnabled,
-            legacyCleanupQueue,
-          },
-        })(command, execCwd, execOpts)) as any,
+        exec: sandboxedWin32Exec as any,
       },
     });
     const wrappedBashTool = wrapBashTool(sandboxedBashTool, guard, cwd, bashWrapOpts);
+    const wrappedWin32Exec = wrapCommandExec(sandboxedWin32Exec, guard, cwd, {
+      ...bashWrapOpts,
+      fallbackExec: directWin32Exec,
+    });
     return {
       tools: buildResourceIoFileTools([
         readTool,
         writeToolWithResourceIO,
         editTool,
-        ...createExecToolsForBash(wrappedBashTool),
+        ...createExecToolsForBash(wrappedBashTool, wrappedWin32Exec),
         createGrepTool(cwd, { operations: resourceOps.grep }),
         createFindTool(cwd, { operations: resourceOps.find }),
         createLsTool(cwd, { operations: resourceOps.ls }),

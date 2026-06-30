@@ -8,11 +8,12 @@ import {
   normalizeWriteStdinParams,
   textResult,
 } from "./schema.ts";
-import { runExecCommandOnce, startExecCommandTty } from "./runner.ts";
+import { runExecCommandDirect, runExecCommandOnce, startExecCommandTty } from "./runner.ts";
 import { renderCommandForExecShell, renderCommandWithWorkdir, resolveExecShell } from "./shell.ts";
 
 export function createExecCommandTools({
   bashTool,
+  commandExec,
   getTerminalSessionManager,
   getAgentId,
   getCwd,
@@ -99,6 +100,20 @@ export function createExecCommandTools({
           execDetails,
           cols: params.cols,
           rows: params.rows,
+        });
+      }
+
+      if (commandExec) {
+        return runExecCommandDirect({
+          commandExec,
+          command: renderedCommand,
+          workdir: value.workdir,
+          timeout: value.timeout,
+          signal,
+          onUpdate,
+          execDetails,
+          maxOutputTokens: value.maxOutputTokens,
+          platform,
         });
       }
 
