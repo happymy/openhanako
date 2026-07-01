@@ -194,6 +194,22 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     expect(meta[path.basename(sessionPath)].accessMode).toBe("operate");
   });
 
+  it("includes enabled MCP tools in fresh session runtime options and snapshots", async () => {
+    const mcpTool = { ...makeTool("mcp_github_search"), _pluginId: "mcp" };
+    coord._d.buildTools = () => ({
+      tools: SDK_BUILTIN_OBJS,
+      customTools: [...HANAKO_CUSTOM_OBJS, mcpTool],
+    });
+    currentAgentConfig = { tools: { disabled: [] } };
+
+    const { sessionPath } = await coord.createSession(null, tmpDir, true);
+
+    expect(lastSessionOptions.customTools.map((tool) => tool.name)).toContain("mcp_github_search");
+    expect(activeToolsSpy.mock.calls[0][0]).toContain("mcp_github_search");
+    const meta = JSON.parse(await fsp.readFile(path.join(sessionDir, "session-meta.json"), "utf-8"));
+    expect(meta[path.basename(sessionPath)].toolNames).toContain("mcp_github_search");
+  });
+
   it("starts fresh sessions from the persisted global permission default", async () => {
     storedDefaultMode = "operate";
     currentAgentConfig = { tools: { disabled: [] } };

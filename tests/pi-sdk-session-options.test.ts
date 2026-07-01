@@ -101,6 +101,27 @@ describe("Pi SDK session option normalization", () => {
     expect(normalized.model).toEqual({ id: "m" });
   });
 
+  it("keeps MCP custom tool definitions in the Pi SDK name allowlist", () => {
+    const read = makeAgentTool("read");
+    const mcpTool = {
+      name: "mcp_github_search",
+      description: "Search GitHub through MCP",
+      parameters: { type: "object", properties: { query: { type: "string" } } },
+      invocationStyle: "pi_tool",
+      execute: vi.fn(),
+    };
+
+    const normalized = normalizeCreateAgentSessionOptions({
+      tools: [read],
+      customTools: [mcpTool],
+    }, "0.70.2");
+
+    expect(normalized.tools).toEqual(["read", "mcp_github_search"]);
+    expect(normalized.customTools.map(t => t.name)).toEqual(["read", "mcp_github_search"]);
+    expect(normalized.customTools[1]).not.toBe(mcpTool);
+    expect(normalized.customTools[1].parameters).toEqual(mcpTool.parameters);
+  });
+
   it("keeps empty tools empty for explicit no-tools sessions", () => {
     const normalized = normalizeCreateAgentSessionOptions({
       tools: [],
