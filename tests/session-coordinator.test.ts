@@ -3,11 +3,16 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 
-const { createAgentSessionMock, sessionManagerCreateMock, sessionManagerListMock, emitSessionShutdownMock } = vi.hoisted(() => ({
+const { createAgentSessionMock, sessionManagerCreateMock, sessionManagerListMock, emitSessionShutdownMock, moduleLogMock } = vi.hoisted(() => ({
   createAgentSessionMock: vi.fn(),
   sessionManagerCreateMock: vi.fn(),
   sessionManagerListMock: vi.fn(),
   emitSessionShutdownMock: vi.fn(),
+  moduleLogMock: {
+    log: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
 }));
 
 vi.mock("../lib/pi-sdk/index.js", () => ({
@@ -26,11 +31,7 @@ vi.mock("../lib/pi-sdk/index.js", () => ({
 }));
 
 vi.mock("../lib/debug-log.js", () => ({
-  createModuleLogger: () => ({
-    log: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
+  createModuleLogger: () => moduleLogMock,
 }));
 
 import { SessionCoordinator } from "../core/session-coordinator.ts";
@@ -1640,6 +1641,102 @@ describe("SessionCoordinator", () => {
       modelProvider: "deepseek",
       pinnedAt: null,
     });
+  });
+
+  it("logs DeepSeek reasoning visibility only at assistant message_end", async () => {
+    const agentsDir = path.join(tempDir, "agents");
+    const sessionDir = path.join(agentsDir, "hana", "sessions");
+    const sessionPath = path.join(sessionDir, "deepseek-log.jsonl");
+    fs.mkdirSync(sessionDir, { recursive: true });
+    let listener: any = null;
+    const sessionManager = {
+      getCwd: () => tempDir,
+      getSessionFile: () => sessionPath,
+    };
+    const model = { id: "deepseek-chat", provider: "deepseek", name: "DeepSeek Chat" };
+    const agent = {
+      id: "hana",
+      name: "Hana",
+      agentName: "Hana",
+      agentDir: path.join(agentsDir, "hana"),
+      sessionDir,
+      sessionMemoryEnabled: true,
+      memoryMasterEnabled: true,
+      setMemoryEnabled: vi.fn(),
+      buildSystemPrompt: () => "BASE",
+      tools: [],
+      config: {},
+    };
+
+    sessionManagerCreateMock.mockReturnValueOnce(sessionManager);
+    createAgentSessionMock.mockResolvedValueOnce({
+      session: {
+        sessionManager,
+        model,
+        subscribe: vi.fn((fn) => {
+          listener = fn;
+          return vi.fn();
+        }),
+        setActiveToolsByName: vi.fn(),
+      },
+    });
+
+    const coordinator = new SessionCoordinator({
+      agentsDir,
+      getAgent: () => agent,
+      getActiveAgentId: () => "hana",
+      getModels: () => ({
+        currentModel: model,
+        availableModels: [model],
+        authStorage: {},
+        modelRegistry: {},
+        resolveThinkingLevel: () => "medium",
+      }),
+      getResourceLoader: () => ({
+        getSystemPrompt: () => "BASE",
+        getAppendSystemPrompt: () => [],
+        getExtensions: () => ({ extensions: [], errors: [] }),
+        getSkills: () => ({ skills: [], diagnostics: [] }),
+        getAgentsFiles: () => ({ agentsFiles: [] }),
+      }),
+      getSkills: () => null,
+      buildTools: () => ({ tools: [], customTools: [] }),
+      emitEvent: () => {},
+      getHomeCwd: () => tempDir,
+      agentIdFromSessionPath: () => "hana",
+      switchAgentOnly: async () => {},
+      getConfig: () => ({}),
+      getPrefs: () => ({ getThinkingLevel: () => "medium" }),
+      getAgents: () => new Map([["hana", agent]]),
+      getActivityStore: () => null,
+      getAgentById: () => agent,
+      listAgents: () => [agent],
+    });
+
+    await coordinator.createSession(null, tempDir, true);
+    moduleLogMock.log.mockClear();
+
+    listener?.({
+      type: "message_update",
+      assistantMessageEvent: { type: "thinking_delta", delta: "逐帧思考" },
+    });
+
+    expect(moduleLogMock.log).not.toHaveBeenCalled();
+
+    listener?.({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [{ type: "thinking", thinking: "一次性汇总" }],
+        usage: { reasoning_tokens: 7 },
+        stopReason: "stop",
+      },
+    });
+
+    expect(moduleLogMock.log).toHaveBeenCalledTimes(1);
+    expect(moduleLogMock.log).toHaveBeenCalledWith(expect.stringContaining("event=message_end"));
+    expect(moduleLogMock.log).toHaveBeenCalledWith(expect.stringContaining("thinkingBlocks=1"));
+    expect(moduleLogMock.log).toHaveBeenCalledWith(expect.stringContaining("reasoningTokens=7"));
   });
 
   it("treats auxiliary vision preparation as streaming before provider prompt starts", async () => {

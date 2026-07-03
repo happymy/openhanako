@@ -20,6 +20,7 @@ import {
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 const MFJS_PARENT_ANNOTATION_KEYS = new Set(["description", "default"]);
 const ROOT_ANY_OF_ARGUMENT_GUIDANCE_PREFIX = "Arguments must satisfy one of these required field sets:";
+const KIMI_FOR_CODING_UTILITY_TEMPERATURE = 0.6;
 
 export function matches(model) {
   if (!model || typeof model !== "object") return false;
@@ -29,6 +30,16 @@ export function matches(model) {
 
 function isThinkingOff(level) {
   return level === "off" || level === "none" || level === "disabled";
+}
+
+function lower(value) {
+  return typeof value === "string" ? value.toLowerCase() : "";
+}
+
+function usesFixedKimiCodingUtilityTemperature(model, options) {
+  return options?.mode === "utility"
+    && lower(model?.provider) === "kimi-coding"
+    && lower(model?.id) === "kimi-for-coding";
 }
 
 function reasoningEffortForLevel(level) {
@@ -240,6 +251,10 @@ export function apply(payload, model, options: Record<string, unknown> = {}) {
   const normalizedTools = normalizeToolsForMoonshotMfjs(next.tools);
   if (normalizedTools !== next.tools) {
     editable().tools = normalizedTools;
+  }
+
+  if (usesFixedKimiCodingUtilityTemperature(model, options)) {
+    editable().temperature = KIMI_FOR_CODING_UTILITY_TEMPERATURE;
   }
 
   if (!Array.isArray(next.messages)) return next;

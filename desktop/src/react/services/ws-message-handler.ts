@@ -244,6 +244,16 @@ function requestInputFocusForCurrentSession(sessionPath: string | null): void {
   state.requestInputFocus?.();
 }
 
+function applyTurnEndSideEffects(msg: any): void {
+  scheduleSessionsRefresh('turn_end');
+  const turnSp = msg.sessionPath;
+  if (turnSp) {
+    requestContextUsage(turnSp);
+  } else {
+    console.warn('[ws] turn_end missing sessionPath, skipping context_usage request');
+  }
+}
+
 function applyCompactionLifecycle(msg: any): void {
   const sp = msg.sessionPath;
   if (!sp) return;
@@ -439,6 +449,9 @@ export function handleServerMessage(msg: any): void {
     if (isKnownChatSession(msg.sessionPath, state)) {
       streamBufferManager.handle(msg);
     }
+    if (msg.type === 'turn_end') {
+      applyTurnEndSideEffects(msg);
+    }
     dispatchStreamKey(msg.sessionPath, msg);
     applyTodoToolEnd(msg);
     applyToolEndSessionFile(msg);
@@ -451,19 +464,7 @@ export function handleServerMessage(msg: any): void {
     streamBufferManager.handle(msg);
     // turn_end 后仍需执行部分通用逻辑（loadSessions、context_usage）
     if (msg.type === 'turn_end') {
-      scheduleSessionsRefresh('turn_end');
-      const turnSp = msg.sessionPath;
-      if (turnSp) {
-        const wasStreaming = sessionScopedListIncludes(useStore.getState(), useStore.getState().streamingSessions, turnSp);
-        applyStreamingStatus(false, turnSp, {
-          streamId: msg.streamId ?? null,
-          turnId: msg.turnId ?? null,
-        });
-        requestContextUsage(turnSp);
-        if (!wasStreaming) requestInputFocusForCurrentSession(turnSp);
-      } else {
-        console.warn('[ws] turn_end missing sessionPath, skipping context_usage request');
-      }
+      applyTurnEndSideEffects(msg);
     }
     // tool_end 后更新 todo（兼容新旧工具名 + 新旧格式）
     applyTodoToolEnd(msg);

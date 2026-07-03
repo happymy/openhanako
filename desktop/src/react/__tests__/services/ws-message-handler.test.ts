@@ -985,17 +985,21 @@ describe('ws-message-handler turn_end side effects', () => {
     } as never);
   });
 
-  it('turn_end requests input focus for the current session', () => {
+  it('turn_end for the current session does not request input focus', () => {
     handleServerMessage({
       type: 'turn_end',
       sessionPath: '/session/a.jsonl',
     });
 
-    expect(useStore.getState().inputFocusTrigger).toBe(1);
+    expect(useStore.getState().inputFocusTrigger).toBe(0);
     expect(previewRefreshMocks.refreshOpenPreviewDocumentsForResourceChange).not.toHaveBeenCalled();
   });
 
-  it('background turn_end does not request input focus', () => {
+  it('background turn_end keeps refresh and context usage but does not request input focus', async () => {
+    vi.useFakeTimers();
+    vi.mocked(loadSessions).mockClear();
+    const requestContextUsage = vi.fn();
+    configureWsMessageHandler({ requestContextUsage });
     useStore.setState({
       sessions: [
         ...useStore.getState().sessions,
@@ -1018,6 +1022,12 @@ describe('ws-message-handler turn_end side effects', () => {
     });
 
     expect(useStore.getState().inputFocusTrigger).toBe(0);
+    expect(requestContextUsage).toHaveBeenCalledWith('/session/b.jsonl');
+    expect(loadSessions).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(loadSessions).toHaveBeenCalledTimes(1);
   });
 
   it('status=false requests input focus when the focused session was streaming', () => {
@@ -1079,7 +1089,7 @@ describe('ws-message-handler turn_end side effects', () => {
     expect(useStore.getState().inputFocusTrigger).toBe(0);
   });
 
-  it('turn_end clears the matching stream when status=false is missing', () => {
+  it('turn_end does not clear the matching stream before status=false arrives', () => {
     useStore.setState({
       streamingSessions: ['/session/a.jsonl'],
       activeSessionStreams: {
@@ -1094,9 +1104,33 @@ describe('ws-message-handler turn_end side effects', () => {
       streamId: 'stream_done',
     });
 
-    expect(useStore.getState().streamingSessions).toEqual([]);
-    expect(useStore.getState().activeSessionStreams).toEqual({});
-    expect(useStore.getState().inputFocusTrigger).toBe(1);
+    expect(useStore.getState().streamingSessions).toEqual(['/session/a.jsonl']);
+    expect(useStore.getState().activeSessionStreams['/session/a.jsonl']?.streamId).toBe('stream_done');
+    expect(useStore.getState().inputFocusTrigger).toBe(0);
+  });
+
+  it('intermediate turn_end keeps streaming state and input focus untouched', () => {
+    useStore.setState({
+      streamingSessions: ['/session/a.jsonl'],
+      activeSessionStreams: {
+        '/session/a.jsonl': { streamId: 'stream_mid', turnId: 'turn_mid' },
+      },
+      inputFocusTrigger: 0,
+    } as never);
+
+    handleServerMessage({
+      type: 'turn_end',
+      sessionPath: '/session/a.jsonl',
+      streamId: 'stream_mid',
+      turnId: 'turn_mid',
+    });
+
+    expect(useStore.getState().streamingSessions).toEqual(['/session/a.jsonl']);
+    expect(useStore.getState().activeSessionStreams['/session/a.jsonl']).toEqual({
+      streamId: 'stream_mid',
+      turnId: 'turn_mid',
+    });
+    expect(useStore.getState().inputFocusTrigger).toBe(0);
   });
 
   it('stale turn_end does not clear a newer stream identity', () => {

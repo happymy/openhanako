@@ -355,13 +355,6 @@ function logDeepSeekReasoningVisibility({ event, model, sessionPath, agentId }: 
   const provider = textOrNull(model?.provider) || "deepseek";
   const modelId = modelIdFromModel(model) || "unknown";
   const sessionName = sessionPath ? path.basename(sessionPath) : "unknown";
-  if (event?.type === "message_update") {
-    const sub = event.assistantMessageEvent || event.event || null;
-    if (sub?.type !== "thinking_delta") return;
-    const chars = String(sub.delta ?? sub.text ?? sub.thinking ?? "").length;
-    log.log(`[deepseek reasoning] event=thinking_delta provider=${provider} model=${modelId} agent=${agentId || ""} session=${sessionName} chars=${chars}`);
-    return;
-  }
   if (event?.type !== "message_end" || event.message?.role !== "assistant") return;
   const stats = collectThinkingVisibilityStats(event.message);
   const usage = event.message?.usage || {};

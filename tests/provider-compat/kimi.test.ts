@@ -79,6 +79,17 @@ describe("provider-compat/kimi", () => {
     expect(result.messages[0]).not.toHaveProperty("reasoning_content");
   });
 
+  it("fixes kimi-for-coding utility temperature at the provider-compatible value", () => {
+    const result = normalizeProviderPayload({
+      model: "kimi-for-coding",
+      messages: [{ role: "user", content: "summarize" }],
+      temperature: 0.3,
+    }, kimiModel, { mode: "utility" });
+
+    expect(result.temperature).toBe(0.6);
+    expect(result.thinking).toEqual({ type: "disabled" });
+  });
+
   it("recovers reasoning_content for Kimi tool-call replay", () => {
     const payload = {
       model: "kimi-for-coding",
