@@ -1,12 +1,18 @@
 /**
- * memory-ticker.js — 记忆调度器（v4：按天滚动记忆传送带）
+ * memory-ticker.js — 记忆调度器（v4：按天滚动记忆传送带 + today 水位线增量）
  *
  * 触发机制改为 turn-based：
  * - 每 10 轮：滚动摘要 + compileToday + assemble
  * - session 结束：final 滚动摘要 + compileToday + assemble
- * - 每天一次（日期变化时触发）：compileDaily（编译昨天）+ rollDailyWindow（滚出
+ * - 每天一次（日期变化时触发）：compileDaily（把昨天最终版 today 草稿蒸馏成日记）
+ *   + compileToday（今日水位线增量，日期切换后重置草稿）+ rollDailyWindow（滚出
  *   窗口的 daily 条目 fold 进 longterm）+ compileEditableFacts + assemble（含
  *   assembleWeekFromDaily 纯文件装配 week.md）+ deep-memory
+ *
+ * compileDaily 必须先于 compileToday 执行：compileDaily 读取的是"昨天最终版
+ * today.md 草稿"，这份草稿在日期切换前仍然躺在 todayMdPath 里；compileToday
+ * 一旦先跑，日期切换会把 today.md 重置成新一天的空白草稿，昨天的内容就再也
+ * 读不到了。
  *
  * session 关闭记忆时，整条记忆流水线都应跳过，避免被写入 summary/facts。
  *
@@ -57,8 +63,12 @@ const DAILY_STATE_FILE = "daily-state.json";
 // 换成 compileDaily（编译昨天）+ rollDailyWindow（滚出窗口的 daily fold 进
 // longterm）。步骤名变化，版本号提升让旧 schema 的持久化状态被判定为不匹配，
 // 走一次性重算（幂等，不会重复计费）。
-const DAILY_STATE_SCHEMA_VERSION = 3;
-const DAILY_STEP_KEYS = ["compileToday", "compileDaily", "rollDailyWindow", "compileFacts", "deepMemory"];
+// v4：compileToday 改水位线增量（今日记忆 P3），compileDaily 的输入从"当天全部
+// 摘要"改为"昨天最终版今日草稿"——两步的执行顺序也随之对调（compileDaily 必须
+// 先于 compileToday 跑，否则昨天的草稿会先被 compileToday 的日期切换重置清空）。
+// 步骤内部语义变了，版本号提升让旧 schema 的断点续跑状态失效，走一次性重算。
+const DAILY_STATE_SCHEMA_VERSION = 4;
+const DAILY_STEP_KEYS = ["compileDaily", "compileToday", "rollDailyWindow", "compileFacts", "deepMemory"];
 
 // ── 主调度器 ──
 
@@ -717,7 +727,28 @@ export function createMemoryTicker(opts) {
         log.error(`week.md 迁移失败: ${err.message}`);
       }
 
-      // Step 0: compileToday（日期切换后刷新 today.md，新一天无 session 时会清空）
+      // Step 0: compileDaily——把已经翻篇的昨天蒸馏成 memory/daily/{date}.md。
+      // 必须先于 Step 1 的 compileToday 执行：compileDaily 读取的"昨天最终版今日草稿"
+      // 就是这一刻仍躺在 todayMdPath 里的内容——一旦 compileToday 先跑，日期切换会
+      // 把 today.md 重置为新一天的空白草稿，昨天的草稿就再也读不到了。
+      if (!_dailyStepsCompleted.has("compileDaily")) {
+        try {
+          const yesterday = shiftLogicalDate(todayStr, -1);
+          await compileDaily(summaryManager, _dailyDir(), yesterday, getResolvedMemoryModel(), {
+            since: resetAt,
+            todayDraftPath: todayMdPath,
+          });
+          _markDailyStepCompleted("compileDaily", context);
+          _markSuccess("compileDaily");
+          _markStepRecovered("compileDaily");
+        } catch (err) {
+          hasFailed = true;
+          _markFailure("compileDaily", err);
+          _logStepError("compileDaily", err);
+        }
+      }
+
+      // Step 1: compileToday（日期切换后刷新 today.md，新一天无 session 时会清空）
       if (!_dailyStepsCompleted.has("compileToday")) {
         try {
           await compileToday(summaryManager, todayMdPath, getResolvedMemoryModel(), { since: resetAt });
@@ -728,21 +759,6 @@ export function createMemoryTicker(opts) {
           hasFailed = true;
           _markFailure("compileToday", err);
           _logStepError("compileToday(daily)", err);
-        }
-      }
-
-      // Step 1: compileDaily——把已经翻篇的昨天编译成 memory/daily/{date}.md
-      if (!_dailyStepsCompleted.has("compileDaily")) {
-        try {
-          const yesterday = shiftLogicalDate(todayStr, -1);
-          await compileDaily(summaryManager, _dailyDir(), yesterday, getResolvedMemoryModel(), { since: resetAt });
-          _markDailyStepCompleted("compileDaily", context);
-          _markSuccess("compileDaily");
-          _markStepRecovered("compileDaily");
-        } catch (err) {
-          hasFailed = true;
-          _markFailure("compileDaily", err);
-          _logStepError("compileDaily", err);
         }
       }
 

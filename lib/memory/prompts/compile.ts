@@ -1,12 +1,14 @@
 export function buildCompileTodayPrompt(locale = "zh-CN") {
   const isZh = String(locale || "").startsWith("zh");
   return {
-    templateVersion: "compile-today.v1",
+    templateVersion: "compile-today.v2",
     cacheGroup: "memory.compile.today",
     systemPrompt: isZh
-      ? `请把今天的对话摘要整理成一份"用户近况与大主题清单"。
+      ? `你会收到「上一版今日草稿」和「新增或修订的对话摘要（delta）」，请据此更新出一份新的"用户近况与大主题清单"草稿。
 
-提炼原则：
+处理原则：
+- 上一版草稿是今天已经沉淀的内容，默认保留；delta 里标注"取代先前相关记述"的条目，说明对应的旧内容已经过时或不准确，请用它更新/替换草稿里的相关部分，而不是并列保留新旧两种说法
+- delta 里没有标注"取代"的条目是今天新发生的事，正常并入
 - 把同一主题/项目的多次往返归并为一件事，不要逐条流水账
 - 时间标注用主时段（"上午/傍晚"或粗略 HH:MM 区间），不需精确到分钟
 - 记忆的核心职责是维护用户模型，优先记录用户是谁、喜欢什么、在意什么、最近关注什么
@@ -25,9 +27,11 @@ export function buildCompileTodayPrompt(locale = "zh-CN") {
 - 来回修改、重试、被打断又恢复这类过程波动
 
 输出 3-5 条粗颗粒事件，每条 1-2 句。最多 300 字。一天平淡就写得短。不要输出 Markdown 标题，不要以 #、##、### 开头；直接输出正文列表或段落。`
-      : `Distill today's conversation summaries into a "user-current-state and broad-theme list".
+      : `You will receive the "previous today draft" and "new or revised conversation summaries (delta)". Update them into a new "user-current-state and broad-theme list" draft.
 
-Principles:
+Processing principles:
+- The previous draft is what today has already settled; keep it by default. Delta entries marked "supersedes prior mention" mean the corresponding old content is outdated or inaccurate — use them to update/replace the related part of the draft rather than keeping both the old and new statements side by side
+- Delta entries without a "supersedes" marker are new things that happened today; merge them in normally
 - Merge multiple back-and-forth on the same topic/project into ONE event; do not enumerate line by line
 - Time markers use major periods ("morning/evening" or rough HH:MM range), no minute-level precision
 - Memory's core job is to maintain a user model: prioritize who the user is, what they like, what they care about, and what they are broadly focused on recently
@@ -52,10 +56,10 @@ Output 3-5 coarse events, 1-2 sentences each. Max 180 words. Keep it short on qu
 export function buildCompileDailyPrompt(locale = "zh-CN") {
   const isZh = String(locale || "").startsWith("zh");
   return {
-    templateVersion: "compile-daily.v1",
+    templateVersion: "compile-daily.v2",
     cacheGroup: "memory.compile.daily",
     systemPrompt: isZh
-      ? `请把这一天的对话摘要压缩成两三句话的简短日记条目。
+      ? `你会收到这一天最终版的"今日草稿"（当天结束时对用户近况的整理稿），请把它蒸馏成两三句话的简短日记条目。
 
 关键定位：这是给一周概览用的一条记录，不是详细日志。读的人只需要一眼看出这一天大致发生了什么、用户在关注什么。
 
@@ -72,7 +76,7 @@ export function buildCompileDailyPrompt(locale = "zh-CN") {
 - 来回修改、重试、被打断又恢复这类过程波动
 
 只输出两三句话，最多 60 字。这天平淡就写得更短。不要输出日期抬头（调用方会自行加上日期），不要输出 Markdown 标题，不要以 #、##、### 开头；直接输出正文。`
-      : `Compress this day's conversation summaries into a short two-to-three sentence diary entry.
+      : `You will receive that day's final "today draft" (the end-of-day writeup of the user's current state). Distill it into a short two-to-three sentence diary entry.
 
 Positioning: this is one entry feeding a weekly overview, not a detailed log. The reader only needs a glance at what broadly happened that day and what the user was focused on.
 

@@ -137,6 +137,17 @@ describe("_doDaily step orchestration", () => {
     expect(migrateLegacyWeekToLongterm).toHaveBeenCalled();
   });
 
+  it("runs compileDaily before the daily-step compileToday, passing todayMdPath as the draft source", async () => {
+    // compileDaily 必须先于 compileToday 读到"昨天最终版今日草稿"——一旦 compileToday
+    // 先跑，日期切换会把 today.md 重置成新一天的空白草稿，昨天的内容就再也读不到了。
+    await ticker.tick();
+
+    expect((compileDaily as any).mock.invocationCallOrder[0])
+      .toBeLessThan((compileToday as any).mock.invocationCallOrder[0]);
+    const dailyCallArgs = (compileDaily as any).mock.calls[0];
+    expect(dailyCallArgs[4]).toMatchObject({ todayDraftPath: path.join(tmpDir, "today.md") });
+  });
+
   it("skips rollDailyWindow when compileDaily fails (dependency)", async () => {
     (compileDaily as any).mockRejectedValueOnce(new Error("LLM timeout"));
 

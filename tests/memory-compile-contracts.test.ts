@@ -6,7 +6,9 @@
  *   - memory-compiled-reset.test.ts
  *
  * Covers:
- *   1. Fingerprint trap fix: empty sessions must not leave stale fingerprints
+ *   1. compileToday watermark increment: empty sessions must not leave a stale
+ *      watermark; unchanged sessions must not trigger a redundant LLM call;
+ *      revised sessions must be flagged as superseding prior mentions
  *   2. Compiled section formatting: heading stripping, think-tag removal, facts compilation
  *   3. Compiled memory reset state: watermark read/write, artifact clearing, section normalization
  *   4. SessionSummaryManager reset support: watermark filtering, clearAll, rolling summary across reset
@@ -53,74 +55,79 @@ function makeFakeSummaryManager(summaries) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. Fingerprint trap fix — empty sessions
+// 1. compileToday watermark increment — empty-sessions / no-duplicate-LLM-call
+//    contract (formerly enforced via a `.fingerprint` sidecar; P3 replaced the
+//    fingerprint with a today-state.json watermark, mirroring compileEditableFacts)
 // ---------------------------------------------------------------------------
 
-describe("compileToday empty-sessions fingerprint trap fix", () => {
+// 这个 mock 需要真实模拟 since 过滤（不像其它测试用的 makeFakeSummaryManager 那样
+// 无条件返回全量），因为本 describe 块测的就是"水位线之后无新增/修订摘要时不再
+// 调用 LLM"这条契约——水位线过滤发生在 summaryManager 侧，假 mock 必须如实模拟。
+function makeWatermarkAwareSummaryManager(summaries) {
+  return {
+    getSummariesInRange: vi.fn((start, end, opts: any = {}) => {
+      const since = opts?.since || null;
+      return summaries.filter((s) => {
+        const updated = s.updated_at || s.created_at || "";
+        if (since && !(updated > since)) return false;
+        return true;
+      });
+    }),
+  };
+}
+
+describe("compileToday watermark increment", () => {
   let tmpDir;
   let todayPath;
-  let fpPath;
+  let statePath;
 
   beforeEach(() => {
     vi.clearAllMocks();
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-compile-"));
     todayPath = path.join(tmpDir, "today.md");
-    fpPath = todayPath + ".fingerprint";
+    statePath = path.join(tmpDir, "today-state.json");
   });
 
   afterEach(() => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("does not write fingerprint when sessions are empty", async () => {
-    const mgr = makeFakeSummaryManager([]);
+  it("does not write watermark state when sessions are empty", async () => {
+    const mgr = makeWatermarkAwareSummaryManager([]);
     await compileToday(mgr, todayPath, RESOLVED_MODEL);
 
-    expect(fs.existsSync(fpPath)).toBe(false);
+    expect(fs.existsSync(statePath)).toBe(false);
     expect(callText).not.toHaveBeenCalled();
   });
 
-  it("recovers immediately after sessions reappear (no stale fingerprint lock)", async () => {
+  it("recovers immediately after sessions reappear (no stale watermark lock)", async () => {
     // 1. 先制造"失败期"：sessions 空，导致写 0 bytes today.md（如果已有内容）
     fs.writeFileSync(todayPath, "stale content from yesterday");
-    const mgrEmpty = makeFakeSummaryManager([]);
+    const mgrEmpty = makeWatermarkAwareSummaryManager([]);
     await compileToday(mgrEmpty, todayPath, RESOLVED_MODEL);
 
-    // 失败期：today.md 被清空，但没有 fingerprint
+    // 失败期：today.md 被清空，没有水位线状态
     expect(fs.readFileSync(todayPath, "utf-8")).toBe("");
-    expect(fs.existsSync(fpPath)).toBe(false);
+    expect(fs.existsSync(statePath)).toBe(false);
 
     // 2. summary 恢复：有新 session
-    const mgrRecovered = makeFakeSummaryManager([
-      { session_id: "s1", updated_at: "2026-04-17T10:00:00Z", summary: "new session summary" },
+    const mgrRecovered = makeWatermarkAwareSummaryManager([
+      { session_id: "s1", created_at: "2026-04-17T10:00:00Z", updated_at: "2026-04-17T10:00:00Z", summary: "new session summary" },
     ]);
     await compileToday(mgrRecovered, todayPath, RESOLVED_MODEL);
 
-    // 恢复路径：LLM 被调用，文件被写入，fingerprint 被落下
+    // 恢复路径：LLM 被调用，文件被写入，水位线状态被落下
     expect(callText).toHaveBeenCalledOnce();
     expect(fs.readFileSync(todayPath, "utf-8")).toBe("compiled content from llm");
-    expect(fs.existsSync(fpPath)).toBe(true);
-  });
-
-  it("removes stale fingerprint when sessions become empty", async () => {
-    // 先有数据 + fingerprint
-    const mgrWith = makeFakeSummaryManager([
-      { session_id: "s1", updated_at: "2026-04-17T10:00:00Z", summary: "real summary" },
-    ]);
-    await compileToday(mgrWith, todayPath, RESOLVED_MODEL);
-    expect(fs.existsSync(fpPath)).toBe(true);
-
-    // 进入失败期：sessions 空
-    const mgrEmpty = makeFakeSummaryManager([]);
-    await compileToday(mgrEmpty, todayPath, RESOLVED_MODEL);
-
-    // 旧 fingerprint 应被删除（保证下次恢复时不会命中老指纹）
-    expect(fs.existsSync(fpPath)).toBe(false);
+    expect(fs.existsSync(statePath)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(statePath, "utf-8"))).toMatchObject({
+      lastCompiledSummaryUpdatedAt: "2026-04-17T10:00:00Z",
+    });
   });
 
   it("does not rewrite today.md when it is already empty and sessions are empty", async () => {
     // today.md 本就不存在
-    const mgrEmpty = makeFakeSummaryManager([]);
+    const mgrEmpty = makeWatermarkAwareSummaryManager([]);
     await compileToday(mgrEmpty, todayPath, RESOLVED_MODEL);
     expect(fs.existsSync(todayPath)).toBe(false);
 
@@ -129,16 +136,102 @@ describe("compileToday empty-sessions fingerprint trap fix", () => {
     expect(fs.existsSync(todayPath)).toBe(false);
   });
 
-  it("skips via fingerprint when sessions are unchanged (non-empty case preserved)", async () => {
-    const mgr = makeFakeSummaryManager([
-      { session_id: "s1", updated_at: "2026-04-17T10:00:00Z", summary: "real summary" },
+  it("skips the LLM call when rerun with no summaries newer than the watermark (non-empty case preserved)", async () => {
+    const mgr = makeWatermarkAwareSummaryManager([
+      { session_id: "s1", created_at: "2026-04-17T10:00:00Z", updated_at: "2026-04-17T10:00:00Z", summary: "real summary" },
     ]);
     await compileToday(mgr, todayPath, RESOLVED_MODEL);
     expect(callText).toHaveBeenCalledOnce();
 
-    // 相同 sessions 再调：fingerprint 命中，应 skip，LLM 不再被调用
+    // 相同 sessions 再调：水位线之后无新内容，delta 为空，应 skip，LLM 不再被调用
     await compileToday(mgr, todayPath, RESOLVED_MODEL);
     expect(callText).toHaveBeenCalledOnce();
+  });
+
+  it("recompiles when a previously-seen session is revised after the watermark", async () => {
+    const summaries = [
+      { session_id: "s1", created_at: "2026-04-17T10:00:00Z", updated_at: "2026-04-17T10:00:00Z", summary: "first summary" },
+    ];
+    const mgr = makeWatermarkAwareSummaryManager(summaries);
+    await compileToday(mgr, todayPath, RESOLVED_MODEL);
+    expect(callText).toHaveBeenCalledOnce();
+
+    // 同一个 session 被 rollingSummary 覆盖式更新（updated_at 前进，created_at 不变）
+    summaries[0].updated_at = "2026-04-17T11:00:00Z";
+    summaries[0].summary = "revised summary";
+    await compileToday(mgr, todayPath, RESOLVED_MODEL);
+
+    expect(callText).toHaveBeenCalledTimes(2);
+    const secondRequest = (callText as any).mock.calls[1][0];
+    // 修订过的摘要应在 delta 里被标注为"取代先前相关记述"，而不是被当成全新事件
+    expect(secondRequest.messages[0].content).toContain("取代先前相关记述");
+    expect(secondRequest.messages[0].content).toContain("revised summary");
+  });
+
+  it("resets the draft and watermark when the logical date changes", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 3, 17, 10, 0, 0)); // 2026-04-17 10:00 local
+      const day1Summaries = [
+        { session_id: "s1", created_at: "2026-04-17T10:00:00Z", updated_at: "2026-04-17T10:00:00Z", summary: "day one summary" },
+      ];
+      const mgr = makeWatermarkAwareSummaryManager(day1Summaries);
+      (callText as any).mockResolvedValueOnce("day one draft");
+      await compileToday(mgr, todayPath, RESOLVED_MODEL);
+      expect(fs.readFileSync(todayPath, "utf-8")).toBe("day one draft");
+      expect(JSON.parse(fs.readFileSync(statePath, "utf-8")).logicalDate).toBe("2026-04-17");
+
+      // 日期切换到第二天，且第二天暂无任何摘要（真实场景：新一天 getSummariesInRange
+      // 按新一天的 rangeStart 查询，昨天的摘要天然落在范围外，这里直接给空数组模拟）
+      vi.setSystemTime(new Date(2026, 3, 18, 10, 0, 0)); // 2026-04-18 10:00 local
+      const mgrDay2Empty = makeWatermarkAwareSummaryManager([]);
+      await compileToday(mgrDay2Empty, todayPath, RESOLVED_MODEL);
+
+      // 新一天：草稿应被清空，不带上前一天的内容
+      expect(fs.readFileSync(todayPath, "utf-8")).toBe("");
+
+      // 第二天出现新摘要：应该正常增量编译，且不再看到第一天的旧摘要内容被当成 delta
+      const day2Summaries = [
+        { session_id: "s2", created_at: "2026-04-18T09:00:00Z", updated_at: "2026-04-18T09:00:00Z", summary: "day two summary" },
+      ];
+      (callText as any).mockResolvedValueOnce("day two draft");
+      const mgrDay2 = makeWatermarkAwareSummaryManager(day2Summaries);
+      await compileToday(mgrDay2, todayPath, RESOLVED_MODEL);
+
+      const secondDayRequest = (callText as any).mock.calls[1][0];
+      expect(secondDayRequest.messages[0].content).toContain("day two summary");
+      expect(secondDayRequest.messages[0].content).not.toContain("day one summary");
+      expect(fs.readFileSync(todayPath, "utf-8")).toBe("day two draft");
+      expect(JSON.parse(fs.readFileSync(statePath, "utf-8")).logicalDate).toBe("2026-04-18");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("migration: treats a pre-existing today.md with no state file as one legitimate delta merge, idempotently", async () => {
+    // 老用户升级现场：today.md 已有旧路径产出的合法草稿，today-state.json 不存在
+    fs.writeFileSync(todayPath, "既有的旧草稿内容", "utf-8");
+    const summaries = [
+      { session_id: "s1", created_at: "2026-04-17T09:00:00Z", updated_at: "2026-04-17T09:00:00Z", summary: "当天已有的摘要" },
+    ];
+    const mgr = makeWatermarkAwareSummaryManager(summaries);
+    (callText as any).mockResolvedValueOnce("合并后的新草稿");
+
+    const first = await compileToday(mgr, todayPath, RESOLVED_MODEL);
+
+    expect(first).toBe("compiled");
+    expect(callText).toHaveBeenCalledOnce();
+    const request = (callText as any).mock.calls[0][0];
+    // 首次运行必须把既有草稿和当天已有摘要一起送进 LLM 合并，而不是丢弃旧草稿重新开始
+    expect(request.messages[0].content).toContain("既有的旧草稿内容");
+    expect(request.messages[0].content).toContain("当天已有的摘要");
+    expect(fs.readFileSync(todayPath, "utf-8")).toBe("合并后的新草稿");
+    expect(fs.existsSync(statePath)).toBe(true);
+
+    // 幂等性：状态文件已经落下后，同样的摘要不再产生新的 delta，不会重复合并
+    const second = await compileToday(mgr, todayPath, RESOLVED_MODEL);
+    expect(second).toBe("compiled");
+    expect(callText).toHaveBeenCalledOnce(); // 仍然只调用过一次
   });
 });
 

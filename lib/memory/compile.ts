@@ -49,6 +49,11 @@ export function getEmptyMemory() { return _isZh() ? EMPTY_MEMORY_ZH : EMPTY_MEMO
 // editable-facts-state.json 只做增量编译水位线跟踪，与产物文件名（facts.md）解耦。
 export const EDITABLE_FACTS_STATE_FILE = "editable-facts-state.json";
 
+// today-state.json：compileToday 的增量水位线 + 逻辑日归属，与产物文件名（today.md）解耦。
+// schemaVersion 独立于 memory-ticker 的 DAILY_STATE_SCHEMA_VERSION（两者跟踪不同的状态）。
+export const TODAY_STATE_FILE = "today-state.json";
+export const TODAY_STATE_SCHEMA_VERSION = 1;
+
 // daily 传送带默认参数：week 段展示最近 7 天，超过这个天数的条目 fold 进 longterm 后删除。
 export const DAILY_WINDOW_RETENTION_DAYS = 7;
 // week.md 硬性总长上限（字符数）：7 条 daily（单条极紧的 budget）加合理结构开销后的总量级，
@@ -67,130 +72,182 @@ const COMPILE_PROMPT_BUILDERS = {
 //  v4 传送带：daily 编译 + week 装配 + 滚动 fold + assemble
 // ════════════════════════════
 
+export function todayStatePath(memoryDir) {
+  return path.join(memoryDir, TODAY_STATE_FILE);
+}
+
+function readTodayState(statePath) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(statePath, "utf-8"));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    if (raw.schemaVersion !== TODAY_STATE_SCHEMA_VERSION) return null;
+    const logicalDate = typeof raw.logicalDate === "string" ? raw.logicalDate : "";
+    if (!logicalDate) return null;
+    const watermark = raw.lastCompiledSummaryUpdatedAt;
+    return {
+      logicalDate,
+      lastCompiledSummaryUpdatedAt: watermark && !Number.isNaN(Date.parse(watermark)) ? watermark : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeTodayState(statePath, logicalDate, lastCompiledSummaryUpdatedAt) {
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  atomicWrite(statePath, JSON.stringify({
+    schemaVersion: TODAY_STATE_SCHEMA_VERSION,
+    logicalDate,
+    lastCompiledSummaryUpdatedAt: lastCompiledSummaryUpdatedAt || null,
+    updatedAt: new Date().toISOString(),
+  }, null, 2) + "\n");
+}
+
 /**
- * 编译今天的 session 摘要 → today.md
+ * 编译今天的 session 摘要 → today.md（水位线增量：只把新增/修订过的摘要当 delta
+ * 喂给 LLM，与上一版 today.md 草稿合并产出新草稿，输入不随一天里摘要数量增长）。
+ *
+ * 水位线状态落在 today-state.json（与 editable-facts-state.json 同构）：
+ * - 逻辑日切换（state.logicalDate 与当前逻辑日不一致）→ 草稿与水位线一起重置，
+ *   新一天从空白开始独立积累
+ * - 同一逻辑日、水位线存在 → 只取 updated_at 晚于水位线的摘要作为 delta
+ * - 同一逻辑日、水位线不存在（老用户升级 / 状态丢失）→ 一次性把当天已有的全部
+ *   摘要当一次 delta，与 today.md 里已有的旧草稿（合法产物，直接续写）合并；
+ *   之后落下水位线，后续调用回到正常增量路径（迁移幂等：重复调用只是重新跑一次
+ *   同样的合并，不会重复累积）
+ *
+ * delta 中每条摘要都会标注是"新增"还是"取代先前相关记述"：session 首次出现
+ * （created_at 晚于水位线）算新增；水位线之前就存在但被 rollingSummary 覆盖式
+ * 更新过（created_at 早于等于水位线、updated_at 晚于水位线）算修订，提示 LLM
+ * 用它替换草稿里的旧内容而不是并列保留。
+ *
  * @param {import('./session-summary.ts').SessionSummaryManager} summaryManager
  * @param {string} outputPath
  * @param {{ model: string, api: string, api_key: string, base_url: string }} resolvedModel
  * @returns {Promise<"compiled"|"skipped">}
  */
-export async function compileToday(summaryManager, outputPath, resolvedModel, opts: { since?: any } = {}) {
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+export async function compileToday(summaryManager, outputPath, resolvedModel, opts: { since?: any; statePath?: string } = {}) {
+  const memoryDir = path.dirname(outputPath);
+  fs.mkdirSync(memoryDir, { recursive: true });
+  const statePath = opts.statePath || todayStatePath(memoryDir);
 
-  const { rangeStart } = getLogicalDay();
-  const sessions = summaryManager.getSummariesInRange(rangeStart, new Date(), { since: opts.since || null });
-  const fpPath = outputPath + ".fingerprint";
+  const { logicalDate, rangeStart } = getLogicalDay();
+  let state = readTodayState(statePath);
+  const dayChanged = Boolean(state) && state.logicalDate !== logicalDate;
+  if (dayChanged) {
+    // 逻辑日切换：新一天的草稿与水位线独立重开，不带上前一天的内容。
+    atomicWrite(outputPath, "");
+    state = null;
+  }
 
-  // 空 sessions 不写 fingerprint：rollingSummary 失败期会让 sessions 持续为空，
-  // 若落下 "empty" 指纹，之后 summary 恢复前该指纹仍会命中（因为下一次也是 empty），
-  // 导致 today.md 永远卡在 0 bytes。只在有真实 session 摘要时用 fingerprint 去重。
+  const resetSince = opts.since || null;
+  const watermark = latestIso(state?.lastCompiledSummaryUpdatedAt, resetSince);
+  const sessions = summaryManager.getSummariesInRange(rangeStart, new Date(), { since: watermark });
+
   if (sessions.length === 0) {
-    try { fs.unlinkSync(fpPath); } catch {}
-    const cur = safeReadFile(outputPath, "");
-    if (cur.length > 0) atomicWrite(outputPath, "");
+    // 空 sessions 分两种现场：
+    // 1. 已有水位线（state 存在）：今天已经真实编译过，草稿是合法产物，只是这一刻
+    //    暂无新增/修订摘要——保留草稿，不落水位线，等下次有 delta 时再增量编译。
+    // 2. 从无水位线（老用户升级前 / 状态丢失 / rollingSummary 持续失败导致从未
+    //    成功编译过）：无法证明 today.md 当前内容对应"今天"的真实摘要，沿用
+    //    fingerprint 时代的兜底——清空陈旧内容，避免摘要恢复前一直显示错误旧稿。
+    if (!state) {
+      const cur = safeReadFile(outputPath, "");
+      if (cur.length > 0) atomicWrite(outputPath, "");
+    }
     return "compiled";
   }
 
-  const fpKeys = sessions.map((s) => `${s.session_id}:${s.updated_at}`);
-  const fp = computeFingerprint(fpKeys);
-  try {
-    if (fs.readFileSync(fpPath, "utf-8").trim() === fp && fs.existsSync(outputPath)) return "skipped";
-  } catch {}
-
-  const input = sessions.map((s) => s.summary).join("\n\n---\n\n");
+  const nextWatermark = latestSummaryUpdate(sessions);
+  const previousDraft = normalizeCompiledSectionBody(safeReadFile(outputPath, ""));
   const isZh = _isZh();
+  const deltaBlocks = sessions.map((s) => {
+    const isRevision = watermark && !isAfterIso(s.created_at, watermark);
+    const marker = isRevision
+      ? (isZh ? "（取代先前相关记述）" : " (supersedes prior mention)")
+      : "";
+    return isZh ? `${marker}\n${s.summary}` : `${s.summary}${marker}`;
+  });
+  const delta = deltaBlocks.join("\n\n---\n\n");
+  const input = previousDraft
+    ? (isZh
+        ? `## 上一版今日草稿\n\n${previousDraft}\n\n## 新增或修订的摘要（delta）\n\n${delta}`
+        : `## Previous today draft\n\n${previousDraft}\n\n## New or revised summaries (delta)\n\n${delta}`)
+    : (isZh
+        ? `## 新增或修订的摘要（delta）\n\n${delta}`
+        : `## New or revised summaries (delta)\n\n${delta}`);
+
   const result = await _compactLLM(
     input,
-    isZh
-      ? `请把今天的对话摘要整理成一份"用户近况与大主题清单"。
-
-提炼原则：
-- 把同一主题/项目的多次往返归并为一件事，不要逐条流水账
-- 时间标注用主时段（"上午/傍晚"或粗略 HH:MM 区间），不需精确到分钟
-- 记忆的核心职责是维护用户模型，优先记录用户是谁、喜欢什么、在意什么、最近关注什么
-- 工作相关内容只允许保留到大主题层级：只写用户最近关注的领域/项目/主题，不写该主题里的细节
-
-可以记录：
-- 用户的身份、人格特质、审美、兴趣、喜欢或讨厌的事物
-- 用户最近关注的大主题，例如"记忆系统""Project Hana""AI Agent"
-- 用户生活、创作、关系或长期关注方向的变化
-
-不要记录：
-- 不要记录执行步骤、文件名、工具、命令、检查顺序、协作偏好、工作细节
-- 任务过程中的方法论选择、工具偏好、格式要求、术语规则
-- 具体子问题、具体方案、具体改法、具体测试或发布流程
-- 助手具体产出的内容（"生成了一篇关于 X 的文章"够了，不要摘录文章内容）
-- 来回修改、重试、被打断又恢复这类过程波动
-
-输出 3-5 条粗颗粒事件，每条 1-2 句。最多 300 字。一天平淡就写得短。不要输出 Markdown 标题，不要以 #、##、### 开头；直接输出正文列表或段落。`
-      : `Distill today's conversation summaries into a "user-current-state and broad-theme list".
-
-Principles:
-- Merge multiple back-and-forth on the same topic/project into ONE event; do not enumerate line by line
-- Time markers use major periods ("morning/evening" or rough HH:MM range), no minute-level precision
-- Memory's core job is to maintain a user model: prioritize who the user is, what they like, what they care about, and what they are broadly focused on recently
-- Work-related content may only be kept at the broad-theme level: record the domain/project/theme, not details inside that theme
-
-May record:
-- The user's identity, personality traits, aesthetics, interests, likes, and dislikes
-- Broad themes the user is currently focused on, such as "memory systems", "Project Hana", or "AI Agent"
-- Changes in the user's life, creative work, relationships, or long-term areas of attention
-
-Do NOT record:
-- Execution steps, filenames, tools, commands, validation order, collaboration preferences, or work details
-- Task-level methodology choices, tool preferences, format requirements, terminology rules
-- Specific subproblems, concrete solutions, concrete code changes, tests, or release flows
-- Specific content of assistant's output ("wrote an article about X" is enough; do not excerpt the article)
-- Revisions, retries, interruptions and resumptions — these are process noise
-
-Output 3-5 coarse events, 1-2 sentences each. Max 180 words. Keep it short on quiet days. Do not output Markdown headings. Do not start with #, ##, or ###; output body text only.`,
+    buildCompileTodayPrompt(getLocale()),
     resolvedModel,
     450,
     "compile_today",
   );
 
   atomicWrite(outputPath, normalizeCompiledLLMResult(result, "compileToday"));
-  fs.writeFileSync(fpPath, fp);
+  if (nextWatermark) writeTodayState(statePath, logicalDate, nextWatermark);
   return "compiled";
 }
 
 /**
- * 编译已结束那天的 session 摘要 → memory/daily/{logicalDate}.md
+ * 编译已结束那天 → memory/daily/{logicalDate}.md
  *
- * 与 compileToday 的关键区别：compileToday 编译"当天进行中"的摘要，每次新摘要
- * 出现都可能重跑；compileDaily 编译"已经翻篇的那天"，一天只落一次盘（除非当天
- * 摘要事后发生变化，此时按 fingerprint 重新覆盖，不追加）。
+ * v2：输入从"当天全部 session 摘要"改为"当天最终版 today.md 草稿"（compileToday
+ * 增量维护出来的成品，本身已经是压缩过的用户近况小结）。compileDaily 只需要把
+ * 这份小结再蒸馏成两三句话，输入体量与当天摘要条数无关。
  *
- * 当天没有任何摘要时不产文件（零占位），避免 daily/ 目录被大量空文件污染。
+ * 草稿缺失时的受控降级（opts.todayDraftPath 指向的文件不存在或为空，典型于
+ * 升级首日草稿状态尚未建立、或状态文件意外丢失）：显式记录一条 warn 日志后
+ * 回落到旧路径——直接读当天的 session 摘要编译，保证数据不丢、不静默产空。
+ * 两者都没有（当天确实无任何内容）时维持零占位，不产文件。
  *
- * @param {import('./session-summary.ts').SessionSummaryManager} summaryManager
+ * 与 compileToday 的关键区别：compileToday 编译"当天进行中"的草稿，每次新摘要
+ * 出现都可能重跑；compileDaily 编译"已经翻篇的那天"，一天只落一次盘（除非草稿
+ * 或摘要事后发生变化，此时按 fingerprint 重新覆盖，不追加）。
+ *
+ * 当天没有任何内容时不产文件（零占位），避免 daily/ 目录被大量空文件污染。
+ *
+ * @param {import('./session-summary.ts').SessionSummaryManager} summaryManager - 仅用于草稿缺失时的回落编译
  * @param {string} dailyDir - memory/daily 目录
  * @param {string} logicalDate - YYYY-MM-DD，要编译的那个逻辑日
  * @param {object} resolvedModel
+ * @param {{ since?: any, todayDraftPath?: string }} [opts] - todayDraftPath 缺省时视为草稿不可用，直接走摘要回落
  * @returns {Promise<"compiled"|"skipped">}
  */
-export async function compileDaily(summaryManager, dailyDir, logicalDate, resolvedModel, opts: { since?: any } = {}) {
+export async function compileDaily(summaryManager, dailyDir, logicalDate, resolvedModel, opts: { since?: any; todayDraftPath?: string } = {}) {
   fs.mkdirSync(dailyDir, { recursive: true });
 
-  const { rangeStart, rangeEnd } = getLogicalDayForDate(logicalDate);
-  const sessions = summaryManager.getSummariesInRange(rangeStart, rangeEnd, { since: opts.since || null });
   const outputPath = path.join(dailyDir, `${logicalDate}.md`);
   const fpPath = outputPath + ".fingerprint";
 
-  if (sessions.length === 0) {
-    // 零占位：当天确实没有摘要就不落文件；同时清掉可能存在的旧指纹，
-    // 避免摘要之后补齐时被过期指纹挡住（理由同 compileToday 的空 sessions 分支）。
-    try { fs.unlinkSync(fpPath); } catch {}
-    return "skipped";
+  const draftText = opts.todayDraftPath ? normalizeCompiledSectionBody(safeReadFile(opts.todayDraftPath, "")) : "";
+  let input = draftText;
+  let fpKeys;
+
+  if (draftText) {
+    fpKeys = [`draft:${draftText}`];
+  } else {
+    // 回落路径：草稿缺失（升级首日 / 状态丢失）但当天摘要可能仍在，显式记录后
+    // 按旧路径直接编译摘要，保数据的受控降级——不静默产空。
+    const { rangeStart, rangeEnd } = getLogicalDayForDate(logicalDate);
+    const sessions = summaryManager.getSummariesInRange(rangeStart, rangeEnd, { since: opts.since || null });
+    if (sessions.length === 0) {
+      // 零占位：当天确实没有草稿也没有摘要，不落文件；同时清掉可能存在的旧指纹，
+      // 避免之后补齐时被过期指纹挡住（理由同 compileToday 的空 sessions 分支）。
+      try { fs.unlinkSync(fpPath); } catch {}
+      return "skipped";
+    }
+    log.warn(`compileDaily: ${logicalDate} 的今日草稿不可用，回落到按当天 session 摘要编译`);
+    input = sessions.map((s) => s.summary).join("\n\n---\n\n");
+    fpKeys = sessions.map((s) => `${s.session_id}:${s.updated_at}`);
   }
 
-  const fpKeys = sessions.map((s) => `${s.session_id}:${s.updated_at}`);
   const fp = computeFingerprint(fpKeys);
   try {
     if (fs.readFileSync(fpPath, "utf-8").trim() === fp && fs.existsSync(outputPath)) return "skipped";
   } catch {}
 
-  const input = sessions.map((s) => s.summary).join("\n\n---\n\n");
   const promptSpec = buildCompileDailyPrompt(getLocale());
   const result = await _compactLLM(
     input,
@@ -735,4 +792,15 @@ function latestIso(a, b) {
     .filter((value) => value && !Number.isNaN(Date.parse(value)))
     .sort();
   return values.at(-1) || null;
+}
+
+/**
+ * value（ISO 时间戳）是否严格晚于 since。用于区分 delta 里的摘要是
+ * "水位线之后才首次出现"（新增）还是"水位线之前已存在、后来被覆盖式更新"（修订）。
+ * 非法或缺失的 value 视为不晚于 since（不标记为新增，保守处理成修订侧）。
+ */
+function isAfterIso(value, since) {
+  if (!since) return true;
+  if (!value || Number.isNaN(Date.parse(value))) return false;
+  return Date.parse(value) > Date.parse(since);
 }

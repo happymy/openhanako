@@ -1,9 +1,10 @@
 /**
- * 记忆传送带（按天滚动）v1 测试
+ * 记忆传送带（按天滚动）测试
  *
  * 覆盖：
- *   1. compileDaily — 编译已结束那天的 session 摘要 → memory/daily/{date}.md
- *      （fingerprint 命中跳过、当天重跑覆盖、无摘要零占位）
+ *   1. compileDaily — 编译已结束那天 → memory/daily/{date}.md
+ *      （fingerprint 命中跳过、当天重跑覆盖、无内容零占位；P3 起优先从当天最终版
+ *      today 草稿蒸馏，草稿缺失时显式 log 后回落到按 session 摘要编译）
  *   2. assembleWeekFromDaily — 从 daily/ 目录纯文件装配 week.md（零 LLM）
  *      （6-7 条、日期顺序、总长上限截断）
  *   3. rollDailyWindow — 滚出 7 日窗口的 daily 条目 fold 进 longterm 并删除源文件
@@ -168,6 +169,74 @@ describe("compileDaily", () => {
     await compileDaily(mgr, dailyDir, "2026-07-03", RESOLVED_MODEL, { since: "2026-07-03T05:00:00.000Z" });
 
     expect(mgr.getSummariesInRange.mock.calls[0][2]).toEqual({ since: "2026-07-03T05:00:00.000Z" });
+  });
+
+  // -------------------------------------------------------------------------
+  // P3: compileDaily distills from the day's final today draft, not raw summaries
+  // -------------------------------------------------------------------------
+
+  it("distills from the final today draft instead of raw session summaries when todayDraftPath is provided", async () => {
+    const todayDraftPath = path.join(tmpDir, "today.md");
+    fs.writeFileSync(todayDraftPath, "用户今天完善了记忆传送带的设计，并推进了草稿蒸馏。", "utf-8");
+    // summaryManager 摆一个完全不同的摘要，证明真正喂给 LLM 的是草稿而不是它
+    const mgr = makeFakeSummaryManager([
+      { session_id: "s1", updated_at: "2026-07-03T10:00:00.000Z", summary: "不应该被使用的原始摘要" },
+    ]);
+    (callText as any).mockResolvedValueOnce("用户完善了记忆传送带。");
+
+    const result = await compileDaily(mgr, dailyDir, "2026-07-03", RESOLVED_MODEL, { todayDraftPath });
+
+    expect(result).toBe("compiled");
+    const request = (callText as any).mock.calls[0][0];
+    expect(request.messages[0].content).toContain("用户今天完善了记忆传送带的设计，并推进了草稿蒸馏。");
+    expect(request.messages[0].content).not.toContain("不应该被使用的原始摘要");
+    // 草稿路径可用时不应该去查 session 摘要——蒸馏输入体量只取决于草稿，不随当天摘要数量增长
+    expect(mgr.getSummariesInRange).not.toHaveBeenCalled();
+    expect(fs.readFileSync(path.join(dailyDir, "2026-07-03.md"), "utf-8")).toContain("用户完善了记忆传送带。");
+  });
+
+  it("does not produce a file when the draft path is empty and there are no summaries (zero placeholder)", async () => {
+    const todayDraftPath = path.join(tmpDir, "today.md");
+    fs.writeFileSync(todayDraftPath, "", "utf-8");
+    const mgr = makeFakeSummaryManager([]);
+
+    const result = await compileDaily(mgr, dailyDir, "2026-07-03", RESOLVED_MODEL, { todayDraftPath });
+
+    expect(result).toBe("skipped");
+    expect(fs.existsSync(path.join(dailyDir, "2026-07-03.md"))).toBe(false);
+    expect(callText).not.toHaveBeenCalled();
+  });
+
+  it("falls back to compiling from session summaries with an explicit log when the draft is missing (upgrade day / lost state)", async () => {
+    // todayDraftPath 指向一个不存在的文件——模拟状态丢失或升级首日草稿尚未建立
+    const todayDraftPath = path.join(tmpDir, "does-not-exist.md");
+    const mgr = makeFakeSummaryManager([
+      { session_id: "s1", updated_at: "2026-07-03T10:00:00.000Z", summary: "用户关注记忆系统。" },
+    ]);
+    (callText as any).mockResolvedValueOnce("回落路径编译出的日记。");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await compileDaily(mgr, dailyDir, "2026-07-03", RESOLVED_MODEL, { todayDraftPath });
+
+    expect(result).toBe("compiled");
+    // 回落必须留下可观测的痕迹，不能静默产出（保数据的受控降级）
+    expect(warnSpy.mock.calls.some(([msg]) => String(msg).includes("今日草稿不可用"))).toBe(true);
+    expect(mgr.getSummariesInRange).toHaveBeenCalledOnce();
+    expect(fs.readFileSync(path.join(dailyDir, "2026-07-03.md"), "utf-8")).toContain("回落路径编译出的日记。");
+    warnSpy.mockRestore();
+  });
+
+  it("falls back to zero placeholder when both the draft and session summaries are unavailable", async () => {
+    const todayDraftPath = path.join(tmpDir, "does-not-exist.md");
+    const mgr = makeFakeSummaryManager([]);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await compileDaily(mgr, dailyDir, "2026-07-03", RESOLVED_MODEL, { todayDraftPath });
+
+    expect(result).toBe("skipped");
+    expect(fs.existsSync(path.join(dailyDir, "2026-07-03.md"))).toBe(false);
+    expect(callText).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });
 
