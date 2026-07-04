@@ -74,51 +74,50 @@ describe('CompiledMemoryViewer editable facts', () => {
     vi.clearAllMocks();
   });
 
-  it('renders editable facts above read-only timeline sections and saves edits', async () => {
+  it('renders read-only memory sections outside edit mode', async () => {
     render(React.createElement(CompiledMemoryViewer));
 
     window.dispatchEvent(new Event('hana-view-compiled-memory'));
 
-    const factsInput = await screen.findByLabelText('settings.memory.editableFactsLabel');
-    expect(factsInput).toHaveValue('用户喜欢清晰边界。');
-    expect(screen.getByText('settings.memory.readonlyTimelineTitle')).toBeTruthy();
+    expect(await screen.findByText('用户喜欢清晰边界。')).toBeTruthy();
     expect(screen.getByText('今天只读。')).toBeTruthy();
     expect(screen.getByText('本周只读。')).toBeTruthy();
     expect(screen.getByText('长期只读。')).toBeTruthy();
-
-    fireEvent.change(factsInput, {
-      target: { value: '用户喜欢清晰边界。\n用户关注记忆系统。' },
-    });
-    fireEvent.click(screen.getByText('settings.memory.saveFacts'));
-
-    await waitFor(() => {
-      expect(hanaFetch).toHaveBeenCalledWith('/api/memories/compiled/facts?agentId=hana', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ facts: '用户喜欢清晰边界。\n用户关注记忆系统。' }),
-      });
-    });
+    expect(screen.queryByLabelText('settings.memory.editableFactsLabel')).toBeNull();
+    expect(screen.queryByText('settings.memory.saveFacts')).toBeNull();
   });
 
-  it('switches into edit mode with four editable sections and saves each independently', async () => {
+  it('switches into edit mode with four editable sections and saves them from the header', async () => {
     render(React.createElement(CompiledMemoryViewer));
 
     window.dispatchEvent(new Event('hana-view-compiled-memory'));
 
-    await screen.findByLabelText('settings.memory.editableFactsLabel');
+    await screen.findByText('用户喜欢清晰边界。');
     fireEvent.click(screen.getByText('settings.memory.editEntry'));
 
     const todayInput = await screen.findByLabelText('settings.memory.sections.today');
     expect(todayInput).toHaveValue('今天只读。');
+    const factsInput = screen.getByLabelText('settings.memory.editableFactsLabel');
+    expect(factsInput).toHaveValue('用户喜欢清晰边界。');
     const longtermInput = screen.getByLabelText('settings.memory.sections.longterm');
     expect(longtermInput).toHaveValue('长期只读。');
     const dayOneInput = await screen.findByLabelText('2026-07-01');
     expect(dayOneInput).toHaveValue('第一天的记录。');
     const dayTwoInput = screen.getByLabelText('2026-07-02');
     expect(dayTwoInput).toHaveValue('第二天的记录。');
+    expect(screen.queryByText('settings.memory.saveToday')).toBeNull();
+    expect(screen.queryByText('settings.memory.saveFacts')).toBeNull();
+    expect(screen.queryByText('settings.memory.saveLongterm')).toBeNull();
+    expect(screen.queryByText('settings.memory.saveDay')).toBeNull();
 
     fireEvent.change(todayInput, { target: { value: '编辑后的今天。' } });
-    fireEvent.click(screen.getAllByText('settings.memory.saveToday')[0]);
+    fireEvent.change(factsInput, {
+      target: { value: '用户喜欢清晰边界。\n用户关注记忆系统。' },
+    });
+    fireEvent.change(longtermInput, { target: { value: '编辑后的长期情况。' } });
+    fireEvent.change(dayOneInput, { target: { value: '编辑后的第一天。' } });
+    fireEvent.click(screen.getByText('settings.memory.editSave'));
+
     await waitFor(() => {
       expect(hanaFetch).toHaveBeenCalledWith('/api/memories/compiled/today?agentId=hana', {
         method: 'PUT',
@@ -127,8 +126,14 @@ describe('CompiledMemoryViewer editable facts', () => {
       });
     });
 
-    fireEvent.change(longtermInput, { target: { value: '编辑后的长期情况。' } });
-    fireEvent.click(screen.getAllByText('settings.memory.saveLongterm')[0]);
+    await waitFor(() => {
+      expect(hanaFetch).toHaveBeenCalledWith('/api/memories/compiled/facts?agentId=hana', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facts: '用户喜欢清晰边界。\n用户关注记忆系统。' }),
+      });
+    });
+
     await waitFor(() => {
       expect(hanaFetch).toHaveBeenCalledWith('/api/memories/compiled/longterm?agentId=hana', {
         method: 'PUT',
@@ -137,8 +142,6 @@ describe('CompiledMemoryViewer editable facts', () => {
       });
     });
 
-    fireEvent.change(dayOneInput, { target: { value: '编辑后的第一天。' } });
-    fireEvent.click(screen.getAllByText('settings.memory.saveDay')[0]);
     await waitFor(() => {
       expect(hanaFetch).toHaveBeenCalledWith('/api/memories/compiled/week/days/2026-07-01?agentId=hana', {
         method: 'PUT',
@@ -147,9 +150,8 @@ describe('CompiledMemoryViewer editable facts', () => {
       });
     });
 
-    // toggling back out of edit mode returns to the original view layout
-    fireEvent.click(screen.getByText('settings.memory.editDone'));
-    await screen.findByLabelText('settings.memory.editableFactsLabel');
-    expect(screen.queryByLabelText('settings.memory.sections.today')).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByLabelText('settings.memory.sections.today')).toBeNull();
+    });
   });
 });

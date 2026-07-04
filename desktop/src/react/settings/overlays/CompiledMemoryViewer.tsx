@@ -22,10 +22,7 @@ export function CompiledMemoryViewer() {
   const [weekDays, setWeekDays] = useState<WeekDay[]>([]);
   const [weekDrafts, setWeekDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const [savingFacts, setSavingFacts] = useState(false);
-  const [savingToday, setSavingToday] = useState(false);
-  const [savingLongterm, setSavingLongterm] = useState(false);
-  const [savingDay, setSavingDay] = useState<string | null>(null);
+  const [savingAll, setSavingAll] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   useMermaidDiagrams(contentRef, [sections, loading, editing]);
 
@@ -95,104 +92,111 @@ export function CompiledMemoryViewer() {
     }
   };
 
-  const saveFacts = async () => {
-    setSavingFacts(true);
-    try {
-      const aid = useSettingsStore.getState().getSettingsAgentId();
-      const res = await hanaFetch(`/api/memories/compiled/facts?agentId=${aid}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ facts: factsDraft }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      const savedFacts = typeof data.facts === 'string' ? data.facts : factsDraft;
-      setFactsDraft(savedFacts);
-      setSections(prev => ({ ...prev, facts: savedFacts }));
-      useSettingsStore.getState().showToast(t('settings.memory.factsSaved'), 'success');
-    } catch (err: any) {
-      useSettingsStore.getState().showToast(err.message, 'error');
-    } finally {
-      setSavingFacts(false);
-    }
+  const hasDraftChanges = factsDraft !== sections.facts
+    || todayDraft !== sections.today
+    || longtermDraft !== sections.longterm
+    || weekDays.some((day) => (weekDrafts[day.date] ?? '') !== day.body);
+
+  const putCompiledJson = async (url: string, body: Record<string, string>) => {
+    const res = await hanaFetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data;
   };
 
-  const saveToday = async () => {
-    setSavingToday(true);
-    try {
-      const aid = useSettingsStore.getState().getSettingsAgentId();
-      const res = await hanaFetch(`/api/memories/compiled/today?agentId=${aid}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ today: todayDraft }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      const savedToday = typeof data.today === 'string' ? data.today : todayDraft;
-      setTodayDraft(savedToday);
-      setSections(prev => ({ ...prev, today: savedToday }));
-      useSettingsStore.getState().showToast(t('settings.memory.todaySaved'), 'success');
-    } catch (err: any) {
-      useSettingsStore.getState().showToast(err.message, 'error');
-    } finally {
-      setSavingToday(false);
+  const saveCompiledEdits = async () => {
+    if (!hasDraftChanges) {
+      setEditing(false);
+      return;
     }
-  };
 
-  const saveLongterm = async () => {
-    setSavingLongterm(true);
+    setSavingAll(true);
     try {
       const aid = useSettingsStore.getState().getSettingsAgentId();
-      const res = await hanaFetch(`/api/memories/compiled/longterm?agentId=${aid}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ longterm: longtermDraft }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      const savedLongterm = typeof data.longterm === 'string' ? data.longterm : longtermDraft;
-      setLongtermDraft(savedLongterm);
-      setSections(prev => ({ ...prev, longterm: savedLongterm }));
-      useSettingsStore.getState().showToast(t('settings.memory.longtermSaved'), 'success');
-    } catch (err: any) {
-      useSettingsStore.getState().showToast(err.message, 'error');
-    } finally {
-      setSavingLongterm(false);
-    }
-  };
+      const nextSections = { ...sections };
+      let nextFactsDraft = factsDraft;
+      let nextTodayDraft = todayDraft;
+      let nextLongtermDraft = longtermDraft;
+      let nextWeekDays = weekDays;
+      const nextWeekDrafts = { ...weekDrafts };
 
-  const saveWeekDay = async (date: string) => {
-    setSavingDay(date);
-    try {
-      const aid = useSettingsStore.getState().getSettingsAgentId();
-      const draft = weekDrafts[date] ?? '';
-      const res = await hanaFetch(`/api/memories/compiled/week/days/${date}?agentId=${aid}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: draft }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      const savedBody = typeof data.body === 'string' ? data.body : draft;
-      setWeekDrafts(prev => ({ ...prev, [date]: savedBody }));
-      setWeekDays(prev => prev.map((d) => (d.date === date ? { ...d, body: savedBody } : d)));
-      // week.md 已在服务端从 daily/ 重新装配，刷新 sections.week 供切回查看态时展示最新内容
-      const refreshed = await hanaFetch(`/api/memories/compiled?agentId=${aid}`);
-      const refreshedData = await refreshed.json();
-      if (typeof refreshedData.sections?.week === 'string') {
-        setSections(prev => ({ ...prev, week: refreshedData.sections.week }));
+      if (todayDraft !== sections.today) {
+        const data = await putCompiledJson(
+          `/api/memories/compiled/today?agentId=${aid}`,
+          { today: todayDraft },
+        );
+        nextTodayDraft = typeof data.today === 'string' ? data.today : todayDraft;
+        nextSections.today = nextTodayDraft;
       }
-      useSettingsStore.getState().showToast(t('settings.memory.daySaved'), 'success');
+
+      if (factsDraft !== sections.facts) {
+        const data = await putCompiledJson(
+          `/api/memories/compiled/facts?agentId=${aid}`,
+          { facts: factsDraft },
+        );
+        nextFactsDraft = typeof data.facts === 'string' ? data.facts : factsDraft;
+        nextSections.facts = nextFactsDraft;
+      }
+
+      if (longtermDraft !== sections.longterm) {
+        const data = await putCompiledJson(
+          `/api/memories/compiled/longterm?agentId=${aid}`,
+          { longterm: longtermDraft },
+        );
+        nextLongtermDraft = typeof data.longterm === 'string' ? data.longterm : longtermDraft;
+        nextSections.longterm = nextLongtermDraft;
+      }
+
+      const changedWeekDays = weekDays.filter((day) => (weekDrafts[day.date] ?? '') !== day.body);
+      for (const day of changedWeekDays) {
+        const draft = weekDrafts[day.date] ?? '';
+        const data = await putCompiledJson(
+          `/api/memories/compiled/week/days/${day.date}?agentId=${aid}`,
+          { body: draft },
+        );
+        const savedBody = typeof data.body === 'string' ? data.body : draft;
+        nextWeekDrafts[day.date] = savedBody;
+        nextWeekDays = nextWeekDays.map((item) => (item.date === day.date ? { ...item, body: savedBody } : item));
+      }
+
+      if (changedWeekDays.length > 0) {
+        const refreshed = await hanaFetch(`/api/memories/compiled?agentId=${aid}`);
+        const refreshedData = await refreshed.json();
+        if (refreshedData.error) throw new Error(refreshedData.error);
+        if (typeof refreshedData.sections?.week === 'string') {
+          nextSections.week = refreshedData.sections.week;
+        }
+      }
+
+      setFactsDraft(nextFactsDraft);
+      setTodayDraft(nextTodayDraft);
+      setLongtermDraft(nextLongtermDraft);
+      setWeekDrafts(nextWeekDrafts);
+      setWeekDays(nextWeekDays);
+      setSections(nextSections);
+      setEditing(false);
+      useSettingsStore.getState().showToast(t('settings.saved'), 'success');
     } catch (err: any) {
       useSettingsStore.getState().showToast(err.message, 'error');
     } finally {
-      setSavingDay(null);
+      setSavingAll(false);
     }
   };
 
   const close = useCallback(() => setVisible(false), []);
-  const toggleEditing = useCallback(() => setEditing((prev) => !prev), []);
+  const handlePrimaryAction = () => {
+    if (!editing) {
+      setEditing(true);
+      return;
+    }
+    void saveCompiledEdits();
+  };
   const readonlyBlocks = [
+    { key: 'facts', title: t('settings.memory.editableFactsLabel'), value: sections.facts },
     { key: 'today', title: t('settings.memory.sections.today'), value: sections.today },
     { key: 'week', title: t('settings.memory.sections.week'), value: sections.week },
     { key: 'longterm', title: t('settings.memory.sections.longterm'), value: sections.longterm },
@@ -211,10 +215,14 @@ export function CompiledMemoryViewer() {
         <div className={styles['memory-viewer-header']}>
           <h3 className={styles['memory-viewer-title']}>{t('settings.memory.compiled')}</h3>
           <div className={styles['memory-viewer-header-actions']}>
-            <button className={styles['compiled-edit-toggle-btn']} onClick={toggleEditing}>
-              {editing ? t('settings.memory.editDone') : t('settings.memory.editEntry')}
+            <button
+              className={`${styles['compiled-edit-toggle-btn']} ${editing ? styles['compiled-edit-save-btn'] : ''}`}
+              onClick={handlePrimaryAction}
+              disabled={loading || savingAll}
+            >
+              {editing ? t('settings.memory.editSave') : t('settings.memory.editEntry')}
             </button>
-            <button className={styles['compiled-clear-btn']} onClick={clearCompiled}>
+            <button className={styles['compiled-clear-btn']} onClick={clearCompiled} disabled={savingAll}>
               {t('settings.memory.compiledClear')}
             </button>
             <button className={styles['memory-viewer-close']} onClick={close}>✕</button>
@@ -234,18 +242,8 @@ export function CompiledMemoryViewer() {
                   className={styles['compiled-memory-facts-editor']}
                   value={todayDraft}
                   onChange={(event) => setTodayDraft(event.target.value)}
-                  disabled={savingToday}
+                  disabled={savingAll}
                 />
-                <div className={styles['compiled-memory-editor-actions']}>
-                  <button
-                    type="button"
-                    className={styles['compiled-memory-save-btn']}
-                    onClick={saveToday}
-                    disabled={savingToday}
-                  >
-                    {t('settings.memory.saveToday')}
-                  </button>
-                </div>
               </section>
 
               <section className={styles['compiled-memory-edit-section']}>
@@ -257,18 +255,8 @@ export function CompiledMemoryViewer() {
                   className={styles['compiled-memory-facts-editor']}
                   value={factsDraft}
                   onChange={(event) => setFactsDraft(event.target.value)}
-                  disabled={savingFacts}
+                  disabled={savingAll}
                 />
-                <div className={styles['compiled-memory-editor-actions']}>
-                  <button
-                    type="button"
-                    className={styles['compiled-memory-save-btn']}
-                    onClick={saveFacts}
-                    disabled={savingFacts}
-                  >
-                    {t('settings.memory.saveFacts')}
-                  </button>
-                </div>
               </section>
 
               <section className={styles['compiled-memory-edit-section']}>
@@ -287,18 +275,8 @@ export function CompiledMemoryViewer() {
                           className={styles['compiled-memory-week-day-editor']}
                           value={weekDrafts[day.date] ?? ''}
                           onChange={(event) => setWeekDrafts(prev => ({ ...prev, [day.date]: event.target.value }))}
-                          disabled={savingDay === day.date}
+                          disabled={savingAll}
                         />
-                        <div className={styles['compiled-memory-editor-actions']}>
-                          <button
-                            type="button"
-                            className={styles['compiled-memory-save-btn']}
-                            onClick={() => saveWeekDay(day.date)}
-                            disabled={savingDay === day.date}
-                          >
-                            {t('settings.memory.saveDay')}
-                          </button>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -314,60 +292,25 @@ export function CompiledMemoryViewer() {
                   className={styles['compiled-memory-facts-editor']}
                   value={longtermDraft}
                   onChange={(event) => setLongtermDraft(event.target.value)}
-                  disabled={savingLongterm}
+                  disabled={savingAll}
                 />
-                <div className={styles['compiled-memory-editor-actions']}>
-                  <button
-                    type="button"
-                    className={styles['compiled-memory-save-btn']}
-                    onClick={saveLongterm}
-                    disabled={savingLongterm}
-                  >
-                    {t('settings.memory.saveLongterm')}
-                  </button>
-                </div>
               </section>
             </div>
           ) : (
-            <div className={styles['compiled-memory-editable']}>
-              <label className={styles['compiled-memory-editor-label']} htmlFor="compiled-memory-facts-editor">
-                {t('settings.memory.editableFactsLabel')}
-              </label>
-              <textarea
-                id="compiled-memory-facts-editor"
-                className={styles['compiled-memory-facts-editor']}
-                value={factsDraft}
-                onChange={(event) => setFactsDraft(event.target.value)}
-                disabled={savingFacts}
-              />
-              <div className={styles['compiled-memory-editor-actions']}>
-                <button
-                  type="button"
-                  className={styles['compiled-memory-save-btn']}
-                  onClick={saveFacts}
-                  disabled={savingFacts}
-                >
-                  {t('settings.memory.saveFacts')}
-                </button>
-              </div>
-              <div className={styles['compiled-memory-readonly-title']}>
-                {t('settings.memory.readonlyTimelineTitle')}
-              </div>
-              <div ref={contentRef} className={styles['compiled-memory-readonly-list']}>
-                {readonlyBlocks.map(block => (
-                  <section className={styles['compiled-memory-readonly-block']} key={block.key}>
-                    <h4>{block.title}</h4>
-                    {block.value.trim() ? (
-                      <div
-                        className={`${styles['compiled-memory-md']} ${'md-content'}`}
-                        dangerouslySetInnerHTML={{ __html: renderMarkdown(block.value) }}
-                      />
-                    ) : (
-                      <div className="memory-viewer-empty">{t('settings.memory.compiledEmpty')}</div>
-                    )}
-                  </section>
-                ))}
-              </div>
+            <div ref={contentRef} className={styles['compiled-memory-readonly-list']}>
+              {readonlyBlocks.map(block => (
+                <section className={styles['compiled-memory-readonly-block']} key={block.key}>
+                  <h4>{block.title}</h4>
+                  {block.value.trim() ? (
+                    <div
+                      className={`${styles['compiled-memory-md']} ${'md-content'}`}
+                      dangerouslySetInnerHTML={{ __html: renderMarkdown(block.value) }}
+                    />
+                  ) : (
+                    <div className="memory-viewer-empty">{t('settings.memory.compiledEmpty')}</div>
+                  )}
+                </section>
+              ))}
             </div>
           )}
         </div>

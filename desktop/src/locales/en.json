@@ -1637,6 +1637,7 @@
       "readonlyTimelineTitle": "Timeline Memory",
       "editEntry": "Edit",
       "editDone": "Done",
+      "editSave": "Save",
       "saveToday": "Save Today",
       "todaySaved": "Today saved",
       "saveLongterm": "Save Long-term",

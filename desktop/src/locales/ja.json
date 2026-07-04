@@ -1487,6 +1487,7 @@
       "readonlyTimelineTitle": "タイムライン記憶",
       "editEntry": "編集",
       "editDone": "完了",
+      "editSave": "保存",
       "saveToday": "今日を保存",
       "todaySaved": "今日の記憶を保存しました",
       "saveLongterm": "長期情報を保存",

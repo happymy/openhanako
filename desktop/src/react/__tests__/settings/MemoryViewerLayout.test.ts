@@ -13,12 +13,28 @@ function cssRule(source: string, selector: string) {
 describe('memory viewer layout contract', () => {
   it('keeps long memory content inside a scrollable body', () => {
     expect(cssRule(css, '.memory-viewer-backdrop')).toMatch(/padding:\s*var\(--space-16\);/);
-    expect(cssRule(css, '.memory-viewer')).toMatch(/max-height:\s*100%;/);
+    expect(cssRule(css, '.memory-viewer')).toMatch(
+      /max-height:\s*min\(760px,\s*calc\(100vh - var\(--space-40\) - var\(--space-40\)\)\);/
+    );
+    expect(cssRule(css, '.memory-viewer')).toMatch(/min-height:\s*0;/);
     expect(cssRule(css, '.memory-viewer')).toMatch(/overflow:\s*hidden;/);
 
     expect(cssRule(css, '.memory-viewer-body')).toMatch(/flex:\s*1 1 auto;/);
     expect(cssRule(css, '.memory-viewer-body')).toMatch(/min-height:\s*0;/);
     expect(cssRule(css, '.memory-viewer-body')).toMatch(/overflow-y:\s*auto;/);
+
+    expect(cssRule(css, '.compiled-memory-body')).toMatch(/min-height:\s*0;/);
+    expect(cssRule(css, '.compiled-memory-editable')).toMatch(/min-height:\s*0;/);
+
+    expect(cssRule(css, '.compiled-memory-facts-editor')).toMatch(/height:\s*150px;/);
+    expect(cssRule(css, '.compiled-memory-facts-editor')).toMatch(/max-height:\s*220px;/);
+    expect(cssRule(css, '.compiled-memory-facts-editor')).toMatch(/resize:\s*none;/);
+    expect(cssRule(css, '.compiled-memory-facts-editor')).toMatch(/overflow-y:\s*auto;/);
+
+    expect(cssRule(css, '.compiled-memory-week-day-editor')).toMatch(/height:\s*96px;/);
+    expect(cssRule(css, '.compiled-memory-week-day-editor')).toMatch(/max-height:\s*140px;/);
+    expect(cssRule(css, '.compiled-memory-week-day-editor')).toMatch(/resize:\s*none;/);
+    expect(cssRule(css, '.compiled-memory-week-day-editor')).toMatch(/overflow-y:\s*auto;/);
   });
 
   it('uses the taller, wider default settings modal size', () => {
