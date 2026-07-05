@@ -3,6 +3,7 @@ import { hanaFetch } from '../../hooks/use-hana-fetch';
 import { useI18n } from '../../hooks/use-i18n';
 import { useStore } from '../../stores';
 import { DEFAULT_THINKING_LEVELS, normalizeThinkingLevel, normalizeThinkingLevels, type ThinkingLevel } from '../../stores/model-slice';
+import { precreatePendingSession } from '../../stores/session-actions';
 import { SelectWidget, type SelectOption } from '@/ui';
 import styles from './InputArea.module.css';
 
@@ -47,6 +48,7 @@ export function ThinkingLevelButton({ level, onChange, availableLevels }: {
         const normalized = normalizeThinkingLevel((data?.thinkingLevel || next) as ThinkingLevel);
         useStore.getState().setPendingNewSessionThinkingLevel(normalized);
         onChange(normalized);
+        precreatePendingSession();
         return;
       }
       const res = await hanaFetch('/api/session-thinking-level', {

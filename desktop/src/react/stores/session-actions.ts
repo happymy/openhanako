@@ -32,6 +32,7 @@ function invalidateSessionSwitches(): void {
   _switchVersion += 1;
   _switchAbortController?.abort();
   _switchAbortController = null;
+  pendingSessionPreparation = null;
   useStore.setState({ pendingSessionSwitchPath: null });
 }
 
@@ -791,6 +792,191 @@ interface CreateNewSessionOptions {
   cwd?: string | null;
 }
 
+type PendingSessionCreateBody = Record<string, any>;
+
+type PendingSessionPrecreateResult =
+  | { ok: true; data: any }
+  | { ok: false; error: unknown };
+
+interface PendingSessionPreparation {
+  key: string;
+  promise: Promise<PendingSessionPrecreateResult>;
+}
+
+let pendingSessionPreparation: PendingSessionPreparation | null = null;
+
+function buildPendingSessionCreateBody(state: Record<string, any>): PendingSessionCreateBody {
+  const body: PendingSessionCreateBody = { memoryEnabled: state.memoryEnabled };
+  if (state.selectedWorkspaceMountId) {
+    body.workspaceMountId = state.selectedWorkspaceMountId;
+  } else if (state.selectedFolder) {
+    body.cwd = state.selectedFolder;
+  }
+  if (state.workspaceFolders?.length) {
+    body.workspaceFolders = state.workspaceFolders;
+  }
+  if (state.pendingProjectId) {
+    body.projectId = state.pendingProjectId;
+  }
+  if (state.pendingNewSessionThinkingLevel) {
+    body.thinkingLevel = state.pendingNewSessionThinkingLevel;
+  }
+  if (state.pendingNewSessionPermissionMode) {
+    body.permissionMode = state.pendingNewSessionPermissionMode;
+  }
+  if (state.selectedAgentId && state.selectedAgentId !== state.currentAgentId) {
+    body.agentId = state.selectedAgentId;
+  }
+  body.currentSessionPath = state.currentSessionPath;
+  return body;
+}
+
+function pendingSessionCreateKey(body: PendingSessionCreateBody): string {
+  return JSON.stringify(body);
+}
+
+function currentPendingSessionDraft(): { body: PendingSessionCreateBody; key: string } | null {
+  const state = useStore.getState() as Record<string, any>;
+  if (state.pendingNewSession !== true) return null;
+  const body = buildPendingSessionCreateBody(state);
+  return { body, key: pendingSessionCreateKey(body) };
+}
+
+function canPrecreatePendingSession(state: Record<string, any>): boolean {
+  return !!(state.connected || state.serverPort || state.activeServerConnection);
+}
+
+async function postPendingSessionCreate(body: PendingSessionCreateBody): Promise<any> {
+  const res = await hanaFetch('/api/sessions/new', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    throwOnHttpError: false,
+  });
+  return res.json();
+}
+
+export function precreatePendingSession(): void {
+  const state = useStore.getState() as Record<string, any>;
+  if (
+    state.pendingNewSession !== true
+    || state.currentSessionPath
+    || state.pendingSessionSwitchPath
+    || !canPrecreatePendingSession(state)
+  ) {
+    pendingSessionPreparation = null;
+    return;
+  }
+
+  const body = buildPendingSessionCreateBody(state);
+  const key = pendingSessionCreateKey(body);
+  if (pendingSessionPreparation?.key === key) return;
+
+  const preparation: PendingSessionPreparation = {
+    key,
+    promise: postPendingSessionCreate(body)
+      .then((data) => {
+        if (data?.error) throw new Error(String(data.error));
+        return { ok: true as const, data };
+      })
+      .catch((error) => {
+        console.warn('[session] precreate pending session failed:', error);
+        if (pendingSessionPreparation === preparation) {
+          pendingSessionPreparation = null;
+        }
+        return { ok: false as const, error };
+      }),
+  };
+  pendingSessionPreparation = preparation;
+}
+
+async function applyCreatedPendingSession(data: any, stateBeforeApply: Record<string, any>): Promise<boolean> {
+  if (data.error) {
+    console.error('[session] create failed:', data.error);
+    showSessionCreationError(data.error);
+    return false;
+  }
+
+  const justSelected = stateBeforeApply.selectedFolder;
+  const justSelectedMount = stateBeforeApply.selectedWorkspaceMountId;
+
+  // 基础状态更新
+  const patch: Record<string, any> = {
+    pendingNewSession: false,
+    pendingSessionSwitchPath: null,
+    selectedFolder: null,
+    selectedWorkspaceMountId: null,
+    selectedWorkspaceLabel: null,
+    pendingProjectId: null,
+    pendingNewSessionThinkingLevel: null,
+    pendingNewSessionPermissionMode: null,
+    workspaceFolders: Array.isArray(data.workspaceFolders) ? data.workspaceFolders : [],
+    selectedAgentId: null,
+  };
+
+  if (data.agentId) {
+    const switched = data.agentId !== stateBeforeApply.currentAgentId;
+    patch.currentAgentId = data.agentId;
+    if (data.agentName) patch.agentName = data.agentName;
+    if (switched) {
+      const ag = stateBeforeApply.agents.find((a: any) => a.id === data.agentId);
+      if (ag?.yuan) patch.agentYuan = ag.yuan;
+      patch.agentAvatarUrl = null;
+      window.i18n.defaultName = data.agentName || stateBeforeApply.agentName;
+      // 异步刷新头像
+      hanaFetch('/api/health').then((r: Response) => r.json()).then((d: any) => {
+        loadAvatarsAction(d.avatars);
+      }).catch(() => {
+        loadAvatarsAction();
+      });
+    }
+  }
+
+  if (data.path) {
+    Object.assign(patch, currentSessionIdentityPatch(useStore.getState() as Record<string, any>, data.path, data.sessionId));
+    patch.sessionAuthorizedFoldersByPath = {
+      ...putSessionScopedStateValue(
+        useStore.getState() as Record<string, any>,
+        useStore.getState().sessionAuthorizedFoldersByPath || {},
+        data.path,
+        Array.isArray(data.authorizedFolders) ? data.authorizedFolders : [],
+      ),
+    };
+    // 初始化空 session，ChatArea 自动渲染
+    useStore.getState().initSession(data.path, [], false);
+  }
+
+  pendingSessionPreparation = null;
+  useStore.setState(patch);
+  if (data.thinkingLevel) {
+    useStore.getState().setThinkingLevel(data.thinkingLevel);
+  }
+
+  await resetDeskForSessionWorkspace({
+    cwd: data.cwd || null,
+    workspaceMountId: data.workspaceMountId || justSelectedMount || null,
+    workspaceLabel: data.workspaceLabel || stateBeforeApply.selectedWorkspaceLabel || null,
+  });
+
+  emitSessionPermissionMode(data.permissionMode || data.accessMode || stateBeforeApply.pendingNewSessionPermissionMode);
+
+  await loadSessions();
+
+  // 刷新模型列表：session 创建后 activeModel 已绑定，需要同步到 UI
+  loadModels();
+
+  // 更新 cwdHistory
+  if (justSelected && !justSelectedMount) {
+    const currentState = useStore.getState();
+    let cwdHistory = currentState.cwdHistory.filter((p: string) => p !== justSelected);
+    cwdHistory = [justSelected, ...cwdHistory];
+    if (cwdHistory.length > 10) cwdHistory = cwdHistory.slice(0, 10);
+    useStore.setState({ cwdHistory });
+  }
+
+  return true;
+}
+
 export async function loadPendingNewSessionPermissionDefault(): Promise<SessionPermissionMode> {
   try {
     const res = await hanaFetch('/api/preferences/session-permission-default');
@@ -864,6 +1050,8 @@ export async function createNewSession(options: CreateNewSessionOptions = {}): P
     useStore.getState().setPendingNewSessionThinkingLevel(null);
   }
 
+  precreatePendingSession();
+
   // pending 状态下刷新 model 列表，让 ModelSelector 显示 agent Chat 默认 model
   loadModels();
 
@@ -875,123 +1063,43 @@ export async function createNewSession(options: CreateNewSessionOptions = {}): P
 // ══════════════════════════════════════════════════════
 
 export async function ensureSession(): Promise<boolean> {
-  const s = useStore.getState();
-  if (!s.pendingNewSession) return true;
-
   try {
-    const body: Record<string, any> = { memoryEnabled: s.memoryEnabled };
-    if (s.selectedWorkspaceMountId) {
-      body.workspaceMountId = s.selectedWorkspaceMountId;
-    } else if (s.selectedFolder) {
-      body.cwd = s.selectedFolder;
-    }
-    if (s.workspaceFolders?.length) {
-      body.workspaceFolders = s.workspaceFolders;
-    }
-    if (s.pendingProjectId) {
-      body.projectId = s.pendingProjectId;
-    }
-    if (s.pendingNewSessionThinkingLevel) {
-      body.thinkingLevel = s.pendingNewSessionThinkingLevel;
-    }
-    if (s.pendingNewSessionPermissionMode) {
-      body.permissionMode = s.pendingNewSessionPermissionMode;
-    }
-    if (s.selectedAgentId && s.selectedAgentId !== s.currentAgentId) {
-      body.agentId = s.selectedAgentId;
-    }
-    body.currentSessionPath = s.currentSessionPath;
+    while (true) {
+      const draft = currentPendingSessionDraft();
+      if (!draft) return true;
 
-    const res = await hanaFetch('/api/sessions/new', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      throwOnHttpError: false,
-    });
-    const data = await res.json();
-    if (data.error) {
-      console.error('[session] create failed:', data.error);
-      showSessionCreationError(data.error);
-      return false;
-    }
+      let data: any | null = null;
+      const preparation = pendingSessionPreparation?.key === draft.key
+        ? pendingSessionPreparation
+        : null;
 
-    const justSelected = s.selectedFolder;
-    const justSelectedMount = s.selectedWorkspaceMountId;
+      if (preparation) {
+        const result = await preparation.promise;
+        if (pendingSessionPreparation === preparation) {
+          pendingSessionPreparation = null;
+        }
 
-    // 基础状态更新
-    const patch: Record<string, any> = {
-      pendingNewSession: false,
-      pendingSessionSwitchPath: null,
-      selectedFolder: null,
-      selectedWorkspaceMountId: null,
-      selectedWorkspaceLabel: null,
-      pendingProjectId: null,
-      pendingNewSessionThinkingLevel: null,
-      pendingNewSessionPermissionMode: null,
-      workspaceFolders: Array.isArray(data.workspaceFolders) ? data.workspaceFolders : [],
-      selectedAgentId: null,
-    };
-
-    if (data.agentId) {
-      const switched = data.agentId !== s.currentAgentId;
-      patch.currentAgentId = data.agentId;
-      if (data.agentName) patch.agentName = data.agentName;
-      if (switched) {
-        const ag = s.agents.find((a: any) => a.id === data.agentId);
-        if (ag?.yuan) patch.agentYuan = ag.yuan;
-        patch.agentAvatarUrl = null;
-        window.i18n.defaultName = data.agentName || s.agentName;
-        // 异步刷新头像
-        hanaFetch('/api/health').then((r: Response) => r.json()).then((d: any) => {
-          loadAvatarsAction(d.avatars);
-        }).catch(() => {
-          loadAvatarsAction();
-        });
+        const latestDraft = currentPendingSessionDraft();
+        if (!latestDraft) return true;
+        if (latestDraft.key !== draft.key) {
+          continue;
+        }
+        if (result.ok) {
+          data = result.data;
+        }
       }
+
+      if (!data) {
+        data = await postPendingSessionCreate(draft.body);
+        const latestDraft = currentPendingSessionDraft();
+        if (!latestDraft) return true;
+        if (latestDraft.key !== draft.key) {
+          continue;
+        }
+      }
+
+      return applyCreatedPendingSession(data, useStore.getState() as Record<string, any>);
     }
-
-    if (data.path) {
-      Object.assign(patch, currentSessionIdentityPatch(useStore.getState() as Record<string, any>, data.path, data.sessionId));
-      patch.sessionAuthorizedFoldersByPath = {
-        ...putSessionScopedStateValue(
-          useStore.getState() as Record<string, any>,
-          useStore.getState().sessionAuthorizedFoldersByPath || {},
-          data.path,
-          Array.isArray(data.authorizedFolders) ? data.authorizedFolders : [],
-        ),
-      };
-      // 初始化空 session，ChatArea 自动渲染
-      useStore.getState().initSession(data.path, [], false);
-    }
-
-    useStore.setState(patch);
-    if (data.thinkingLevel) {
-      useStore.getState().setThinkingLevel(data.thinkingLevel);
-    }
-
-    await resetDeskForSessionWorkspace({
-      cwd: data.cwd || null,
-      workspaceMountId: data.workspaceMountId || justSelectedMount || null,
-      workspaceLabel: data.workspaceLabel || s.selectedWorkspaceLabel || null,
-    });
-
-    emitSessionPermissionMode(data.permissionMode || data.accessMode || s.pendingNewSessionPermissionMode);
-
-    await loadSessions();
-
-    // 刷新模型列表：session 创建后 activeModel 已绑定，需要同步到 UI
-    loadModels();
-
-    // 更新 cwdHistory
-    if (justSelected && !justSelectedMount) {
-      const currentState = useStore.getState();
-      let cwdHistory = currentState.cwdHistory.filter((p: string) => p !== justSelected);
-      cwdHistory = [justSelected, ...cwdHistory];
-      if (cwdHistory.length > 10) cwdHistory = cwdHistory.slice(0, 10);
-      useStore.setState({ cwdHistory });
-    }
-
-    return true;
   } catch (err) {
     console.error('[session] create failed:', err);
     showSessionCreationError(errorMessage(err));

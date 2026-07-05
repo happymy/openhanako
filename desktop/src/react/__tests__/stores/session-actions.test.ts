@@ -257,7 +257,21 @@ import { hanaFetch } from '../../hooks/use-hana-fetch';
 import { clearChat } from '../../stores/agent-actions';
 import { loadDeskFiles } from '../../stores/desk-actions';
 import { bumpMessageLiveVersion, clearMessageLiveVersion } from '../../stores/message-live-version';
-import { archiveSession, completeSessionTodos, continueDeletedAgentSession, createNewSession, dismissSessionCapabilityDrift, ensureSession, loadMessages, loadSessions, pinSession, reconcileCurrentSessionMessages, refreshSessionCapabilities, switchSession } from '../../stores/session-actions';
+import {
+  archiveSession,
+  completeSessionTodos,
+  continueDeletedAgentSession,
+  createNewSession,
+  dismissSessionCapabilityDrift,
+  ensureSession,
+  loadMessages,
+  loadSessions,
+  pinSession,
+  precreatePendingSession,
+  reconcileCurrentSessionMessages,
+  refreshSessionCapabilities,
+  switchSession,
+} from '../../stores/session-actions';
 import { snapshotStreamBuffer } from '../../stores/stream-invalidator';
 
 const mockFetch = vi.mocked(hanaFetch);
@@ -281,6 +295,7 @@ function mockPermissionDefault(mode = 'ask') {
     (globalThis.window as unknown as { hana?: unknown }).hana = {};
     installStoreMethods();
     mockFetch.mockReset();
+    precreatePendingSession();
     mockClearChat.mockReset();
     mockLoadDeskFiles.mockReset();
     streamResumeMocks.requestStreamResume.mockReset();
@@ -696,6 +711,118 @@ function mockPermissionDefault(mode = 'ask') {
         }),
       );
       expect(mockState.workspaceFolders).toEqual(['/reference-a']);
+    });
+
+    it('adopts a matching precreated pending session without posting a second new-session request', async () => {
+      Object.assign(mockState, {
+        pendingNewSession: true,
+        memoryEnabled: true,
+        selectedFolder: '/workspace-a',
+        serverPort: '62950',
+      });
+
+      let resolvePrecreate!: (response: Response) => void;
+      const precreateResponse = new Promise<Response>(resolve => { resolvePrecreate = resolve; });
+      const createBodies: unknown[] = [];
+      mockFetch.mockImplementation(async (url: string, opts?: RequestInit) => {
+        if (url === '/api/sessions/new') {
+          createBodies.push(JSON.parse(String(opts?.body)));
+          return precreateResponse;
+        }
+        if (url === '/api/sessions') {
+          return jsonResponse([]);
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+
+      precreatePendingSession();
+      const ensuring = ensureSession();
+      resolvePrecreate(jsonResponse({
+        ok: true,
+        path: '/session/precreated.jsonl',
+        sessionId: 'sess_precreated',
+        cwd: '/workspace-a',
+        workspaceFolders: [],
+      }));
+
+      await expect(ensuring).resolves.toBe(true);
+
+      expect(createBodies).toEqual([{
+        memoryEnabled: true,
+        cwd: '/workspace-a',
+        currentSessionPath: null,
+      }]);
+      expect(mockFetch.mock.calls.filter(([url]) => url === '/api/sessions/new')).toHaveLength(1);
+      expect(mockState.currentSessionPath).toBe('/session/precreated.jsonl');
+      expect(mockState.currentSessionId).toBe('sess_precreated');
+      expect((mockState.chatSessions as Record<string, unknown>)['/session/precreated.jsonl']).toBeTruthy();
+    });
+
+    it('does not adopt a stale precreated session when the pending draft changes mid-flight', async () => {
+      Object.assign(mockState, {
+        pendingNewSession: true,
+        memoryEnabled: true,
+        selectedFolder: '/workspace-a',
+        serverPort: '62950',
+      });
+
+      let resolveStale!: (response: Response) => void;
+      let resolveFresh!: (response: Response) => void;
+      const staleResponse = new Promise<Response>(resolve => { resolveStale = resolve; });
+      const freshResponse = new Promise<Response>(resolve => { resolveFresh = resolve; });
+      const createBodies: unknown[] = [];
+      mockFetch.mockImplementation(async (url: string, opts?: RequestInit) => {
+        if (url === '/api/sessions/new') {
+          const body = JSON.parse(String(opts?.body));
+          createBodies.push(body);
+          if (createBodies.length === 1) return staleResponse;
+          if (createBodies.length === 2) return freshResponse;
+          throw new Error('unexpected extra new-session request');
+        }
+        if (url === '/api/sessions') {
+          return jsonResponse([]);
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+
+      precreatePendingSession();
+      const ensuring = ensureSession();
+      Object.assign(mockState, { selectedFolder: '/workspace-b' });
+      precreatePendingSession();
+
+      resolveStale(jsonResponse({
+        ok: true,
+        path: '/session/stale.jsonl',
+        sessionId: 'sess_stale',
+        cwd: '/workspace-a',
+        workspaceFolders: [],
+      }));
+      resolveFresh(jsonResponse({
+        ok: true,
+        path: '/session/fresh.jsonl',
+        sessionId: 'sess_fresh',
+        cwd: '/workspace-b',
+        workspaceFolders: [],
+      }));
+
+      await expect(ensuring).resolves.toBe(true);
+
+      expect(createBodies).toEqual([
+        {
+          memoryEnabled: true,
+          cwd: '/workspace-a',
+          currentSessionPath: null,
+        },
+        {
+          memoryEnabled: true,
+          cwd: '/workspace-b',
+          currentSessionPath: null,
+        },
+      ]);
+      expect(mockState.currentSessionPath).toBe('/session/fresh.jsonl');
+      expect(mockState.currentSessionId).toBe('sess_fresh');
+      expect((mockState.chatSessions as Record<string, unknown>)['/session/stale.jsonl']).toBeUndefined();
+      expect((mockState.chatSessions as Record<string, unknown>)['/session/fresh.jsonl']).toBeTruthy();
     });
 
     it('sends workspaceMountId instead of cwd when the pending session selects a Studio workspace', async () => {
