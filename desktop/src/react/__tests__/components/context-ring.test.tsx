@@ -56,7 +56,7 @@ describe('ContextRing', () => {
     });
   });
 
-  it('is visible for an active session but hides the token label below 100k', async () => {
+  it('is visible for an active session but never shows the token label', async () => {
     useStore.setState({
       contextBySession: {
         '/session/a.jsonl': { tokens: 12_345, window: 200_000, percent: 6 },
@@ -72,7 +72,7 @@ describe('ContextRing', () => {
     expect(queryByText('12k')).toBeNull();
   });
 
-  it('shows the token label from 100k', async () => {
+  it('keeps the token label hidden at high usage', async () => {
     useStore.setState({
       contextBySession: {
         '/session/a.jsonl': { tokens: 100_000, window: 200_000, percent: 50 },
@@ -80,11 +80,12 @@ describe('ContextRing', () => {
       compactingSessions: [],
     } as never);
 
-    const { getByText } = render(<ContextRing />);
+    const { container, queryByText } = render(<ContextRing />);
 
     await waitFor(() => {
-      expect(getByText('100k')).toBeTruthy();
+      expect(container.querySelector('button')).toBeTruthy();
     });
+    expect(queryByText('100k')).toBeNull();
   });
 
   it('opens a two-action menu instead of compacting immediately', async () => {
