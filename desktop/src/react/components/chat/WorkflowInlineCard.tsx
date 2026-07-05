@@ -49,6 +49,7 @@ function statusTone(status: WorkflowInlineCardProps['block']['streamStatus']) {
 }
 
 function statusLabel(status: WorkflowInlineCardProps['block']['streamStatus']) {
+  const t: (k: string) => string = window.t ?? ((k: string) => k);
   const key = STATUS_LABEL_KEY[status];
   if (key) {
     const translated = t(key);

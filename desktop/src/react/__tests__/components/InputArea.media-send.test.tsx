@@ -52,8 +52,12 @@ vi.mock('../../components/input/extensions/skill-badge', () => ({
   SkillBadge: {},
 }));
 
+import { createTestTranslator } from '../helpers/i18n-test-strings';
+
+const testT = createTestTranslator();
+
 vi.mock('../../hooks/use-i18n', () => ({
-  useI18n: () => ({ t: (key: string) => key }),
+  useI18n: () => ({ t: testT }),
 }));
 
 vi.mock('../../hooks/use-config', () => ({
