@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 
 const DEFAULT_GITHUB_REPOSITORY = "liliMozi/openhanako";
 const DEFAULT_ATOMGIT_OWNER = "liliMozi";
-const DEFAULT_ATOMGIT_REPO = "OpenHanako";
+const DEFAULT_ATOMGIT_REPO = "OpenHanako-Releases";
 const ATOMGIT_API_BASE = "https://api.gitcode.com/api/v5";
 
 export function parseArgs(argv = process.argv.slice(2), env = process.env) {

@@ -16,7 +16,7 @@ const DIGEST_ASSET_NAME = "release-digest.v1.json";
 const DEFAULT_GITHUB_OWNER = "liliMozi";
 const DEFAULT_GITHUB_REPO = "openhanako";
 const DEFAULT_ATOMGIT_OWNER = "liliMozi";
-const DEFAULT_ATOMGIT_REPO = "OpenHanako";
+const DEFAULT_ATOMGIT_REPO = "OpenHanako-Releases";
 const DEFAULT_ATOMGIT_RELEASE_BASE_URL = `https://gitcode.com/${DEFAULT_ATOMGIT_OWNER}/${DEFAULT_ATOMGIT_REPO}/releases/download`;
 
 let _mainWindow = null;

@@ -28,7 +28,7 @@ describe("mirror-release-to-atomgit", () => {
       githubOwner: "liliMozi",
       githubRepo: "openhanako",
       atomgitOwner: "liliMozi",
-      atomgitRepo: "OpenHanako",
+      atomgitRepo: "OpenHanako-Releases",
       selection: "newest",
       latest: 1,
     }));

@@ -107,7 +107,7 @@ describe("auto-updater", () => {
     initWithMockWindow();
     expect(mockAutoUpdater.setFeedURL).toHaveBeenCalledWith({
       provider: "generic",
-      url: "https://gitcode.com/liliMozi/OpenHanako/releases/download/latest/",
+      url: "https://gitcode.com/liliMozi/OpenHanako-Releases/releases/download/latest/",
     });
     expect(mockAutoUpdater.autoDownload).toBe(false);
     expect(mockAutoUpdater.autoInstallOnAppQuit).toBe(false);
@@ -117,7 +117,7 @@ describe("auto-updater", () => {
     const config = mod.resolveUpdateFeedConfig({});
     expect(config.feedURL).toEqual({
       provider: "generic",
-      url: "https://gitcode.com/liliMozi/OpenHanako/releases/download/latest/",
+      url: "https://gitcode.com/liliMozi/OpenHanako-Releases/releases/download/latest/",
     });
     expect(config.fallbackConfigs).toHaveLength(1);
     expect(config.fallbackConfigs[0].feedURL).toEqual({
@@ -131,10 +131,10 @@ describe("auto-updater", () => {
     const config = mod.resolveUpdateFeedConfig({ HANA_UPDATE_SOURCE: "atomgit" });
     expect(config.feedURL).toEqual({
       provider: "generic",
-      url: "https://gitcode.com/liliMozi/OpenHanako/releases/download/latest/",
+      url: "https://gitcode.com/liliMozi/OpenHanako-Releases/releases/download/latest/",
     });
     expect(mod.buildReleaseDigestUrl("0.425.4", config)).toBe(
-      "https://gitcode.com/liliMozi/OpenHanako/releases/download/v0.425.4/release-digest.v1.json",
+      "https://gitcode.com/liliMozi/OpenHanako-Releases/releases/download/v0.425.4/release-digest.v1.json",
     );
   });
 
@@ -204,11 +204,11 @@ describe("auto-updater", () => {
     expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalledTimes(2);
     expect(mockAutoUpdater.setFeedURL).toHaveBeenNthCalledWith(1, {
       provider: "generic",
-      url: "https://gitcode.com/liliMozi/OpenHanako/releases/download/latest/",
+      url: "https://gitcode.com/liliMozi/OpenHanako-Releases/releases/download/latest/",
     });
     expect(mockAutoUpdater.setFeedURL).toHaveBeenNthCalledWith(2, {
       provider: "generic",
-      url: "https://gitcode.com/liliMozi/OpenHanako/releases/download/latest/",
+      url: "https://gitcode.com/liliMozi/OpenHanako-Releases/releases/download/latest/",
     });
     expect(mockAutoUpdater.setFeedURL).toHaveBeenNthCalledWith(3, {
       provider: "github",
