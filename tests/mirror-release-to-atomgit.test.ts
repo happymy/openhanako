@@ -79,7 +79,9 @@ describe("mirror-release-to-atomgit", () => {
       tag_name: "v0.425.4",
       draft: false,
       prerelease: true,
+      release_status: "pre",
     }));
+    expect(buildAtomGitReleasePayload(githubRelease("v0.425.3", false))).not.toHaveProperty("release_status");
   });
 
   it("dry-runs without requiring AtomGit token or uploading assets", async () => {
@@ -95,6 +97,108 @@ describe("mirror-release-to-atomgit", () => {
     });
   });
 
+  it("uploads assets using the GitCode upload URL contract", async () => {
+    const uploadBodies: unknown[] = [];
+    const fetchImpl = vi.fn(async (input, init = {}) => {
+      const url = String(input);
+      const method = init.method || "GET";
+
+      if (url.includes("/releases/v0.425.4/upload_url")) {
+        const parsed = new URL(url);
+        expect(parsed.searchParams.get("file_name")).toMatch(/latest\.yml|release-digest\.v1\.json/);
+        expect(parsed.searchParams.has("file_size")).toBe(false);
+        return new Response(JSON.stringify({
+          url: `https://upload.example.com/${parsed.searchParams.get("file_name")}`,
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "x-upload-token": "upload-token",
+          },
+        }), { status: 200 });
+      }
+
+      if (url.startsWith("https://upload.example.com/")) {
+        expect(method).toBe("PUT");
+        uploadBodies.push(init.body);
+        expect(init.headers).toEqual(expect.objectContaining({
+          "Content-Type": "application/octet-stream",
+          "x-upload-token": "upload-token",
+        }));
+        return new Response("", { status: 200 });
+      }
+
+      if (url.startsWith("https://example.com/")) {
+        return new Response(`bytes:${pathBasename(url)}`, { status: 200 });
+      }
+
+      if (url.includes("/repos/liliMozi/OpenHanako-Releases/releases/v0.425.4")) {
+        return new Response("", { status: 404 });
+      }
+
+      if (url.includes("/repos/liliMozi/OpenHanako-Releases/releases") && method === "POST") {
+        return new Response(JSON.stringify({ tag_name: "v0.425.4" }), { status: 201 });
+      }
+
+      throw new Error(`unexpected fetch: ${method} ${url}`);
+    });
+
+    const result = await mirrorRelease({
+      atomgitOwner: "liliMozi",
+      atomgitRepo: "OpenHanako-Releases",
+      dryRun: false,
+    }, githubRelease("v0.425.4"), {
+      env: { ATOMGIT_TOKEN: "atomgit-token" },
+      fetchImpl,
+    });
+
+    expect(result.dryRun).toBe(false);
+    expect(uploadBodies).toHaveLength(2);
+    expect(uploadBodies.every(body => Buffer.isBuffer(body))).toBe(true);
+  });
+
+  it("skips already mirrored assets only after verifying their size", async () => {
+    const existingAssets = [
+      { name: "latest.yml", type: "attach" },
+      { name: "release-digest.v1.json", type: "attach" },
+    ];
+    const fetchImpl = vi.fn(async (input, init = {}) => {
+      const url = String(input);
+      const method = init.method || "GET";
+
+      if (url.includes("/attach_files/latest.yml/download") && method === "HEAD") {
+        return new Response(null, { status: 200, headers: { "content-length": "120" } });
+      }
+
+      if (url.includes("/attach_files/release-digest.v1.json/download") && method === "HEAD") {
+        return new Response(null, { status: 200, headers: { "content-length": "240" } });
+      }
+
+      if (url.includes("/repos/liliMozi/OpenHanako-Releases/releases/v0.425.4") && method === "GET") {
+        return new Response(JSON.stringify({ tag_name: "v0.425.4", assets: existingAssets }), { status: 200 });
+      }
+
+      if (url.includes("/repos/liliMozi/OpenHanako-Releases/releases/v0.425.4") && method === "PATCH") {
+        expect(JSON.parse(String(init.body))).toEqual(expect.objectContaining({
+          release_status: "pre",
+        }));
+        return new Response(JSON.stringify({ tag_name: "v0.425.4", assets: existingAssets }), { status: 200 });
+      }
+
+      throw new Error(`unexpected fetch: ${method} ${url}`);
+    });
+
+    const result = await mirrorRelease({
+      atomgitOwner: "liliMozi",
+      atomgitRepo: "OpenHanako-Releases",
+      dryRun: false,
+    }, githubRelease("v0.425.4"), {
+      env: { ATOMGIT_TOKEN: "atomgit-token" },
+      fetchImpl,
+    });
+
+    expect(result.dryRun).toBe(false);
+    expect(fetchImpl).not.toHaveBeenCalledWith(expect.stringContaining("/upload_url"), expect.anything());
+  });
+
   it("normalizes AtomGit upload URL responses from known shapes", () => {
     expect(normalizeUploadUrlPayload({ upload_url: "https://upload.example.com", headers: { "x-token": "a" } })).toEqual({
       uploadUrl: "https://upload.example.com",
@@ -103,3 +207,7 @@ describe("mirror-release-to-atomgit", () => {
     expect(() => normalizeUploadUrlPayload({})).toThrow(/upload URL/);
   });
 });
+
+function pathBasename(url: string) {
+  return new URL(url).pathname.split("/").pop() || "asset";
+}

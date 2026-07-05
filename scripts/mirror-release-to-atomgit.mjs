@@ -142,6 +142,7 @@ export function buildAtomGitReleasePayload(githubRelease) {
     body: githubRelease.body || "",
     draft: false,
     prerelease: Boolean(githubRelease.prerelease),
+    ...(githubRelease.prerelease ? { release_status: "pre" } : {}),
   };
 }
 
@@ -164,7 +165,9 @@ async function upsertAtomGitRelease(options, githubRelease, { env, fetchImpl }) 
     headers: atomgitHeaders(env),
     body: JSON.stringify(payload),
   });
-  return expectJson(response, `AtomGit release ${method} ${githubRelease.tag_name}`);
+  const release = await expectJson(response, `AtomGit release ${method} ${githubRelease.tag_name}`);
+  if (existing?.assets && !release?.assets) return { ...existing, ...release, assets: existing.assets };
+  return release;
 }
 
 export function normalizeUploadUrlPayload(payload) {
@@ -180,7 +183,7 @@ async function getAtomGitUploadTarget(options, tag, asset, { env, fetchImpl }) {
   const response = await fetchImpl(atomgitUrl(
     `/repos/${options.atomgitOwner}/${options.atomgitRepo}/releases/${encodeURIComponent(tag)}/upload_url`,
     env,
-    { file_name: asset.name, file_size: asset.size },
+    { file_name: asset.name },
   ), { headers: atomgitHeaders(env) });
   const payload = await expectJson(response, `AtomGit upload URL ${asset.name}`);
   return normalizeUploadUrlPayload(payload);
@@ -198,17 +201,26 @@ async function downloadGithubAsset(asset, destination, { env, fetchImpl }) {
 }
 
 async function uploadAtomGitAsset(uploadTarget, filePath, asset, fetchImpl) {
-  const stat = await fs.promises.stat(filePath);
-  const response = await fetchImpl(uploadTarget.uploadUrl, {
-    method: "PUT",
-    headers: {
-      ...uploadTarget.headers,
-      "Content-Length": String(stat.size),
-      "Content-Type": asset.content_type || "application/octet-stream",
-    },
-    body: fs.createReadStream(filePath),
-    duplex: "half",
-  });
+  const content = await fs.promises.readFile(filePath);
+  const headers = {
+    "Content-Length": String(content.byteLength),
+    "Content-Type": asset.content_type || "application/octet-stream",
+    ...uploadTarget.headers,
+  };
+  let response;
+  try {
+    response = await fetchImpl(uploadTarget.uploadUrl, {
+      method: "PUT",
+      headers,
+      body: content,
+      signal: AbortSignal.timeout(10 * 60 * 1000),
+    });
+  } catch (error) {
+    const cause = error?.cause ? `: ${error.cause?.message || String(error.cause)}` : "";
+    throw new Error(`AtomGit asset upload failed for ${asset.name}: ${error?.message || String(error)}${cause}`, {
+      cause: error,
+    });
+  }
   if (!response.ok) {
     throw new Error(`AtomGit asset upload failed for ${asset.name}: ${response.status} ${await response.text()}`);
   }
@@ -219,6 +231,50 @@ async function mirrorAsset(options, githubRelease, asset, { env, fetchImpl, temp
   await downloadGithubAsset(asset, filePath, { env, fetchImpl });
   const uploadTarget = await getAtomGitUploadTarget(options, githubRelease.tag_name, asset, { env, fetchImpl });
   await uploadAtomGitAsset(uploadTarget, filePath, asset, fetchImpl);
+}
+
+function buildExistingAttachAssetMap(release) {
+  const assets = Array.isArray(release?.assets) ? release.assets : [];
+  const existing = new Map();
+  for (const asset of assets) {
+    if (asset?.type !== "attach" || !asset.name) continue;
+    if (existing.has(asset.name)) {
+      throw new Error(`AtomGit release contains duplicate asset name: ${asset.name}`);
+    }
+    existing.set(asset.name, asset);
+  }
+  return existing;
+}
+
+async function readExistingAtomGitAssetSize(options, tag, assetName, { env, fetchImpl }) {
+  const response = await fetchImpl(atomgitUrl(
+    `/repos/${options.atomgitOwner}/${options.atomgitRepo}/releases/${encodeURIComponent(tag)}/attach_files/${encodeURIComponent(assetName)}/download`,
+    env,
+  ), {
+    method: "HEAD",
+    headers: atomgitHeaders(env),
+    redirect: "follow",
+  });
+  if (!response.ok) {
+    throw new Error(`AtomGit existing asset size check failed for ${assetName}: ${response.status} ${await response.text()}`);
+  }
+  const contentLength = Number.parseInt(response.headers.get("content-length") || "", 10);
+  if (!Number.isFinite(contentLength) || contentLength < 0) {
+    throw new Error(`AtomGit asset ${assetName} already exists, but its size could not be verified; delete it and rerun the mirror`);
+  }
+  return contentLength;
+}
+
+async function shouldSkipExistingAsset(options, githubRelease, asset, { env, fetchImpl, existingAssets }) {
+  if (!existingAssets.has(asset.name)) return false;
+  if (!Number.isFinite(asset.size) || asset.size < 0) {
+    throw new Error(`GitHub asset ${asset.name} does not include a verifiable size`);
+  }
+  const existingSize = await readExistingAtomGitAssetSize(options, githubRelease.tag_name, asset.name, { env, fetchImpl });
+  if (existingSize !== asset.size) {
+    throw new Error(`AtomGit asset ${asset.name} already exists with size ${existingSize}, expected ${asset.size}; delete it and rerun the mirror`);
+  }
+  return true;
 }
 
 export async function mirrorRelease(options, githubRelease, { env = process.env, fetchImpl = fetch } = {}) {
@@ -236,10 +292,15 @@ export async function mirrorRelease(options, githubRelease, { env = process.env,
     };
   }
 
-  await upsertAtomGitRelease(options, githubRelease, { env, fetchImpl });
+  const atomgitRelease = await upsertAtomGitRelease(options, githubRelease, { env, fetchImpl });
+  const existingAssets = buildExistingAttachAssetMap(atomgitRelease);
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `hana-atomgit-${githubRelease.tag_name}-`));
   try {
     for (const asset of githubRelease.assets || []) {
+      if (await shouldSkipExistingAsset(options, githubRelease, asset, { env, fetchImpl, existingAssets })) {
+        console.log(`Skipping ${githubRelease.tag_name}/${asset.name} (already mirrored)`);
+        continue;
+      }
       console.log(`Uploading ${githubRelease.tag_name}/${asset.name}`);
       await mirrorAsset(options, githubRelease, asset, { env, fetchImpl, tempDir });
     }
