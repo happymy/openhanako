@@ -23,12 +23,13 @@ function githubRelease(tagName: string, prerelease = true) {
 }
 
 describe("mirror-release-to-atomgit", () => {
-  it("defaults manual latest mirroring to the newest one release", () => {
+  it("defaults manual mirroring to the newest one release", () => {
     expect(parseArgs([], { GITHUB_REPOSITORY: "liliMozi/openhanako" })).toEqual(expect.objectContaining({
       githubOwner: "liliMozi",
       githubRepo: "openhanako",
       atomgitOwner: "liliMozi",
       atomgitRepo: "OpenHanako",
+      selection: "newest",
       latest: 1,
     }));
   });
@@ -50,6 +51,27 @@ describe("mirror-release-to-atomgit", () => {
 
     expect(releases).toHaveLength(1);
     expect(releases[0].tag_name).toBe("v0.425.4");
+  });
+
+  it("can select stable releases without prereleases", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      text: vi.fn().mockResolvedValue(JSON.stringify([
+        githubRelease("v0.425.4", true),
+        githubRelease("v0.425.3", true),
+        githubRelease("v0.425.2", false),
+      ])),
+    });
+
+    const releases = await selectGithubReleases({
+      githubOwner: "liliMozi",
+      githubRepo: "openhanako",
+      selection: "stable",
+      latest: 1,
+    }, { env: {}, fetchImpl });
+
+    expect(releases).toHaveLength(1);
+    expect(releases[0].tag_name).toBe("v0.425.2");
   });
 
   it("preserves prerelease state in the AtomGit release payload", () => {

@@ -340,3 +340,27 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release edit "${{ github.ref_name }}" --prerelease --draft=false
+
+  mirror-atomgit:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.15.0"
+
+      - name: Mirror published release to AtomGit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ATOMGIT_TOKEN: ${{ secrets.ATOMGIT_TOKEN }}
+          ATOMGIT_OWNER: liliMozi
+          ATOMGIT_REPO: OpenHanako
+        run: |
+          node scripts/mirror-release-to-atomgit.mjs --tag "${{ github.ref_name }}"

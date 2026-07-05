@@ -7,15 +7,16 @@ on:
         description: Mirror selection
         type: choice
         options:
-          - latest
+          - newest
+          - stable
           - tag
-        default: latest
+        default: newest
       tag:
         description: Tag to mirror when mode=tag, for example v0.425.4
         required: false
         type: string
       limit:
-        description: Number of newest published GitHub releases to mirror when mode=latest
+        description: Number of releases to mirror when mode=newest or mode=stable
         required: true
         default: "1"
         type: string
@@ -56,8 +57,10 @@ jobs:
               exit 1
             fi
             ARGS+=(--tag "${{ inputs.tag }}")
+          elif [ "${{ inputs.mode }}" = "stable" ]; then
+            ARGS+=(--stable "${{ inputs.limit }}")
           else
-            ARGS+=(--latest "${{ inputs.limit }}")
+            ARGS+=(--newest "${{ inputs.limit }}")
           fi
 
           if [ "${{ inputs.dry_run }}" = "true" ]; then

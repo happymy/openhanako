@@ -19,6 +19,7 @@ export function parseArgs(argv = process.argv.slice(2), env = process.env) {
     atomgitOwner: env.ATOMGIT_OWNER || DEFAULT_ATOMGIT_OWNER,
     atomgitRepo: env.ATOMGIT_REPO || DEFAULT_ATOMGIT_REPO,
     tag: null,
+    selection: "newest",
     latest: 1,
     dryRun: false,
   };
@@ -30,23 +31,34 @@ export function parseArgs(argv = process.argv.slice(2), env = process.env) {
     else if (arg === "--atomgit-owner") args.atomgitOwner = argv[++i];
     else if (arg === "--atomgit-repo") args.atomgitRepo = argv[++i];
     else if (arg === "--tag") args.tag = argv[++i];
-    else if (arg === "--latest") args.latest = Number.parseInt(argv[++i], 10);
+    else if (arg === "--newest" || arg === "--latest") {
+      args.selection = "newest";
+      args.latest = Number.parseInt(argv[++i], 10);
+    }
+    else if (arg === "--stable") {
+      args.selection = "stable";
+      args.latest = Number.parseInt(argv[++i], 10);
+    }
     else if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--help" || arg === "-h") args.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
   if (!Number.isInteger(args.latest) || args.latest < 1 || args.latest > 20) {
-    throw new Error("--latest must be an integer between 1 and 20");
+    throw new Error("release selection limit must be an integer between 1 and 20");
   }
 
   return args;
 }
 
 function printHelp() {
-  console.log(`Usage: node scripts/mirror-release-to-atomgit.mjs [--tag v0.0.0 | --latest 1] [--dry-run]
+  console.log(`Usage: node scripts/mirror-release-to-atomgit.mjs [--tag v0.0.0 | --newest 1 | --stable 1] [--dry-run]
 
 Copies GitHub release assets to the matching AtomGit/GitCode release.
+Selection:
+  --tag v0.0.0  Mirror one exact tag, including prereleases
+  --newest N    Mirror the newest non-draft GitHub releases, including prereleases
+  --stable N    Mirror the newest non-draft, non-prerelease GitHub releases
 Environment:
   GITHUB_TOKEN   Optional for GitHub API rate limits/private assets
   ATOMGIT_TOKEN  Required unless --dry-run
@@ -112,10 +124,13 @@ export async function selectGithubReleases(options, { env = process.env, fetchIm
     return [release];
   }
 
-  const perPage = Math.min(100, Math.max(5, options.latest * 5));
+  const perPage = options.selection === "stable"
+    ? 100
+    : Math.min(100, Math.max(5, options.latest * 5));
   const releases = await githubJson(`${base}/releases?per_page=${perPage}&page=1`, env, fetchImpl);
   return releases
     .filter(release => !release.draft)
+    .filter(release => options.selection !== "stable" || !release.prerelease)
     .slice(0, options.latest);
 }
 
