@@ -236,6 +236,7 @@ describe('editor typography settings', () => {
     for (const css of readScreenshotThemeStyles()) {
       expect(css).toMatch(/\.markdown-table-scroll\s*\{[^}]*max-width:\s*100%/);
       expect(css).not.toMatch(/\.markdown-table-scroll\s*\{[^}]*overflow-x:\s*auto/);
+      expect(css).toMatch(/table\s*\{[^}]*width:\s*100%[^}]*table-layout:\s*fixed/);
       expect(css).toMatch(/\.markdown-table-scroll > table\s*\{[^}]*table-layout:\s*fixed/);
       expect(css).toMatch(/\.markdown-table-scroll > table\s*\{[^}]*margin:\s*0/);
       expect(css).not.toMatch(/\.markdown-table-scroll > table\s*\{[^}]*min-width:\s*max-content/);
