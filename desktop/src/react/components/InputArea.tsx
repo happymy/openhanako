@@ -1757,6 +1757,11 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
       }
       if (e.key === 'Escape') { e.preventDefault(); dismissSlashMenu(); return true; }
     }
+    if (e.key === 'Enter' && e.shiftKey && !isComposing.current && !e.isComposing && editor?.isActive('listItem')) {
+      e.preventDefault();
+      editor.commands.splitListItem('listItem');
+      return true;
+    }
     if (e.key === 'Enter' && !e.shiftKey && !isComposing.current && !e.isComposing) {
       e.preventDefault();
       if (isStreaming && hasContent) handleSteer(); else handleSend();
@@ -1765,6 +1770,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     return false;
   }, [
     dismissSlashMenu,
+    editor,
     fileMentionBusy,
     fileMentionItems,
     fileMenuOpen,

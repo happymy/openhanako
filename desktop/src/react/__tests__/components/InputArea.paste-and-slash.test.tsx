@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   updateHandler: undefined as undefined | (() => void),
   insertContent: vi.fn(),
   setContent: vi.fn(),
+  splitListItem: vi.fn(),
+  editorIsActive: vi.fn((_name?: string) => false),
   chainInserted: [] as unknown[],
   ensureSession: vi.fn(async () => true),
   loadSessions: vi.fn(),
@@ -51,10 +53,12 @@ vi.mock('@tiptap/react', () => ({
         scrollIntoView: vi.fn(),
         setContent: mocks.setContent,
         insertContent: mocks.insertContent,
+        splitListItem: mocks.splitListItem,
       },
       chain: () => chain,
       getText: () => mocks.editorText,
       getJSON: () => mocks.editorJson ?? editorJsonForText(mocks.editorText),
+      isActive: mocks.editorIsActive,
       isDestroyed: false,
       state: { tr: { setMeta: vi.fn(() => ({})) } },
       view: { dispatch: vi.fn() },
@@ -275,6 +279,9 @@ describe('InputArea paste and slash menu behavior', () => {
     mocks.editorJson = undefined;
     mocks.updateHandler = undefined;
     mocks.chainInserted = [];
+    mocks.splitListItem.mockClear();
+    mocks.editorIsActive.mockReset();
+    mocks.editorIsActive.mockReturnValue(false);
     mocks.editorFocus.mockClear();
     mocks.upsertOptimisticSessionFirstMessage.mockClear();
     mocks.ensureSession.mockImplementation(async () => {
@@ -379,6 +386,43 @@ describe('InputArea paste and slash menu behavior', () => {
 
     expect(useStore.getState().drafts['/session/input.jsonl']).toBe('1. first');
     expect(useStore.getState().draftDocs['/session/input.jsonl']).toEqual(mocks.editorJson);
+  });
+
+  it('uses Shift+Enter inside list items to create the next list item', () => {
+    mocks.editorIsActive.mockImplementation((name?: string) => name === 'listItem');
+    render(React.createElement(InputArea));
+
+    const preventDefault = vi.fn();
+    const handled = tiptapKeyDownHandler()?.(null, {
+      key: 'Enter',
+      shiftKey: true,
+      isComposing: false,
+      defaultPrevented: false,
+      preventDefault,
+    } as unknown as KeyboardEvent);
+
+    expect(handled).toBe(true);
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(mocks.splitListItem).toHaveBeenCalledWith('listItem');
+    expect(mocks.wsSend).not.toHaveBeenCalled();
+  });
+
+  it('leaves Shift+Enter outside lists to the editor default soft break behavior', () => {
+    mocks.editorIsActive.mockReturnValue(false);
+    render(React.createElement(InputArea));
+
+    const preventDefault = vi.fn();
+    const handled = tiptapKeyDownHandler()?.(null, {
+      key: 'Enter',
+      shiftKey: true,
+      isComposing: false,
+      defaultPrevented: false,
+      preventDefault,
+    } as unknown as KeyboardEvent);
+
+    expect(handled).toBe(false);
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(mocks.splitListItem).not.toHaveBeenCalled();
   });
 
   it('handles welcome Enter inside TipTap before the editor inserts a newline', async () => {
