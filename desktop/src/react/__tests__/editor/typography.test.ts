@@ -213,24 +213,33 @@ describe('editor typography settings', () => {
     expect(theme).toMatch(/var\(--preview-markdown-editor-bottom-space,\s*var\(--space-16\)\)/);
   });
 
-  it('constrains markdown tables while allowing horizontal scroll', () => {
+  it('constrains markdown tables while allowing cell wrapping', () => {
     for (const css of [readGlobalStyles(), readMobileStyles()]) {
-      expect(css).toMatch(/\.md-content \.markdown-table-scroll\s*\{[\s\S]*max-width:\s*100%[\s\S]*overflow-x:\s*auto/);
-      expect(css).toMatch(/\.md-content \.markdown-table-scroll > table\s*\{[\s\S]*width:\s*100%[\s\S]*min-width:\s*max-content[\s\S]*margin:\s*0/);
-      expect(css).toMatch(/\.md-content th,\s*\.md-content td\s*\{[\s\S]*white-space:\s*nowrap/);
+      expect(css).toMatch(/\.md-content \.markdown-table-scroll\s*\{[^}]*max-width:\s*100%/);
+      expect(css).not.toMatch(/\.md-content \.markdown-table-scroll\s*\{[^}]*overflow-x:\s*auto/);
+      expect(css).toMatch(/\.md-content \.markdown-table-scroll > table\s*\{[^}]*width:\s*100%/);
+      expect(css).toMatch(/\.md-content \.markdown-table-scroll > table\s*\{[^}]*table-layout:\s*fixed/);
+      expect(css).toMatch(/\.md-content \.markdown-table-scroll > table\s*\{[^}]*margin:\s*0/);
+      expect(css).not.toMatch(/\.md-content \.markdown-table-scroll > table\s*\{[^}]*min-width:\s*max-content/);
+      expect(css).toMatch(/\.md-content th,\s*\.md-content td\s*\{[^}]*white-space:\s*normal[^}]*overflow-wrap:\s*anywhere[^}]*word-break:\s*break-word/);
     }
 
     const previewCss = readPreviewStyles();
     expect(previewCss).toMatch(/:global\(\.preview-markdown > \*\)\s*\{[\s\S]*max-width:\s*var\(--editor-markdown-content-width\)[\s\S]*margin-left:\s*auto[\s\S]*margin-right:\s*auto/);
     expect(previewCss).toMatch(/:global\(\.preview-markdown > \.markdown-table-scroll\)\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*var\(--editor-markdown-content-width\)[\s\S]*margin-left:\s*auto[\s\S]*margin-right:\s*auto/);
-    expect(previewCss).toMatch(/:global\(\.cm-table-widget\)\s*\{[\s\S]*max-width:\s*100%[\s\S]*overflow-x:\s*auto/);
-    expect(previewCss).toMatch(/:global\(\.cm-table-widget table\)\s*\{[\s\S]*width:\s*100%[\s\S]*min-width:\s*max-content/);
-    expect(previewCss).toMatch(/:global\(\.cm-table-widget th\),\s*:global\(\.cm-table-widget td\)\s*\{[\s\S]*white-space:\s*nowrap/);
+    expect(previewCss).toMatch(/:global\(\.cm-table-widget\)\s*\{[^}]*max-width:\s*100%/);
+    expect(previewCss).not.toMatch(/:global\(\.cm-table-widget\)\s*\{[^}]*overflow-x:\s*auto/);
+    expect(previewCss).toMatch(/:global\(\.cm-table-widget table\)\s*\{[^}]*width:\s*100%[^}]*table-layout:\s*fixed/);
+    expect(previewCss).not.toMatch(/:global\(\.cm-table-widget table\)\s*\{[^}]*min-width:\s*max-content/);
+    expect(previewCss).toMatch(/:global\(\.cm-table-widget th\),\s*:global\(\.cm-table-widget td\)\s*\{[^}]*white-space:\s*normal[^}]*overflow-wrap:\s*anywhere[^}]*word-break:\s*break-word/);
 
     for (const css of readScreenshotThemeStyles()) {
-      expect(css).toMatch(/\.markdown-table-scroll\s*\{[\s\S]*max-width:\s*100%[\s\S]*overflow-x:\s*auto/);
-      expect(css).toMatch(/\.markdown-table-scroll > table\s*\{[\s\S]*min-width:\s*max-content[\s\S]*margin:\s*0/);
-      expect(css).toMatch(/th,\s*td\s*\{[\s\S]*white-space:\s*nowrap/);
+      expect(css).toMatch(/\.markdown-table-scroll\s*\{[^}]*max-width:\s*100%/);
+      expect(css).not.toMatch(/\.markdown-table-scroll\s*\{[^}]*overflow-x:\s*auto/);
+      expect(css).toMatch(/\.markdown-table-scroll > table\s*\{[^}]*table-layout:\s*fixed/);
+      expect(css).toMatch(/\.markdown-table-scroll > table\s*\{[^}]*margin:\s*0/);
+      expect(css).not.toMatch(/\.markdown-table-scroll > table\s*\{[^}]*min-width:\s*max-content/);
+      expect(css).toMatch(/th,\s*td\s*\{[^}]*white-space:\s*normal[^}]*overflow-wrap:\s*anywhere[^}]*word-break:\s*break-word/);
     }
   });
 

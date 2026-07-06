@@ -694,16 +694,14 @@
 :global(.cm-table-widget) {
     max-width: 100%;
     margin: var(--space-4) 0;
-    overflow-x: auto;
-    overflow-y: hidden;
 }
 
 :global(.cm-table-widget table) {
     width: 100%;
-    min-width: max-content;
     border-collapse: collapse;
     font-size: 0.9em;
     font-family: var(--editor-markdown-font-family, var(--font-serif));
+    table-layout: fixed;
 }
 
 :global(.cm-table-widget th),
@@ -711,7 +709,9 @@
     border: 1px solid var(--border);
     padding: 0.3em 0.6em;
     text-align: left;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 :global(.cm-table-widget th) {
