@@ -42,10 +42,13 @@ export async function fetchSessionFind(path: string, query: string): Promise<Cha
   }
 }
 
-/** 查找条输入驱动：查询当前 session 并写入结果，自动定位到最新命中 */
+/**
+ * 查找条输入驱动：查询当前 session 并写入结果，自动定位到最新命中。
+ * 只负责查询与结果落地——query 状态由 UI 层（ChatFindBar）在输入时写入；
+ * 若在这里写 query，close 之后到达的调用会经 EMPTY_FIND 兜底重建幽灵条目。
+ */
 export async function runChatFind(path: string, query: string): Promise<void> {
   const trimmed = query.trim();
-  useStore.getState().setChatFindQuery(path, query);
   if (!trimmed) return;
   const results = await fetchSessionFind(path, trimmed);
   // 竞态护栏：查询已变化或查找条已关闭时丢弃结果

@@ -164,6 +164,76 @@ describe('ChatFindBar', () => {
     expect(useStore.getState().chatFindBySession[SESSION]).toBeUndefined();
   });
 
+  it('查找条已打开时再按 Cmd+F → input 重聚焦并全选现有词', () => {
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 0;
+    });
+    act(() => {
+      useStore.getState().openChatFind(SESSION, 'hello');
+    });
+    render(<ChatFindBar />);
+    const input = document.querySelector('[data-classic-find-input]') as HTMLInputElement;
+    input.blur();
+    expect(document.activeElement).not.toBe(input);
+
+    const event = new KeyboardEvent('keydown', { key: 'f', metaKey: true, cancelable: true });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe('hello'.length);
+    rafSpy.mockRestore();
+  });
+
+  it('输入后 debounce 窗口内 close → 推进 timer 后不复活幽灵状态、不触发查询', () => {
+    vi.useFakeTimers();
+    act(() => {
+      useStore.getState().openChatFind(SESSION);
+    });
+    render(<ChatFindBar />);
+    const input = document.querySelector('[data-classic-find-input]') as HTMLInputElement;
+
+    fireEvent.change(input, { target: { value: 'ghost' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Close find' }));
+    expect(useStore.getState().chatFindBySession[SESSION]).toBeUndefined();
+
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(runChatFindMock).not.toHaveBeenCalled();
+    expect(useStore.getState().chatFindBySession[SESSION]).toBeUndefined();
+  });
+
+  it('debounce 在途时按下一条：flush 为立即 runChatFind 且本次不步进', () => {
+    vi.useFakeTimers();
+    act(() => {
+      useStore.getState().openChatFind(SESSION);
+    });
+    render(<ChatFindBar />);
+    const input = document.querySelector('[data-classic-find-input]') as HTMLInputElement;
+
+    fireEvent.change(input, { target: { value: 'hi' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Next match' }));
+
+    expect(runChatFindMock).toHaveBeenCalledTimes(1);
+    expect(runChatFindMock).toHaveBeenCalledWith(SESSION, 'hi');
+    expect(stepChatFindMock).not.toHaveBeenCalled();
+
+    // flush 已清 timer：到期不重复触发
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(runChatFindMock).toHaveBeenCalledTimes(1);
+
+    // timer 已不在途：再按下一条恢复正常步进
+    fireEvent.click(screen.getByRole('button', { name: 'Next match' }));
+    expect(stepChatFindMock).toHaveBeenCalledWith(SESSION, 1);
+  });
+
   it('计数展示：设置 results 后显示 activePos+1/total', () => {
     act(() => {
       useStore.getState().openChatFind(SESSION, 'hi');

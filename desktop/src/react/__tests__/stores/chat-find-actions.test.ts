@@ -51,6 +51,16 @@ describe('chat-find-actions', () => {
     expect(useStore.getState().pendingMessageLocate).toBeNull();
   });
 
+  it('runChatFind 不写 query：查找条已关闭后到达的调用不重建幽灵条目', async () => {
+    // 模拟 debounce 竞态漏网：close 之后 runChatFind 才被调用。
+    // runChatFind 只负责查询与结果落地，query 状态由 UI 层（ChatFindBar）写；
+    // 若它自己写 query，会经 EMPTY_FIND 兜底重建 open:false 的幽灵条目。
+    hanaFetchMock.mockResolvedValue(findResponse(SAMPLE));
+    await runChatFind(PATH, 'x');
+    expect(useStore.getState().chatFindBySession[PATH]).toBeUndefined();
+    expect(useStore.getState().pendingMessageLocate).toBeNull();
+  });
+
   it('runChatFind 接口失败置 error 状态、不发定位', async () => {
     useStore.getState().openChatFind(PATH, 'x');
     hanaFetchMock.mockResolvedValue(findResponse({ error: 'boom' }, false));
