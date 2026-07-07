@@ -64,12 +64,13 @@
     --ease-standard: cubic-bezier(0.2, 0, 0, 1);
     --ease-smooth:   cubic-bezier(0.22, 0.68, 0, 1);
 
-    /* 字号层级（5 档） */
+    /* 字号层级（6 档，2026-07-07 收编 micro） */
     --fs-title:   1rem;      /* 区块标题、卡片标题 */
     --fs-body:    0.9rem;    /* 正文、label */
     --fs-ui:      0.82rem;   /* 次级 UI 文字、描述 */
     --fs-caption: 0.78rem;   /* 控件文字、小号正文 */
     --fs-hint:    0.7rem;    /* 提示、元数据、tag、badge */
+    --fs-micro:   0.62rem;   /* 极小注记：角标计数、时间戳、键位标（2026-07-07 收编第六档） */
 
     /* 字体默认值：主题 CSS 可 override */
     --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -2503,7 +2504,9 @@ body.resizing .channel-inspector-rail {
     color: var(--text-faint, rgba(0, 0, 0, 0.35));
     font-size: 0.65rem;
     margin-left: auto;
-    padding-left: var(--space-lg);
+    /* 原写 var(--space-lg)：token 从未定义，声明失效多时（实际 padding 为 0）；
+       按原始意图 1.5rem 落 --space-24 */
+    padding-left: var(--space-24);
     font-family: inherit;
 }
 
@@ -2554,7 +2557,9 @@ body.resizing .channel-inspector-rail {
 
 .context-menu-fmt-sep {
     width: 1px;
-    height: var(--space-md);
+    /* 原写 var(--space-md)：token 从未定义，分隔线高度失效为 0（一直不可见）；
+       按原始意图 1rem 落 --space-16 */
+    height: var(--space-16);
     background: var(--overlay-light);
     margin: 0 2px;
 }
