@@ -27,3 +27,4 @@ export {
   LayoutGroup,
 } from './AnimationPrimitives';
 export type { Transition } from './AnimationPrimitives';
+export { ClassicFindBox } from './ClassicFindBox';
