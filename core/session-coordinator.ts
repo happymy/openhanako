@@ -1755,7 +1755,7 @@ export class SessionCoordinator {
       sessionKind: pluginSessionMeta?.kind || null,
       sessionVisibility: pluginSessionMeta?.visibility || "public",
       memoryReflectionSnapshot,
-      // #1624：session 级提示数据，归属 sessionEntry（keyed by sessionPath），不挂 agent/engine
+      // #1624：session 级提示数据，归属 sessionEntry（this._sessions 由 _sessionRuntimeKeyForPath 以 sessionId 优先键控，sessionPath 仅为兼容退化键），不挂 agent/engine
       capabilityDrift,
       capabilityDriftDismissedFingerprint: restoredDriftDismissedFingerprint,
       lastTouchedAt: Date.now(),
@@ -3558,9 +3558,8 @@ export class SessionCoordinator {
       } else {
         await this._teardownSessionEntry(entry, sessionPath, "close_all");
       }
-      // closeAll 只卸载运行时 sidecar，不代表删除 session。
-      // pending confirmation 必须 abort；后台任务结果由 DeferredResultCoordinator
-      // 按 sessionPath 持久投递，closeAll 只卸载 runtime，不应清掉 pending。
+      // closeAll 只卸载运行时 sidecar，不代表删除 session。pending confirmation 必须 abort；
+      // DeferredResultCoordinator 自己的持久化存储按字面 sessionPath 记录（独立于本文件 this._sessions 的 _sessionRuntimeKeyForPath sessionId 优先键控），closeAll 只卸载 runtime，不应清掉 pending。
       this._d.getConfirmStore?.()?.abortBySession(sessionPath);
     }
     try {
