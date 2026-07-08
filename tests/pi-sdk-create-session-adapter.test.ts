@@ -39,10 +39,6 @@ vi.mock("@earendil-works/pi-ai/compat", async () => ({
   getModel: vi.fn(),
 }));
 
-vi.mock("@earendil-works/pi-ai/oauth", async () => ({
-  registerOAuthProvider: vi.fn(),
-}));
-
 vi.mock("../lib/pi-sdk/session-options.js", async () => ({
   PI_BUILTIN_TOOL_NAMES: Object.freeze(["read", "write", "edit", "exec_command", "write_stdin", "grep", "find", "ls"]),
   normalizeCreateAgentSessionOptions: vi.fn(opts => ({

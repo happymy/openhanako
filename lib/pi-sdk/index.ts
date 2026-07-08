@@ -89,13 +89,12 @@ export const completeSimple = rawCompleteSimple;
 export const convertAgentMessagesToLlm = rawConvertToLlm;
 export const prepareCompaction = rawPrepareCompaction;
 
-// ── pi-ai（直接依赖，需保持与 pi-coding-agent 内部依赖同版本）──
+// ── pi-ai（直接依赖，版本与 pi-coding-agent 锁死同版本。注意：上游发布物
+// 携带 overrides 致 npm 子树隔离，pi-coding-agent 下必然嵌套第二份 pi-ai，
+// 根级同版本挡不住这份拷贝；typebox schema 为字符串键、事件流为鸭子类型，
+// 跨实例安全，但任何"模块级单例注册表"类 API（如 pi-ai/oauth 的 provider
+// registry）都会双实例互不可见，禁止经由本门面暴露）──
 export { StringEnum } from "@earendil-works/pi-ai";
-// 注意：pi-coding-agent 因上游发布物携带 overrides 被 npm 子树隔离，
-// 其下嵌套着第二份 pi-ai，模块级 oauth registry 与根实例互不可见。
-// 此导出只作用于根 pi-ai 实例，pi session 内部的凭证解析（走嵌套实例）
-// 看不到经由这里注册的 provider。当前生产零消费方；是否移除待用户决定。
-export { registerOAuthProvider } from "@earendil-works/pi-ai/oauth";
 
 export function getPiModel(provider, modelId) {
   return rawGetPiModel(provider, modelId);
