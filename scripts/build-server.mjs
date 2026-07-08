@@ -48,6 +48,7 @@ import {
   buildBetterSqliteRuntimeSmokeScript,
   buildJiebaRuntimeSmokeScript,
   buildExternalPackage,
+  collectBareImportPackageNames,
   collectInstalledOptionalDependencyDirs,
   verifyExternalEntrypoints,
 } from "./build-server-deps.mjs";
@@ -361,6 +362,20 @@ if (undeclaredPluginDeps.length > 0) {
   throw new Error(
     "[build-server] bundled plugin imports npm packages missing from root dependencies: "
       + undeclaredPluginDeps.join(", "),
+  );
+}
+
+const bundleExternalImports = collectBareImportPackageNames(
+  fs.readFileSync(path.join(bundleOutDir, "index.js"), "utf-8"),
+)
+  .filter((packageName) => !builtinSet.has(packageName));
+const missingBundleExternalDeps = bundleExternalImports
+  .filter((packageName) => !externalDeps[packageName]);
+if (missingBundleExternalDeps.length > 0) {
+  throw new Error(
+    "[build-server] server bundle imports external packages missing from packaged dependencies: "
+      + missingBundleExternalDeps.join(", ")
+      + ". Add them to root package.json dependencies.",
   );
 }
 
