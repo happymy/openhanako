@@ -840,6 +840,16 @@ export class SessionCoordinator {
     }
   }
 
+  /** 列表/只读富化专用：manifest 查询失败降级 null，单条失败不清空整个列表（#414 拓扑加固） */
+  _resolveSessionManifestForPathQuiet(sessionPath: any) {
+    try {
+      return this._resolveSessionManifestForPath(sessionPath);
+    } catch (err) {
+      log.warn(`session manifest lookup failed for ${path.basename(sessionPath || "")}: ${err?.message || err}`);
+      return null;
+    }
+  }
+
   _makeSessionLocatorStateError(operation: string, sessionPath: any, manifest: any) {
     const lifecycle = manifest?.lifecycle || "unknown";
     const currentPath = manifest?.currentLocator?.path || null;
@@ -3916,7 +3926,7 @@ export class SessionCoordinator {
           }
           const sessKey = path.basename(s.path);
           const metaEntry = meta[sessKey];
-          const manifest = this._resolveSessionManifestForPath(s.path);
+          const manifest = this._resolveSessionManifestForPathQuiet(s.path);
           const runtimeEntry = this._sessionFolderEntry(s.path);
           if (hasSessionPermissionModeFields(runtimeEntry)) {
             s.permissionMode = normalizeSessionPermissionMode(runtimeEntry);

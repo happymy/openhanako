@@ -8,6 +8,8 @@ import { isSessionJsonlFilename } from "../../lib/session-jsonl.ts";
 import { normalizeSessionPermissionMode } from "../session-permission-mode.ts";
 import { normalizeSessionLocatorPath } from "./path-normalizer.ts";
 
+const MAX_SKIPPED_DETAILS = 20;
+
 function readJsonFile(filePath, fallback = {}) {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf-8"));
@@ -401,7 +403,7 @@ export function migrateLegacySessions(opts: any = {}) {
   const hanaHome = path.resolve(opts.hanaHome);
   const agentsDir = path.resolve(opts.agentsDir || path.join(hanaHome, "agents"));
   const migratedAt = opts.migratedAt || new Date().toISOString();
-  const result = { scanned: 0, created: 0, existing: 0, skipped: 0 };
+  const result: any = { scanned: 0, created: 0, existing: 0, skipped: 0, skippedDetails: [] };
 
   for (const agentId of listDirectories(agentsDir)) {
     const sessionGroups = [
@@ -460,6 +462,12 @@ export function migrateLegacySessions(opts: any = {}) {
         } catch (error) {
           if (opts.stopOnError === true) throw error;
           result.skipped += 1;
+          if (result.skippedDetails.length < MAX_SKIPPED_DETAILS) {
+            result.skippedDetails.push({
+              sessionPath: row.sessionPath,
+              error: error?.message || String(error),
+            });
+          }
         }
       }
     }
