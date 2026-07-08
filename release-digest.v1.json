@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "tag": "v0.371.18",
-  "version": "0.371.18",
+  "tag": "v0.371.19",
+  "version": "0.371.19",
   "previousTag": "v0.358.8",
   "generatedAt": "2026-07-08T18:32:24.000Z",
   "noUserFacingChanges": false,
@@ -11,15 +11,15 @@
   },
   "counts": {
     "feature": 1,
-    "fix": 2,
+    "fix": 1,
     "improvement": 2,
     "migration": 1
   },
   "source": {
     "owner": "liliMozi",
     "repo": "openhanako",
-    "commitRange": "v0.358.8..2fe7b7f40",
-    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.371.18",
+    "commitRange": "v0.358.8..5fda3b892",
+    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.371.19",
     "releaseNotes": ""
   },
   "items": [
@@ -139,23 +139,6 @@
         { "type": "commit", "ref": "3413ec434", "title": "feat(sdk): 升级 Pi SDK 至 @earendil-works 0.80.3（scope 迁移）" },
         { "type": "commit", "ref": "526a06481", "title": "fix(models): 用 pi-ai 0.80.3 目录对表刷新 known-models 词典" },
         { "type": "commit", "ref": "934fab018", "title": "fix(models): fallbacks 与词典对齐 + MiniMax-M3 context 用户策展 500k" }
-      ]
-    },
-    {
-      "id": "markdown-file-icon",
-      "kind": "fix",
-      "importance": "low",
-      "title": {
-        "zh": "为 Markdown 文档关联添加专属图标",
-        "en": "Added a dedicated icon for Markdown document association"
-      },
-      "summary": {
-        "zh": "在系统中用 Hana 打开 .md 文件时，会显示专属的文档图标而不是通用图标。",
-        "en": "Opening .md files with Hana now shows a dedicated document icon instead of a generic one."
-      },
-      "details": [],
-      "sources": [
-        { "type": "commit", "ref": "bde026fcf", "title": "fix(packaging): add Markdown document icon assets" }
       ]
     }
   ]
