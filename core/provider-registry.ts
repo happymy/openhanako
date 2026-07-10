@@ -768,14 +768,20 @@ export class ProviderRegistry {
         );
       }
       owners.set(providerId, sourceProviderId);
+      const pluginConfig = plugin.sdkProvider.config || {};
+      const mergedHeaders = normalizeProviderHeaders({
+        ...(pluginConfig.headers || {}),
+        ...(entry.headers || {}),
+      });
       registrations.push({
         sourceProviderId,
         providerId,
         config: {
-          ...plugin.sdkProvider.config,
+          ...pluginConfig,
           name: entry.displayName,
           baseUrl: entry.baseUrl,
           api: entry.api,
+          ...(Object.keys(mergedHeaders).length > 0 ? { headers: mergedHeaders } : {}),
         },
       });
     }

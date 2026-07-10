@@ -23,6 +23,7 @@ import { buildRuntimeApiKeyRef } from "../shared/runtime-api-key-ref.ts";
 import { inferOllamaModelMetadata } from "../shared/ollama-model-metadata.ts";
 import { normalizeProviderBaseUrlForApi } from "../lib/llm/provider-client.ts";
 import { normalizeThinkingLevelForModel } from "./session-thinking-level.ts";
+import { buildXaiOauthCliModelHeaders } from "../lib/providers/xai-oauth-cli-headers.ts";
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
 const PI_BUILTIN_PROVIDER_REUSE = new Set(["kimi-coding"]);
@@ -274,7 +275,12 @@ function buildModelEntry(modelEntry, provider, baseUrl = "", api = "openai-compl
   }
 
   if (known?.quirks?.length) entry.quirks = known.quirks;
-  if (piBuiltin?.headers) entry.headers = { ...piBuiltin.headers };
+  const modelHeaders = normalizeProviderHeaders({
+    ...(piBuiltin?.headers || {}),
+    ...(isObj ? (modelEntry.headers || {}) : {}),
+    ...(provider === "xai-oauth" ? buildXaiOauthCliModelHeaders(id) : {}),
+  });
+  if (Object.keys(modelHeaders).length > 0) entry.headers = modelHeaders;
 
   const rawToolUse = isObj && modelEntry.toolUse !== undefined ? modelEntry.toolUse : known?.toolUse;
   const toolUse = normalizeToolUseContract(rawToolUse);

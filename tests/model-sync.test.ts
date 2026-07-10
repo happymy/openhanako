@@ -294,6 +294,47 @@ describe("syncModels", () => {
     expect(result.providers.dashscope.models[0].id).toBe("qwen3.5-flash");
   });
 
+  it("keeps auth-storage model override headers while stripping provider-level headers", async () => {
+    const syncModels = await loadSync();
+
+    const providers = {
+      "xai-oauth": {
+        base_url: "https://cli-chat-proxy.grok.com/v1",
+        api: "openai-responses",
+        headers: {
+          "x-xai-token-auth": "xai-grok-cli",
+          "x-grok-client-version": "0.2.95",
+          "x-grok-client-identifier": "hana",
+          Authorization: "Bearer should-not-project",
+        },
+        models: [{
+          id: "grok-4.5",
+          api: "openai-responses",
+        }],
+      },
+    };
+
+    syncModels(providers, {
+      modelsJsonPath,
+      chatProjectionPlans: {
+        "xai-oauth": {
+          sourceProviderId: "xai-oauth",
+          runtimeProviderId: "xai-oauth",
+          projection: "models-json",
+          credentialSource: "auth-storage",
+        },
+      },
+    });
+
+    const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
+    expect(result.providers["xai-oauth"].headers).toBeUndefined();
+    expect(result.providers["xai-oauth"].apiKey).toBeUndefined();
+    expect(result.providers["xai-oauth"].models[0]).toMatchObject({
+      id: "grok-4.5",
+      headers: { "x-grok-model-override": "grok-4.5" },
+    });
+  });
+
   it("projects user-entered api keys as runtime refs so Pi SDK does not resolve env names", async () => {
     const syncModels = await loadSync();
 

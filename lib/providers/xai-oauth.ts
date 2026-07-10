@@ -2,6 +2,9 @@ import {
   XAI_OAUTH_RESOURCE_URL,
   xaiOAuthProvider,
 } from "../auth/xai-oauth.ts";
+import { buildXaiOauthCliProviderHeaders } from "./xai-oauth-cli-headers.ts";
+
+const XAI_OAUTH_CLI_PROVIDER_HEADERS = buildXaiOauthCliProviderHeaders();
 
 const GROK_OAUTH_MODELS = [
   {
@@ -50,6 +53,7 @@ export const xaiOAuthPlugin = {
   authJsonKey: "xai-oauth",
   defaultBaseUrl: XAI_OAUTH_RESOURCE_URL,
   defaultApi: "openai-responses",
+  headers: XAI_OAUTH_CLI_PROVIDER_HEADERS,
   models: GROK_OAUTH_MODELS,
   capabilities: {
     chat: {
@@ -71,6 +75,7 @@ export const xaiOAuthPlugin = {
       name: "xAI Grok (OAuth)",
       baseUrl: XAI_OAUTH_RESOURCE_URL,
       api: "openai-responses",
+      headers: XAI_OAUTH_CLI_PROVIDER_HEADERS,
       oauth: xaiOAuthProvider,
     },
   },
