@@ -1229,6 +1229,10 @@
             "label": "Office",
             "summary": "Let the agent read documents and convert HTML to PDF"
           },
+          "session": {
+            "label": "Session collaboration",
+            "summary": "List and read other sessions; send messages or create sessions via confirmation cards"
+          },
           "update_settings": {
             "label": "Update Settings",
             "summary": "Allow the agent to modify application configuration"

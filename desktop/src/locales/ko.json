@@ -1196,6 +1196,10 @@
           "office": {
             "label": "Office",
             "summary": "Agent가 문서를 읽고 HTML을 PDF로 변환할 수 있게 해요"
+          },
+          "session": {
+            "label": "세션 협업",
+            "summary": "다른 세션을 목록/조회하고, 확인 카드로 메시지 전송이나 세션 생성을 수행"
           }
         }
       },

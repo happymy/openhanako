@@ -40,6 +40,7 @@ import { createStopTaskTool } from "../lib/tools/stop-task-tool.ts";
 import { createCurrentStatusTool } from "../lib/tools/current-status-tool.ts";
 import { createWorkflowTool } from "../lib/tools/workflow-tool.ts";
 import { createCardGuideTool } from "../lib/tools/card-guide-tool.ts";
+import { createSessionTool } from "../lib/tools/session-tool.ts";
 import { createShowCardTool } from "../lib/tools/show-card-tool.ts";
 import { runCompatChecks } from "../lib/compat/index.ts";
 import { getPlatformPromptNote } from "./platform-prompt.ts";
@@ -128,6 +129,7 @@ export class Agent {
   declare _runtimeInitialized: any;
   declare _searchConfigResolver: any;
   declare _sessionFoldersTool: any;
+  declare _sessionTool: any;
   declare _stageFilesTool: any;
   declare _fileTool: any;
   declare _stopTaskTool: any;
@@ -236,6 +238,7 @@ export class Agent {
     this._subagentCloseTool = null;
     this._cardGuideTool = null;
     this._showCardTool = null;
+    this._sessionTool = null;
     this._workflowTool = null;
     this._currentStatusTool = null;
 
@@ -677,6 +680,16 @@ export class Agent {
     this._cardGuideTool = createCardGuideTool();
     this._showCardTool = createShowCardTool();
 
+    // 15. session 工具（跨 session 协作：list/read/send/create）。desktop-only，
+    // 见 getToolsSnapshot 的 surface 裁剪；subagent 上下文由 SUBAGENT_BLOCKED_TOOLS 拦截。
+    this._sessionTool = createSessionTool({
+      getEngine: () => this._cb?.getEngine?.() || null,
+      getDraftStore: () => this._cb?.getEngine?.()?.sessionCollabDraftStore || null,
+      listAgents: this._listAgents || null,
+      agentId: this.id,
+      getAgentName: () => this.agentName || this.id,
+    });
+
     // 12. 组装 system prompt（按 master 构建，与 per-session 开关解耦）
     log(`  [agent] 9. buildSystemPrompt...`);
     this._systemPrompt = this.buildSystemPrompt({ forceMemoryEnabled: this._memoryMasterEnabled });
@@ -847,6 +860,7 @@ export class Agent {
   get summaryManager() { return this._summaryManager; }
   get memoryTicker() { return this._memoryTicker; }
   getToolsSnapshot( options: any = {}) {
+    const surface = options.surface === "bridge" ? "bridge" : "desktop";
     const forceMemoryEnabled = Object.prototype.hasOwnProperty.call(options, "forceMemoryEnabled")
       ? options.forceMemoryEnabled
       : null;
@@ -891,6 +905,7 @@ export class Agent {
       this._workflowTool,
       this._checkDeferredTool,
       this._currentStatusTool,
+      ...(surface === "desktop" ? [this._sessionTool] : []),
       this._cardGuideTool,
       this._showCardTool,
     ].filter(Boolean);

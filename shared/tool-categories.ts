@@ -62,6 +62,7 @@ export const OPTIONAL_TOOL_NAMES = [
   "dm",
   "install_skill",
   "office",
+  "session",
   "update_settings",
   "workflow",
 ];

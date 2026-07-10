@@ -1196,6 +1196,10 @@
           "office": {
             "label": "Office",
             "summary": "让 Agent 读取文档、转换 HTML 到 PDF"
+          },
+          "session": {
+            "label": "跨會話協作",
+            "summary": "列出/讀取其他會話，經確認卡傳送訊息或建立會話"
           }
         }
       },

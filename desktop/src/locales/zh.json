@@ -1229,6 +1229,10 @@
             "label": "Office",
             "summary": "让 Agent 读取文档、转换 HTML 到 PDF"
           },
+          "session": {
+            "label": "跨会话协作",
+            "summary": "列出/读取其它会话，经确认卡发送消息或创建会话"
+          },
           "update_settings": {
             "label": "修改设置",
             "summary": "让 Agent 修改应用配置项"

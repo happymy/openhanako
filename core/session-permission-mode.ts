@@ -79,6 +79,7 @@ const SUBAGENT_BLOCKED_TOOLS = new Set([
   // ① 扇出
   "subagent",          // 防自递归
   "workflow",          // 间接扇出
+  "session",           // 跨 session 扇出（触发别的 session 跑回合）
   // ② 长期记忆（与「subagent 不带长期记忆」原则一致：可读不可写）
   "pin_memory",
   "unpin_memory",
