@@ -1,138 +1,52 @@
 {
   "schemaVersion": 1,
-  "tag": "v0.374.2",
-  "version": "0.374.2",
-  "previousTag": "v0.371.19",
-  "generatedAt": "2026-07-10T03:00:00.000Z",
+  "tag": "v0.374.3",
+  "version": "0.374.3",
+  "previousTag": "v0.374.2",
+  "generatedAt": "2026-07-10T04:24:00.000Z",
   "noUserFacingChanges": false,
   "summary": {
-    "zh": "输入草稿可跨重启保留，会话环境变化会自动提醒，Bridge 凭证与钉钉鉴权更稳妥，并更新 GPT-5.6 与 Grok 模型默认能力。",
-    "en": "Input drafts now persist across restarts, sessions get automatic environment-change reminders, Bridge secrets and DingTalk auth are more reliable, and GPT-5.6 plus Grok model defaults are updated."
+    "zh": "修复 ChatGPT Plus/Pro（Codex OAuth）登录：浏览器授权流程可正常启动，不再在打开浏览器前失败。",
+    "en": "Fixes ChatGPT Plus/Pro (Codex OAuth) login so the browser authorization flow starts normally instead of failing before launch."
   },
   "counts": {
-    "feature": 3,
-    "fix": 2,
-    "improvement": 1,
+    "feature": 0,
+    "fix": 1,
+    "improvement": 0,
     "migration": 0
   },
   "source": {
     "owner": "liliMozi",
     "repo": "openhanako",
-    "commitRange": "v0.371.19..62e6c9dd2",
-    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.374.2",
+    "commitRange": "v0.374.2..521ed1478",
+    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.374.3",
     "releaseNotes": ""
   },
   "items": [
     {
-      "id": "input-draft-persistence",
-      "kind": "feature",
-      "importance": "high",
-      "title": {
-        "zh": "输入框草稿跨重启持久化",
-        "en": "Input drafts persist across restarts"
-      },
-      "summary": {
-        "zh": "首页和每个会话未发送的输入草稿会按桌面端 / 手机端分别保存；发送或创建会话后自动清除，永久删除会话时也会一并清理。",
-        "en": "Unsent drafts on the home screen and in each session are saved separately for desktop and mobile; they clear after send or session creation, and are removed when a session is permanently deleted."
-      },
-      "details": [
-        {
-          "zh": "重启应用后，未发送的文字草稿会回到原来的输入框。",
-          "en": "After restarting the app, unsent text drafts return to the same input box."
-        }
-      ],
-      "sources": [
-        { "type": "commit", "ref": "e84274995", "title": "feat: persist input drafts to server per surface" }
-      ]
-    },
-    {
-      "id": "session-environment-reminders",
-      "kind": "feature",
-      "importance": "high",
-      "title": {
-        "zh": "会话感知的环境变化提醒",
-        "en": "Session-aware environment change reminders"
-      },
-      "summary": {
-        "zh": "工具集、记忆、压缩或时间过期等环境变化会以隐藏提醒交给当前会话；恢复休眠会话或时间过久时也会补上时间提醒。",
-        "en": "Environment changes such as toolset, memory, compaction, or stale clock updates are delivered as hidden reminders to the current session; restored or long-idle sessions also receive a time reminder."
-      },
-      "details": [
-        {
-          "zh": "提示里的冻结时间标签改为「Session start time」；主动查询当前时间会刷新提醒时钟。",
-          "en": "The frozen prompt timestamp is now labeled Session start time; an explicit current-time check refreshes the reminder clock."
-        }
-      ],
-      "sources": [
-        { "type": "commit", "ref": "8d5b870e5", "title": "feat: add session-aware environment reminders" }
-      ]
-    },
-    {
-      "id": "gpt-56-provider-contracts",
-      "kind": "feature",
-      "importance": "high",
-      "title": {
-        "zh": "自有 GPT-5.6 模型目录与能力契约",
-        "en": "Owned GPT-5.6 model catalog and capability contracts"
-      },
-      "summary": {
-        "zh": "Codex OAuth 的聊天模型目录改由 Hana 维护；GPT-5.6 使用更新后的上下文窗口与推理默认值，用户白名单与元数据在重启后仍保持权威。",
-        "en": "The Codex OAuth chat catalog is now maintained by Hana; GPT-5.6 uses updated context-window and reasoning defaults, while user allowlists and metadata remain authoritative across restarts."
-      },
-      "details": [],
-      "sources": [
-        { "type": "commit", "ref": "7ff610a84", "title": "feat(models): own GPT-5.6 provider contracts" }
-      ]
-    },
-    {
-      "id": "bridge-secrets-dingtalk-auth",
+      "id": "codex-oauth-callback-contract",
       "kind": "fix",
       "importance": "high",
       "title": {
-        "zh": "Bridge 凭证保护与钉钉鉴权修复",
-        "en": "Bridge secret protection and DingTalk auth repair"
+        "zh": "修复 Codex OAuth 登录无法打开浏览器",
+        "en": "Fix Codex OAuth login failing before browser launch"
       },
       "summary": {
-        "zh": "已保存的 Bridge 密钥以不可复制的已存储状态显示；钉钉改用企业 ID 与现行 token API，出站失败会把连接标为降级。",
-        "en": "Saved Bridge secrets render as non-copyable stored state; DingTalk now uses Corp ID with the current token API, and outbound failures mark the connector as degraded."
+        "zh": "适配新的 OAuth 回调契约后，设置里的 ChatGPT Plus/Pro 登录会正常打开浏览器完成授权；临时登录会话状态也改为组件内管理。",
+        "en": "After adapting to the new OAuth callback contract, ChatGPT Plus/Pro login in Settings opens the browser for authorization as expected; temporary OAuth session state stays component-local."
       },
-      "details": [],
+      "details": [
+        {
+          "zh": "此前登录会在打开浏览器前失败；现在浏览器授权流程可正常启动。",
+          "en": "Login previously failed before the browser opened; the browser authorization flow now starts normally."
+        }
+      ],
       "sources": [
-        { "type": "commit", "ref": "5e5a812bc", "title": "fix(bridge): preserve secrets and repair DingTalk auth" }
-      ]
-    },
-    {
-      "id": "context-menu-scope-narrowing",
-      "kind": "fix",
-      "importance": "medium",
-      "title": {
-        "zh": "收窄全局右键菜单，避免叠层",
-        "en": "Narrowed the global context menu to avoid stacking"
-      },
-      "summary": {
-        "zh": "只读「复制」菜单仅在聊天、频道、预览和设置区出现；侧边栏等非输入区域不再弹出全局复制菜单，输入框编辑菜单保持不变。",
-        "en": "The read-only Copy menu now appears only in chat, channel, preview, and settings areas; non-input areas such as the sidebar no longer show the global copy menu, while input edit menus stay the same."
-      },
-      "details": [],
-      "sources": [
-        { "type": "commit", "ref": "1f5cdea87", "title": "fix: 收窄全局右键菜单，避免与业务菜单叠层" }
-      ]
-    },
-    {
-      "id": "xai-grok-provider-defaults",
-      "kind": "improvement",
-      "importance": "medium",
-      "title": {
-        "zh": "更新 xAI Grok 默认模型与能力元数据",
-        "en": "Updated xAI Grok default models and capability metadata"
-      },
-      "summary": {
-        "zh": "刷新 xAI 提供商预设与策展默认 Grok 模型，已知模型能力信息更贴近当前目录。",
-        "en": "Refreshed xAI provider presets and curated default Grok models so known-model capability info better matches the current catalog."
-      },
-      "details": [],
-      "sources": [
-        { "type": "commit", "ref": "0638be9bd", "title": "Update xAI Grok provider defaults" }
+        {
+          "type": "commit",
+          "ref": "521ed1478",
+          "title": "fix(auth): adapt Codex OAuth callback contract"
+        }
       ]
     }
   ]
