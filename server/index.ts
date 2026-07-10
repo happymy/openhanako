@@ -30,7 +30,13 @@ const sessionFilesLog = createModuleLogger("session-files");
 import { createOutboundProxyRuntime } from "../lib/net/outbound-proxy.ts";
 import { createServerAuthService } from "../core/server-auth.ts";
 import { createWebSocketTicketService } from "../core/ws-auth-ticket.ts";
-import { resolveServerListenOptions } from "../core/server-network-config.ts";
+import { resolveServerListenOptions, saveServerNetworkConfig } from "../core/server-network-config.ts";
+import {
+  decideLoopbackBindFallback,
+  ensureServerNetworkConfigWithPortSelection,
+  isHanaServerListeningOnPort,
+  selectLoopbackListenPort,
+} from "../core/server-port-selection.ts";
 import { isCorsOriginAllowed } from "./http/cors-policy.ts";
 import { inferHttpConnectionKind } from "./http/transport-context.ts";
 import { authorizeHttpRoute, isPublicHttpRoute } from "./http/route-security.ts";
@@ -114,36 +120,82 @@ import { callText } from "../core/llm-client.ts";
 
 const productDir = fromRoot("lib");
 
-async function bindServerTransportOwnership(server: any, { host, port, listenHost, networkMode }: any) {
+const BIND_FALLBACK_CANDIDATE_CODES = new Set(["EADDRINUSE", "EACCES", "EPERM"]);
+
+function attemptListen(server: any, port: number, host: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      server.off("listening", onListening);
+      server.off("error", onError);
+    };
+    const onListening = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = (err: any) => {
+      cleanup();
+      reject(err);
+    };
+    server.once("listening", onListening);
+    server.once("error", onError);
+    server.listen(port, host);
+  });
+}
+
+function failStartup(startupError: any): never {
+  if (startupError.startupPayload) {
+    log.error(`startup-error ${JSON.stringify(startupError.startupPayload)}`);
+  }
+  log.error(`启动失败: ${startupError.message}`);
+  process.exit(1);
+}
+
+async function bindServerTransportOwnership(
+  server: any,
+  { host, port, listenHost, networkMode, config, envPortPinned }: any,
+): Promise<{ boundPort: number }> {
   try {
-    await new Promise<void>((resolve, reject) => {
-      const cleanup = () => {
-        server.off("listening", onListening);
-        server.off("error", onError);
-      };
-      const onListening = () => {
-        cleanup();
-        resolve();
-      };
-      const onError = (err) => {
-        cleanup();
-        reject(err);
-      };
-      server.once("listening", onListening);
-      server.once("error", onError);
-      server.listen(port, host);
-    });
+    await attemptListen(server, port, host);
+    return { boundPort: port };
   } catch (err: any) {
+    const errCode = err?.code;
+    // 只有可能触发 fallback 的场景才发 health 探测，避免 LAN/自定义模式或
+    // 非蓝图错误码下对 /api/health 做无意义的额外网络请求。
+    const fallbackEligible =
+      BIND_FALLBACK_CANDIDATE_CODES.has(errCode) && networkMode === "loopback" && !envPortPinned;
+    const hanaOnPort = fallbackEligible ? await isHanaServerListeningOnPort({ port, host }) : false;
+    const decision = decideLoopbackBindFallback({ errCode, networkMode, envPortPinned, hanaOnPort });
+
+    if (decision === "fallback") {
+      const fallbackPort = await selectLoopbackListenPort({ host, exclude: [port] });
+      if (fallbackPort !== null) {
+        try {
+          await attemptListen(server, fallbackPort, host);
+          log.warn(
+            `loopback 端口自愈: ${port} → ${fallbackPort}（原端口 ${errCode}，已写回 server-network.json）`,
+          );
+          saveServerNetworkConfig(hanakoHome, { ...config, listenPort: fallbackPort });
+          return { boundPort: fallbackPort };
+        } catch {
+          // 二次 bind 仍失败，走下方原 startupError 路径（用最初的 err）
+        }
+      }
+    }
+
+    if (decision === "fail-other-hana") {
+      const startupError: any = createPortInUseStartupError(err, { host, port, listenHost, networkMode });
+      startupError.startupPayload.suggestions.unshift(
+        "Another HanaAgent server is already listening on this port. If you have a second HanaAgent installation or data directory, give each one a distinct port; if this is a leftover process, quit hana-server from Task Manager.",
+      );
+      failStartup(startupError);
+    }
+
     const startupError: any = isAddressInUseError(err)
       ? createPortInUseStartupError(err, { host, port, listenHost, networkMode })
       : isListenPermissionError(err)
       ? createListenPermissionStartupError(err, { host, port, listenHost, networkMode })
       : err;
-    if (startupError.startupPayload) {
-      log.error(`startup-error ${JSON.stringify(startupError.startupPayload)}`);
-    }
-    log.error(`启动失败: ${startupError.message}`);
-    process.exit(1);
+    failStartup(startupError);
   }
 }
 
@@ -214,9 +266,13 @@ try {
 } catch {}
 
 const SERVER_TOKEN = process.env.HANA_TOKEN || crypto.randomBytes(16).toString("hex");
-const serverNetwork = resolveServerListenOptions(hanakoHome);
 const envPort = Number.parseInt(process.env.HANA_PORT || "", 10);
-const port = Number.isInteger(envPort) && envPort >= 0 ? envPort : serverNetwork.port;
+const envPortPinned = Number.isInteger(envPort) && envPort >= 0;
+if (!envPortPinned) {
+  await ensureServerNetworkConfigWithPortSelection(hanakoHome, { log: (msg) => log.log(msg) });
+}
+const serverNetwork = resolveServerListenOptions(hanakoHome);
+const port = envPortPinned ? envPort : serverNetwork.port;
 const serverRuntimeState = {
   mode: serverNetwork.mode,
   listenHost: serverNetwork.host,
@@ -264,12 +320,15 @@ let server: any = createAdaptorServer({
   hostname: host,
 });
 
-await bindServerTransportOwnership(server, {
+const bindResult = await bindServerTransportOwnership(server, {
   host,
   port,
   listenHost: serverNetwork.host,
   networkMode: serverNetwork.mode,
+  config: serverNetwork.config,
+  envPortPinned,
 });
+serverRuntimeState.configuredPort = bindResult.boundPort;
 
 // ── 首次运行播种 ──
 log.log("① ensureFirstRun...");
