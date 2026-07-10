@@ -67,15 +67,14 @@
 
 .settings-header-modal {
     display: grid;
-    grid-template-columns: calc(var(--settings-nav-width, 160px) + var(--settings-main-x-padding, var(--space-40))) minmax(0, 640px);
+    /* 第二列必须用 1fr，不能写 minmax(0, 640px/960px)：
+       固定 px max track 会抬高 flex 子项的 min-content，把 884px 设置弹窗撑宽
+       （供应商 / 插件市场标 wide 时尤其明显）。内容区宽度仍由 settings-main 的 max-width 约束。 */
+    grid-template-columns: calc(var(--settings-nav-width, 160px) + var(--settings-main-x-padding, var(--space-40))) minmax(0, 1fr);
     align-items: center;
     padding: var(--space-24) 0 var(--space-16);
     gap: 0;
     -webkit-app-region: no-drag;
-}
-
-.settings-panel-wide.settings-panel-modal .settings-header-modal {
-    grid-template-columns: calc(var(--settings-nav-width, 160px) + var(--settings-main-x-padding, var(--space-40))) minmax(0, 960px);
 }
 
 .settings-return-btn {
