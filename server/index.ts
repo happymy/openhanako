@@ -41,6 +41,7 @@ setMaxListeners(50);
 import { loadLocale } from "../lib/i18n.ts";
 import { createChatRoute } from "./routes/chat.ts";
 import { createSessionsRoute } from "./routes/sessions.ts";
+import { createSessionCollabRoute } from "./routes/session-collab.ts";
 import { createSessionProjectsRoute } from "./routes/session-projects.ts";
 import { createModelsRoute } from "./routes/models.ts";
 import { createConfigRoute } from "./routes/config.ts";
@@ -775,6 +776,7 @@ app.route("/api", createAccessRoute({
   runtimeState: serverRuntimeState,
 } as any));
 app.route("/api", createSessionsRoute(engine, hub));
+app.route("/api", createSessionCollabRoute(engine));
 app.route("/api", createSessionProjectsRoute(engine));
 app.route("/api", createModelsRoute(engine));
 app.route("/api", createConfigRoute(engine));

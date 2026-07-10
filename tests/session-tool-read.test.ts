@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createSessionTool } from "../lib/tools/session-tool.ts";
+import { SessionCollabDraftStore } from "../lib/session-collab/draft-store.ts";
 
 // 实测字段名与任务书假设的差异（core/session-manifest/store.ts toRowManifest,
 // core/engine.ts getSessionManifest）：
@@ -85,8 +86,18 @@ describe("session tool read side", () => {
     expect(text).toMatch(/not found/i);
   });
 
-  it("send/create 返回显式未实现占位（Task 5 前的临时态）", async () => {
-    const text = await run(makeTool(), { action: "send", sessionId: "sid-a", message: "hi" });
-    expect(text).toMatch(/not implemented yet/);
+  it("send 现在产草稿卡，不再是 Task 5 前的未实现占位", async () => {
+    // 本文件其余用例复用 makeTool() 的 getDraftStore: () => null（读侧测试无需草稿存储），
+    // 这条用例单独接一个真实 store 来验证 send 分支已落地为草稿创建路径。
+    const engine = makeEngine();
+    const tool = createSessionTool({
+      getEngine: () => engine,
+      getDraftStore: () => new SessionCollabDraftStore(),
+      listAgents: () => [{ id: "hana", name: "Hana" }],
+      agentId: "hana",
+      getAgentName: () => "Hana",
+    });
+    const text = await run(tool, { action: "send", sessionId: "sid-a", message: "hi" });
+    expect(text).toContain("Draft created");
   });
 });

@@ -7,6 +7,7 @@ import { loadSessionHistoryMessages } from "../../core/message-utils.ts";
 import { searchSessions } from "../search/session-search.ts";
 import { buildCompactTranscript } from "../session-collab/transcript.ts";
 import { sessionToolHandbook, sessionToolUsageError } from "../session-collab/handbook.ts";
+import { deliverAgentMessage } from "../session-collab/delivery.ts";
 
 function textResult(text: string, details: any = undefined) {
   return { content: [{ type: "text", text }], ...(details ? { details } : {}) };
@@ -38,6 +39,21 @@ function resolveTarget(engine: any, sessionId: string) {
   if (!path) return null;
   const agentId = manifest?.ownerAgentId || engine.resolveSessionOwnership?.(path)?.agentId || null;
   return { path, agentId, manifest };
+}
+
+// title 是装饰性的，首条消息才是任务主体：title 为空直接跳过；engine 无改名接口时也跳过；
+// 改名失败不阻塞投递，只 console.warn。engine.saveSessionTitle(sessionPath, title) 是
+// server/routes/sessions.ts、server/routes/chat.ts 已在用的既有接口（core/engine.ts 委托
+// core/session-coordinator.ts 的 saveSessionTitle），语义正是"按 path 改标题"，直接复用。
+async function applySessionTitleIfSupported(engine: any, sessionPath: string | null | undefined, title: any) {
+  const trimmed = typeof title === "string" ? title.trim() : "";
+  if (!trimmed || !sessionPath) return;
+  if (typeof engine.saveSessionTitle !== "function") return;
+  try {
+    await engine.saveSessionTitle(sessionPath, trimmed);
+  } catch (err: any) {
+    console.warn("[session-collab] failed to set title for new session:", err?.message || err);
+  }
 }
 
 export function createSessionTool(deps: {
@@ -126,10 +142,95 @@ export function createSessionTool(deps: {
         }
       }
 
-      if (action === "send" || action === "create") {
-        // Task 5 实现；先返回显式未实现错误，禁止静默
-        void getToolSessionPath(ctx); // 预留：Task 5 用来判定"发给自己"应被拒绝
-        return textResult(`action "${action}" not implemented yet`);
+      if (action === "send") {
+        const store = deps.getDraftStore?.();
+        if (!store) return textResult("session draft store unavailable");
+        const sessionId = typeof params.sessionId === "string" ? params.sessionId.trim() : "";
+        const message = typeof params.message === "string" ? params.message.trim() : "";
+        if (!sessionId || !message) return usageError("send", "sessionId and message are required for send.");
+        const sourceSessionPath = getToolSessionPath(ctx);
+        const sourceSessionId = sourceSessionPath ? engine.getSessionIdForPath?.(sourceSessionPath) || null : null;
+        if (!sourceSessionId) return textResult("send requires an active desktop session context");
+        if (sourceSessionId === sessionId) return usageError("send", "Refusing to send to the current session itself.");
+        const target = resolveTarget(engine, sessionId);
+        if (!target) return usageError("send", `Session not found: ${sessionId}`);
+        const targetAgent = target.agentId ? engine.getAgent?.(target.agentId) || null : null;
+        const from = { agentId: deps.agentId, agentName: deps.getAgentName() };
+        const entry = store.create({
+          kind: "send",
+          sourceSessionId,
+          draft: { targetSessionId: sessionId, message },
+          apply: (edited: any = {}) => deliverAgentMessage(engine, {
+            targetSessionId: typeof edited.targetSessionId === "string" && edited.targetSessionId.trim()
+              ? edited.targetSessionId.trim() : sessionId,
+            message: typeof edited.message === "string" && edited.message.trim() ? edited.message : message,
+            from,
+          }),
+        });
+        return textResult(
+          `Draft created (${entry.suggestionId}); waiting for the user to confirm the card. ` +
+          `The user may edit or reject it. Check the target session later with action:"read".`,
+          {
+            suggestionId: entry.suggestionId,
+            kind: "session_send_draft",
+            target: { type: "session", sessionId, sessionTitle: null,
+              agentId: target.agentId, agentName: targetAgent?.agentName || target.agentId },
+            draft: { targetSessionId: sessionId, message },
+          },
+        );
+      }
+
+      if (action === "create") {
+        const store = deps.getDraftStore?.();
+        if (!store) return textResult("session draft store unavailable");
+        const message = typeof params.message === "string" ? params.message.trim() : "";
+        const agentParam = typeof params.agent === "string" ? params.agent.trim() : "";
+        if (!agentParam || !message) return usageError("create", "agent and message are required for create.");
+        const roster = deps.listAgents ? deps.listAgents() : [];
+        const byName = roster.filter((a: any) => a.name === agentParam);
+        const targetAgent = roster.find((a: any) => a.id === agentParam)
+          || (byName.length === 1 ? byName[0] : null);
+        if (!targetAgent) {
+          return usageError("create", `Unknown agent "${agentParam}". Available agents:\n`
+            + roster.map((a: any) => `- ${a.id}${a.name && a.name !== a.id ? ` (${a.name})` : ""}`).join("\n"));
+        }
+        const sourceSessionPath = getToolSessionPath(ctx);
+        const sourceSessionId = sourceSessionPath ? engine.getSessionIdForPath?.(sourceSessionPath) || null : null;
+        if (!sourceSessionId) return textResult("create requires an active desktop session context");
+        const from = { agentId: deps.agentId, agentName: deps.getAgentName() };
+        const draft = { agentId: targetAgent.id, model: params.model || null, title: params.title || null, firstMessage: message };
+        const entry = store.create({
+          kind: "create",
+          sourceSessionId,
+          draft,
+          apply: async (edited: any = {}) => {
+            const agentId = typeof edited.agentId === "string" && edited.agentId.trim() ? edited.agentId.trim() : targetAgent.id;
+            const firstMessage = typeof edited.firstMessage === "string" && edited.firstMessage.trim() ? edited.firstMessage : message;
+            const model = typeof edited.model === "string" && edited.model.trim() ? edited.model.trim() : (draft.model || undefined);
+            // 与 server/routes/sessions.ts 的新建路径（engine.createSessionForAgent 调用处）同参形态
+            const created = await engine.createSessionForAgent(
+              agentId, undefined, true, model,
+              { workspaceFolders: [], visibleInSessionList: true },
+            );
+            engine.persistSessionMeta?.();
+            const newSessionId = created?.sessionId
+              || engine.getSessionIdForPath?.(created?.sessionPath) || null;
+            if (!newSessionId) throw new Error("session_create_failed: no sessionId returned");
+            await applySessionTitleIfSupported(engine, created?.sessionPath, edited.title || draft.title);
+            try {
+              await deliverAgentMessage(engine, { targetSessionId: newSessionId, message: firstMessage, from });
+            } catch (err: any) {
+              // 半成功：不回滚不删 session，把已建 sessionId 带在错误里给前端呈现
+              throw new Error(`first_message_failed:${newSessionId}:${err?.message || err}`);
+            }
+            return { sessionId: newSessionId };
+          },
+        });
+        return textResult(
+          `Draft created (${entry.suggestionId}); waiting for the user to confirm session creation for agent ${targetAgent.id}.`,
+          { suggestionId: entry.suggestionId, kind: "session_create_draft",
+            target: { type: "agent", agentId: targetAgent.id, agentName: targetAgent.name || targetAgent.id }, draft },
+        );
       }
 
       return usageError(String(action), `Unknown action: ${action}`);

@@ -155,6 +155,7 @@ import {
 import { SessionFileRegistry } from "../lib/session-files/session-file-registry.ts";
 import { serializeSessionFile } from "../lib/session-files/session-file-response.ts";
 import { AutomationSuggestionStore } from "../lib/tools/automation-suggestion-store.ts";
+import { SessionCollabDraftStore } from "../lib/session-collab/draft-store.ts";
 import { NotificationService } from "../lib/notifications/notification-service.ts";
 import { SpeechRecognitionService } from "./speech-recognition-service.ts";
 import { UniversalMediaManager } from "./media/universal-media-manager.ts";
@@ -189,6 +190,7 @@ export class HanaEngine {
   declare _agentMgr: any;
   declare _approvalGateway: any;
   declare _automationSuggestionStore: any;
+  declare _sessionCollabDraftStore: any;
   declare _bridge: any;
   declare _channels: any;
   declare _checkpointStore: any;
@@ -300,6 +302,7 @@ export class HanaEngine {
     this._currentTurnNativeMedia = createCurrentTurnNativeMediaStore();
     this._pluginInstallRecords = new PluginInstallRecords({ hanakoHome });
     this._automationSuggestionStore = new AutomationSuggestionStore();
+    this._sessionCollabDraftStore = new SessionCollabDraftStore();
     this._approvalGateway = createApprovalGateway({
       smallToolModelReviewer: createModelApprovalReviewer({
         role: "utility",
@@ -577,6 +580,7 @@ export class HanaEngine {
   get confirmStore() { return this._confirmStore; }
   get automationSuggestionStore() { return this._automationSuggestionStore; }
   getAutomationSuggestionStore() { return this._automationSuggestionStore; }
+  get sessionCollabDraftStore() { return this._sessionCollabDraftStore; }
   get approvalGateway() { return this._approvalGateway; }
   getStudioCronStore() { return this._studioCronService; }
 
