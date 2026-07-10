@@ -189,6 +189,39 @@ describe('ws-message-handler session-scoped desktop events', () => {
     expect(first.data.attachments).toEqual([{ path: '/tmp/a.png', name: 'a.png', isDir: false }]);
   });
 
+  it('session_user_message 透传 origin 到 store 里的 ChatMessage.origin', () => {
+    handleServerMessage({
+      type: 'session_user_message',
+      sessionPath: '/session/a.jsonl',
+      message: {
+        text: '干净正文',
+        origin: { kind: 'agent', agentId: 'hana', agentName: 'Hana' },
+      },
+    });
+
+    const items = useStore.getState().chatSessions['/session/a.jsonl']?.items || [];
+    const first = items[0];
+    expect(first?.type).toBe('message');
+    if (!first || first.type !== 'message') throw new Error('expected message item');
+    expect(first.data.origin).toEqual({ kind: 'agent', agentId: 'hana', agentName: 'Hana' });
+  });
+
+  it('session_user_message 无 origin 字段时不在 ChatMessage 上生成 origin', () => {
+    handleServerMessage({
+      type: 'session_user_message',
+      sessionPath: '/session/a.jsonl',
+      message: {
+        text: 'hello from bridge no origin',
+      },
+    });
+
+    const items = useStore.getState().chatSessions['/session/a.jsonl']?.items || [];
+    const first = items[0];
+    expect(first?.type).toBe('message');
+    if (!first || first.type !== 'message') throw new Error('expected message item');
+    expect(first.data.origin).toBeUndefined();
+  });
+
   it('session_user_message 保存附件-only 消息时不生成 textHtml', () => {
     handleServerMessage({
       type: 'session_user_message',

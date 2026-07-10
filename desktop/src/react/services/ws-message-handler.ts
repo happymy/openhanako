@@ -686,6 +686,7 @@ export function handleServerMessage(msg: any): void {
         quotedText: msg.message.quotedText,
         skills: msg.message.skills,
         deskContext: msg.message.deskContext ?? undefined,
+        origin: msg.message.origin ?? undefined,
       };
       if (clientMessageId && useStore.getState().confirmOptimisticUserMessage(sp, clientMessageId, data)) {
         bumpMessageLiveVersion(sp);
