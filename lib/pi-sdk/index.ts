@@ -12,6 +12,7 @@
  */
 
 import {
+  AuthStorage,
   createAgentSession as rawCreateAgentSession,
   ModelRegistry,
   resizeImage as rawResizeImage,
@@ -73,7 +74,24 @@ export { DefaultResourceLoader } from "@earendil-works/pi-coding-agent";
 
 // ── Utilities ──
 export { formatSkillsForPrompt, getLastAssistantUsage } from "@earendil-works/pi-coding-agent";
-export { AuthStorage } from "@earendil-works/pi-coding-agent";
+export { AuthStorage };
+
+type OAuthProviderId = Parameters<AuthStorage["login"]>[0];
+export type OAuthLoginCallbacks = Parameters<AuthStorage["login"]>[1];
+
+/**
+ * OAuth login adapter.
+ *
+ * The callback contract is deliberately derived from AuthStorage.login so an
+ * SDK upgrade fails Hana's typecheck at this boundary instead of at runtime.
+ */
+export function loginOAuthProvider(
+  authStorage: AuthStorage,
+  providerId: OAuthProviderId,
+  callbacks: OAuthLoginCallbacks,
+): Promise<void> {
+  return authStorage.login(providerId, callbacks);
+}
 
 // ── Session/history utilities ──
 export {
