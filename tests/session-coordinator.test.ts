@@ -3018,7 +3018,7 @@ describe("SessionCoordinator", () => {
     });
   });
 
-  it("blocks provider calls when an existing session cache prefix mutates without renew", async () => {
+  it("guards normal-turn cache prefixes while allowing Pi compaction prompts", async () => {
     const sessionFile = path.join(tempDir, "hana", "sessions", "cache-contract.jsonl");
     const model = {
       id: "deepseek-v4-pro",
@@ -3035,6 +3035,7 @@ describe("SessionCoordinator", () => {
     const session = {
       sessionManager: { getSessionFile: () => sessionFile },
       subscribe: vi.fn(() => vi.fn()),
+      isCompacting: false,
       model,
       getContextUsage: () => ({ tokens: 0 }),
       setActiveToolsByName: vi.fn((names) => {
@@ -3109,6 +3110,22 @@ describe("SessionCoordinator", () => {
       ],
     }, {})).rejects.toThrow(/Cache prefix contract violated/);
     expect(originalStreamFn).toHaveBeenCalledTimes(1);
+
+    session.isCompacting = true;
+    await expect((session.agent.streamFn as any)(model, {
+      systemPrompt: "INDEPENDENT SUMMARIZATION PROMPT",
+      tools: [],
+      messages: [{ role: "user", content: "Summarize the conversation" }],
+    }, {})).resolves.toBe("ok");
+    expect(originalStreamFn).toHaveBeenCalledTimes(2);
+
+    session.isCompacting = false;
+    await expect((session.agent.streamFn as any)(model, {
+      systemPrompt: "MUTATED CACHE PREFIX",
+      tools: [readTool, execCommandTool],
+      messages: [{ role: "user", content: "hello again" }],
+    }, {})).rejects.toThrow(/Cache prefix contract violated/);
+    expect(originalStreamFn).toHaveBeenCalledTimes(2);
   });
 
   it("renews the cache prefix contract for an explicit model switch", async () => {

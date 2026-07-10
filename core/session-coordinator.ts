@@ -4708,7 +4708,12 @@ export class SessionCoordinator {
     entry.cachePrefixGuardInstalled = true;
     entry.cachePrefixOriginalStreamFn = originalStreamFn;
     agent.streamFn = async (model, context, options) => {
-      this._assertCachePrefixContract(sessionPath, entry, { model, context });
+      // The main-session prefix contract applies only to normal turns. Pi native
+      // compaction and branch summaries use their own prompt; cache-preserving
+      // side tasks remain protected by their strict session snapshot contract.
+      if (entry.session?.isCompacting !== true) {
+        this._assertCachePrefixContract(sessionPath, entry, { model, context });
+      }
       return originalStreamFn.call(agent, model, context, options);
     };
   }
