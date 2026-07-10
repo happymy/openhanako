@@ -16,7 +16,7 @@ const { spawn, execFile } = require("child_process");
 const fs = require("fs");
 const { pathToFileURL } = require("url");
 const { PNG } = require("pngjs");
-const { initAutoUpdater, checkForUpdatesAuto, setMainWindow: setUpdaterMainWindow, setUpdateChannel, installDownloadedUpdate } = require("./auto-updater.cjs");
+const { initAutoUpdater, checkForUpdatesAuto, setMainWindow: setUpdaterMainWindow, setUpdateChannel, installDownloadedUpdate, normalizeReleaseDigest } = require("./auto-updater.cjs");
 const {
   getAutoLaunchStatus,
   setAutoLaunchEnabled,
@@ -775,6 +775,7 @@ const {
   shouldKeepWaitingForServerInfo,
 } = require("./src/shared/server-readiness.cjs");
 const { resolveStaleServerInfoDisposition } = require("./src/shared/stale-server-info.cjs");
+const { resolvePostUpdateAnnouncement } = require("./src/shared/post-update-announcement.cjs");
 
 /**
  * 轮询 server-info.json 等待 server 就绪
@@ -1512,6 +1513,41 @@ function createSplashWindow() {
 
 // ── 窗口状态记忆 ──
 const windowStatePath = path.join(hanakoHome, "user", "window-state.json");
+
+// ── 升级后首启公告：最后看过公告的版本记录 ──
+const lastSeenVersionPath = path.join(hanakoHome, "user", "last-seen-version.json");
+
+function writeLastSeenVersion(version) {
+  fs.mkdirSync(path.dirname(lastSeenVersionPath), { recursive: true });
+  fs.writeFileSync(lastSeenVersionPath, JSON.stringify({ version }));
+}
+
+function computePendingAnnouncement() {
+  let lastSeenVersion = null;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(lastSeenVersionPath, "utf-8"));
+    if (typeof parsed?.version === "string" && parsed.version) lastSeenVersion = parsed.version;
+  } catch {}
+  const { pending, seedVersion } = resolvePostUpdateAnnouncement({
+    currentVersion: app.getVersion(),
+    lastSeenVersion,
+    isPackagedLike: app.isPackaged || process.env.HANA_FORCE_ANNOUNCEMENT === "1",
+    setupComplete: isSetupComplete(),
+  });
+  if (seedVersion) {
+    writeLastSeenVersion(seedVersion);
+    return null;
+  }
+  if (!pending) return null;
+  let digest = null;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(path.join(app.getAppPath(), "release-digest.v1.json"), "utf-8"));
+    digest = normalizeReleaseDigest(parsed, app.getVersion());
+  } catch {
+    digest = null;
+  }
+  return { version: app.getVersion(), digest };
+}
 
 function loadWindowState() {
   try {
@@ -3947,6 +3983,8 @@ wrapIpcHandler("run-edit-command", (event, command) => {
   return true;
 });
 wrapIpcHandler("get-app-version", () => app.getVersion());
+wrapIpcBestEffortHandler("get-pending-announcement", () => computePendingAnnouncement());
+wrapIpcBestEffortHandler("ack-announcement", () => writeLastSeenVersion(app.getVersion()));
 // 旧版兼容：check-update 返回 auto-updater 状态中的可用版本信息
 wrapIpcHandler("check-update", () => {
   const s = getUpdateState();

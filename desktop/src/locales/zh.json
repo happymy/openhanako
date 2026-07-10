@@ -119,6 +119,11 @@
     "filesUnsupported": "频道暂只支持文本消息，文件不会加入普通聊天附件",
     "unpinPluginTab": "取消固定「{label}」"
   },
+  "announcement": {
+    "title": "更新完成 · v{version}",
+    "fallbackBody": "HanaAgent 已更新至 v{version}。",
+    "confirm": "知道了"
+  },
   "skills": {
     "panel": {
       "title": "Skills",

@@ -511,6 +511,8 @@ export interface PlatformApi {
 
   // ── App info ──
   getAppVersion?(): Promise<string>;
+  getPendingAnnouncement?(): Promise<{ version: string; digest: ReleaseDigest | null } | null>;
+  ackAnnouncement?(): Promise<void>;
   checkUpdate?(): Promise<{ version: string; downloadUrl: string } | null>;
 
   // ── Auto-update (Windows) ──

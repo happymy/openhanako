@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld("hana", {
   getServerToken: () => ipcRenderer.invoke("get-server-token"),
   runEditCommand: (command) => ipcRenderer.invoke("run-edit-command", command),
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
+  getPendingAnnouncement: () => ipcRenderer.invoke("get-pending-announcement"),
+  ackAnnouncement: () => ipcRenderer.invoke("ack-announcement"),
   checkUpdate: () => ipcRenderer.invoke("check-update"),
   // Auto-update (Windows)
   autoUpdateCheck: () => ipcRenderer.invoke("auto-update-check"),

@@ -119,6 +119,11 @@
     "filesUnsupported": "Channels currently support text only; files will not be attached to chat",
     "createIntroOptional": "Description"
   },
+  "announcement": {
+    "title": "What's New · v{version}",
+    "fallbackBody": "HanaAgent has been updated to v{version}.",
+    "confirm": "Got it"
+  },
   "skills": {
     "panel": {
       "title": "Skills",

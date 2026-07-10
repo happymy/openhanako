@@ -119,6 +119,11 @@
     "createIntroOptional": "설명",
     "unpinPluginTab": "「{label}」 고정 해제"
   },
+  "announcement": {
+    "title": "업데이트 완료 · v{version}",
+    "fallbackBody": "HanaAgent가 v{version}(으)로 업데이트되었습니다.",
+    "confirm": "확인"
+  },
   "skills": {
     "panel": {
       "title": "Skills",
