@@ -404,6 +404,31 @@ let _rendererBootTrain = null;
 // 撕成两半。dev 模式（无 seed）永远维持 null。
 let _artifactBootChannel = null;
 
+// 一切面向用户的版本显示的单一源："已激活内容"的产品版本（renderer/server
+// 归档在启动时实际解析出的 version），不是壳（Electron/package.json）版本——
+// 热更新后壳还是 0.386.5，但里子已经是 0.388.0，用户应该看到 0.388.0。
+// 由 `resolvePackagedArtifactBoot` 在每次成功决议后赋值一次（首次启动、
+// apply-now 触发的重启、renderer 崩溃回退重试都会重新决议一次，见
+// `handleRendererArtifactLoadFailure`），下游只读 `getCurrentContentVersion()`，
+// 不直接读这个变量。
+let _currentContentVersion = null;
+
+/**
+ * 当前产品版本访问器：一切面向用户的版本显示（贴纸、设置页、升级后首启
+ * 公告的书签比较）都必须经这里读，禁止再各自调用 `app.getVersion()`。
+ * `_currentContentVersion` 为 null 的唯二合法情形——dev 模式（没有 seed/
+ * 指针，`resolvePackagedArtifactBoot` 从未真正决议过）与"决议尚未完成前
+ * 的极早期调用"——此时壳版本本来就等于内容版本（由构造保证：dev 模式
+ * 没有独立的内容归档，最早期调用点也发生在任何指针可能偏离壳版本之前），
+ * 回落 `app.getVersion()` 不是"猜不到就兜底"，是这两种场景下唯一正确的值。
+ * 诊断专用文案（crash log、`dialog.trainUpdateApplyFailedBody` 这类"进程崩了
+ * 请重启"对话框）刻意继续读 `app.getVersion()`，不经这个访问器——那些场景
+ * 问的是"哪个壳进程崩了"，不是"用户在用哪个内容版本"。
+ */
+function getCurrentContentVersion() {
+  return _currentContentVersion || app.getVersion();
+}
+
 const QUICK_CHAT_WIDTH = 480;
 const QUICK_CHAT_COMPACT_HEIGHT = 142;
 const QUICK_CHAT_CHAT_HEIGHT = 520;
@@ -1272,6 +1297,11 @@ async function resolvePackagedArtifactBoot() {
   _distRenderer = boot.renderer.versionDir;
   _rendererBootChannel = artifactBoot.rendererPointerChannel(bootChannel);
   _rendererBootTrain = boot.renderer.train;
+  // 内容版本单一源的赋值点之一：这是每次启动（含 apply-now 触发的 server
+  // 重启，见 applyTrainUpdateNow 里对 startServer 的重新调用）都会走到的
+  // 决议路径，renderer 与 server 归档按发布约定共享同一个产品版本号，
+  // renderer 优先只是两者不巧不一致时的兜底顺序，不代表 renderer 更权威。
+  _currentContentVersion = boot.renderer.version || boot.server.version || _currentContentVersion;
 
   // 隔离事件的不阻塞提示：只在真的写入了 quarantine.json
   // 条目时提示（train 0 的"降级但不隔离"分支不算），server/renderer 任一
@@ -1378,6 +1408,10 @@ async function handleRendererArtifactLoadFailure({ win, pageName, opts, label, r
 
   _distRenderer = resolved.versionDir;
   _rendererBootTrain = resolved.train;
+  // renderer 崩溃三连败 demote 可能把 renderer 单独换回上一个版本
+  // （不经过 server 那一半的重新决议）——内容版本单一源必须跟着这条
+  // 回退闭环一起动，否则用户看到的版本号会跟实际在跑的 renderer 对不上。
+  _currentContentVersion = resolved.version || _currentContentVersion;
   if (resolved.quarantinedTrain != null) {
     notifyComponentQuarantined();
   }
@@ -1920,7 +1954,10 @@ function computePendingAnnouncement() {
     if (typeof parsed?.version === "string" && parsed.version) lastSeenVersion = parsed.version;
   } catch {}
   const { pending, seedVersion } = resolvePostUpdateAnnouncement({
-    currentVersion: app.getVersion(),
+    // 书签比较用内容版本：书签本身也只在 ack/seed 时写入内容版本（见下方
+    // writeLastSeenVersion 调用点），两端必须用同一把尺子，否则热更新
+    // 上车的用户会被"壳版本没变"骗过，永远看不到该版本的公告。
+    currentVersion: getCurrentContentVersion(),
     lastSeenVersion,
     isPackagedLike: app.isPackaged || process.env.HANA_FORCE_ANNOUNCEMENT === "1",
     setupComplete: isSetupComplete(),
@@ -1947,12 +1984,12 @@ function computePendingAnnouncement() {
     entries = sliceDigestHistory({
       entries: normalized,
       lastSeenVersion,
-      currentVersion: app.getVersion(),
+      currentVersion: getCurrentContentVersion(),
     });
   } catch {
     entries = [];
   }
-  return { version: app.getVersion(), entries };
+  return { version: getCurrentContentVersion(), entries };
 }
 
 function loadWindowState() {
@@ -4567,7 +4604,10 @@ async function applyTrainUpdateNow(senderWebContents) {
 }
 
 wrapIpcHandler("train-update-status", async () => {
-  return artifactOta.readStagedTrainStatus(hanakoHome, { channel: readUpdateChannelPreference() });
+  const status = await artifactOta.readStagedTrainStatus(hanakoHome, { channel: readUpdateChannelPreference() });
+  // currentVersion 是内容版本单一源的唯一 IPC 出口：渲染进程不再单独调用
+  // get-app-version 来决定"我在用哪个版本"，一律从这里读。
+  return { ...status, currentVersion: getCurrentContentVersion() };
 });
 
 // 手动检查：跟后台自动检查共用 checkOnce，同样绝不下载/写指针，只拉清单、
@@ -4633,7 +4673,9 @@ wrapIpcHandler("run-edit-command", (event, command) => {
 });
 wrapIpcHandler("get-app-version", () => app.getVersion());
 wrapIpcBestEffortHandler("get-pending-announcement", () => computePendingAnnouncement());
-wrapIpcBestEffortHandler("ack-announcement", () => writeLastSeenVersion(app.getVersion()));
+// 书签必须写内容版本——跟 computePendingAnnouncement 读书签时用的比较基准
+// 是同一把尺子（见该函数内注释），否则热更新用户的书签会被壳版本污染。
+wrapIpcBestEffortHandler("ack-announcement", () => writeLastSeenVersion(getCurrentContentVersion()));
 wrapIpcHandler("get-auto-launch-status", () => getAutoLaunchStatus({ app }));
 wrapIpcHandler("set-auto-launch-enabled", (_event, enabled) => setAutoLaunchEnabled({ app, enabled: enabled === true }));
 wrapIpcHandler("get-keep-awake-status", () => keepAwakeManager.getStatus());

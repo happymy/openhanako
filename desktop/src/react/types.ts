@@ -81,9 +81,13 @@ export interface TrainUpdateAvailable {
 /**
  * IPC 返回形状（train-update-status）：`staged` 反映的仍是"两个 next 指针是否
  * 都已写好、可以立即 promote"（下载与激活由用户点击 apply 触发，参见
- * `train-update-apply`）；`available` 是新增字段——最近一次检查发现的、内容确实
- * 有差异的一班车（尚未下载），供设置页/贴纸决定要不要提示用户。所有新字段都是
- * 可选的，保持对旧调用点（只读 staged/train/version/minShellBlocked）的兼容。
+ * `train-update-apply`），但表盘 UI（`useTrainUpdateState` 往上的一切
+ * 消费者）不再读这三个旧字段——staged 概念对界面已经不存在，点了就是一条
+ * 龙下载到应用；`available` 才是新的触发源——最近一次检查发现的、内容确实
+ * 有差异的一班车（尚未下载），供设置页/贴纸决定要不要提示用户。
+ * `currentVersion` 是一切面向用户的版本显示的单一源：已激活内容
+ * （renderer/server 归档）的产品版本，不是壳版本——由主进程 `train-update-status`
+ * handler 统一附加，不需要也不应该再单独调用 `getAppVersion`。
  */
 export interface TrainUpdateStatus {
   staged: boolean;
@@ -93,6 +97,7 @@ export interface TrainUpdateStatus {
   available?: TrainUpdateAvailable | null;
   lastError?: string | null;
   lastCheckedAt?: string | null;
+  currentVersion: string;
 }
 
 /** train-update-apply 下载阶段的进度事件（train-update-progress IPC 广播） */

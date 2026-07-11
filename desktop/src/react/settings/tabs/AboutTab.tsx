@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useSettingsStore } from '../store';
 import { autoSaveConfig, t } from '../helpers';
 import { Toggle } from '@/ui';
@@ -8,7 +8,6 @@ import { readConfigBoolean } from '../resource-state';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
 import { ExpandableRow } from '../components/ExpandableRow';
-import { AutoUpdateStatus } from '../../components/AutoUpdateStatus';
 import { digestLocale, digestText, kindLabel } from '../../components/shared/release-digest-text';
 import { useAutoUpdateState } from '../../hooks/use-auto-update-state';
 import { useTrainUpdateState } from '../../hooks/use-train-update-state';
@@ -16,6 +15,7 @@ import { Overlay } from '../../ui';
 import type { UpdateDigestHistoryResult } from '../../types';
 import appIconUrl from '../../../icon.png';
 import styles from '../Settings.module.css';
+import updateStyles from '../../components/AutoUpdateStatus.module.css';
 
 const EMPTY_HISTORY: UpdateDigestHistoryResult = { entries: [], source: 'none', complete: false };
 
@@ -113,29 +113,154 @@ function UpdateHistoryDialog({
   );
 }
 
+function updatePercentOf(progress: { receivedBytes: number; totalBytes: number } | null): number {
+  if (!progress || !progress.totalBytes) return 0;
+  return Math.max(0, Math.min(100, Math.round((progress.receivedBytes / progress.totalBytes) * 100)));
+}
+
+function formatCheckedAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString();
+}
+
+/**
+ * 更新区状态机：四态互斥，phase 优先于 idle 分支——一轮检查/下载/应用
+ * 正在进行时不该同时冒出"已是最新"这类只在真正 idle 时才成立的结论。
+ * available 在 idle 分支里优先于 lastError：哪怕最近一次后台检查失败了，
+ * 只要手头还攥着一个之前发现的可用更新，用户能做的动作就是去点它，
+ * 不该被一条过期的错误信息挡住。
+ */
+function TrainUpdateArea({
+  agentName,
+  available,
+  lastError,
+  lastCheckedAt,
+  phase,
+  progress,
+  onApply,
+  onRetry,
+}: {
+  agentName: string;
+  available: { version: string } | null;
+  lastError: string | null;
+  lastCheckedAt: string | null;
+  phase: 'idle' | 'checking' | 'downloading' | 'applying';
+  progress: { receivedBytes: number; totalBytes: number } | null;
+  onApply: () => void;
+  onRetry: () => void;
+}) {
+  if (phase === 'checking') {
+    return (
+      <div className={updateStyles.root}>
+        <div className={updateStyles.row}>
+          <span className={updateStyles.message}>{t('settings.about.updateChecking')}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'downloading') {
+    // 文字进度，不画填充条：填充条需要按百分比算内联宽度，会撞上
+    // settings/tabs 目录的内联样式 ratchet（`settings-primitives-contract.test.ts`
+    // 只允许往下迁移、不允许新增）。贴纸（SidebarNoticeSlot）同样是纯文字
+    // 进度，两处一致，不是各自将就。
+    const percent = updatePercentOf(progress);
+    return (
+      <div className={updateStyles.root}>
+        <div className={updateStyles.row} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+          <span className={updateStyles.message}>
+            {t('settings.about.updateDownloading', { agentName, percent })}
+          </span>
+          <span className={updateStyles.progressValue}>{t('settings.about.updateProgress', { percent })}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'applying') {
+    return (
+      <div className={updateStyles.root}>
+        <div className={updateStyles.row}>
+          <span className={updateStyles.message}>{t('settings.about.trainStickerApplying')}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // phase === 'idle' 以下——available 优先，其次 lastError，最后才是"已是最新"。
+  if (available) {
+    return (
+      <div className={updateStyles.root}>
+        <div className={updateStyles.row}>
+          <span className={updateStyles.message}>{t('settings.about.updateAvailable', { version: available.version })}</span>
+          <button type="button" className={updateStyles.action} onClick={onApply}>
+            {t('settings.about.updateApply')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (lastError) {
+    return (
+      <div className={updateStyles.root}>
+        <div className={updateStyles.row}>
+          <span className={`${updateStyles.message} ${updateStyles.error}`}>{t('settings.about.updateError')}</span>
+          <span className={updateStyles.errorDetail} title={lastError}>{lastError}</span>
+          <button type="button" className={updateStyles.action} onClick={onRetry}>
+            {t('settings.about.updateRetryBtn')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (lastCheckedAt) {
+    return (
+      <div className={updateStyles.root}>
+        <div className={updateStyles.row}>
+          <span className={updateStyles.message}>
+            {t('settings.about.updateLatestCheckedAt', { time: formatCheckedAt(lastCheckedAt) })}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // 从未检查过（既没有 available，也没有 lastError/lastCheckedAt）：不渲染
+  // 任何结论性文案，只留下方的"检查更新"按钮可点。
+  return null;
+}
+
 export function AboutTab() {
   const hana = window.hana;
   const settingsConfig = useSettingsStore(s => s.settingsConfig);
-  const [version, setVersion] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [history, setHistory] = useState<UpdateDigestHistoryResult>(EMPTY_HISTORY);
   const shellUpdate = useAutoUpdateState();
-  const { state: trainUpdate, minShellBlocked, checkNow: checkTrainNow, applyNow: applyTrainNow } = useTrainUpdateState();
+  const {
+    currentVersion,
+    available,
+    minShellBlocked,
+    lastError,
+    lastCheckedAt,
+    phase,
+    progress,
+    checkNow: checkTrainNow,
+    applyNow: applyTrainNow,
+  } = useTrainUpdateState();
   const isBeta = readConfigBoolean(settingsConfig, cfg => cfg.update_channel === 'beta', false);
   // 默认 true：老用户（preferences 里没写这个字段）保持原有"自动检查"行为
   const autoCheck = readConfigBoolean(settingsConfig, cfg => cfg.auto_check_updates, true);
-
-  useEffect(() => {
-    hana?.getAppVersion?.().then((v: string) => setVersion(v || ''));
-  }, [hana]);
 
   const handleCheck = useCallback(() => {
     void checkTrainNow();
   }, [checkTrainNow]);
 
-  const handleApply = useCallback(async () => {
-    await applyTrainNow();
+  const handleApply = useCallback(() => {
+    void applyTrainNow();
   }, [applyTrainNow]);
 
   const handleInstallShell = useCallback(async () => {
@@ -170,29 +295,42 @@ export function AboutTab() {
 
   // 平台更新条件行：仅当壳更新待命时出现，平时不渲染——一个
   // 一年两次的事件不该常年占一行。两层文案：minShell 真的挡住
-  // 新列车时升级成更明确的警告措辞。
+  // 新列车时升级成更明确的警告措辞。这一行是唯一还会触发壳安装
+  // （autoUpdateInstall）的地方——Hero 区的主更新按钮只会走 applyTrainNow。
   const showPlatformRow = shellUpdate?.status === 'downloaded';
   const platformRowLabel = minShellBlocked
     ? t('settings.about.shellStickerTitleBlocking')
     : t('settings.about.shellStickerTitle');
 
+  // 忙碌（checking/downloading/applying）、已经有明确可用更新、或已经在
+  // 展示带"重试"按钮的错误态时，这颗通用检查按钮就是多余的——要么已经在
+  // 做同一件事，要么已经有一颗更贴切的按钮摆在上面了。只在"从未检查过"与
+  // "已是最新"两种平静态下出现。
+  const showCheckButton = phase === 'idle' && !available && !lastError;
+
   return (
     <div className={`${styles['settings-tab-content']} ${styles['active']}`} data-tab="about">
-      {/* Hero：产品版本是唯一常规展示的版本号；更新主位是列车更新
-          （check / "更新" 按钮 / 通道 / 历史，壳版本永不出现在这里）。 */}
+      {/* Hero：内容版本是唯一常规展示的版本号（单一源：useTrainUpdateState
+          的 currentVersion，读自已激活内容，不是壳 package.json 版本）；
+          更新主位是列车更新（check / "更新" 按钮 / 通道 / 历史，壳版本
+          永不出现在这里）。 */}
       <div className={styles['about-hero']}>
         <img className={styles['about-icon']} src={appIconUrl} alt="HanaAgent" />
         <div className={styles['about-name']}>HanaAgent</div>
         <div className={styles['about-tagline']}>{t('settings.about.tagline')}</div>
-        {version && <div className={styles['about-version']}>v{version}</div>}
-        <AutoUpdateStatus
-          state={trainUpdate}
+        {currentVersion && <div className={styles['about-version']}>v{currentVersion}</div>}
+        <TrainUpdateArea
           agentName={settingsConfig?.agent?.name || 'Hanako'}
-          onInstall={handleApply}
-          variant="train"
+          available={available}
+          lastError={lastError}
+          lastCheckedAt={lastCheckedAt}
+          phase={phase}
+          progress={progress}
+          onApply={handleApply}
+          onRetry={handleCheck}
         />
         <div className={styles['about-update-actions']}>
-          {(!trainUpdate || trainUpdate.status === 'idle' || trainUpdate.status === 'latest' || trainUpdate.status === 'error') && (
+          {showCheckButton && (
             <button type="button" className={styles['about-check-update-btn']} onClick={handleCheck}>
               {t('settings.about.updateCheckBtn')}
             </button>

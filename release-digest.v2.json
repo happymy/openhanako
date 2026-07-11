@@ -3,6 +3,137 @@
   "entries": [
     {
       "schemaVersion": 1,
+      "tag": "v0.389.0",
+      "version": "0.389.0",
+      "previousTag": "v0.386.6",
+      "generatedAt": "2026-07-11T21:30:47.000Z",
+      "noUserFacingChanges": false,
+      "summary": {
+        "zh": "Hana 的组件更新现在完全由用户触发：后台只检查，不会静默下载或改写本地文件；发现更新后，用户可以从更新卡片或关于页开始下载并查看进度。本版同时保护正在使用的版本目录，并改善 Windows 滚动条体验。",
+        "en": "Hana's component updates are now fully user-initiated: background checks no longer download or modify local files, and users can start an available update from the update card or About page while following its progress. This release also protects the active version directory and improves Windows scrollbars."
+      },
+      "counts": {
+        "feature": 1,
+        "fix": 2,
+        "improvement": 1,
+        "migration": 0
+      },
+      "source": {
+        "owner": "liliMozi",
+        "repo": "openhanako",
+        "commitRange": "v0.386.6..v0.389.0",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.389.0",
+        "releaseNotes": ""
+      },
+      "items": [
+        {
+          "id": "user-initiated-component-updates",
+          "kind": "feature",
+          "importance": "high",
+          "title": {
+            "zh": "组件更新由用户决定何时开始",
+            "en": "Users decide when component updates begin"
+          },
+          "summary": {
+            "zh": "后台和手动检查只确认是否有新内容，不再静默下载或应用；发现更新后，可从更新卡片或关于页主动开始下载，并查看下载、校验和应用进度。",
+            "en": "Background and manual checks now only detect new content instead of silently downloading or applying it. When an update is available, users can start it from the update card or About page and follow download, verification, and application progress."
+          },
+          "details": [
+            {
+              "zh": "重复发布相同内容时会识别为已是最新，临时的 304 响应也不会清掉上一轮记录的更新或错误状态。",
+              "en": "Re-published identical content is recognized as already current, while a temporary 304 response no longer clears the previously recorded update or error state."
+            }
+          ],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "074584a22",
+              "title": "feat(update): 自动更新只检查不下载，下载与应用改为用户点击触发"
+            },
+            {
+              "type": "commit",
+              "ref": "v0.389.0",
+              "title": "feat(update): 更新卡片按内容更新语义呈现，版本显示统一到已激活内容"
+            }
+          ]
+        },
+        {
+          "id": "atomic-protected-update-activation",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "更新不再破坏正在使用的版本",
+            "en": "Updates no longer damage the active version"
+          },
+          "summary": {
+            "zh": "新内容会先在临时目录中完整解压并校验，再原子替换旧目录；仍被任一更新通道引用的版本目录会受到保护，失败时保留原有可用内容。",
+            "en": "New content is now fully extracted and verified in a temporary directory before atomically replacing the old one. Version directories still referenced by any update channel are protected, preserving the working installation when activation fails."
+          },
+          "details": [
+            {
+              "zh": "如果新列车复用相同目录名且内容一致，Hana 会直接沿用现有目录；内容不一致时会明确拒绝覆盖。",
+              "en": "If a new train reuses the same directory name with identical content, Hana reuses the existing directory; conflicting content is rejected instead of overwriting it."
+            }
+          ],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "2d765fc88",
+              "title": "fix(update): stop deleting the live version dir before the new one is ready"
+            }
+          ]
+        },
+        {
+          "id": "active-content-version-display",
+          "kind": "fix",
+          "importance": "medium",
+          "title": {
+            "zh": "版本显示与当前内容保持一致",
+            "en": "Displayed versions match the active content"
+          },
+          "summary": {
+            "zh": "更新卡片、关于页和升级公告现在统一显示当前已激活内容的版本，避免应用外壳版本与实际界面、服务内容不一致。",
+            "en": "The update card, About page, and post-update announcement now consistently show the active content version, avoiding mismatches between the application shell and the interface or server content in use."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "v0.389.0",
+              "title": "feat(update): 更新卡片按内容更新语义呈现，版本显示统一到已激活内容"
+            }
+          ]
+        },
+        {
+          "id": "windows-scrollbar-polish",
+          "kind": "improvement",
+          "importance": "medium",
+          "title": {
+            "zh": "Windows 滚动条更安静",
+            "en": "Quieter Windows scrollbars"
+          },
+          "summary": {
+            "zh": "Windows 滚动条在停止滚动后自动隐藏，并移除原生箭头按钮，让桌面界面更简洁；macOS、Linux 与网页版行为不变。",
+            "en": "Windows scrollbar thumbs now hide after scrolling stops, and native arrow buttons have been removed for a cleaner desktop interface. macOS, Linux, and web behavior is unchanged."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "ab70ee510",
+              "title": "feat(ui): auto-hide Windows scrollbars while idle"
+            },
+            {
+              "type": "commit",
+              "ref": "437230181",
+              "title": "fix(ui): remove Windows scrollbar arrow buttons"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
       "tag": "v0.386.6",
       "version": "0.386.6",
       "previousTag": "v0.386.5",

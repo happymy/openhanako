@@ -1,37 +1,84 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AutoUpdateState, TrainUpdateStatus } from '../types';
+import type { TrainUpdateAvailable, TrainUpdateStatus } from '../types';
 
 /**
- * 列车更新（OTA）状态 hook：把
- * `train-update-status`/`train-update-check` 两个只读/触发式 IPC 投影成
- * `AutoUpdateState` 同款形状，好让 `AutoUpdateStatus` 组件原样复用
- * （"复用今天的 Electron-Updater UI 作为更新 UI"——组件不需要关心数据
- * 来自壳还是列车，只需要一个 status/version/progress/digest 形状一致的
- * state）。
+ * 列车更新（OTA）状态 hook——表盘（左下角贴纸 + 设置页关于 tab）唯一的数据源。
  *
- * 状态映射（OTA 没有细粒度下载进度推送，`checkAndDownloadOnce` 是"一轮
- * 检查+下载"整体完成才返回，所以没有 'downloading' 中间态）：
- *   idle      — 尚未查询 / 没有暂存中的列车，也没有主动检查过
- *   checking  — 手动检查正在进行
- *   downloaded— 复用这个既有状态值表示"已暂存待应用"（OTA 语境下就是
- *               apply-ready，跟壳更新的"已下载待安装"是同一个视觉状态）
- *   latest    — 主动检查后确认没有可用列车
- *   error     — 检查失败
+ * 对外状态遵循以下界面契约：
+ * 1. 默认永远是"热更新"语境；壳更新只在 `minShellBlocked` 时才需要界面
+ *    另作处理（贴纸/设置页各自决定怎么呈现，hook 本身只如实转发这个布尔值）。
+ * 2. 对外只暴露产品版本（`currentVersion`/`available.version`），从不
+ *    转发 train 号。
+ * 3. `applyNow` 是唯一会真正下载字节的入口，且只由调用方（用户点击）
+ *    触发——hook 挂载时只读一次已缓存的状态，绝不自作主张地检查或下载。
+ * 4. `lastError`/`lastCheckedAt` 如实转发主进程记的账，界面据此判断
+ *    "有新版本"/"上次检查失败"/"已是最新"三态，hook 不替 UI 做这个判断。
+ *
+ * 旧版本这个 hook 曾经把数据映射成 `AutoUpdateState`（电子更新器的状态
+ * 形状）方便复用 `AutoUpdateStatus` 组件——"staged"/"downloaded" 就是那个
+ * 年代遗留的适配层。新表盘不再有"暂存待应用"这个中间态（点击就是下载+应用
+ * 一条龙），这层适配已经没有存在的理由，整块删除。
  */
-const IDLE_STATE: AutoUpdateState = {
-  status: 'idle',
-  version: null,
-  releaseNotes: null,
-  releaseUrl: null,
-  downloadUrl: null,
-  progress: null,
-  error: null,
-  digest: null,
-  digestUrl: null,
-  digestError: null,
+
+export type TrainUpdatePhase = 'idle' | 'checking' | 'downloading' | 'applying';
+
+export interface TrainUpdateProgressState {
+  receivedBytes: number;
+  totalBytes: number;
+}
+
+export interface UseTrainUpdateStateResult {
+  /** 已激活内容的产品版本（单一源，见 desktop/main.cjs 的 getCurrentContentVersion）。 */
+  currentVersion: string;
+  /** 最近一次检查发现的、尚未下载的一班车；没有可用更新时为 null。 */
+  available: { version: string } | null;
+  /** 有新列车，但当前壳版本太旧收不到——贴纸/设置页据此切换成"需更新应用本体"文案。 */
+  minShellBlocked: boolean;
+  /** 最近一次检查或应用留下的错误消息；成功的检查/应用会清空它。 */
+  lastError: string | null;
+  /** 最近一次检查完成的时间（ISO 字符串），用于"已是最新"文案里的时间戳。 */
+  lastCheckedAt: string | null;
+  /** 当前所处阶段：idle（无事发生）/checking（手动检查中）/downloading/applying。 */
+  phase: TrainUpdatePhase;
+  /** apply-now 下载阶段的字节进度；不在下载中或没收到过进度事件时为 null。 */
+  progress: TrainUpdateProgressState | null;
+  /** 触发一轮手动 OTA 检查（只读清单+验签+过闸门，绝不下载）。 */
+  checkNow(): Promise<void>;
+  /** 唯一会下载字节的入口：下载→验签→激活→重启 server→重载窗口一条龙。 */
+  applyNow(): Promise<{ ok: boolean; error?: string } | undefined>;
+}
+
+interface StatusSnapshot {
+  currentVersion: string;
+  available: { version: string } | null;
+  minShellBlocked: boolean;
+  lastError: string | null;
+  lastCheckedAt: string | null;
+}
+
+const IDLE_SNAPSHOT: StatusSnapshot = {
+  currentVersion: '',
+  available: null,
+  minShellBlocked: false,
+  lastError: null,
+  lastCheckedAt: null,
 };
 
-async function queryStagedStatus(): Promise<TrainUpdateStatus | null> {
+function projectAvailable(available: TrainUpdateAvailable | null | undefined): { version: string } | null {
+  return available ? { version: available.version } : null;
+}
+
+function snapshotFromStatus(status: TrainUpdateStatus): StatusSnapshot {
+  return {
+    currentVersion: status.currentVersion || '',
+    available: projectAvailable(status.available),
+    minShellBlocked: status.minShellBlocked === true,
+    lastError: status.lastError ?? null,
+    lastCheckedAt: status.lastCheckedAt ?? null,
+  };
+}
+
+async function queryStatus(): Promise<TrainUpdateStatus | null> {
   try {
     return (await window.hana?.trainUpdateStatus?.()) ?? null;
   } catch {
@@ -39,60 +86,92 @@ async function queryStagedStatus(): Promise<TrainUpdateStatus | null> {
   }
 }
 
-function stateFromStaged(staged: TrainUpdateStatus | null, fallbackStatus: AutoUpdateState['status']): AutoUpdateState {
-  if (staged?.staged) {
-    return { ...IDLE_STATE, status: 'downloaded', version: staged.version };
-  }
-  return { ...IDLE_STATE, status: fallbackStatus };
-}
-
-export interface UseTrainUpdateStateResult {
-  state: AutoUpdateState;
-  /**
-   * 两层文案的 minShell 逃生舱：最近一轮 OTA 检查是否发现"有
-   * 新列车，但这个壳版本太旧收不到它"。贴纸与设置页条件行共用同一份数据，
-   * 不必各自再发一次 IPC。
-   */
-  minShellBlocked: boolean;
-  /** 触发一轮手动 OTA 检查（packaged only；dev 模式下由主进程侧直接返回 no-op 结果）。 */
-  checkNow(): Promise<void>;
-  /** "立即应用"（refresh-grade apply）：promote + 优雅重启 server + 重载所有窗口。 */
-  applyNow(): Promise<{ ok: boolean; error?: string } | undefined>;
-}
-
 export function useTrainUpdateState(): UseTrainUpdateStateResult {
-  const [state, setState] = useState<AutoUpdateState>(IDLE_STATE);
-  const [minShellBlocked, setMinShellBlocked] = useState(false);
+  const [snapshot, setSnapshot] = useState<StatusSnapshot>(IDLE_SNAPSHOT);
+  const [phase, setPhase] = useState<TrainUpdatePhase>('idle');
+  const [progress, setProgress] = useState<TrainUpdateProgressState | null>(null);
 
+  // 挂载时只读一次已缓存的状态——不触发检查、更不触发下载。
   useEffect(() => {
     let alive = true;
-    queryStagedStatus().then((staged) => {
-      if (!alive) return;
-      setState(stateFromStaged(staged, 'idle'));
-      setMinShellBlocked(staged?.minShellBlocked === true);
+    queryStatus().then((status) => {
+      if (!alive || !status) return;
+      setSnapshot(snapshotFromStatus(status));
     });
     return () => { alive = false; };
   }, []);
 
+  // 后台自动检查（checkOnce）发现新列车时的实时广播：不用等用户下次手动
+  // 检查或重新挂载组件，贴纸/设置页立刻点亮。
+  useEffect(() => {
+    const unsubscribe = window.hana?.onTrainUpdateAvailable?.((payload) => {
+      setSnapshot((s) => ({
+        ...s,
+        available: { version: payload.version },
+        minShellBlocked: payload.minShellBlocked === true,
+        lastError: null,
+      }));
+    });
+    return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
+  }, []);
+
+  // apply-now 下载/验证/激活阶段的进度推送，只发给发起这次调用的窗口。
+  useEffect(() => {
+    const unsubscribe = window.hana?.onTrainUpdateProgress?.((p) => {
+      setPhase(p.phase === 'downloading' ? 'downloading' : 'applying');
+      setProgress({ receivedBytes: p.receivedBytes, totalBytes: p.totalBytes });
+    });
+    return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
+  }, []);
+
   const checkNow = useCallback(async () => {
-    setState((s) => ({ ...s, status: 'checking', error: null }));
+    setPhase('checking');
     try {
       const result = await window.hana?.trainUpdateCheck?.();
       if (result?.outcome === 'error') {
-        setState({ ...IDLE_STATE, status: 'error', error: result.error || null });
+        setSnapshot((s) => ({ ...s, lastError: result.error || null }));
         return;
       }
-      const staged = await queryStagedStatus();
-      setState(stateFromStaged(staged, 'latest'));
-      setMinShellBlocked(staged?.minShellBlocked === true);
+      const fresh = await queryStatus();
+      if (fresh) {
+        setSnapshot(snapshotFromStatus(fresh));
+      }
     } catch (err) {
-      setState({ ...IDLE_STATE, status: 'error', error: err instanceof Error ? err.message : String(err) });
+      setSnapshot((s) => ({ ...s, lastError: err instanceof Error ? err.message : String(err) }));
+    } finally {
+      setPhase('idle');
     }
   }, []);
 
   const applyNow = useCallback(async () => {
-    return window.hana?.trainUpdateApply?.();
+    // 乐观置位：点击即视觉反馈"开始动了"，第一条 progress 事件到达前
+    // 也不该显示成 idle。真实进度由 onTrainUpdateProgress 接管。
+    setPhase('downloading');
+    setProgress(null);
+    try {
+      const result = await window.hana?.trainUpdateApply?.();
+      if (result && !result.ok) {
+        setSnapshot((s) => ({ ...s, lastError: result.error || null }));
+      }
+      return result;
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      setSnapshot((s) => ({ ...s, lastError: error }));
+      return { ok: false, error };
+    } finally {
+      // 成功路径上主进程会重载所有窗口，这里的复位形同虚设（组件即将
+      // 随页面重载一起消失）；失败路径上则是把 UI 从"进行中"带回可再次
+      // 交互的状态，让用户看到 lastError 并能重试。
+      setPhase('idle');
+      setProgress(null);
+    }
   }, []);
 
-  return { state, minShellBlocked, checkNow, applyNow };
+  return {
+    ...snapshot,
+    phase,
+    progress,
+    checkNow,
+    applyNow,
+  };
 }

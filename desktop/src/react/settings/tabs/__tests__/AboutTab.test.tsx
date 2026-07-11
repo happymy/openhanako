@@ -14,13 +14,32 @@ vi.mock('../../../hooks/use-auto-update-state', () => ({
 
 const checkTrainNow = vi.fn();
 const applyTrainNow = vi.fn();
-let trainUpdateStateOverride: { status: string; version: string | null } | null = null;
-let minShellBlockedOverride = false;
+
+interface TrainOverride {
+  currentVersion: string;
+  available: { version: string } | null;
+  minShellBlocked: boolean;
+  lastError: string | null;
+  lastCheckedAt: string | null;
+  phase: 'idle' | 'checking' | 'downloading' | 'applying';
+  progress: { receivedBytes: number; totalBytes: number } | null;
+}
+
+const DEFAULT_TRAIN_OVERRIDE: TrainOverride = {
+  currentVersion: '0.160.2',
+  available: null,
+  minShellBlocked: false,
+  lastError: null,
+  lastCheckedAt: null,
+  phase: 'idle',
+  progress: null,
+};
+
+let trainOverride: TrainOverride = { ...DEFAULT_TRAIN_OVERRIDE };
 
 vi.mock('../../../hooks/use-train-update-state', () => ({
   useTrainUpdateState: () => ({
-    state: trainUpdateStateOverride ?? { status: 'idle', version: null },
-    minShellBlocked: minShellBlockedOverride,
+    ...trainOverride,
     checkNow: checkTrainNow,
     applyNow: applyTrainNow,
   }),
@@ -76,9 +95,8 @@ afterEach(() => {
   loadSettingsConfig.mockReset();
   checkTrainNow.mockReset();
   applyTrainNow.mockReset();
-  trainUpdateStateOverride = null;
+  trainOverride = { ...DEFAULT_TRAIN_OVERRIDE };
   shellUpdateStateOverride = null;
-  minShellBlockedOverride = false;
   useSettingsStore.setState({ settingsConfig: null });
   vi.unstubAllGlobals();
 });
@@ -86,7 +104,6 @@ afterEach(() => {
 function installHana(overrides: Record<string, unknown> = {}) {
   vi.stubGlobal('window', Object.assign(window, {
     hana: {
-      getAppVersion: vi.fn().mockResolvedValue('0.160.2'),
       autoUpdateCheck: vi.fn(),
       autoUpdateInstall: vi.fn(),
       autoUpdateSetChannel: vi.fn(),
@@ -148,6 +165,16 @@ describe('AboutTab', () => {
     expect(loadSettingsConfig).not.toHaveBeenCalled();
   });
 
+  it('shows the content version (single source, not the shell version) in the hero', () => {
+    installHana();
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+    trainOverride = { ...DEFAULT_TRAIN_OVERRIDE, currentVersion: '0.388.0' };
+
+    render(<AboutTab />);
+
+    expect(screen.getByText('v0.388.0')).toBeTruthy();
+  });
+
   it('does not render the platform-update row when no shell update is pending', () => {
     installHana();
     useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
@@ -177,12 +204,95 @@ describe('AboutTab', () => {
     installHana();
     useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
     shellUpdateStateOverride = { status: 'downloaded', version: '2.0.0' };
-    minShellBlockedOverride = true;
+    trainOverride = { ...DEFAULT_TRAIN_OVERRIDE, minShellBlocked: true };
 
     render(<AboutTab />);
 
     expect(screen.getByText('settings.about.shellStickerTitleBlocking')).toBeTruthy();
     expect(screen.queryByText('settings.about.shellStickerTitle')).toBeNull();
+  });
+
+  it('available: shows the "new version available" headline with an update button that calls applyNow (never autoUpdateInstall)', () => {
+    const autoUpdateInstall = vi.fn();
+    installHana({ autoUpdateInstall });
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+    trainOverride = { ...DEFAULT_TRAIN_OVERRIDE, available: { version: '0.389.0' } };
+
+    render(<AboutTab />);
+
+    expect(screen.getByText('settings.about.updateAvailable')).toBeTruthy();
+    fireEvent.click(screen.getByText('settings.about.updateApply'));
+
+    expect(applyTrainNow).toHaveBeenCalledTimes(1);
+    expect(autoUpdateInstall).not.toHaveBeenCalled();
+    // No manual "check for updates" button while an update is already sitting there.
+    expect(screen.queryByText('settings.about.updateCheckBtn')).toBeNull();
+  });
+
+  it('lastError: shows the error text with a retry button that calls checkNow', () => {
+    installHana();
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+    trainOverride = { ...DEFAULT_TRAIN_OVERRIDE, lastError: 'network down' };
+
+    render(<AboutTab />);
+
+    expect(screen.getByText('settings.about.updateError')).toBeTruthy();
+    expect(screen.getByText('network down')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('settings.about.updateRetryBtn'));
+    expect(checkTrainNow).toHaveBeenCalledTimes(1);
+    // The generic check button is redundant once the retry button is showing.
+    expect(screen.queryByText('settings.about.updateCheckBtn')).toBeNull();
+  });
+
+  it('up-to-date: only shows the "latest, last checked at" line when there is no available update and no error', () => {
+    installHana();
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+    trainOverride = { ...DEFAULT_TRAIN_OVERRIDE, lastCheckedAt: '2026-07-11T08:00:00.000Z' };
+
+    render(<AboutTab />);
+
+    expect(screen.getByText('settings.about.updateLatestCheckedAt')).toBeTruthy();
+    // Manual check remains available from the calm "up to date" state.
+    expect(screen.getByText('settings.about.updateCheckBtn')).toBeTruthy();
+  });
+
+  it('never checked: renders no conclusion text, only the manual check button', () => {
+    installHana();
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+
+    render(<AboutTab />);
+
+    expect(screen.queryByText('settings.about.updateAvailable')).toBeNull();
+    expect(screen.queryByText('settings.about.updateError')).toBeNull();
+    expect(screen.queryByText('settings.about.updateLatestCheckedAt')).toBeNull();
+    expect(screen.getByText('settings.about.updateCheckBtn')).toBeTruthy();
+  });
+
+  it('downloading: shows byte progress while an apply is in flight, driven by the hook phase/progress', () => {
+    installHana();
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+    trainOverride = {
+      ...DEFAULT_TRAIN_OVERRIDE,
+      available: { version: '0.389.0' },
+      phase: 'downloading',
+      progress: { receivedBytes: 50, totalBytes: 200 },
+    };
+
+    render(<AboutTab />);
+
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('25');
+  });
+
+  it('applying: shows the applying message and hides the manual check button', () => {
+    installHana();
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+    trainOverride = { ...DEFAULT_TRAIN_OVERRIDE, available: { version: '0.389.0' }, phase: 'applying' };
+
+    render(<AboutTab />);
+
+    expect(screen.getByText('settings.about.trainStickerApplying')).toBeTruthy();
+    expect(screen.queryByText('settings.about.updateCheckBtn')).toBeNull();
   });
 
   it('the beta toggle drives both the shell channel IPC and a train update check', async () => {
