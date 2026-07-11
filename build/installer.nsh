@@ -71,6 +71,27 @@ CRCCheck off
     StrCpy $R2 "$R2$\r$\n- ${_LABEL}: ${_PATH}"
 !macroend
 
+; 归档文件名带版本号（如 server-<version>-<platform>-<arch>.tar.gz），无法用固定路径
+; 校验，用 FindFirst/FindClose 做通配存在性检查；找不到时把目录+通配模式一起写进
+; 诊断信息，跟 hanakoRequireInstallSurfaceFile 走同一条报错/弹窗流程。
+!macro hanakoRequireInstallSurfaceGlob _DIR _PATTERN _LABEL
+  Push $R3
+  Push $R4
+  ClearErrors
+  FindFirst $R3 $R4 "${_DIR}\${_PATTERN}"
+  ${If} $R4 == ""
+    StrCpy $R2 "$R2$\r$\n- ${_LABEL}: ${_DIR}\${_PATTERN}"
+  ${EndIf}
+  ; FindFirst 可能在没匹配到文件时仍分配 handle（NSIS 已知边界情况），
+  ; 无条件尝试关闭，避免泄漏；handle 为空时 FindClose 是安全的空操作。
+  ${If} $R3 != ""
+    FindClose $R3
+  ${EndIf}
+  ClearErrors
+  Pop $R4
+  Pop $R3
+!macroend
+
 !macro hanakoVerifyInstallSurface
   !insertmacro hanakoInstallTimingMark "installSurfaceSelfCheck" "start"
   Push $0
@@ -79,10 +100,10 @@ CRCCheck off
   !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "HanaAgent.exe"
   !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\app.asar" "resources\app.asar"
   !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\app-update.yml" "resources\app-update.yml"
-  !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\server\hana-server.exe" "resources\server\hana-server.exe"
-  !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\server\bootstrap.js" "resources\server\bootstrap.js"
-  !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\server\bundle\index.js" "resources\server\bundle\index.js"
-  !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\server\node_modules\better-sqlite3\build\Release\better_sqlite3.node" "better-sqlite3 native addon"
+  !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\seed\seed-train.json" "resources\seed\seed-train.json"
+  !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\seed\seed-train.json.sig" "resources\seed\seed-train.json.sig"
+  !insertmacro hanakoRequireInstallSurfaceGlob "$INSTDIR\resources\seed" "server-*.tar.gz" "resources\seed\server-*.tar.gz"
+  !insertmacro hanakoRequireInstallSurfaceGlob "$INSTDIR\resources\seed" "renderer-*.tar.gz" "resources\seed\renderer-*.tar.gz"
   !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\git\cmd\git.exe" "MinGit git.exe"
   !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\git\usr\bin\sh.exe" "MinGit sh.exe"
 
@@ -353,8 +374,9 @@ CRCCheck off
 !macroend
 
 !macro hanakoCleanBundledServer
-  ; resources\server is generated on every build. Remove it before copying
-  ; new files so a failed stale uninstall cannot leave mixed bundle/deps/native files.
+  ; 打包布局已改成 resources\seed 归档 + 首启解压，散装的 resources\server 树
+  ; 只会出现在老版本升级覆盖的场景。这里保留清理逻辑，避免覆盖安装时新旧
+  ; 文件混杂；实际生效的同名清理见下方 hanakoRemoveOwnedInstallTrees。
   IfFileExists "$INSTDIR\resources\server\*.*" 0 +3
     DetailPrint "Removing old bundled server resources"
     RMDir /r "$INSTDIR\resources\server"
@@ -420,6 +442,8 @@ CRCCheck off
   !insertmacro hanakoInstallTimingMark "removeOwnedInstallTrees" "start"
   DetailPrint "Removing HanaAgent-owned install files"
   SetOutPath "$TEMP"
+  ; 老版本安装面是散装 resources\server 目录；现在改成 resources\seed 归档，
+  ; 这行只在升级覆盖老版本时才会真正命中，负责清掉旧安装留下的散装树。
   RMDir /r "$INSTDIR\resources\server"
   RMDir /r "$INSTDIR\resources\git"
   RMDir /r "$INSTDIR\resources\screenshot-themes"
