@@ -3,6 +3,59 @@
   "entries": [
     {
       "schemaVersion": 1,
+      "tag": "v0.386.6",
+      "version": "0.386.6",
+      "previousTag": "v0.386.5",
+      "generatedAt": "2026-07-11T15:05:00.000Z",
+      "noUserFacingChanges": false,
+      "summary": {
+        "zh": "修复组件热更新的壳版本门槛：新发布的更新列车不再要求壳版本与列车版本完全一致，已安装的客户端可以继续接收组件更新。",
+        "en": "Fixes the shell-version floor for component updates so new update trains no longer require the shell version to match the train version exactly, allowing already-installed clients to keep receiving component updates."
+      },
+      "counts": {
+        "feature": 0,
+        "fix": 1,
+        "improvement": 0,
+        "migration": 0
+      },
+      "source": {
+        "owner": "liliMozi",
+        "repo": "openhanako",
+        "commitRange": "v0.386.5..d7d48c2cc",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.386.6",
+        "releaseNotes": ""
+      },
+      "items": [
+        {
+          "id": "train-min-shell-compat-floor",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "热更新列车使用固定的壳兼容地板",
+            "en": "Update trains use a fixed shell compatibility floor"
+          },
+          "summary": {
+            "zh": "发布热更新列车时，最低壳版本改为手动维护的兼容地板，而不再等于本班列车版本号，避免每一班新列车把存量客户端挡在门外。",
+            "en": "When publishing update trains, the minimum shell version is now a manually maintained compatibility floor instead of the train version itself, so each new train no longer blocks existing clients."
+          },
+          "details": [
+            {
+              "zh": "当前兼容地板为 0.386.5，与现网列车一致；只有列车开始依赖更老壳无法运行的新能力时才需要抬高。",
+              "en": "The current floor is 0.386.5, matching the live train; raise it only when train contents start depending on capabilities older shells cannot run."
+            }
+          ],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "d7d48c2cc",
+              "title": "fix(release): use a fixed shell compatibility floor for train manifests"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
       "tag": "v0.386.5",
       "version": "0.386.5",
       "previousTag": "v0.385.11",
