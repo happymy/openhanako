@@ -2263,12 +2263,28 @@ function registerQuickChatShortcutBestEffort() {
 }
 
 /**
- * 后台静默 OTA 调度只起一次（进程级，不随窗口重建/dock 重开重复起定时器，
+ * 把一个事件广播给所有还活着的窗口（跟 auto-updater.cjs 的 sendToRenderer
+ * 同款模式，本文件没有等价的现成帮手，就地写一份，不引入跨文件耦合）。
+ */
+function broadcastToAllWindows(channel, payload) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    try {
+      if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+    } catch {}
+  }
+}
+
+/**
+ * 后台 OTA 调度只起一次（进程级，不随窗口重建/dock 重开重复起定时器，
  * 见 `_otaSchedulerStarted`）。触发时机固定为主窗口 shown 之后，不在更早的
- * app-ready/server-ready 阶段启动，避免后台下载与首屏启动争抢资源。
- * 全程异步：网络拉取/验签/下载/解压/写指针任何一步失败都只写日志
- * （artifact-ota.cjs 的 checkAndDownloadOnce 永不 reject），绝不触碰或阻塞
- * 启动路径本身。
+ * app-ready/server-ready 阶段启动，避免后台检查与首屏启动争抢资源。
+ *
+ * 硬约束：这条自动路径只跑 `checkOnce`——只拉清单、验签、过闸门、判断"有没有
+ * 新内容"，绝不下载任何字节、绝不解压、绝不写指针（`artifact-ota.cjs` 的文件头
+ * 注释解释了为什么：静默下载和激活可能破坏当前仍在使用的安装目录）。发现
+ * 有新列车时只广播 `train-update-available` 事件，磁盘写入永远等用户在界面上
+ * 点击后才由 `train-update-apply` 触发。全程异步：网络拉取/验签任何一步失败都
+ * 只写日志（`checkOnce` 永不 reject），绝不触碰或阻塞启动路径本身。
  *
  * 门槛：`app.isPackaged` 时才跑（dev 模式没有 artifact-boot 建立的版本化
  * 目录/指针，跑这个调度器对真实用户无意义，也会给纯本地开发平白多一条
@@ -2291,6 +2307,12 @@ function startBackgroundOtaSchedulerOnce() {
       platformArch: `${process.platform}-${process.arch}`,
       channel: readUpdateChannelPreference(),
       log: (msg) => console.log(redactMainLogText(msg)),
+      onAvailable: (result) => {
+        broadcastToAllWindows("train-update-available", {
+          version: result.version || null,
+          minShellBlocked: result.minShellBlocked === true,
+        });
+      },
     });
   } catch (err) {
     console.warn(`[desktop] 后台 OTA 调度器启动失败（不影响启动）: ${err.message}`);
@@ -4444,25 +4466,63 @@ function reloadAllWindowsForTrainUpdate() {
 }
 
 /**
- * "立即应用"（apply-now / refresh-grade）主编排：packaged-only，precondition
- * 是 OTA 已经把两个 kind 的 `next` 指针都齐备写好（`bothNextPointersReady`
- * 守卫）。序列本身（顺序 + fail-fast）由 train-update-apply.cjs 的纯函数
- * `runApplyNowSequence` 保证；这里只提供每一步真正的 IO：
- *   verifyPackaged → verifyStaged → shutdownServer（优雅停）→ startServer
- *  （复用现有 spawn/crash-sentinel/promote 全链路——resolvePackagedArtifactBoot
- *   内部的 prepareArtifactBoot 会把 next 提升为 current，同一条 boot 决策
- *   代码路径，没有特例）→ reloadWindows。
- * `_isApplyingTrainUpdate` 全程置位，防止 monitorServer 的崩溃自动重启在
- * shutdownServer 触发的 "exit" 事件上抢跑（同 _isUpdating/isExitingServer
- * 既有模式）。任何一步失败：绝不留下半切换状态——promote 由
- * prepareArtifactBoot 内部原子完成，server/renderer 起不来则由既有
- * crash-sentinel（下次自然启动时的三连败降级）兜底，这里只负责把失败面
- * 记录下来并在“旧 server 已经没了、新 server 也没起来”这种没有任何页内
- * 恢复手段的场景下弹出跟现有崩溃重启失败同款的错误对话框。
+ * "立即应用"（apply-now / refresh-grade）主编排：packaged-only，唯一入口，
+ * 由用户点击触发（渲染进程发起 `train-update-apply` IPC 调用时，才第一次真正
+ * 往磁盘写字节——自动后台流程只到 `checkOnce` 为止，绝不到这里）。
+ *
+ * 两段式：
+ *   第一段——下载+激活：`artifactOta.downloadAndApplyArtifacts` 重新拉一次清单
+ *   （绕开 checkOnce 的 ETag 缓存，因为货架可能在检查之后又变了）、重新过一遍
+ *   全部闸门、下载两个箱子、依次激活 server/renderer，写好两个 kind 的 `next`
+ *   指针。下载/校验/激活各阶段的进度通过 `onProgress` 经 `train-update-progress`
+ *   事件只推给发起这次调用的窗口（`senderWebContents`）。这一段任何一步失败都
+ *   直接返回 `{ok:false, error}`，磁盘上不会留下半激活状态（由
+ *   `activateFromArchive` 自身的"先建新、后删旧"与 both-or-neither 回滚保证）。
+ *
+ *   第二段——promote+重启+重载：只有第一段成功、两个 `next` 指针确实都齐备
+ *   （`bothNextPointersReady` 守卫）才会执行。序列本身（顺序 + fail-fast）由
+ *   train-update-apply.cjs 的纯函数 `runApplyNowSequence` 保证；这里只提供每一
+ *   步真正的 IO：verifyPackaged → verifyStaged → shutdownServer（优雅停）→
+ *   startServer（复用现有 spawn/crash-sentinel/promote 全链路——
+ *   resolvePackagedArtifactBoot 内部的 prepareArtifactBoot 会把 next 提升为
+ *   current，同一条 boot 决策代码路径，没有特例）→ reloadWindows。
+ *   `_isApplyingTrainUpdate` 全程置位，防止 monitorServer 的崩溃自动重启在
+ *   shutdownServer 触发的 "exit" 事件上抢跑（同 _isUpdating/isExitingServer
+ *   既有模式）。这一段任何一步失败：绝不留下半切换状态——promote 由
+ *   prepareArtifactBoot 内部原子完成，server/renderer 起不来则由既有
+ *   crash-sentinel（下次自然启动时的三连败降级）兜底，这里只负责把失败面
+ *   记录下来并在"旧 server 已经没了、新 server 也没起来"这种没有任何页内
+ *   恢复手段的场景下弹出跟现有崩溃重启失败同款的错误对话框。
+ * @param {Electron.WebContents|null} [senderWebContents] 发起这次调用的窗口
+ *   （下载进度只推给它，不广播给所有窗口——其他窗口没有点击这个按钮）。
  * @returns {Promise<{ok: true} | {ok: false, error: string}>}
  */
-async function applyTrainUpdateNow() {
+async function applyTrainUpdateNow(senderWebContents) {
   const channel = readUpdateChannelPreference();
+
+  try {
+    trainUpdateApply.assertPackagedMode(app.isPackaged);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+
+  const downloadResult = await artifactOta.downloadAndApplyArtifacts({
+    homeDir: hanakoHome,
+    keyset: loadPinnedKeyset(),
+    currentShellVersion: app.getVersion(),
+    platformArch: `${process.platform}-${process.arch}`,
+    channel,
+    onProgress: (progress) => {
+      try {
+        if (senderWebContents && !senderWebContents.isDestroyed()) senderWebContents.send("train-update-progress", progress);
+      } catch {}
+    },
+    log: (msg) => console.log(redactMainLogText(msg)),
+  });
+  if (!downloadResult.ok) {
+    console.error(`[desktop] train-update-apply 下载/激活失败: ${downloadResult.error}`);
+    return { ok: false, error: downloadResult.error };
+  }
 
   const result = await trainUpdateApply.runApplyNowSequence({
     verifyPackaged: () => trainUpdateApply.assertPackagedMode(app.isPackaged),
@@ -4493,7 +4553,7 @@ async function applyTrainUpdateNow() {
     console.error(`[desktop] apply-now 在步骤 "${result.step}" 失败: ${result.error}`);
     if (result.step === "shutdown-server" || result.step === "start-server") {
       // 旧 server 已经停了、新 server 也没起来：没有任何页内恢复手段，
-      // 用跟既有崩溃重启失败同款的错误对话框告知用户重启应用（复用既有
+      // 用跟现有崩溃重启失败同款的错误对话框告知用户重启应用（复用既有
       // installFailedTitle 键——同属"更新失败"这一类对话框标题）。
       dialog.showErrorBox(mt("dialog.installFailedTitle", null, "HanaAgent Update"), mt(
         "dialog.trainUpdateApplyFailedBody",
@@ -4510,9 +4570,11 @@ wrapIpcHandler("train-update-status", async () => {
   return artifactOta.readStagedTrainStatus(hanakoHome, { channel: readUpdateChannelPreference() });
 });
 
+// 手动检查：跟后台自动检查共用 checkOnce，同样绝不下载/写指针，只拉清单、
+// 验签、过闸门、把发现的结果写进 ota-state.json 并原样返回给渲染进程。
 wrapIpcHandler("train-update-check", async () => {
   if (!app.isPackaged) return { outcome: "dev-skipped" };
-  return artifactOta.checkAndDownloadOnce({
+  return artifactOta.checkOnce({
     homeDir: hanakoHome,
     keyset: loadPinnedKeyset(),
     currentShellVersion: app.getVersion(),
@@ -4522,7 +4584,9 @@ wrapIpcHandler("train-update-check", async () => {
   });
 });
 
-wrapIpcHandler("train-update-apply", async () => applyTrainUpdateNow());
+// 唯一会真正下载/激活字节的入口：只在用户点击"立即应用"时，由渲染进程发起
+// 这次 IPC 调用才会触发（event.sender 用来把下载进度只推给发起这次调用的窗口）。
+wrapIpcHandler("train-update-apply", async (event) => applyTrainUpdateNow(event && event.sender));
 
 function readBundledUpdateDigestHistory() {
   try {

@@ -19,7 +19,8 @@ const activation = require("../shared/artifact-core/activation.cjs");
 const pointerStore = require("../shared/artifact-core/pointer-store.cjs");
 
 const {
-  checkAndDownloadOnce,
+  checkOnce,
+  downloadAndApplyArtifacts,
   fetchWithRedirects,
   fetchBuffer,
   downloadToFile,
@@ -31,6 +32,7 @@ const {
   writeOtaChannelState,
   channelManifestUrls,
   hasDevOverrideConfigured,
+  readStagedTrainStatus,
   SEED_CHANNEL,
 } = ota;
 
@@ -63,8 +65,8 @@ function makeKeys(keyId = "ota-test") {
 /**
  * Builds a complete "next to the manifest" fixture directory: manifest.json
  * + .sig + server/renderer archives — exactly the layout the dev-bypass
- * local-path branch of `checkAndDownloadOnce` expects (mirrors the
- * seed/ layout artifact-boot.test.ts fixtures use).
+ * local-path branch of `checkOnce`/`downloadAndApplyArtifacts` expects
+ * (mirrors the seed/ layout artifact-boot.test.ts fixtures use).
  */
 async function makeOtaFixture(root: string, keys: ReturnType<typeof makeKeys>, opts: {
   version?: string;
@@ -149,14 +151,23 @@ async function makeOtaFixture(root: string, keys: ReturnType<typeof makeKeys>, o
   return { fixtureDir, manifestPath, manifest, serverSha256, rendererSha256 };
 }
 
-function runWithDevOverride(
-  manifestPath: string,
-  fn: () => Promise<{ outcome: string; train?: number; error?: string }>,
-): Promise<{ outcome: string; train?: number; error?: string }> {
+// Explicitly `Promise<any>` (not generic): `ota` is an untyped CommonJS
+// require of a local .cjs file with no declaration file, so a generic
+// signature here infers `unknown` instead of `any` at every call site
+// (TypeScript's generic inference doesn't treat a locally-required,
+// undeclared module's `any` the same as a contextually-known `any`) —
+// every call site would need an explicit type argument for no real
+// benefit, since this helper's whole job is just "run fn with the env
+// var set, then unset it" and doesn't care what fn returns.
+function runWithDevOverride(manifestPath: string, fn: () => Promise<any>): Promise<any> {
   process.env.HANA_ARTIFACT_MANIFEST = manifestPath;
   return fn().finally(() => {
     delete process.env.HANA_ARTIFACT_MANIFEST;
   });
+}
+
+function stagingDirFor(homeDir: string) {
+  return path.join(homeDir, "artifacts", "staging");
 }
 
 // ── low-level transport: redirect following, injectable fake transport ────
@@ -252,6 +263,18 @@ describe("artifact-ota: downloadToFile", () => {
     const result = await downloadToFile("https://mirror.example/archive.tar.gz", destPath, { fetchOnce });
     expect(result.statusCode).toBe(200);
     expect(fs.readFileSync(destPath, "utf8")).toBe("payload-bytes");
+  });
+
+  it("reports cumulative received bytes via onProgress as chunks arrive", async () => {
+    const root = makeTempDir("hana-ota-dl-");
+    const destPath = path.join(root, "archive.tar.gz");
+    const fetchOnce = async () => fakeStreamResponse(200, {}, [Buffer.alloc(5), Buffer.alloc(7)]);
+    const received: number[] = [];
+    await downloadToFile("https://mirror.example/archive.tar.gz", destPath, {
+      fetchOnce,
+      onProgress: (n: number) => received.push(n),
+    });
+    expect(received).toEqual([5, 12]);
   });
 
   it("enforces maxBytes and removes the partial file on overflow", async () => {
@@ -366,100 +389,118 @@ describe("artifact-ota: dev-bypass module (real + prod stub)", () => {
   });
 });
 
-// ── full-chain integration: fetch(dev-bypass local fixture) -> verify ->
-//    stage -> activate -> next pointers ────────────────────────────────────
+// ── checkOnce: never writes an archive, never extracts, never writes a
+//    pointer — only ota-state.json bookkeeping and the rollout-id file ────
 
-describe("artifact-ota: checkAndDownloadOnce (local fixture, full chain)", () => {
-  it("stages both archives and writes both next pointers on a clean first run", async () => {
+describe("artifact-ota: checkOnce (gates, never downloads)", () => {
+  it("reports 'available' and records it in ota-state when real new content exists, downloading nothing", async () => {
     const root = makeTempDir("hana-ota-e2e-");
     const keys = makeKeys();
-    const { manifestPath, manifest } = await makeOtaFixture(root, keys, { train: 1 });
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 7, version: "0.500.0" });
     const homeDir = path.join(root, "home");
 
     const result = await runWithDevOverride(manifestPath, () =>
-      checkAndDownloadOnce({
-        homeDir,
-        keyset: keys.keyset,
-        currentShellVersion: SHELL_VERSION,
-        platformArch: PLATFORM_ARCH,
-        log: () => {},
-      }),
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
     );
 
-    expect(result.outcome).toBe("staged");
-    expect(result.train).toBe(1);
+    expect(result.outcome).toBe("available");
+    expect(result.train).toBe(7);
+    expect(result.version).toBe("0.500.0");
 
-    const serverNext = await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next");
-    expect(serverNext).not.toBeNull();
-    expect(serverNext.train).toBe(1);
-    expect(serverNext.kind).toBe("server");
-    expect(fs.existsSync(path.join(serverNext.versionDir, "bundle", "index.js"))).toBe(true);
-    expect(fs.existsSync(path.join(serverNext.versionDir, ".verified"))).toBe(true);
+    const state = (await readOtaState(homeDir))[SEED_CHANNEL];
+    expect(state.available).toMatchObject({ train: 7, version: "0.500.0" });
+    expect(typeof state.available.serverSha256).toBe("string");
+    expect(typeof state.available.rendererSha256).toBe("string");
+    expect(state.available.sizes.server).toBeGreaterThan(0);
+    expect(state.available.sizes.renderer).toBeGreaterThan(0);
+    expect(state.minShellBlocked).toBe(false);
 
-    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
-    const rendererNext = await pointerStore.readPointer(homeDir, rendererChannel, "next");
-    expect(rendererNext).not.toBeNull();
-    expect(rendererNext.train).toBe(1);
-    expect(rendererNext.kind).toBe("renderer");
-    expect(fs.existsSync(path.join(rendererNext.versionDir, "index.html"))).toBe(true);
-
-    // Staging is cleaned up after a successful cycle.
-    const stagingDir = path.join(homeDir, "artifacts", "staging");
-    const leftovers = fs.existsSync(stagingDir) ? fs.readdirSync(stagingDir) : [];
-    expect(leftovers).toEqual([]);
-
-    void manifest; // fixture manifest inspected via the assertions above
+    // Zero download calls: checkOnce structurally never creates a staging
+    // directory or writes a next pointer.
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+    expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
   });
 
-  it("rejects a non-monotonic train and writes no next pointers (mutation-check target)", async () => {
+  it("reports up-to-date (not an error) when the train is not newer than the currently activated train", async () => {
     const root = makeTempDir("hana-ota-e2e-");
     const keys = makeKeys();
     const { manifestPath } = await makeOtaFixture(root, keys, { train: 3 });
     const homeDir = path.join(root, "home");
-    // Pre-seed a `current` pointer at train 5 — the fixture's train 3 must
-    // be rejected as stale by the anti-rollback check.
+    // Pre-seed a `current` pointer at train 5 — the fixture's train 3 is
+    // stale, but that's normal (already caught up), not an error.
     await pointerStore.writePointer(homeDir, SEED_CHANNEL, "current", { train: 5, kind: "server" });
 
     const result = await runWithDevOverride(manifestPath, () =>
-      checkAndDownloadOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
     );
 
-    expect(result.outcome).toBe("error");
-    expect(result.error).toMatch(/train/i);
+    expect(result.outcome).toBe("up-to-date");
     expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+    const state = (await readOtaState(homeDir))[SEED_CHANNEL];
+    expect(state.available).toBeNull();
   });
 
-  it("skips (does not download) when the shell is below minShell", async () => {
+  it("reports up-to-date when the manifest's content hashes already match `current`, even though the train advanced", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const { manifestPath, serverSha256, rendererSha256 } = await makeOtaFixture(root, keys, { train: 2, version: "2.0.0" });
+    const homeDir = path.join(root, "home");
+    // `current` is at a lower train number but already carries the exact
+    // bytes this manifest announces — a re-cut release under a new train
+    // number, not a real content change.
+    await pointerStore.writePointer(homeDir, SEED_CHANNEL, "current", { train: 1, kind: "server", sha256: serverSha256 });
+    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
+    await pointerStore.writePointer(homeDir, rendererChannel, "current", { train: 1, kind: "renderer", sha256: rendererSha256 });
+
+    const result = await runWithDevOverride(manifestPath, () =>
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+    );
+
+    expect(result.outcome).toBe("up-to-date");
+    const state = (await readOtaState(homeDir))[SEED_CHANNEL];
+    expect(state.available).toBeNull();
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+  });
+
+  it("skips (does not record available) when the shell is below minShell, but still records the available descriptor with minShellBlocked", async () => {
     const root = makeTempDir("hana-ota-e2e-");
     const keys = makeKeys();
     const { manifestPath } = await makeOtaFixture(root, keys, { train: 1, minShell: "99.0.0" });
     const homeDir = path.join(root, "home");
 
     const result = await runWithDevOverride(manifestPath, () =>
-      checkAndDownloadOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
     );
 
     expect(result.outcome).toBe("minshell-blocked");
+    expect(result.minShellBlocked).toBe(true);
     expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
-    const stagingDir = path.join(homeDir, "artifacts", "staging");
-    expect(fs.existsSync(stagingDir)).toBe(false);
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+
+    const state = (await readOtaState(homeDir))[SEED_CHANNEL];
+    expect(state.minShellBlocked).toBe(true);
+    expect(state.available).not.toBeNull();
+    expect(state.available.train).toBe(1);
   });
 
-  it("excludes via rollout percent 0", async () => {
+  it("excludes via rollout percent 0, without recording an available update", async () => {
     const root = makeTempDir("hana-ota-e2e-");
     const keys = makeKeys();
     const { manifestPath } = await makeOtaFixture(root, keys, { train: 1, rolloutPercent: 0 });
     const homeDir = path.join(root, "home");
 
     const result = await runWithDevOverride(manifestPath, () =>
-      checkAndDownloadOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
     );
 
     expect(result.outcome).toBe("rollout-excluded");
     expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
+    const state = (await readOtaState(homeDir))[SEED_CHANNEL];
+    expect(state.available).toBeNull();
   });
 
-  it("short-circuits a quarantined train", async () => {
+  it("short-circuits a quarantined train, without recording an available update", async () => {
     const root = makeTempDir("hana-ota-e2e-");
     const keys = makeKeys();
     const { manifestPath } = await makeOtaFixture(root, keys, { train: 7 });
@@ -467,30 +508,13 @@ describe("artifact-ota: checkAndDownloadOnce (local fixture, full chain)", () =>
     await pointerStore.appendQuarantine(homeDir, { channel: SEED_CHANNEL, train: 7, reason: "test" });
 
     const result = await runWithDevOverride(manifestPath, () =>
-      checkAndDownloadOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
     );
 
     expect(result.outcome).toBe("quarantined");
     expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
-  });
-
-  it("skips the whole cycle when another instance holds the artifacts lock", async () => {
-    const root = makeTempDir("hana-ota-e2e-");
-    const keys = makeKeys();
-    const { manifestPath } = await makeOtaFixture(root, keys, { train: 1 });
-    const homeDir = path.join(root, "home");
-    const lock = await pointerStore.acquireLock(homeDir);
-    expect(lock).not.toBeNull();
-
-    try {
-      const result = await runWithDevOverride(manifestPath, () =>
-        checkAndDownloadOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
-      );
-      expect(result.outcome).toBe("locked");
-      expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
-    } finally {
-      await lock!.release();
-    }
+    const state = (await readOtaState(homeDir))[SEED_CHANNEL];
+    expect(state.available).toBeNull();
   });
 
   it("hard-errors when the manifest is missing the renderer kind", async () => {
@@ -500,7 +524,7 @@ describe("artifact-ota: checkAndDownloadOnce (local fixture, full chain)", () =>
     const homeDir = path.join(root, "home");
 
     const result = await runWithDevOverride(manifestPath, () =>
-      checkAndDownloadOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
     );
 
     expect(result.outcome).toBe("error");
@@ -517,12 +541,150 @@ describe("artifact-ota: checkAndDownloadOnce (local fixture, full chain)", () =>
     const homeDir = path.join(root, "home");
 
     const result = await runWithDevOverride(manifestPath, () =>
-      checkAndDownloadOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
     );
 
     expect(result.outcome).toBe("error");
     expect(result.error).toMatch(/signature/i);
     expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
+  });
+});
+
+describe("artifact-ota: checkOnce (ETag / not-modified semantics, mutation-check target)", () => {
+  it("a 304 leaves a previously recorded `available` and `lastError` untouched, only lastCheckedAt advances", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const homeDir = path.join(root, "home");
+    const urls = channelManifestUrls(SEED_CHANNEL);
+    const seededAvailable = {
+      train: 5,
+      version: "5.0.0",
+      serverSha256: "a".repeat(64),
+      rendererSha256: "b".repeat(64),
+      sizes: { server: 1, renderer: 1 },
+      recordedAt: "2026-01-01T00:00:00.000Z",
+    };
+    await writeOtaChannelState(homeDir, SEED_CHANNEL, {
+      etag: '"etag-1"',
+      lastManifestUrl: urls[0],
+      lastError: "previous failure",
+      available: seededAvailable,
+      minShellBlocked: false,
+    });
+
+    const fetchOnce = async () => fakeStreamResponse(304, {});
+    const result = await checkOnce({
+      homeDir,
+      keyset: keys.keyset,
+      currentShellVersion: SHELL_VERSION,
+      platformArch: PLATFORM_ARCH,
+      channel: SEED_CHANNEL,
+      fetchOnce,
+      log: () => {},
+    });
+
+    expect(result.outcome).toBe("not-modified");
+    const state = (await readOtaState(homeDir))[SEED_CHANNEL];
+    // THE critical assertion this test exists for: "no news" must not be
+    // mistaken for "you are up to date" — both fields from the last real
+    // check must survive a 304 byte-for-byte.
+    expect(state.available).toEqual(seededAvailable);
+    expect(state.lastError).toBe("previous failure");
+  });
+
+  it("keeps lastError from a failed check through a later 304 (a quiet poll doesn't mean the earlier failure resolved)", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 1 });
+    const sig = fs.readFileSync(`${manifestPath}.sig`);
+    sig[0] ^= 0xff;
+    fs.writeFileSync(`${manifestPath}.sig`, sig);
+    const homeDir = path.join(root, "home");
+
+    const firstResult = await runWithDevOverride(manifestPath, () =>
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+    );
+    expect(firstResult.outcome).toBe("error");
+    const stateAfterError = (await readOtaState(homeDir))[SEED_CHANNEL];
+    expect(stateAfterError.lastError).toMatch(/signature/i);
+
+    const fetchOnce = async () => fakeStreamResponse(304, {});
+    const secondResult = await checkOnce({
+      homeDir,
+      keyset: keys.keyset,
+      currentShellVersion: SHELL_VERSION,
+      platformArch: PLATFORM_ARCH,
+      channel: SEED_CHANNEL,
+      fetchOnce,
+      log: () => {},
+    });
+
+    expect(secondResult.outcome).toBe("not-modified");
+    const stateAfter304 = (await readOtaState(homeDir))[SEED_CHANNEL];
+    expect(stateAfter304.lastError).toMatch(/signature/i);
+  });
+});
+
+// ── downloadAndApplyArtifacts: the only function allowed to write an
+//    archive to disk or activate anything — only ever called because a
+//    user clicked something ──────────────────────────────────────────────
+
+describe("artifact-ota: downloadAndApplyArtifacts", () => {
+  it("stages both archives, activates them in order with phase-ordered progress, and clears available/lastError", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 1, version: "2.0.0" });
+    const homeDir = path.join(root, "home");
+    await writeOtaChannelState(homeDir, SEED_CHANNEL, {
+      available: { train: 1, version: "2.0.0" },
+      lastError: "stale error from an earlier failed check",
+    });
+
+    const progressEvents: Array<{ phase: string; kind: string }> = [];
+    const result = await runWithDevOverride(manifestPath, () =>
+      downloadAndApplyArtifacts({
+        homeDir,
+        keyset: keys.keyset,
+        currentShellVersion: SHELL_VERSION,
+        platformArch: PLATFORM_ARCH,
+        onProgress: (e: { phase: string; kind: string }) => progressEvents.push({ phase: e.phase, kind: e.kind }),
+        log: () => {},
+      }),
+    );
+
+    expect(result).toEqual({ ok: true, train: 1, version: "2.0.0" });
+
+    const serverNext = await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next");
+    expect(serverNext).not.toBeNull();
+    expect(serverNext.kind).toBe("server");
+    expect(fs.existsSync(path.join(serverNext.versionDir, "bundle", "index.js"))).toBe(true);
+
+    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
+    const rendererNext = await pointerStore.readPointer(homeDir, rendererChannel, "next");
+    expect(rendererNext).not.toBeNull();
+    expect(rendererNext.kind).toBe("renderer");
+    expect(fs.existsSync(path.join(rendererNext.versionDir, "index.html"))).toBe(true);
+
+    // Phases fire in a fixed order: download+verify server, then
+    // download+verify renderer, then activate server, then activate
+    // renderer.
+    const phaseKindSequence = progressEvents.map((e) => `${e.phase}:${e.kind}`);
+    expect(phaseKindSequence).toEqual([
+      "downloading:server",
+      "verifying:server",
+      "downloading:renderer",
+      "verifying:renderer",
+      "activating:server",
+      "activating:renderer",
+    ]);
+
+    const state = (await readOtaState(homeDir))[SEED_CHANNEL];
+    expect(state.available).toBeNull();
+    expect(state.lastError).toBeNull();
+
+    // Staging is cleaned up after a successful run.
+    const leftovers = fs.existsSync(stagingDirFor(homeDir)) ? fs.readdirSync(stagingDirFor(homeDir)) : [];
+    expect(leftovers).toEqual([]);
   });
 
   it("both-or-neither: rolls back the server next pointer when renderer activation fails after staging succeeded", async () => {
@@ -532,10 +694,10 @@ describe("artifact-ota: checkAndDownloadOnce (local fixture, full chain)", () =>
     const homeDir = path.join(root, "home");
 
     const result = await runWithDevOverride(manifestPath, () =>
-      checkAndDownloadOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+      downloadAndApplyArtifacts({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
     );
 
-    expect(result.outcome).toBe("error");
+    expect(result.ok).toBe(false);
     expect(result.error).toMatch(/renderer activation failed/i);
     // The critical assertion: server's next pointer must NOT survive a
     // renderer activation failure, even though activateFromArchive(server)
@@ -543,6 +705,91 @@ describe("artifact-ota: checkAndDownloadOnce (local fixture, full chain)", () =>
     expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
     const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
     expect(await pointerStore.readPointer(homeDir, rendererChannel, "next")).toBeNull();
+  });
+
+  it("fails with zero activation when a gate rejects at click time (the shelf moved since the last check)", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 1, rolloutPercent: 0 });
+    const homeDir = path.join(root, "home");
+
+    const result = await runWithDevOverride(manifestPath, () =>
+      downloadAndApplyArtifacts({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/rollout-excluded/i);
+    expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+  });
+
+  it("fails when the train is not newer than the currently activated train (nothing to apply)", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 3 });
+    const homeDir = path.join(root, "home");
+    await pointerStore.writePointer(homeDir, SEED_CHANNEL, "current", { train: 5, kind: "server" });
+
+    const result = await runWithDevOverride(manifestPath, () =>
+      downloadAndApplyArtifacts({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/not newer/i);
+    expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
+  });
+
+  it("fails and activates nothing when a staged download's sha256 doesn't match the manifest", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const { manifestPath, fixtureDir } = await makeOtaFixture(root, keys, { train: 1, version: "3.0.0" });
+    const serverArchivePath = path.join(fixtureDir, `server-3.0.0-${PLATFORM_ARCH}.tar.gz`);
+    const bytes = fs.readFileSync(serverArchivePath);
+    bytes[bytes.length - 1] ^= 0xff; // corrupt the bytes AFTER the manifest's sha256 was computed from the original
+    fs.writeFileSync(serverArchivePath, bytes);
+    const homeDir = path.join(root, "home");
+
+    const result = await runWithDevOverride(manifestPath, () =>
+      downloadAndApplyArtifacts({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/sha256 mismatch/i);
+    expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
+  });
+
+  it("fails when another instance holds the artifacts lock", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 1 });
+    const homeDir = path.join(root, "home");
+    const lock = await pointerStore.acquireLock(homeDir);
+    expect(lock).not.toBeNull();
+
+    try {
+      const result = await runWithDevOverride(manifestPath, () =>
+        downloadAndApplyArtifacts({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+      );
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/lock/i);
+      expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
+    } finally {
+      await lock!.release();
+    }
+  });
+
+  it("fails when the manifest is missing the renderer kind", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 1, omitRenderer: true });
+    const homeDir = path.join(root, "home");
+
+    const result = await runWithDevOverride(manifestPath, () =>
+      downloadAndApplyArtifacts({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/renderer/i);
   });
 });
 
@@ -597,43 +844,80 @@ describe("artifact-ota: resolveStagedTrainStatus", () => {
 });
 
 describe("artifact-ota: readStagedTrainStatus (filesystem integration)", () => {
-  const { readStagedTrainStatus } = ota;
-
   it("reports not staged when no next pointers exist", async () => {
     const root = makeTempDir("hana-ota-staged-status-");
     const homeDir = path.join(root, "home");
     const status = await readStagedTrainStatus(homeDir, { channel: SEED_CHANNEL });
-    expect(status).toEqual({ staged: false, train: null, version: null, minShellBlocked: false });
+    expect(status).toEqual({
+      staged: false,
+      train: null,
+      version: null,
+      minShellBlocked: false,
+      available: null,
+      lastError: null,
+      lastCheckedAt: null,
+    });
   });
 
-  it("reports staged after checkAndDownloadOnce writes both next pointers", async () => {
+  it("reports staged after downloadAndApplyArtifacts writes both next pointers", async () => {
     const root = makeTempDir("hana-ota-staged-status-");
     const keys = makeKeys();
     const { manifestPath } = await makeOtaFixture(root, keys, { train: 7, version: "0.500.0" });
     const homeDir = path.join(root, "home");
 
     const result = await runWithDevOverride(manifestPath, () =>
-      checkAndDownloadOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+      downloadAndApplyArtifacts({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
     );
-    expect(result.outcome).toBe("staged");
+    expect(result.ok).toBe(true);
 
     const status = await readStagedTrainStatus(homeDir, { channel: SEED_CHANNEL });
-    expect(status).toEqual({ staged: true, train: 7, version: "0.500.0", minShellBlocked: false });
+    expect(status.staged).toBe(true);
+    expect(status.train).toBe(7);
+    expect(status.version).toBe("0.500.0");
+    expect(status.available).toBeNull();
   });
 
-  it("reports minShellBlocked after a minShell-gated cycle, without staging anything", async () => {
+  it("reports minShellBlocked with the available descriptor after a minShell-gated checkOnce, without staging anything", async () => {
     const root = makeTempDir("hana-ota-staged-status-");
     const keys = makeKeys();
     const { manifestPath } = await makeOtaFixture(root, keys, { train: 1, minShell: "99.0.0" });
     const homeDir = path.join(root, "home");
 
     const result = await runWithDevOverride(manifestPath, () =>
-      checkAndDownloadOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
     );
     expect(result.outcome).toBe("minshell-blocked");
 
     const status = await readStagedTrainStatus(homeDir, { channel: SEED_CHANNEL });
     expect(status.staged).toBe(false);
     expect(status.minShellBlocked).toBe(true);
+    expect(status.available).not.toBeNull();
+    expect(status.available.train).toBe(1);
+  });
+
+  it("tolerates a pre-upgrade ota-state.json with no available/minShellBlocked fields, falling back to lastSkipReason", async () => {
+    const root = makeTempDir("hana-ota-staged-status-");
+    const homeDir = path.join(root, "home");
+    // Simulate a state file written by a shell version that predates this
+    // change: only the legacy fields exist.
+    await pointerStore.atomicWriteJson(path.join(homeDir, "artifacts", "ota-state.json"), {
+      [SEED_CHANNEL]: {
+        etag: '"old-etag"',
+        lastCheckedAt: "2026-01-01T00:00:00.000Z",
+        lastError: null,
+        lastSkipReason: "minShell 99.0.0 > shell 1.0.0",
+      },
+    });
+
+    const status = await readStagedTrainStatus(homeDir, { channel: SEED_CHANNEL });
+    expect(status).toEqual({
+      staged: false,
+      train: null,
+      version: null,
+      minShellBlocked: true,
+      available: null,
+      lastError: null,
+      lastCheckedAt: "2026-01-01T00:00:00.000Z",
+    });
   });
 });

@@ -1,47 +1,80 @@
 "use strict";
 
 /**
- * artifact-ota.cjs — background silent artifact downloader.
+ * artifact-ota.cjs — hot-update train check + download/apply, split into
+ * two entry points on purpose:
  *
- * Runs entirely after the main window is shown, entirely asynchronously,
- * and NEVER touches the startup path: `checkAndDownloadOnce` never
- * rejects — every failure (network, verification, disk) is caught,
- * logged, and recorded in `{HANA_HOME}/artifacts/ota-state.json`, and the
- * function resolves with a `{outcome, error?}` descriptor instead.
+ *   `checkOnce` — safe to run automatically on a timer. Fetches the channel
+ *   manifest, verifies it, runs every gate, and figures out whether a real
+ *   update exists. It NEVER writes an archive to disk, NEVER extracts
+ *   anything, and NEVER touches a pointer file. The only disk writes are
+ *   bookkeeping: `ota-state.json` (what did the last check find) and the
+ *   per-install rollout-id file. Every failure is caught, logged, and
+ *   recorded in `ota-state.json`; this function never rejects.
  *
- * Flow (fixed order, each gate short-circuits the rest on failure):
- *   fetch channel manifest (+.sig, ETag-cached, mirror failover)
+ *   `downloadAndApplyArtifacts` — the only function in this module allowed
+ *   to write an archive to disk or call `activateFromArchive`. It is only
+ *   ever meant to run because a person clicked something: automatic
+ *   background code must never call it. It re-fetches the manifest
+ *   (bypassing the ETag cache, since the shelf may have moved since the
+ *   last check), re-runs every gate (the shelf may have moved), stages both
+ *   archives with progress callbacks, then activates server before
+ *   renderer.
+ *
+ * Why the split exists: the previous single `checkAndDownloadOnce` function
+ * did "check + download + stage + activate" as one silent background
+ * operation on a timer, and a bug in the activation step could corrupt the
+ * active installation before it was root-caused and fixed.
+ * The fix for that bug is `activateFromArchive`'s current claim/refuse
+ * semantics; this split is the second half of the fix — no code path may
+ * write bytes to an artifacts directory without a human in the loop.
+ *
+ * Gate order (both entry points), each short-circuits the rest on failure:
+ *   fetch channel manifest (+.sig, ETag-cached for checkOnce, ETag-bypassed
+ *   for downloadAndApplyArtifacts, mirror failover)
  *     -> ed25519 verify + schema validate (one atomic call into the
  *        protected artifact-core `manifest.verifyManifest` — see the
  *        "verify-order note" below)
- *     -> train monotonic (`manifest.checkMonotonic` against the current
- *        pointer's train; no current pointer = seed era, always passes)
- *     -> minShell (shell too old -> skip, shell's own update is
- *        electron-updater's job, not this module's)
+ *     -> train monotonic, SOFTENED for checkOnce: a train that is not
+ *        strictly newer than the currently activated train is reported as
+ *        "up-to-date", not an error (a background check finding nothing
+ *        new is normal, not exceptional). downloadAndApplyArtifacts keeps
+ *        this as a hard failure — there is nothing to apply.
+ *     -> content reconciliation (checkOnce only): even when the train
+ *        number did advance, if this platform's server entry and the
+ *        renderer entry both hash to exactly what's already recorded on
+ *        the `current` pointer, there is no real update — report
+ *        "up-to-date" rather than surfacing a phantom "new version"
+ *        because a release got re-cut with the same bytes under a new
+ *        train number.
+ *     -> minShell (shell too old -> the update is real but blocked; the
+ *        shell's own update is electron-updater's job, not this module's)
  *     -> rollout bucket (dedicated random UUID in HANA_HOME)
  *     -> quarantine short-circuit (train permanently blacklisted)
- *     -> acquire the artifacts directory lock (the loser skips this
- *        cycle — someone else is already updating)
- *     -> stage both archives (renderer + this platform's server) to
- *        `staging/`, mirror failover per archive, size-capped, streamed,
- *        atomic rename, sha256-verified
- *     -> `activateFromArchive` per kind (extract + `.verified` + write
- *        that kind's `next` pointer) — server first, then renderer; if
- *        renderer's activation fails, the server `next` pointer written a
- *        moment earlier is rolled back (`pointerStore.clearPointer`) so
- *        "either both next pointers land or neither does" holds even
- *        though `activateFromArchive` itself only guarantees atomicity
- *        per kind, not across the two calls (see the "why a rollback"
- *        note below)
- *     -> staging cleaned up in a `finally`, lock released in a `finally`
+ *     -> [downloadAndApplyArtifacts only] acquire the artifacts directory
+ *        lock (the loser fails this call — someone else is already
+ *        updating) -> stage both archives (renderer + this platform's
+ *        server) to `staging/`, mirror failover per archive, size-capped,
+ *        streamed, atomic rename, sha256-verified, with progress reported
+ *        through `onProgress` -> `activateFromArchive` per kind (extract +
+ *        `.verified` + write that kind's `next` pointer) — server first,
+ *        then renderer; if renderer's activation fails, the server `next`
+ *        pointer written a moment earlier is rolled back
+ *        (`pointerStore.clearPointer`) so "either both next pointers land
+ *        or neither does" holds even though `activateFromArchive` itself
+ *        only guarantees atomicity per kind, not across the two calls (see
+ *        the "why a rollback" note below) -> staging cleaned up in a
+ *        `finally`, lock released in a `finally`
  *
  * Activation to `current` happens at the NEXT LAUNCH, entirely inside
  * `desktop/src/shared/artifact-boot.cjs`; both kinds use the same promotion contract:
  * both `prepareArtifactServerBoot` and `prepareArtifactRendererBoot`
  * call `pointerStore.promote(homeDir, <their channel>)` as the first thing
- * they do). This module writes `next` pointers and nothing else — it
- * never promotes, never touches `current`/`previous`, and a running
- * session is never hot-swapped.
+ * they do). `downloadAndApplyArtifacts` writes `next` pointers and nothing
+ * else — it never promotes, never touches `current`/`previous` itself;
+ * promotion happens through the existing apply-now sequence
+ * (`train-update-apply.cjs`) or at the next ordinary launch. A running
+ * session is never hot-swapped by this module.
  *
  * Verify-order note: callers require both schema validation and signature
  * verification before any manifest field is trusted. The sole
@@ -215,10 +248,12 @@ async function fetchBuffer(url, opts = {}) {
 /**
  * Streams a response body directly to `destPath` (large archive
  * downloads). Enforces `maxBytes` while streaming; on any failure the
- * partial file is removed.
+ * partial file is removed. `onProgress(receivedBytes)` — when supplied —
+ * is invoked after every chunk so a caller can report download progress;
+ * purely observational, never affects control flow.
  */
 async function downloadToFile(url, destPath, opts = {}) {
-  const { maxBytes } = opts;
+  const { maxBytes, onProgress } = opts;
   const { statusCode, headers, bodyStream } = await fetchWithRedirects(url, opts);
   if (statusCode < 200 || statusCode >= 300) {
     if (typeof bodyStream.resume === "function") bodyStream.resume();
@@ -241,7 +276,9 @@ async function downloadToFile(url, destPath, opts = {}) {
           if (typeof bodyStream.destroy === "function") bodyStream.destroy();
           writeStream.destroy();
           fail(new Error(`artifact-ota: download exceeded ${maxBytes} bytes for ${url}`));
+          return;
         }
+        if (typeof onProgress === "function") onProgress(total);
       });
       bodyStream.on("error", fail);
       writeStream.on("error", fail);
@@ -286,7 +323,7 @@ function fetchDevOverrideManifest(devOverride, log) {
  * @returns {Promise<{notModified: true} | {manifestBytes: Buffer, sigBytes: Buffer,
  *   etag: string|null, sourceUrl: string, localDir: string|null}>}
  */
-async function fetchChannelManifest({ channel, cachedEtag, cachedUrl, log = () => {} }) {
+async function fetchChannelManifest({ channel, cachedEtag, cachedUrl, log = () => {}, fetchOnce }) {
   if (devBypass.hasDevOverride()) {
     return fetchDevOverrideManifest(devBypass.resolveDevManifestOverride(), log);
   }
@@ -295,9 +332,9 @@ async function fetchChannelManifest({ channel, cachedEtag, cachedUrl, log = () =
   for (const url of urls) {
     try {
       const headers = cachedEtag && cachedUrl === url ? { "If-None-Match": cachedEtag } : {};
-      const manifestRes = await fetchBuffer(url, { headers, maxBytes: MAX_MANIFEST_BYTES, timeoutMs: MANIFEST_REQUEST_TIMEOUT_MS });
+      const manifestRes = await fetchBuffer(url, { headers, maxBytes: MAX_MANIFEST_BYTES, timeoutMs: MANIFEST_REQUEST_TIMEOUT_MS, fetchOnce });
       if (manifestRes.statusCode === 304) return { notModified: true };
-      const sigRes = await fetchBuffer(`${url}.sig`, { maxBytes: MAX_SIG_BYTES, timeoutMs: MANIFEST_REQUEST_TIMEOUT_MS });
+      const sigRes = await fetchBuffer(`${url}.sig`, { maxBytes: MAX_SIG_BYTES, timeoutMs: MANIFEST_REQUEST_TIMEOUT_MS, fetchOnce });
       return {
         manifestBytes: manifestRes.body,
         sigBytes: sigRes.body,
@@ -380,7 +417,8 @@ async function ensureRolloutId(homeDir) {
   return id;
 }
 
-// ── ota-state.json (ETag + last-check bookkeeping, keyed by channel) ──────
+// ── ota-state.json (ETag + last-check + last-known-available bookkeeping,
+//    keyed by channel) ──────────────────────────────────────────────────────
 
 function otaStatePath(homeDir) {
   return path.join(pointerStore.artifactsRoot(homeDir), OTA_STATE_FILENAME);
@@ -418,8 +456,10 @@ function nowIso() {
  * explicit sha256 check against the manifest entry (in addition to the
  * one `activateFromArchive` performs) so a corrupt/wrong download fails
  * fast with an attributable message before extraction is attempted.
+ * `onProgress(receivedBytes)` is forwarded to the network download only
+ * (a local dev-override copy is effectively instant and reports nothing).
  */
-async function stageArtifact({ finalPath, entry, mirrors, localDir, log, label }) {
+async function stageArtifact({ finalPath, entry, mirrors, localDir, log, label, onProgress }) {
   const maxBytes = entry.size + Math.max(Math.round(entry.size * 0.05), 5 * 1024 * 1024);
   const partPath = `${finalPath}.part`;
 
@@ -438,7 +478,7 @@ async function stageArtifact({ finalPath, entry, mirrors, localDir, log, label }
       const url = `${String(mirrorBase).replace(/\/+$/, "")}/${entry.path}`;
       try {
         await fsp.rm(partPath, { force: true }).catch(() => {});
-        await downloadToFile(url, partPath, { maxBytes, timeoutMs: DOWNLOAD_REQUEST_TIMEOUT_MS });
+        await downloadToFile(url, partPath, { maxBytes, timeoutMs: DOWNLOAD_REQUEST_TIMEOUT_MS, onProgress });
         await fsp.rename(partPath, finalPath);
         staged = true;
         break;
@@ -461,19 +501,89 @@ async function stageArtifact({ finalPath, entry, mirrors, localDir, log, label }
   return finalPath;
 }
 
-// ── the orchestrator ───────────────────────────────────────────────────────
+// ── shared manifest-entry derivation (both entry points need this) ────────
 
 /**
- * Runs exactly one OTA check-and-download cycle. NEVER rejects — every
- * failure is caught, logged, recorded in ota-state.json, and reflected in
- * the returned `outcome`.
+ * Pulls this platform's server entry and the renderer entry out of a
+ * verified manifest. Throws if either kind is missing, or if the two
+ * entries disagree on `version` (release publishing guarantees one train
+ * ships server+renderer stamped with the same product version — a
+ * mismatch means the manifest itself is broken, not that either side is
+ * individually invalid).
+ * @param {object} manifest
+ * @param {string} platformArch
+ * @returns {{serverEntry: object, rendererEntry: object, version: string}}
+ */
+function deriveArtifactEntries(manifest, platformArch) {
+  const rendererEntry = manifest.artifacts.renderer;
+  const serverEntry = manifest.artifacts.server && manifest.artifacts.server[platformArch];
+  if (!rendererEntry || !serverEntry) {
+    const missing = [!serverEntry ? `server(${platformArch})` : null, !rendererEntry ? "renderer" : null]
+      .filter(Boolean)
+      .join("+");
+    throw new Error(`manifest missing needed kind(s) for OTA: ${missing}`);
+  }
+  if (serverEntry.version !== rendererEntry.version) {
+    throw new Error(
+      `manifest server/renderer version mismatch (server ${serverEntry.version}, renderer ${rendererEntry.version})`,
+    );
+  }
+  return { serverEntry, rendererEntry, version: serverEntry.version };
+}
+
+/**
+ * Content reconciliation rule: even when the train number advanced, if the
+ * actual bytes this platform would receive are identical to what's
+ * already recorded on the `current` pointer for both kinds, there is
+ * nothing to update — a re-cut release announcing the same content under
+ * a new train number must not be surfaced as "a new version is available".
+ * @returns {boolean}
+ */
+function isContentAlreadyCurrent({ currentServerPointer, currentRendererPointer, serverEntry, rendererEntry }) {
+  return Boolean(
+    currentServerPointer
+      && currentServerPointer.sha256 === serverEntry.sha256
+      && currentRendererPointer
+      && currentRendererPointer.sha256 === rendererEntry.sha256,
+  );
+}
+
+function buildAvailableDescriptor({ manifest, serverEntry, rendererEntry, version }) {
+  return {
+    train: manifest.train,
+    version,
+    serverSha256: serverEntry.sha256,
+    rendererSha256: rendererEntry.sha256,
+    sizes: { server: serverEntry.size, renderer: rendererEntry.size },
+    recordedAt: nowIso(),
+  };
+}
+
+// ── checkOnce: the only entry point safe to run on a timer ────────────────
+
+/**
+ * Runs exactly one OTA check cycle. NEVER writes an archive to disk, NEVER
+ * extracts anything, NEVER writes a pointer — the only disk writes are
+ * `ota-state.json` bookkeeping and (on first run) the rollout-id file.
+ * NEVER rejects — every failure is caught, logged, recorded in
+ * ota-state.json, and reflected in the returned `outcome`.
+ *
+ * Outcomes: "not-modified" (304 — state otherwise untouched), "up-to-date"
+ * (train not newer, or content byte-identical to `current`), "available"
+ * (a real update exists and passed every gate; nothing downloaded yet),
+ * "minshell-blocked" (a real update exists but this shell is too old to
+ * receive it), "rollout-excluded", "quarantined", "error".
+ *
  * @param {{homeDir: string, keyset: Array<{keyId:string, publicKey:string}>,
  *   currentShellVersion: string, platformArch: string, channel?: string,
- *   log?: (msg: string) => void}} opts
- * @returns {Promise<{outcome: string, train?: number, error?: string}>}
+ *   log?: (msg: string) => void, fetchOnce?: Function}} opts
+ *   `fetchOnce` is a test-only low-level transport override (see
+ *   `fetchWithRedirects`); production callers never pass it.
+ * @returns {Promise<{outcome: string, train?: number, version?: string,
+ *   minShellBlocked?: boolean, error?: string}>}
  */
-async function checkAndDownloadOnce(opts) {
-  const { homeDir, keyset, currentShellVersion, platformArch, channel = SEED_CHANNEL, log = () => {} } = opts || {};
+async function checkOnce(opts) {
+  const { homeDir, keyset, currentShellVersion, platformArch, channel = SEED_CHANNEL, log = () => {}, fetchOnce } = opts || {};
   if (!homeDir) throw new Error("artifact-ota: homeDir is required");
   if (!Array.isArray(keyset) || keyset.length === 0) throw new Error("artifact-ota: keyset is required");
   if (!currentShellVersion) throw new Error("artifact-ota: currentShellVersion is required");
@@ -487,9 +597,14 @@ async function checkAndDownloadOnce(opts) {
       cachedEtag: priorChannelState.etag,
       cachedUrl: priorChannelState.lastManifestUrl,
       log,
+      fetchOnce,
     });
     if (fetched.notModified) {
-      await writeOtaChannelState(homeDir, channel, { lastCheckedAt: nowIso(), lastError: null });
+      // The shelf hasn't moved since the last check. That is NOT the same
+      // thing as "you are up to date" — whatever the last check found
+      // (an available update, an error) is still true and must not be
+      // silently erased just because this poll came back empty-handed.
+      await writeOtaChannelState(homeDir, channel, { lastCheckedAt: nowIso() });
       return { outcome: "not-modified" };
     }
     const { manifestBytes, sigBytes, etag, sourceUrl, localDir } = fetched;
@@ -499,9 +614,43 @@ async function checkAndDownloadOnce(opts) {
     // manifest content is trusted before both pass).
     const manifest = manifestModule.verifyManifest(manifestBytes, sigBytes, keyset);
 
-    const currentPointer = await pointerStore.readPointer(homeDir, channel, "current");
-    const currentTrain = currentPointer && Number.isInteger(currentPointer.train) ? currentPointer.train : null;
-    manifestModule.checkMonotonic(manifest, currentTrain); // throws if not strictly newer
+    const rendererChannel = artifactBoot.rendererPointerChannel(channel);
+    const currentServerPointer = await pointerStore.readPointer(homeDir, channel, "current");
+    const currentRendererPointer = await pointerStore.readPointer(homeDir, rendererChannel, "current");
+    const currentTrain = currentServerPointer && Number.isInteger(currentServerPointer.train) ? currentServerPointer.train : null;
+
+    // Monotonic gate, softened: a train that isn't strictly newer than
+    // what's already activated is normal ("you're already caught up"),
+    // not an error — only downloadAndApplyArtifacts treats this as fatal.
+    if (currentTrain !== null && manifest.train <= currentTrain) {
+      await writeOtaChannelState(homeDir, channel, {
+        etag,
+        lastManifestUrl: sourceUrl,
+        lastCheckedAt: nowIso(),
+        lastError: null,
+        available: null,
+        minShellBlocked: false,
+      });
+      return { outcome: "up-to-date", train: manifest.train };
+    }
+
+    const { serverEntry, rendererEntry, version } = deriveArtifactEntries(manifest, platformArch);
+
+    // Content reconciliation short-circuit — see
+    // `isContentAlreadyCurrent`'s doc comment.
+    if (isContentAlreadyCurrent({ currentServerPointer, currentRendererPointer, serverEntry, rendererEntry })) {
+      await writeOtaChannelState(homeDir, channel, {
+        etag,
+        lastManifestUrl: sourceUrl,
+        lastCheckedAt: nowIso(),
+        lastError: null,
+        available: null,
+        minShellBlocked: false,
+      });
+      return { outcome: "up-to-date", train: manifest.train };
+    }
+
+    const available = buildAvailableDescriptor({ manifest, serverEntry, rendererEntry, version });
 
     if (!isShellVersionSufficient(currentShellVersion, manifest.minShell)) {
       await writeOtaChannelState(homeDir, channel, {
@@ -509,9 +658,10 @@ async function checkAndDownloadOnce(opts) {
         lastManifestUrl: sourceUrl,
         lastCheckedAt: nowIso(),
         lastError: null,
-        lastSkipReason: `minShell ${manifest.minShell} > shell ${currentShellVersion}`,
+        available,
+        minShellBlocked: true,
       });
-      return { outcome: "minshell-blocked", train: manifest.train };
+      return { outcome: "minshell-blocked", train: manifest.train, version, minShellBlocked: true };
     }
 
     const rolloutId = await ensureRolloutId(homeDir);
@@ -521,7 +671,8 @@ async function checkAndDownloadOnce(opts) {
         lastManifestUrl: sourceUrl,
         lastCheckedAt: nowIso(),
         lastError: null,
-        lastSkipReason: "rollout-excluded",
+        available: null,
+        minShellBlocked: false,
       });
       return { outcome: "rollout-excluded", train: manifest.train };
     }
@@ -532,24 +683,159 @@ async function checkAndDownloadOnce(opts) {
         lastManifestUrl: sourceUrl,
         lastCheckedAt: nowIso(),
         lastError: null,
-        lastSkipReason: `train ${manifest.train} quarantined`,
+        available: null,
+        minShellBlocked: false,
       });
       return { outcome: "quarantined", train: manifest.train };
     }
 
-    const rendererEntry = manifest.artifacts.renderer;
-    const serverEntry = manifest.artifacts.server && manifest.artifacts.server[platformArch];
-    if (!rendererEntry || !serverEntry) {
-      const missing = [!serverEntry ? `server(${platformArch})` : null, !rendererEntry ? "renderer" : null]
-        .filter(Boolean)
-        .join("+");
-      throw new Error(`manifest missing needed kind(s) for OTA: ${missing}`);
+    await writeOtaChannelState(homeDir, channel, {
+      etag,
+      lastManifestUrl: sourceUrl,
+      lastCheckedAt: nowIso(),
+      lastError: null,
+      available,
+      minShellBlocked: false,
+    });
+    log(`[ota] train ${manifest.train} (${version}) available; waiting for the user to trigger download`);
+    return { outcome: "available", train: manifest.train, version, minShellBlocked: false };
+  } catch (err) {
+    log(`[ota] check failed: ${err.message}`);
+    // lastError is written on every failed check and is only ever cleared
+    // by a check or apply that completes successfully — a "not-modified"
+    // reply must never be mistaken for "the previous failure is resolved".
+    await writeOtaChannelState(homeDir, channel, { lastCheckedAt: nowIso(), lastError: err.message }).catch(() => {});
+    return { outcome: "error", error: err.message };
+  }
+}
+
+/**
+ * Schedules the recurring background CHECK-ONLY loop (deliberately fixed
+ * cadence: first check ~30s after the main window is shown, then every
+ * 6h). Never downloads or writes an archive — see `checkOnce`'s doc
+ * comment. Timers are unref'd so they never keep the process alive. Never
+ * throws synchronously and the scheduled work never rejects upward.
+ * `onAvailable(result)` — optional — fires whenever a cycle's outcome is
+ * "available" or "minshell-blocked", i.e. whenever there's something a UI
+ * layer might want to announce; kept as an injected callback so this
+ * module stays Electron-free (desktop/main.cjs wires it to a window
+ * broadcast).
+ * @returns {NodeJS.Timeout} the initial delay timer (exposed for tests only)
+ */
+function scheduleBackgroundOtaChecks(opts) {
+  const {
+    homeDir,
+    keyset,
+    currentShellVersion,
+    platformArch,
+    channel = SEED_CHANNEL,
+    firstDelayMs = FIRST_CHECK_DELAY_MS,
+    intervalMs = RECHECK_INTERVAL_MS,
+    log = () => {},
+    onAvailable,
+  } = opts || {};
+
+  const runOnce = () => {
+    checkOnce({ homeDir, keyset, currentShellVersion, platformArch, channel, log })
+      .then((result) => {
+        log(`[ota] cycle: ${result.outcome}${result.error ? ` (${result.error})` : ""}`);
+        if ((result.outcome === "available" || result.outcome === "minshell-blocked") && typeof onAvailable === "function") {
+          onAvailable(result);
+        }
+      })
+      .catch((err) => {
+        // checkOnce is designed to never reject; this is a
+        // belt-and-suspenders net so a scheduler bug can never crash or
+        // block anything upstream.
+        log(`[ota] cycle threw unexpectedly (this should never happen): ${err.message}`);
+      });
+  };
+
+  const firstTimer = setTimeout(() => {
+    runOnce();
+    const intervalTimer = setInterval(runOnce, intervalMs);
+    if (typeof intervalTimer.unref === "function") intervalTimer.unref();
+  }, firstDelayMs);
+  if (typeof firstTimer.unref === "function") firstTimer.unref();
+  return firstTimer;
+}
+
+// ── downloadAndApplyArtifacts: the only function allowed to write bytes ───
+
+/**
+ * Downloads and activates one train. Only ever call this because a user
+ * clicked something — see the file header for why this is a hard rule.
+ * Re-fetches the manifest bypassing the ETag cache and re-runs every gate
+ * (the shelf may have moved since the last `checkOnce`), then stages both
+ * archives and activates them (server first, then renderer, with the same
+ * "roll back the server pointer if renderer fails" rollback `checkOnce`'s
+ * predecessor used — see the file header's "why a rollback" note).
+ *
+ * Does NOT promote `next` to `current` and does NOT restart anything —
+ * that's the existing apply-now sequence's job
+ * (`train-update-apply.cjs`, orchestrated by desktop/main.cjs), which
+ * runs immediately afterward on success in the real IPC handler.
+ *
+ * @param {{homeDir: string, keyset: Array<{keyId:string, publicKey:string}>,
+ *   currentShellVersion: string, platformArch: string, channel?: string,
+ *   onProgress?: (event: {phase: "downloading"|"verifying"|"activating",
+ *     kind: "server"|"renderer", receivedBytes: number, totalBytes: number}) => void,
+ *   log?: (msg: string) => void, fetchOnce?: Function}} opts
+ * @returns {Promise<{ok: true, train: number, version: string} | {ok: false, error: string}>}
+ */
+async function downloadAndApplyArtifacts(opts) {
+  const {
+    homeDir,
+    keyset,
+    currentShellVersion,
+    platformArch,
+    channel = SEED_CHANNEL,
+    onProgress = () => {},
+    log = () => {},
+    fetchOnce,
+  } = opts || {};
+  if (!homeDir) throw new Error("artifact-ota: homeDir is required");
+  if (!Array.isArray(keyset) || keyset.length === 0) throw new Error("artifact-ota: keyset is required");
+  if (!currentShellVersion) throw new Error("artifact-ota: currentShellVersion is required");
+  if (!platformArch) throw new Error("artifact-ota: platformArch is required");
+
+  try {
+    // Bypass the ETag cache on purpose: the point of a click-triggered
+    // download is to get the latest shelf state, not whatever checkOnce
+    // last cached.
+    const fetched = await fetchChannelManifest({ channel, cachedEtag: null, cachedUrl: null, log, fetchOnce });
+    if (fetched.notModified) {
+      // Can't happen with no cachedEtag, but guard explicitly rather than
+      // silently proceeding with undefined manifest bytes.
+      throw new Error("artifact-ota: unexpected 304 with no cache token sent");
     }
+    const { manifestBytes, sigBytes, etag, sourceUrl, localDir } = fetched;
+    const manifest = manifestModule.verifyManifest(manifestBytes, sigBytes, keyset);
+
+    const currentPointer = await pointerStore.readPointer(homeDir, channel, "current");
+    const currentTrain = currentPointer && Number.isInteger(currentPointer.train) ? currentPointer.train : null;
+    if (currentTrain !== null && manifest.train <= currentTrain) {
+      throw new Error(`train ${manifest.train} is not newer than the current train ${currentTrain}; nothing to apply`);
+    }
+
+    if (!isShellVersionSufficient(currentShellVersion, manifest.minShell)) {
+      throw new Error(`minShell ${manifest.minShell} > shell ${currentShellVersion}`);
+    }
+
+    const rolloutId = await ensureRolloutId(homeDir);
+    if (!isInRolloutBucket({ rolloutId, salt: manifest.rollout.salt, percent: manifest.rollout.percent })) {
+      throw new Error(`train ${manifest.train} is rollout-excluded for this install`);
+    }
+
+    if (await pointerStore.isQuarantined(homeDir, channel, manifest.train)) {
+      throw new Error(`train ${manifest.train} is quarantined`);
+    }
+
+    const { serverEntry, rendererEntry, version } = deriveArtifactEntries(manifest, platformArch);
 
     const lock = await pointerStore.acquireLock(homeDir);
     if (!lock) {
-      log("[ota] artifacts lock held by another instance; skipping this cycle");
-      return { outcome: "locked", train: manifest.train };
+      throw new Error("artifacts lock held by another instance; try again in a moment");
     }
 
     const stagingDir = path.join(pointerStore.artifactsRoot(homeDir), STAGING_DIRNAME);
@@ -557,6 +843,8 @@ async function checkAndDownloadOnce(opts) {
     const rendererStagedPath = path.join(stagingDir, `renderer-${rendererEntry.version}.tar.gz`);
     try {
       await fsp.mkdir(stagingDir, { recursive: true });
+
+      onProgress({ phase: "downloading", kind: "server", receivedBytes: 0, totalBytes: serverEntry.size });
       await stageArtifact({
         finalPath: serverStagedPath,
         entry: serverEntry,
@@ -564,7 +852,11 @@ async function checkAndDownloadOnce(opts) {
         localDir,
         log,
         label: `server-${serverEntry.version}-${platformArch}`,
+        onProgress: (receivedBytes) => onProgress({ phase: "downloading", kind: "server", receivedBytes, totalBytes: serverEntry.size }),
       });
+      onProgress({ phase: "verifying", kind: "server", receivedBytes: serverEntry.size, totalBytes: serverEntry.size });
+
+      onProgress({ phase: "downloading", kind: "renderer", receivedBytes: 0, totalBytes: rendererEntry.size });
       await stageArtifact({
         finalPath: rendererStagedPath,
         entry: rendererEntry,
@@ -572,17 +864,21 @@ async function checkAndDownloadOnce(opts) {
         localDir,
         log,
         label: `renderer-${rendererEntry.version}`,
+        onProgress: (receivedBytes) => onProgress({ phase: "downloading", kind: "renderer", receivedBytes, totalBytes: rendererEntry.size }),
       });
+      onProgress({ phase: "verifying", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
 
       // Both boxes staged and sha256-verified. Activate server first, then
       // renderer; roll the server `next` pointer back if renderer's
       // activation fails (see "why a rollback" note in the file header).
+      onProgress({ phase: "activating", kind: "server", receivedBytes: serverEntry.size, totalBytes: serverEntry.size });
       await activation.activateFromArchive(serverStagedPath, manifest, {
         homeDir,
         channel,
         kind: "server",
         platformArch,
       });
+      onProgress({ phase: "activating", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
       try {
         await activation.activateFromArchive(rendererStagedPath, manifest, {
           homeDir,
@@ -599,13 +895,12 @@ async function checkAndDownloadOnce(opts) {
         lastManifestUrl: sourceUrl,
         lastCheckedAt: nowIso(),
         lastError: null,
-        lastSkipReason: null,
+        available: null,
+        minShellBlocked: false,
         lastStagedTrain: manifest.train,
       });
-      log(
-        `[ota] train ${manifest.train} staged (server ${serverEntry.version}, renderer ${rendererEntry.version}); activates on next launch`,
-      );
-      return { outcome: "staged", train: manifest.train };
+      log(`[ota] train ${manifest.train} staged and activated (server ${serverEntry.version}, renderer ${rendererEntry.version})`);
+      return { ok: true, train: manifest.train, version };
     } finally {
       await fsp.rm(serverStagedPath, { force: true }).catch(() => {});
       await fsp.rm(rendererStagedPath, { force: true }).catch(() => {});
@@ -614,51 +909,10 @@ async function checkAndDownloadOnce(opts) {
       await lock.release();
     }
   } catch (err) {
-    log(`[ota] check failed: ${err.message}`);
+    log(`[ota] download/apply failed: ${err.message}`);
     await writeOtaChannelState(homeDir, channel, { lastCheckedAt: nowIso(), lastError: err.message }).catch(() => {});
-    return { outcome: "error", error: err.message };
+    return { ok: false, error: err.message };
   }
-}
-
-/**
- * Schedules the recurring background checker (deliberately fixed cadence: first
- * check ~30s after the main window is shown, then every 6h). Timers are
- * unref'd so they never keep the process alive. Never throws synchronously
- * and the scheduled work never rejects upward (see `checkAndDownloadOnce`).
- * @returns {NodeJS.Timeout} the initial delay timer (exposed for tests only)
- */
-function scheduleBackgroundOtaChecks(opts) {
-  const {
-    homeDir,
-    keyset,
-    currentShellVersion,
-    platformArch,
-    channel = SEED_CHANNEL,
-    firstDelayMs = FIRST_CHECK_DELAY_MS,
-    intervalMs = RECHECK_INTERVAL_MS,
-    log = () => {},
-  } = opts || {};
-
-  const runOnce = () => {
-    checkAndDownloadOnce({ homeDir, keyset, currentShellVersion, platformArch, channel, log })
-      .then((result) => {
-        log(`[ota] cycle: ${result.outcome}${result.error ? ` (${result.error})` : ""}`);
-      })
-      .catch((err) => {
-        // checkAndDownloadOnce is designed to never reject; this is a
-        // belt-and-suspenders net so a scheduler bug can never crash or
-        // block anything upstream.
-        log(`[ota] cycle threw unexpectedly (this should never happen): ${err.message}`);
-      });
-  };
-
-  const firstTimer = setTimeout(() => {
-    runOnce();
-    const intervalTimer = setInterval(runOnce, intervalMs);
-    if (typeof intervalTimer.unref === "function") intervalTimer.unref();
-  }, firstDelayMs);
-  if (typeof firstTimer.unref === "function") firstTimer.unref();
-  return firstTimer;
 }
 
 /** Re-exported so callers (main.cjs) never need to reference the dev-only env var name directly. */
@@ -682,7 +936,7 @@ function hasDevOverrideConfigured() {
  * kinds' `next` pointers exist and agree on the same train number. A
  * partially-staged train (one kind downloaded, the other not yet, or a
  * torn write) must never be treated as ready — this mirrors the "either
- * both next pointers land or neither does" invariant `checkAndDownloadOnce`
+ * both next pointers land or neither does" invariant `downloadAndApplyArtifacts`
  * itself already enforces via the server-next rollback (see the "why a
  * rollback" note in this file's header).
  * @param {{serverNext: {train?: number}|null, rendererNext: {train?: number}|null}} pointers
@@ -718,7 +972,9 @@ function resolveStagedTrainStatus({ serverNext, rendererNext }) {
 /**
  * @param {string} homeDir
  * @param {{channel?: string}} [opts]
- * @returns {Promise<{staged: boolean, train: number|null, version: string|null, minShellBlocked: boolean}>}
+ * @returns {Promise<{staged: boolean, train: number|null, version: string|null,
+ *   minShellBlocked: boolean, available: object|null, lastError: string|null,
+ *   lastCheckedAt: string|null}>}
  */
 async function readStagedTrainStatus(homeDir, opts = {}) {
   const { channel = SEED_CHANNEL } = opts;
@@ -729,15 +985,22 @@ async function readStagedTrainStatus(homeDir, opts = {}) {
     readOtaState(homeDir),
   ]);
   const status = resolveStagedTrainStatus({ serverNext, rendererNext });
-  // Two-tier copy: the last OTA cycle's skip reason is the only
-  // record of "a newer train exists but this shell is too old to receive
-  // it" — checkAndDownloadOnce already persists this to ota-state.json on
-  // the minshell-blocked outcome; surfaced here so the UI can escalate its
-  // copy without a second IPC round-trip or re-deriving the check itself.
   const channelState = (otaState && otaState[channel]) || {};
-  const minShellBlocked = typeof channelState.lastSkipReason === "string"
-    && channelState.lastSkipReason.startsWith("minShell ");
-  return { ...status, minShellBlocked };
+  // Read-time compat: a shell built before this field existed only ever
+  // wrote the legacy `lastSkipReason` string; a shell built after it
+  // writes the boolean directly. Both are honored so an old ota-state.json
+  // never crashes or silently reports the wrong thing after an upgrade.
+  const minShellBlocked = typeof channelState.minShellBlocked === "boolean"
+    ? channelState.minShellBlocked
+    : typeof channelState.lastSkipReason === "string" && channelState.lastSkipReason.startsWith("minShell ");
+  const available = channelState.available && typeof channelState.available === "object" ? channelState.available : null;
+  return {
+    ...status,
+    minShellBlocked,
+    available,
+    lastError: typeof channelState.lastError === "string" ? channelState.lastError : null,
+    lastCheckedAt: typeof channelState.lastCheckedAt === "string" ? channelState.lastCheckedAt : null,
+  };
 }
 
 module.exports = {
@@ -754,7 +1017,8 @@ module.exports = {
   fetchWithRedirects,
   fetchBuffer,
   downloadToFile,
-  checkAndDownloadOnce,
+  checkOnce,
+  downloadAndApplyArtifacts,
   scheduleBackgroundOtaChecks,
   hasDevOverrideConfigured,
   bothNextPointersReady,

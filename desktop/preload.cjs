@@ -43,10 +43,20 @@ contextBridge.exposeInMainWorld("hana", {
   autoUpdateInstall: () => ipcRenderer.invoke("auto-update-install"),
   autoUpdateState: () => ipcRenderer.invoke("auto-update-state"),
   autoUpdateSetChannel: (ch) => ipcRenderer.invoke("auto-update-set-channel", ch),
-  // 列车更新（OTA）：暂存状态查询 / 手动检查 / 立即应用
+  // 列车更新（OTA）：暂存状态查询 / 手动检查 / 立即应用（下载+激活+重启，仅由用户点击触发）
   trainUpdateStatus: () => ipcRenderer.invoke("train-update-status"),
   trainUpdateCheck: () => ipcRenderer.invoke("train-update-check"),
   trainUpdateApply: () => ipcRenderer.invoke("train-update-apply"),
+  onTrainUpdateAvailable: (cb) => {
+    const handler = (_, payload) => cb(payload);
+    ipcRenderer.on("train-update-available", handler);
+    return () => ipcRenderer.removeListener("train-update-available", handler);
+  },
+  onTrainUpdateProgress: (cb) => {
+    const handler = (_, progress) => cb(progress);
+    ipcRenderer.on("train-update-progress", handler);
+    return () => ipcRenderer.removeListener("train-update-progress", handler);
+  },
   getUpdateDigestHistory: () => ipcRenderer.invoke("get-update-digest-history"),
   getAutoLaunchStatus: () => ipcRenderer.invoke("get-auto-launch-status"),
   setAutoLaunchEnabled: (enabled) => ipcRenderer.invoke("set-auto-launch-enabled", enabled),
