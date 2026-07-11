@@ -3,6 +3,110 @@
   "entries": [
     {
       "schemaVersion": 1,
+      "tag": "v0.386.5",
+      "version": "0.386.5",
+      "previousTag": "v0.385.11",
+      "generatedAt": "2026-07-11T13:16:00.000Z",
+      "noUserFacingChanges": false,
+      "summary": {
+        "zh": "Hana 的组件热更新现在拥有完整的签名发布链路，已安装客户端可以安全接收服务端与界面更新。本次版本同时修复了 Windows 安装校验与更新历史弹窗的显示问题。",
+        "en": "Hana now has a complete signed publishing pipeline for component updates, allowing installed clients to safely receive server and renderer updates. This release also fixes Windows installation checks and update-history dialog scrolling."
+      },
+      "counts": {
+        "feature": 1,
+        "fix": 2,
+        "improvement": 0,
+        "migration": 0
+      },
+      "source": {
+        "owner": "liliMozi",
+        "repo": "openhanako",
+        "commitRange": "v0.385.11..e837e3ac1",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.386.5",
+        "releaseNotes": ""
+      },
+      "items": [
+        {
+          "id": "signed-hot-update-publishing",
+          "kind": "feature",
+          "importance": "high",
+          "title": {
+            "zh": "签名组件更新可以正式发布",
+            "en": "Signed component updates can now be published"
+          },
+          "summary": {
+            "zh": "正式版本会同时发布服务端与界面组件归档，并生成带签名、可续做的稳定版与测试版更新列车，让已安装客户端能够安全发现和下载组件更新。",
+            "en": "Each release now publishes server and renderer archives and produces signed, resumable update trains for stable and beta channels, so installed clients can safely discover and download component updates."
+          },
+          "details": [
+            {
+              "zh": "发布任务中断后可以从已有资产继续，不会重复或倒退更新序号。",
+              "en": "Interrupted publishing can resume from existing assets without duplicating or rolling back update sequence numbers."
+            },
+            {
+              "zh": "读取远端发布状态失败时会明确中止，避免把网络或权限故障误判为首次发布。",
+              "en": "Failures while reading remote release state now stop explicitly instead of being mistaken for a first publication."
+            }
+          ],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "1c8762d9f",
+              "title": "feat(release): add hot-update train publishing pipeline"
+            },
+            {
+              "type": "commit",
+              "ref": "def20a07c",
+              "title": "fix(release): only treat gh's missing-release error as release-absent"
+            }
+          ]
+        },
+        {
+          "id": "windows-seed-install-integrity",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "Windows 安装校验适配新的组件归档",
+            "en": "Windows installation checks support the new component archives"
+          },
+          "summary": {
+            "zh": "Windows 安装器和启动前检查现在验证新的签名 seed 归档，不再因寻找已淘汰的散装服务端文件而错误判定安装损坏。",
+            "en": "The Windows installer and pre-launch checks now validate the new signed seed archives instead of incorrectly reporting corruption while looking for retired loose server files."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "21752a0d8",
+              "title": "fix(windows): install integrity checks use the seed archive layout"
+            }
+          ]
+        },
+        {
+          "id": "settings-update-history-scroll",
+          "kind": "fix",
+          "importance": "medium",
+          "title": {
+            "zh": "更新历史保持在设置窗口内滚动",
+            "en": "Update history scrolls correctly inside Settings"
+          },
+          "summary": {
+            "zh": "更新历史弹窗会限制在设置面板的可见高度内，较长的版本记录可以在弹窗内部平稳滚动。",
+            "en": "The update-history dialog now stays within the visible Settings panel and scrolls long release histories inside the dialog."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "3edd650fd",
+              "title": "fix(settings): constrain update history to settings panel"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
       "tag": "v0.385.11",
       "version": "0.385.11",
       "previousTag": "v0.380.10",

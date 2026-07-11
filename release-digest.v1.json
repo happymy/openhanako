@@ -1,239 +1,102 @@
 {
   "schemaVersion": 1,
-  "tag": "v0.385.11",
-  "version": "0.385.11",
-  "previousTag": "v0.380.10",
-  "generatedAt": "2026-07-11T10:53:36.000Z",
+  "tag": "v0.386.5",
+  "version": "0.386.5",
+  "previousTag": "v0.385.11",
+  "generatedAt": "2026-07-11T13:16:00.000Z",
   "noUserFacingChanges": false,
   "summary": {
-    "zh": "Hana 现在可以在后台安全准备并原地应用组件更新，同时在异常时自动回退或一键修复。设置页布局、更新历史和新会话输入也得到了一轮系统性整理。",
-    "en": "Hana can now safely stage component updates in the background and apply them in place, with automatic rollback and one-click repair when needed. This release also brings a systematic cleanup to Settings, update history, and new-session composing."
+    "zh": "Hana 的组件热更新现在拥有完整的签名发布链路，已安装客户端可以安全接收服务端与界面更新。本次版本同时修复了 Windows 安装校验与更新历史弹窗的显示问题。",
+    "en": "Hana now has a complete signed publishing pipeline for component updates, allowing installed clients to safely receive server and renderer updates. This release also fixes Windows installation checks and update-history dialog scrolling."
   },
   "counts": {
-    "feature": 3,
+    "feature": 1,
     "fix": 2,
-    "improvement": 3,
+    "improvement": 0,
     "migration": 0
   },
   "source": {
     "owner": "liliMozi",
     "repo": "openhanako",
-    "commitRange": "v0.380.10..a9df4e87e",
-    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.385.11",
+    "commitRange": "v0.385.11..e837e3ac1",
+    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.386.5",
     "releaseNotes": ""
   },
   "items": [
     {
-      "id": "signed-component-trains",
+      "id": "signed-hot-update-publishing",
       "kind": "feature",
       "importance": "high",
       "title": {
-        "zh": "组件更新可以后台准备、原地应用",
-        "en": "Component updates stage quietly and apply in place"
+        "zh": "签名组件更新可以正式发布",
+        "en": "Signed component updates can now be published"
       },
       "summary": {
-        "zh": "服务端与界面组件会作为同一份签名更新一起校验和准备，完成后可直接刷新应用，不再让每次组件升级都变成完整安装。",
-        "en": "Server and renderer components are verified and staged as one signed update, then applied with an in-place refresh instead of turning every component upgrade into a full reinstall."
+        "zh": "正式版本会同时发布服务端与界面组件归档，并生成带签名、可续做的稳定版与测试版更新列车，让已安装客户端能够安全发现和下载组件更新。",
+        "en": "Each release now publishes server and renderer archives and produces signed, resumable update trains for stable and beta channels, so installed clients can safely discover and download component updates."
       },
       "details": [
         {
-          "zh": "后台检查只会在完整下载并验证两类组件后，才把更新标记为可应用。",
-          "en": "An update becomes available only after both component sets are fully downloaded and verified."
+          "zh": "发布任务中断后可以从已有资产继续，不会重复或倒退更新序号。",
+          "en": "Interrupted publishing can resume from existing assets without duplicating or rolling back update sequence numbers."
         },
         {
-          "zh": "设置页与侧栏贴纸共享同一套更新状态，稳定版和测试版通道也会保持一致。",
-          "en": "Settings and the sidebar sticker share one update state, with stable and beta channels kept in sync."
+          "zh": "读取远端发布状态失败时会明确中止，避免把网络或权限故障误判为首次发布。",
+          "en": "Failures while reading remote release state now stop explicitly instead of being mistaken for a first publication."
         }
       ],
       "sources": [
         {
           "type": "commit",
-          "ref": "a9df4e87e",
-          "title": "feat(runtime): ship signed artifact trains and unify settings"
-        }
-      ]
-    },
-    {
-      "id": "component-rollback-repair",
-      "kind": "feature",
-      "importance": "high",
-      "title": {
-        "zh": "更新异常时自动回退，也可手动修复组件",
-        "en": "Automatic rollback and manual component repair"
-      },
-      "summary": {
-        "zh": "如果新组件连续启动失败，Hana 会隔离问题版本并回到上一份可用版本；托盘菜单和启动参数也提供了清理并重建组件的修复入口。",
-        "en": "If new components repeatedly fail to start, Hana quarantines the bad version and returns to the previous working set. A repair action is also available from the tray and command line."
-      },
-      "details": [
-        {
-          "zh": "服务端与界面启动都纳入崩溃计数和回退保护。",
-          "en": "Both server and renderer startup are covered by crash counting and rollback protection."
+          "ref": "1c8762d9f",
+          "title": "feat(release): add hot-update train publishing pipeline"
         },
         {
-          "zh": "组件清理只回收不再被任何更新通道引用的旧版本。",
-          "en": "Cleanup removes only old component versions that are no longer referenced by any update channel."
-        }
-      ],
-      "sources": [
-        {
           "type": "commit",
-          "ref": "a9df4e87e",
-          "title": "feat(runtime): ship signed artifact trains and unify settings"
+          "ref": "def20a07c",
+          "title": "fix(release): only treat gh's missing-release error as release-absent"
         }
       ]
     },
     {
-      "id": "release-history-anthology",
-      "kind": "feature",
-      "importance": "medium",
-      "title": {
-        "zh": "更新历史与跨版本公告集中呈现",
-        "en": "A clearer update history across releases"
-      },
-      "summary": {
-        "zh": "“关于”页面现在可以查看最近五个正式版本的双语更新内容；跨过多个版本升级时，首启公告也会合并展示所有尚未读过的摘要。",
-        "en": "The About page now shows bilingual notes for the five newest published releases, while first-launch announcements collect every unread digest when an upgrade spans multiple versions."
-      },
-      "details": [
-        {
-          "zh": "在线历史读取失败时，会明确回退到安装包内附带的离线历史。",
-          "en": "If online history is unavailable, Hana clearly falls back to the offline history bundled with the app."
-        }
-      ],
-      "sources": [
-        {
-          "type": "commit",
-          "ref": "a9df4e87e",
-          "title": "feat(runtime): ship signed artifact trains and unify settings"
-        }
-      ]
-    },
-    {
-      "id": "atomgit-first-update-source",
-      "kind": "improvement",
-      "importance": "medium",
-      "title": {
-        "zh": "国内更新检查优先走加速源",
-        "en": "Faster update checks for users in China"
-      },
-      "summary": {
-        "zh": "组件更新会优先尝试国内镜像，并在不可用时自动回到 GitHub；切换稳定版或测试版后，下载、激活和回退都会使用同一通道。",
-        "en": "Component updates try the domestic mirror first and automatically fall back to GitHub. Stable and beta selection now stays consistent across download, activation, and rollback."
-      },
-      "details": [],
-      "sources": [
-        {
-          "type": "commit",
-          "ref": "a9df4e87e",
-          "title": "feat(runtime): ship signed artifact trains and unify settings"
-        }
-      ]
-    },
-    {
-      "id": "settings-layout-primitives",
-      "kind": "improvement",
-      "importance": "high",
-      "title": {
-        "zh": "设置窗口和同类组件统一到一套布局纪律",
-        "en": "Settings now follows one consistent layout system"
-      },
-      "summary": {
-        "zh": "设置弹窗固定为 884px 外壳，不再随标签页内容改变宽度；卡片、行、开关和分区改用共享原语排列，同时保留原有视觉风格。",
-        "en": "The Settings window now keeps a fixed 884px shell instead of changing width between tabs. Cards, rows, toggles, and sections share consistent primitives while preserving the existing visual style."
-      },
-      "details": [
-        {
-          "zh": "浏览器、界面、Agent、媒体等标签页使用同一内容轨道和间距规则。",
-          "en": "Browser, Interface, Agent, Media, and other tabs now use the same content track and spacing rules."
-        },
-        {
-          "zh": "同类控件的标签、说明文字和右侧操作保持稳定对齐。",
-          "en": "Labels, descriptions, and trailing actions now align consistently across controls of the same type."
-        }
-      ],
-      "sources": [
-        {
-          "type": "commit",
-          "ref": "a9df4e87e",
-          "title": "feat(runtime): ship signed artifact trains and unify settings"
-        }
-      ]
-    },
-    {
-      "id": "pending-session-composer",
+      "id": "windows-seed-install-integrity",
       "kind": "fix",
       "importance": "high",
       "title": {
-        "zh": "新会话草稿、Skill 徽章和发送状态保持一致",
-        "en": "New-session drafts, skill badges, and send state stay in sync"
+        "zh": "Windows 安装校验适配新的组件归档",
+        "en": "Windows installation checks support the new component archives"
       },
       "summary": {
-        "zh": "欢迎页和待创建会话现在都有稳定的草稿身份；恢复草稿或插入 Skill 徽章后，编辑器、发送按钮与实际提交使用同一份内容判断。",
-        "en": "Welcome and pending sessions now have stable draft identities. After restoring a draft or inserting a skill badge, the editor, send button, and submit path use the same content decision."
-      },
-      "details": [
-        {
-          "zh": "纯 Skill 徽章消息不再被当作空消息静默丢弃。",
-          "en": "Skill-badge-only messages are no longer silently treated as empty."
-        },
-        {
-          "zh": "待创建会话发送失败会显示明确提示，而不是没有反应。",
-          "en": "A failed send from a pending session now shows an explicit error instead of doing nothing."
-        }
-      ],
-      "sources": [
-        {
-          "type": "issue",
-          "ref": "#2101",
-          "title": "Pending session and composer consistency"
-        },
-        {
-          "type": "commit",
-          "ref": "a9df4e87e",
-          "title": "feat(runtime): ship signed artifact trains and unify settings"
-        }
-      ]
-    },
-    {
-      "id": "cross-channel-component-gc",
-      "kind": "fix",
-      "importance": "high",
-      "title": {
-        "zh": "测试版通道不再误删刚激活的组件",
-        "en": "Beta updates no longer delete newly activated components"
-      },
-      "summary": {
-        "zh": "组件清理现在会同时保护所有通道正在引用的版本，修复了切换到测试版后，首启可能误删新组件并导致启动失败的问题。",
-        "en": "Component cleanup now protects versions referenced by every channel, fixing a beta-channel first-launch failure where newly activated components could be removed by mistake."
+        "zh": "Windows 安装器和启动前检查现在验证新的签名 seed 归档，不再因寻找已淘汰的散装服务端文件而错误判定安装损坏。",
+        "en": "The Windows installer and pre-launch checks now validate the new signed seed archives instead of incorrectly reporting corruption while looking for retired loose server files."
       },
       "details": [],
       "sources": [
         {
           "type": "commit",
-          "ref": "a9df4e87e",
-          "title": "feat(runtime): ship signed artifact trains and unify settings"
+          "ref": "21752a0d8",
+          "title": "fix(windows): install integrity checks use the seed archive layout"
         }
       ]
     },
     {
-      "id": "first-run-preparation-splash",
-      "kind": "improvement",
+      "id": "settings-update-history-scroll",
+      "kind": "fix",
       "importance": "medium",
       "title": {
-        "zh": "首次启动准备过程更清楚",
-        "en": "Clearer first-run preparation"
+        "zh": "更新历史保持在设置窗口内滚动",
+        "en": "Update history scrolls correctly inside Settings"
       },
       "summary": {
-        "zh": "首次安装需要解压和验证组件时，独立启动页会持续显示“准备新家”状态，不再依赖尚未准备完成的主界面资源。",
-        "en": "While a fresh install extracts and verifies its components, a standalone splash screen keeps showing the preparation state without depending on renderer assets that are not ready yet."
+        "zh": "更新历史弹窗会限制在设置面板的可见高度内，较长的版本记录可以在弹窗内部平稳滚动。",
+        "en": "The update-history dialog now stays within the visible Settings panel and scrolls long release histories inside the dialog."
       },
       "details": [],
       "sources": [
         {
           "type": "commit",
-          "ref": "a9df4e87e",
-          "title": "feat(runtime): ship signed artifact trains and unify settings"
+          "ref": "3edd650fd",
+          "title": "fix(settings): constrain update history to settings panel"
         }
       ]
     }
