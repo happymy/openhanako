@@ -94,7 +94,7 @@ import { createWebAuthRoute } from "./routes/web-auth.ts";
 import { createWebSocketAuthRoute } from "./routes/ws-auth.ts";
 import { createMobileWorkbenchRoute } from "./routes/mobile-workbench.ts";
 import { createStudioWorkspacesRoute } from "./routes/studio-workspaces.ts";
-import { createMobileStaticRoute } from "./routes/mobile-static.ts";
+import { createMobileStaticRoute, resolveMobileStaticRouteOptions } from "./routes/mobile-static.ts";
 import { createHtmlPreviewRoute } from "./routes/html-preview.ts";
 import { createAccessRoute } from "./routes/access.ts";
 import { createMediaRoute } from "./routes/media.ts";
@@ -818,8 +818,29 @@ const bridgeManagerRef = {
   }),
 };
 
+/**
+ * `/mobile`、`/desktop` 网页客户端入口的供货模式，启动时决议一次，绝不
+ * 逐请求判断、绝不静默回退：
+ *   1. `HANA_RENDERER_DIST` 注入 → 严格使用；目录缺失或不含 mobile.html
+ *      时不回退源码树——那会把"产物损坏"伪装成"从未安装"，误导排障，
+ *      而是显式落 error 模式（503 + 启动日志）。
+ *   2. 未注入 → 走仓库自带的 desktop/dist-renderer（本地 `npm start` 的
+ *      既有开发形态，逐字节不变）。
+ *   3. 以上都不成立 → guide 模式，"网页前端从未拉取"的正确语义。
+ * 三分支的实际判定逻辑在 mobile-static.ts 的 resolveMobileStaticRouteOptions
+ * ——那个模块没有顶层副作用，可以被测试直接 import；server/index.ts 本身
+ * 在模块顶层就绑定端口、起 engine，没有能安全导入的入口，所以可测的纯决
+ * 策逻辑放在旁边这个兄弟模块，这里只是决议的调用点。
+ */
+function decideMobileStaticRouteOptions() {
+  return resolveMobileStaticRouteOptions({
+    env: process.env,
+    devDistDir: fromRoot("desktop", "dist-renderer"),
+  });
+}
+
 const { restRoute: chatRestRoute, wsRoute: chatWsRoute } = createChatRoute(engine, hub, { upgradeWebSocket });
-app.route("", createMobileStaticRoute({ distDir: fromRoot("desktop", "dist-renderer") }));
+app.route("", createMobileStaticRoute(decideMobileStaticRouteOptions()));
 app.route("", createHtmlPreviewRoute());
 app.route("/api", chatRestRoute);
 app.route("", chatWsRoute);

@@ -1601,6 +1601,21 @@ async function _spawnServerOnce(serverInfoPath, artifactBootContext) {
     HANA_DESKTOP_APP_PATH: app.getAppPath(),
     HANA_DESKTOP_IS_PACKAGED: app.isPackaged ? "1" : "0",
   };
+  // packaged 模式下 `_distRenderer` 已经被 `resolvePackagedArtifactBoot`
+  // （本函数调用前必然跑过一次，见调用点 :1186 附近）重指向 renderer 的
+  // 已激活版本目录；把它转交给 server，让 /mobile、/desktop 的远程网页
+  // 客户端从此供货热更新激活的 renderer，不再是 server 内容包里冗余携带、
+  // 永远滞后于热更新的那份旧拷贝。dev 模式（artifactBootContext 为 null）
+  // 不设——server 走自己的源码树开发形态，逐字节不变。
+  // 已知边界：renderer 崩溃降级会在本次 spawn 之后重新赋值
+  // `_distRenderer`（见 `handleRendererArtifactLoadFailure`），但这里已经
+  // 把当时的值复制进了 server 的 env，此后不会再变——server 进程的生命周
+  // 期内这个环境变量本就是 spawn 时定格的，跟 server 自身"只在启动时决
+  // 议一次，不逐请求判断"的语义一致，重启进程后两者自然重新对齐，不在
+  // 本次修复范围内。
+  if (artifactBootContext) {
+    serverEnv.HANA_RENDERER_DIST = _distRenderer;
+  }
   serverEnv = await serverEnvironmentForNetworkProxy(serverEnv);
 
   // Windows: 注入 bundled Git runtime（MinGit）路径，并从注册表补齐当前系统 / 用户 PATH。

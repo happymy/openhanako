@@ -1,13 +1,67 @@
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
+import { createRequire } from "module";
 import { readLocalServerInfo, resolveCliHanaHome } from "./local-server.ts";
 
-export function resolveServerSpawnSpec({
+const require = createRequire(import.meta.url);
+// Untyped CommonJS artifact-core modules (no declaration files) are
+// required, not ESM-imported, so typecheck doesn't demand .d.cts for
+// them — same pattern cli/bundle.ts uses.
+const activation = require("../shared/artifact-core/activation.cjs");
+const pointerStore = require("../shared/artifact-core/pointer-store.cjs");
+const { rendererPointerChannel } = require("../shared/artifact-core/pointer-channels.cjs");
+
+export type RendererDistPointer = { distDir: string; version: string | null; valid: boolean };
+
+/**
+ * Resolves which already-activated renderer directory `hana serve` should
+ * inject into the server as `HANA_RENDERER_DIST`. Reuses
+ * `activation.resolveBoot` for the "pointer -> validated version
+ * directory" judgment (current first, previous as fallback; both require
+ * a `.verified` receipt whose sha256 matches and a directory that still
+ * exists on disk) — the same validation rule desktop's boot resolution
+ * uses.
+ *
+ * A hit returns its `versionDir` directly (`valid: true`).
+ *
+ * If a pointer exists but neither slot validates (the directory was
+ * deleted or corrupted out from under it), this must not quietly report
+ * "nothing injected" — that would dress up "content is broken" as "never
+ * pulled", and an operator would go looking for the wrong problem. In
+ * that case this still returns the `current` pointer's recorded
+ * `versionDir` (`valid: false`); the caller sets `HANA_RENDERER_DIST` to
+ * it anyway, so the server's own decision function lands in its explicit
+ * error mode — damage has to be visible, not silently downgraded to the
+ * guide page.
+ *
+ * If no pointer exists at all (`hana bundle pull` was never run on this
+ * channel), this returns `null` and the caller sets nothing — that is
+ * the correct "never installed" case, and the server falls into guide
+ * mode on its own.
+ */
+export async function resolveRendererDistPointer({
+  hanaHome,
+  channel = "stable",
+}: { hanaHome: string; channel?: string }): Promise<RendererDistPointer | null> {
+  const rendererChannel = rendererPointerChannel(channel);
+  const boot = await activation.resolveBoot(rendererChannel, hanaHome);
+  if (boot) {
+    return { distDir: boot.pointer.versionDir, version: boot.pointer.version ?? null, valid: true };
+  }
+  const current = await pointerStore.readPointer(hanaHome, rendererChannel, "current");
+  if (current && typeof current.versionDir === "string") {
+    return { distDir: current.versionDir, version: current.version ?? null, valid: false };
+  }
+  return null;
+}
+
+export async function resolveServerSpawnSpec({
   projectRoot,
   env = process.env,
   extraArgs = [],
-}: { projectRoot?: string; env?: NodeJS.ProcessEnv; extraArgs?: string[] } = {}) {
+  channel = "stable",
+}: { projectRoot?: string; env?: NodeJS.ProcessEnv; extraArgs?: string[]; channel?: string } = {}) {
   const root = projectRoot || path.resolve(import.meta.dirname, "..");
   const explicitRoot = env.HANA_ROOT && fs.existsSync(path.join(env.HANA_ROOT, "bootstrap.js"))
     ? env.HANA_ROOT
@@ -19,29 +73,45 @@ export function resolveServerSpawnSpec({
       : null
   );
 
+  const rendererDist = await resolveRendererDistPointer({ hanaHome: resolveCliHanaHome(env), channel });
+
   if (packagedRoot) {
+    const spawnEnv: NodeJS.ProcessEnv = {
+      ...env,
+      HANA_ROOT: packagedRoot,
+      HANA_SERVER_ENTRY: path.join(packagedRoot, "bundle", "index.js"),
+    };
+    if (rendererDist) spawnEnv.HANA_RENDERER_DIST = rendererDist.distDir;
     return {
       mode: "packaged",
       command: process.execPath,
       args: [path.join(packagedRoot, "bootstrap.js"), ...extraArgs],
-      env: {
-        ...env,
-        HANA_ROOT: packagedRoot,
-        HANA_SERVER_ENTRY: path.join(packagedRoot, "bundle", "index.js"),
-      },
+      env: spawnEnv,
+      rendererDist,
     };
   }
 
+  const spawnEnv: NodeJS.ProcessEnv = { ...env };
+  if (rendererDist) spawnEnv.HANA_RENDERER_DIST = rendererDist.distDir;
   return {
     mode: "source",
     command: process.execPath,
     args: [path.join(root, "server", "index.ts"), ...extraArgs],
-    env,
+    env: spawnEnv,
+    rendererDist,
   };
 }
 
-export function spawnServerForeground({ projectRoot, extraArgs = [], env = process.env }: { projectRoot?: string; extraArgs?: string[]; env?: NodeJS.ProcessEnv } = {}) {
-  const spec = resolveServerSpawnSpec({ projectRoot, env, extraArgs });
+export async function spawnServerForeground({
+  projectRoot,
+  extraArgs = [],
+  env = process.env,
+  channel = "stable",
+}: { projectRoot?: string; extraArgs?: string[]; env?: NodeJS.ProcessEnv; channel?: string } = {}) {
+  const spec = await resolveServerSpawnSpec({ projectRoot, env, extraArgs, channel });
+  if (spec.rendererDist && spec.rendererDist.valid) {
+    console.log(`serving web frontend ${spec.rendererDist.version}`);
+  }
   const child = spawn(spec.command, spec.args, {
     stdio: "inherit",
     env: spec.env,
@@ -60,7 +130,7 @@ export async function startLocalServerAndWait({
   const existing = readLocalServerInfo({ hanaHome });
   if (existing.ok) return existing;
 
-  const spec = resolveServerSpawnSpec({ projectRoot, env, extraArgs: [] });
+  const spec = await resolveServerSpawnSpec({ projectRoot, env, extraArgs: [] });
   const child = spawn(spec.command, spec.args, {
     stdio: "ignore",
     detached: true,
