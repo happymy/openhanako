@@ -1025,6 +1025,16 @@ export function handleServerMessage(msg: any): void {
       break;
     }
 
+    case 'abort_result': {
+      if (msg.status !== 'already_stopped') break;
+      const sp = msg.sessionPath || null;
+      const sid = typeof msg.sessionId === 'string' && msg.sessionId.trim() ? msg.sessionId.trim() : null;
+      const streamId = typeof msg.streamId === 'string' && msg.streamId.trim() ? msg.streamId.trim() : null;
+      const applied = applyStreamingStatus(false, sp, { streamId }, { force: !streamId });
+      if (sp && applied) streamBufferManager.finishTurn(sp, sid);
+      break;
+    }
+
     case 'status': {
       const sp = msg.sessionPath || null;
       const sid = typeof msg.sessionId === 'string' && msg.sessionId.trim() ? msg.sessionId.trim() : null;

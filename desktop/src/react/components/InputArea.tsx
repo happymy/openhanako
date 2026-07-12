@@ -125,6 +125,23 @@ function createClientUserMessageId(): string {
   return `client-user-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+export function createStopRequest(input: {
+  sessionId: string | null | undefined;
+  sessionPath: string | null | undefined;
+  streamId: string | null | undefined;
+}): { type: 'abort'; sessionId: string; sessionPath: string; streamId?: string } | null {
+  const sessionId = input.sessionId?.trim();
+  const sessionPath = input.sessionPath?.trim();
+  const streamId = input.streamId?.trim();
+  if (!sessionId || !sessionPath) return null;
+  return {
+    type: 'abort',
+    sessionId,
+    sessionPath,
+    ...(streamId ? { streamId } : {}),
+  };
+}
+
 async function readFileAsBase64(file: File): Promise<string> {
   return readBlobAsBase64(file);
 }
@@ -1850,8 +1867,9 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     const path = state.currentSessionPath;
     const sessionId = state.currentSessionId;
     const active = path ? sessionScopedValue(state, state.activeSessionStreams, path) : null;
-    if (!path || !sessionId || !active?.streamId) return;
-    ws.send(JSON.stringify({ type: 'abort', sessionId, sessionPath: path, streamId: active.streamId }));
+    const request = createStopRequest({ sessionId, sessionPath: path, streamId: active?.streamId });
+    if (!request) return;
+    ws.send(JSON.stringify(request));
   }, [isStreaming]);
 
   // ── Key handler ──

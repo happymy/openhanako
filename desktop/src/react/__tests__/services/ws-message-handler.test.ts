@@ -1213,6 +1213,46 @@ describe('ws-message-handler turn_end side effects', () => {
     expect(useStore.getState().inputFocusTrigger).toBe(0);
   });
 
+  it('already_stopped abort_result clears a stale streaming marker when no stream identity exists', () => {
+    vi.mocked(streamBufferManager.finishTurn).mockClear();
+    useStore.setState({
+      streamingSessions: ['/session/a.jsonl'],
+      activeSessionStreams: {},
+      inputFocusTrigger: 0,
+    } as never);
+
+    handleServerMessage({
+      type: 'abort_result',
+      status: 'already_stopped',
+      sessionPath: '/session/a.jsonl',
+      streamId: null,
+    });
+
+    expect(useStore.getState().streamingSessions).toEqual([]);
+    expect(streamBufferManager.finishTurn).toHaveBeenCalledWith('/session/a.jsonl', null);
+    expect(useStore.getState().inputFocusTrigger).toBe(1);
+  });
+
+  it('rejected abort_result leaves local stream state untouched', () => {
+    useStore.setState({
+      streamingSessions: ['/session/a.jsonl'],
+      activeSessionStreams: {
+        '/session/a.jsonl': { streamId: 'stream_old', turnId: null },
+      },
+    } as never);
+
+    handleServerMessage({
+      type: 'abort_result',
+      status: 'rejected',
+      reason: 'stale_stream',
+      sessionPath: '/session/a.jsonl',
+      streamId: 'stream_current',
+    });
+
+    expect(useStore.getState().streamingSessions).toEqual(['/session/a.jsonl']);
+    expect(useStore.getState().activeSessionStreams['/session/a.jsonl']?.streamId).toBe('stream_old');
+  });
+
   it('turn_end does not clear the matching stream before status=false arrives', () => {
     useStore.setState({
       streamingSessions: ['/session/a.jsonl'],

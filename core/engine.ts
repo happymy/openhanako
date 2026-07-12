@@ -146,6 +146,10 @@ import { wrapWithSessionPermission } from "../lib/tools/session-permission-wrapp
 import { filterToolObjectsByAvailability } from "./tool-availability.ts";
 import { TaskRegistry } from "../lib/task-registry.ts";
 import { TerminalSessionManager } from "../lib/terminal/terminal-session-manager.ts";
+import {
+  SessionExecutionRegistry,
+  wrapWithSessionExecutionCancellation,
+} from "../lib/session-execution-registry.ts";
 import { PluginInstallRecords } from "../lib/plugin-install-records.ts";
 import { ComputerHost } from "./computer-use/computer-host.ts";
 import { ComputerProviderRegistry } from "./computer-use/provider-registry.ts";
@@ -235,6 +239,7 @@ export class HanaEngine {
   declare _runtimeContext: any;
   declare _sessionCoord: any;
   declare _sessionFiles: any;
+  declare _sessionExecutions: any;
   declare _sessionManifestMigration: any;
   declare _sessionManifestResolver: any;
   declare _sessionManifestStore: any;
@@ -401,6 +406,8 @@ export class HanaEngine {
       getResourceLoader: () => this._resourceLoader,
     });
 
+    this._sessionExecutions = new SessionExecutionRegistry();
+
     // ── Session Coordinator ──
     this._sessionCoord = new SessionCoordinator({
       agentsDir: this.agentsDir,
@@ -428,6 +435,10 @@ export class HanaEngine {
       getConfirmStore: () => this._confirmStore,
       getDeferredResultStore: () => this._deferredResultStore,
       getTaskRegistry: () => this._taskRegistry,
+      getSessionIdForPath: (sessionPath) => this.getSessionIdForPath(sessionPath),
+      abortToolExecutionsForSession: (sessionRef, reason) => (
+        this._sessionExecutions.abortBySession(sessionRef, reason)
+      ),
       getEngine: () => this,
       getUsageLedger: () => this._usageLedger,
       sessionManifestStore: this._sessionManifestStore,
@@ -2485,6 +2496,24 @@ export class HanaEngine {
         emitEvent: (event, sessionPath) => this._emitEvent(event, sessionPath),
       }),
     };
+
+    // Object.create(HanaEngine.prototype) is used by focused tool unit tests;
+    // every constructed runtime owns the registry from the constructor above.
+    if (this._sessionExecutions) {
+      result = {
+        ...result,
+        tools: wrapWithSessionExecutionCancellation(result.tools, {
+          registry: this._sessionExecutions,
+          getSessionPath,
+          getSessionIdForPath: (sessionPath) => this.getSessionIdForPath(sessionPath),
+        }),
+        customTools: wrapWithSessionExecutionCancellation(result.customTools, {
+          registry: this._sessionExecutions,
+          getSessionPath,
+          getSessionIdForPath: (sessionPath) => this.getSessionIdForPath(sessionPath),
+        }),
+      };
+    }
 
     // Startup assertion: every built-in tool must be categorized in
     // shared/tool-categories.js. All session-creation paths route through

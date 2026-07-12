@@ -1588,7 +1588,16 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
               const activeStreamId = typeof abortSs?.streamId === "string" && abortSs.streamId.trim()
                 ? abortSs.streamId.trim()
                 : null;
-              if (!requestedStreamId || !activeStreamId || requestedStreamId !== activeStreamId) {
+              if (requestedStreamId && (!activeStreamId || requestedStreamId !== activeStreamId)) {
+                wsSend(ws, {
+                  type: "abort_result",
+                  status: "rejected",
+                  reason: "stale_stream",
+                  sessionId: abortTarget.sessionId,
+                  sessionPath: abortPath,
+                  streamId: activeStreamId,
+                });
+                // Keep the legacy rejection event while older clients migrate to abort_result.
                 wsSend(ws, {
                   type: "abort_rejected",
                   reason: "stale_stream",
@@ -1616,6 +1625,13 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
                   reason: abortReason,
                 });
               }
+              wsSend(ws, {
+                type: "abort_result",
+                status: abortAccepted ? "accepted" : "already_stopped",
+                sessionId: abortTarget.sessionId,
+                sessionPath: abortPath,
+                streamId: activeStreamId,
+              });
               return;
             }
 

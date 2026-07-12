@@ -3652,6 +3652,96 @@ describe("SessionCoordinator", () => {
     }
   });
 
+  it("cleans session-owned execution even when the main session no longer reports streaming", async () => {
+    const sessionFile = path.join(tempDir, "cancel-detached-execution.jsonl");
+    const abortToolExecutionsForSession = vi.fn(() => ({ matched: 1, aborted: 1 }));
+    const taskRegistry = { abortByParentSession: vi.fn() };
+    const idleSession = {
+      isStreaming: false,
+      sessionManager: { getSessionFile: () => sessionFile },
+      abort: vi.fn(),
+      dispose: vi.fn(),
+      extensionRunner: null,
+    };
+    const coordinator = new SessionCoordinator({
+      agentsDir: tempDir,
+      getAgent: () => ({
+        id: "hana",
+        agentDir: tempDir,
+        sessionDir: tempDir,
+        _memoryTicker: { notifySessionEnd: vi.fn(() => Promise.resolve()) },
+      }),
+      getActiveAgentId: () => "hana",
+      getModels: () => ({ authStorage: {}, modelRegistry: {}, resolveThinkingLevel: () => "medium" }),
+      getResourceLoader: () => ({ getSystemPrompt: () => "prompt" }),
+      getSkills: () => null,
+      buildTools: () => ({ tools: [], customTools: [] }),
+      emitEvent: vi.fn(),
+      getHomeCwd: () => tempDir,
+      agentIdFromSessionPath: () => "hana",
+      switchAgentOnly: async () => {},
+      getConfig: () => ({}),
+      getPrefs: () => ({ getThinkingLevel: () => "medium" }),
+      getAgents: () => new Map(),
+      getActivityStore: () => null,
+      getAgentById: () => null,
+      listAgents: () => [],
+      getSessionIdForPath: () => "session-1",
+      abortToolExecutionsForSession,
+      taskRegistry,
+    });
+    coordinator.sessions.set(sessionFile, {
+      session: idleSession,
+      agentId: "hana",
+      lastTouchedAt: Date.now(),
+      unsub: vi.fn(),
+    });
+
+    await expect(coordinator.abortSession(sessionFile, { reason: "user_abort" })).resolves.toBe(false);
+    expect(abortToolExecutionsForSession).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      sessionPath: sessionFile,
+    }, "user_abort");
+    expect(taskRegistry.abortByParentSession).toHaveBeenCalledWith(sessionFile, "user_abort");
+    expect(idleSession.abort).not.toHaveBeenCalled();
+  });
+
+  it("immediately publishes a terminal status when stopping pre-prompt preparation", async () => {
+    const sessionFile = path.join(tempDir, "cancel-pre-prompt.jsonl");
+    const emitEvent = vi.fn();
+    const coordinator = new SessionCoordinator({
+      agentsDir: tempDir,
+      getAgent: () => null,
+      getActiveAgentId: () => "hana",
+      getModels: () => ({ authStorage: {}, modelRegistry: {}, resolveThinkingLevel: () => "medium" }),
+      getResourceLoader: () => ({ getSystemPrompt: () => "prompt" }),
+      getSkills: () => null,
+      buildTools: () => ({ tools: [], customTools: [] }),
+      emitEvent,
+      getHomeCwd: () => tempDir,
+      agentIdFromSessionPath: () => "hana",
+      switchAgentOnly: async () => {},
+      getConfig: () => ({}),
+      getPrefs: () => ({ getThinkingLevel: () => "medium" }),
+      getAgents: () => new Map(),
+      getActivityStore: () => null,
+      getAgentById: () => null,
+      listAgents: () => [],
+    });
+    const pending = new AbortController();
+    coordinator._setRuntimeValueForPath(coordinator._prePromptAbortControllers, sessionFile, pending);
+
+    await expect(coordinator.abortSession(sessionFile, { reason: "user_abort" })).resolves.toBe(true);
+
+    expect(pending.signal.aborted).toBe(true);
+    expect(emitEvent).toHaveBeenCalledWith({
+      type: "session_status",
+      isStreaming: false,
+      aborted: true,
+      reason: "user_abort",
+    }, sessionFile);
+  });
+
   it("executeIsolated builds non-session tools from the master memory switch, not the focused session switch", async () => {
     const sessionFile = path.join(tempDir, "isolated-master-tools.jsonl");
     const builtinTool = { name: "read" };
