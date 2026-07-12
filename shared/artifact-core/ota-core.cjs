@@ -731,6 +731,29 @@ function isPreloadContractSatisfied(manifestPreloadVersion, shellPreloadVersion)
   return shellPreloadVersion >= manifestPreloadVersion;
 }
 
+/**
+ * The self-hosted renderer pull's contract gate — the server-side analog
+ * of `isPreloadContractSatisfied`: does the running server speak the
+ * protocol this train's renderer requires? A renderer that requires a
+ * newer `contract.serverProtocol` than the server it will be served from
+ * would load in the browser and then fail against every API it calls, so
+ * it must be refused up front (with "upgrade the server first" as the
+ * actionable message — see `downloadAndApplyRendererArtifact`).
+ *
+ * Read-time compatibility: a manifest missing the field entirely (built
+ * before the contract existed) passes rather than blocks. Schema-1
+ * manifests always carry the field (manifest.cjs validates it), so in
+ * practice this branch only ever fires for pre-schema shelves or future
+ * schema relaxations — but "can't evaluate" here means "old shelf, no
+ * contract to violate", the opposite polarity of `isShellVersionSufficient`'s
+ * conservative default, where an unparseable value means the manifest is
+ * making a demand we can't read.
+ */
+function isServerProtocolSatisfied(manifestServerProtocol, serverProtocolVersion) {
+  if (!Number.isInteger(manifestServerProtocol)) return true;
+  return serverProtocolVersion >= manifestServerProtocol;
+}
+
 // ── rollout bucketing: dedicated random UUID, zero linkage to
 //    any real device identity) ─────────────────────────────────────────────
 
@@ -1443,6 +1466,260 @@ async function downloadAndApplyArtifacts(opts) {
   }
 }
 
+// ── downloadAndApplyRendererArtifact: renderer-only pull for the
+//    self-hosted form (`hana bundle pull`) ────────────────────────────────
+
+/**
+ * Renderer-only variant of `downloadAndApplyArtifacts` for the self-hosted
+ * form: the operator installs and upgrades the server themselves (it's
+ * their package manager's job), and only ever pulls the WEB FRONTEND
+ * (renderer box) from the release shelf. The server artifact is never
+ * downloaded, never activated, and its pointer namespace is never touched
+ * — operator sovereignty over the server binary is the line this function
+ * must never cross.
+ *
+ * Runs only because an operator typed a command (`hana bundle pull`) —
+ * the same human-in-the-loop rule `downloadAndApplyArtifacts` carries; no
+ * timer, daemon, or background code may ever call this.
+ *
+ * Gates kept from the desktop pipeline (same semantics): signed manifest +
+ * dual-source race (inside `fetchChannelManifest`), channel namespace
+ * assertion, renderer version already-current short-circuit, train
+ * monotonic, version never goes backward, quarantine — plus the
+ * serverProtocol contract gate, which replaces the desktop's preload gate
+ * as "is the host new enough for this content" (see
+ * `isServerProtocolSatisfied`'s doc comment).
+ *
+ * Gates deliberately SKIPPED, because the desktop concepts behind them do
+ * not exist in the self-hosted form:
+ *   - minShell: there is no Electron shell here to be "too old" — the
+ *     operator's server is the host, and its compatibility is exactly what
+ *     the serverProtocol contract gate checks instead.
+ *   - rollout bucketing: rollout percentages exist to stagger AUTOMATIC
+ *     background updates across a fleet of desktop installs; an operator
+ *     explicitly typing `hana bundle pull` is a full-intent action, and
+ *     gradual rollout must never hold an explicit command back.
+ *   - preload contract: the preload API is an Electron shell surface; a
+ *     browser-served frontend has no preload bridge at all.
+ *
+ * PROMOTES IMMEDIATELY after activation — the one deliberate behavioral
+ * difference from the desktop pipeline, which writes `next` and leaves the
+ * promote for the next launch. The desktop defers promotion so
+ * artifact-boot's crash-fallback chain can demote a train that keeps
+ * crashing the app at startup. Here the operator explicitly asked for the
+ * update NOW, and the renderer box is static files served over HTTP —
+ * nothing from it executes inside the server process, so there is no
+ * startup-crash loop for a deferred promote to protect against;
+ * `previous` still records the prior version for manual recovery.
+ * "Restart `hana serve` to take effect" remains the operator's step
+ * because the running server resolved its renderer root at boot.
+ *
+ * @param {{homeDir: string, keyset: Array<{keyId:string, publicKey:string}>,
+ *   channel?: string, serverProtocolVersion: number,
+ *   onProgress?: (event: {phase: "downloading"|"verifying"|"activating",
+ *     kind: "renderer", receivedBytes: number, totalBytes: number}) => void,
+ *   log?: (msg: string) => void, fetchOnce?: Function,
+ *   devBypass?: {hasDevOverride: () => boolean, resolveDevManifestOverride: () => string|null}}} opts
+ *   `devBypass` defaults to "no override, ever" (see `NO_DEV_OVERRIDE`);
+ *   the CLI never passes one — only tests inject a local-fixture stub.
+ * @returns {Promise<{ok: true, train: number, version: string} |
+ *   {ok: true, alreadyCurrent: true, version: string} |
+ *   {ok: false, error: string}>}
+ */
+async function downloadAndApplyRendererArtifact(opts) {
+  const {
+    homeDir,
+    keyset,
+    channel = SEED_CHANNEL,
+    serverProtocolVersion,
+    onProgress = () => {},
+    log = () => {},
+    fetchOnce,
+    devBypass = NO_DEV_OVERRIDE,
+  } = opts || {};
+  if (!homeDir) throw new Error("artifact-ota: homeDir is required");
+  if (!Array.isArray(keyset) || keyset.length === 0) throw new Error("artifact-ota: keyset is required");
+  if (!Number.isInteger(serverProtocolVersion)) throw new Error("artifact-ota: serverProtocolVersion is required");
+
+  // Read purely for etag-merge bookkeeping on the eventual state write —
+  // same rationale as downloadAndApplyArtifacts' identical preamble.
+  const priorManifestEtags = ((await readOtaState(homeDir))[channel] || {}).manifestEtags;
+  const priorCachedEtags = priorManifestEtags && typeof priorManifestEtags === "object" ? priorManifestEtags : {};
+
+  try {
+    // Bypass the ETag cache on purpose: an operator-triggered pull wants
+    // the latest shelf state, not whatever a previous run cached.
+    const fetched = await fetchChannelManifest({ channel, keyset, cachedEtags: {}, log, fetchOnce, devBypass });
+    if (fetched.notModified) {
+      // Can't happen with no cache token sent to either source, but guard
+      // explicitly rather than silently proceeding with no manifest.
+      throw new Error("artifact-ota: unexpected 304 with no cache token sent");
+    }
+    // Verification already happened inside fetchChannelManifest — see that
+    // function's doc comment.
+    const { manifest, sourceUrl, sourceKind, originUnreachable, localDir } = fetched;
+
+    // Channel namespace assertion — see the file header's "channel
+    // assertion" note (same rule checkOnce/downloadAndApplyArtifacts
+    // apply: an operator's pull must never activate a signed-but-wrong-
+    // channel manifest either).
+    if (manifest.channel !== channel) {
+      throw new Error(
+        `artifact-ota: manifest channel mismatch — requested "${channel}", manifest declares "${manifest.channel}" `
+          + `(source ${sourceUrl}); refusing to trust a "${manifest.channel}" manifest for the "${channel}" channel`,
+      );
+    }
+
+    const manifestMeta = {
+      manifestEtags: mergeSourceEtags(priorCachedEtags, fetched.sourceEtagUpdate),
+      manifestSource: sourceKind,
+      manifestReleasedAt: manifest.releasedAt,
+      originUnreachable,
+      lastManifestUrl: sourceUrl,
+    };
+
+    const rendererEntry = manifest.artifacts.renderer;
+    if (!rendererEntry) {
+      // Same message shape as deriveArtifactEntries', renderer-only.
+      throw new Error("manifest missing needed kind(s) for OTA: renderer");
+    }
+
+    const rendererChannel = rendererPointerChannel(channel);
+    const currentRendererPointer = await pointerStore.readPointer(homeDir, rendererChannel, "current");
+
+    // Version already-current short-circuit, checked BEFORE the train gate
+    // on purpose: an operator re-running `hana bundle pull` against an
+    // unchanged shelf re-fetches the same train, and "you're already up to
+    // date" is the correct answer there, not an error. (The desktop
+    // pipeline can afford to treat same-train as a hard failure because
+    // its checkOnce layer filters that case out before the user ever sees
+    // a download button — no such layer exists in front of this function.)
+    // Same-version-different-bytes also lands here, exactly like
+    // `isVersionAlreadyCurrent`: a version directory is named after the
+    // version number, so same-version content can never be applied anyway.
+    if (
+      currentRendererPointer
+      && typeof currentRendererPointer.version === "string"
+      && currentRendererPointer.version.length > 0
+      && currentRendererPointer.version === rendererEntry.version
+    ) {
+      await writeOtaChannelState(homeDir, channel, {
+        ...manifestMeta,
+        lastCheckedAt: nowIso(),
+        lastError: null,
+        available: null,
+      });
+      log(`[ota] renderer ${rendererEntry.version} is already the activated version; nothing to pull`);
+      return { ok: true, alreadyCurrent: true, version: rendererEntry.version };
+    }
+
+    // Train monotonic gate — same semantics as downloadAndApplyArtifacts'
+    // hard failure, read from the renderer pointer's recorded train since
+    // that's the only kind this function manages (there may be no server
+    // pointer at all on a self-hosted box).
+    const currentTrain = currentRendererPointer && Number.isInteger(currentRendererPointer.train)
+      ? currentRendererPointer.train
+      : null;
+    if (currentTrain !== null && manifest.train <= currentTrain) {
+      throw new Error(`train ${manifest.train} is not newer than the current train ${currentTrain}; nothing to apply`);
+    }
+
+    // Version direction gate: renderer content version never goes backward
+    // — same rule and same recall playbook as `isVersionBehindCurrent`,
+    // renderer side only.
+    if (
+      currentRendererPointer
+      && typeof currentRendererPointer.version === "string"
+      && currentRendererPointer.version.length > 0
+    ) {
+      const cmp = compareVersions(rendererEntry.version, currentRendererPointer.version);
+      if (cmp !== null && cmp < 0) {
+        throw new Error(
+          `train ${manifest.train} (${rendererEntry.version}) is older than the currently activated version `
+            + `${currentRendererPointer.version}; content version is never allowed to go backward — a rollback `
+            + "must be re-published under a higher version number",
+        );
+      }
+    }
+
+    // serverProtocol contract gate — see this function's and
+    // `isServerProtocolSatisfied`'s doc comments.
+    if (!isServerProtocolSatisfied(manifest.contract && manifest.contract.serverProtocol, serverProtocolVersion)) {
+      throw new Error(
+        `renderer requires server protocol ${manifest.contract.serverProtocol}, this server speaks `
+          + `${serverProtocolVersion} — upgrade the server first`,
+      );
+    }
+
+    if (await pointerStore.isQuarantined(homeDir, rendererChannel, manifest.train)) {
+      throw new Error(`train ${manifest.train} is quarantined`);
+    }
+
+    // minShell / rollout / preload gates deliberately absent here — see
+    // this function's doc comment for why each one has no self-hosted
+    // meaning.
+
+    const lock = await pointerStore.acquireLock(homeDir);
+    if (!lock) {
+      throw new Error("artifacts lock held by another instance; try again in a moment");
+    }
+
+    const stagingDir = path.join(pointerStore.artifactsRoot(homeDir), STAGING_DIRNAME);
+    const rendererStagedPath = path.join(stagingDir, `renderer-${rendererEntry.version}.tar.gz`);
+    try {
+      await fsp.mkdir(stagingDir, { recursive: true });
+
+      onProgress({ phase: "downloading", kind: "renderer", receivedBytes: 0, totalBytes: rendererEntry.size });
+      await stageArtifact({
+        finalPath: rendererStagedPath,
+        entry: rendererEntry,
+        mirrors: manifest.mirrors,
+        localDir,
+        log,
+        label: `renderer-${rendererEntry.version}`,
+        onProgress: (receivedBytes) => onProgress({ phase: "downloading", kind: "renderer", receivedBytes, totalBytes: rendererEntry.size }),
+      });
+      onProgress({ phase: "verifying", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
+
+      // Activation + immediate promote + state write, all inside the
+      // in-process pointer mutex — same "never interleave with a
+      // concurrent promote/demote decision" rationale as
+      // downloadAndApplyArtifacts (see its inline comment), narrower here
+      // because there's only one kind.
+      await pointerStore.withPointerMutex(homeDir, async () => {
+        onProgress({ phase: "activating", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
+        await activation.activateFromArchive(rendererStagedPath, manifest, {
+          homeDir,
+          channel: rendererChannel,
+          kind: "renderer",
+        });
+        // Promote immediately — the deliberate difference from the desktop
+        // pipeline; see this function's doc comment ("PROMOTES
+        // IMMEDIATELY") for why that is safe and intended here.
+        await pointerStore.promote(homeDir, rendererChannel);
+
+        await writeOtaChannelState(homeDir, channel, {
+          ...manifestMeta,
+          lastCheckedAt: nowIso(),
+          lastError: null,
+          available: null,
+          lastStagedTrain: manifest.train,
+        });
+      });
+      log(`[ota] renderer ${rendererEntry.version} (train ${manifest.train}) pulled, activated, and promoted`);
+      return { ok: true, train: manifest.train, version: rendererEntry.version };
+    } finally {
+      await fsp.rm(rendererStagedPath, { force: true }).catch(() => {});
+      await fsp.rm(`${rendererStagedPath}.part`, { force: true }).catch(() => {});
+      await lock.release();
+    }
+  } catch (err) {
+    log(`[ota] renderer pull failed: ${err.message}`);
+    await writeOtaChannelState(homeDir, channel, { lastCheckedAt: nowIso(), lastError: err.message }).catch(() => {});
+    return { ok: false, error: err.message };
+  }
+}
+
 // `hasDevOverrideConfigured` also does NOT live here — it's a one-line
 // wrapper around the real dev-bypass module's `hasDevOverride()`, kept in
 // the desktop shell alongside the static `require("./artifact-ota-dev-bypass.cjs")`
@@ -1554,6 +1831,7 @@ module.exports = {
   channelManifestUrls,
   isShellVersionSufficient,
   isPreloadContractSatisfied,
+  isServerProtocolSatisfied,
   computeRolloutBucket,
   isInRolloutBucket,
   ensureRolloutId,
@@ -1565,6 +1843,7 @@ module.exports = {
   fetchChannelManifest,
   checkOnce,
   downloadAndApplyArtifacts,
+  downloadAndApplyRendererArtifact,
   bothNextPointersReady,
   resolveStagedTrainStatus,
   readStagedTrainStatus,

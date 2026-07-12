@@ -1629,3 +1629,246 @@ describe("artifact-ota: shared pipeline core stays desktop-free (structural)", (
     expect(Object.keys(ota).sort()).toEqual([...expectedKeys].sort());
   });
 });
+
+// ── downloadAndApplyRendererArtifact: renderer-only pull for the
+//    self-hosted form (`hana bundle pull`) — exercised against ota-core
+//    directly (the desktop shell wrapper deliberately does not re-export
+//    it; the CLI is its only production consumer) ────────────────────────
+
+const otaCoreDirect = require("../shared/artifact-core/ota-core.cjs");
+
+/** devBypass stub pointing the core at a local fixture manifest — the CLI
+ * itself never passes one (NO_DEV_OVERRIDE default); tests inject this
+ * explicitly instead of going through the desktop shell's env-var wiring. */
+function bypassFor(manifestPath: string) {
+  return { hasDevOverride: () => true, resolveDevManifestOverride: () => manifestPath };
+}
+
+describe("artifact-ota core: isServerProtocolSatisfied (self-hosted serverProtocol gate)", () => {
+  it("passes when the manifest requires the same or a lower protocol", () => {
+    expect(otaCoreDirect.isServerProtocolSatisfied(1, 1)).toBe(true);
+    expect(otaCoreDirect.isServerProtocolSatisfied(1, 2)).toBe(true);
+  });
+
+  it("rejects when the manifest requires a newer protocol than this server speaks", () => {
+    expect(otaCoreDirect.isServerProtocolSatisfied(2, 1)).toBe(false);
+  });
+
+  it("passes read-time-compatibly when the manifest field is missing entirely (old manifest)", () => {
+    expect(otaCoreDirect.isServerProtocolSatisfied(undefined, 1)).toBe(true);
+    expect(otaCoreDirect.isServerProtocolSatisfied(null, 1)).toBe(true);
+  });
+});
+
+describe("artifact-ota core: downloadAndApplyRendererArtifact (renderer-only, self-hosted)", () => {
+  it("pulls, activates, and PROMOTES the renderer immediately; never touches the server pointer namespace", async () => {
+    const root = makeTempDir("hana-ota-renderer-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 1, version: "2.0.0" });
+    const homeDir = path.join(root, "home");
+
+    const progressEvents: Array<{ phase: string; kind: string }> = [];
+    const result = await otaCoreDirect.downloadAndApplyRendererArtifact({
+      homeDir,
+      keyset: keys.keyset,
+      serverProtocolVersion: 1,
+      onProgress: (e: { phase: string; kind: string }) => progressEvents.push({ phase: e.phase, kind: e.kind }),
+      log: () => {},
+      devBypass: bypassFor(manifestPath),
+    });
+
+    expect(result).toEqual({ ok: true, train: 1, version: "2.0.0" });
+
+    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
+    // Promote already happened: `current` points at the new version and
+    // `next` is cleared — unlike the desktop pipeline, which leaves the
+    // promote for the next launch.
+    const rendererCurrent = await pointerStore.readPointer(homeDir, rendererChannel, "current");
+    expect(rendererCurrent).not.toBeNull();
+    expect(rendererCurrent.kind).toBe("renderer");
+    expect(rendererCurrent.version).toBe("2.0.0");
+    expect(fs.existsSync(path.join(rendererCurrent.versionDir, "index.html"))).toBe(true);
+    expect(await pointerStore.readPointer(homeDir, rendererChannel, "next")).toBeNull();
+
+    // The server pointer namespace is never touched — operator sovereignty.
+    expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "current")).toBeNull();
+    expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
+
+    // Progress only ever reports the renderer kind, in phase order.
+    expect(progressEvents.map((e) => `${e.phase}:${e.kind}`)).toEqual([
+      "downloading:renderer",
+      "verifying:renderer",
+      "activating:renderer",
+    ]);
+
+    const state = (await readOtaState(homeDir))[SEED_CHANNEL];
+    expect(state.lastStagedTrain).toBe(1);
+    expect(state.lastError).toBeNull();
+
+    // Staging is cleaned up after a successful run.
+    const leftovers = fs.existsSync(stagingDirFor(homeDir)) ? fs.readdirSync(stagingDirFor(homeDir)) : [];
+    expect(leftovers).toEqual([]);
+  });
+
+  it("short-circuits as alreadyCurrent without downloading when the renderer pointer's version matches the manifest", async () => {
+    const root = makeTempDir("hana-ota-renderer-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 5, version: "2.0.0" });
+    const homeDir = path.join(root, "home");
+    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
+    await pointerStore.writePointer(homeDir, rendererChannel, "current", {
+      train: 5,
+      kind: "renderer",
+      version: "2.0.0",
+      sha256: "b".repeat(64),
+    });
+
+    const result = await otaCoreDirect.downloadAndApplyRendererArtifact({
+      homeDir,
+      keyset: keys.keyset,
+      serverProtocolVersion: 1,
+      log: () => {},
+      devBypass: bypassFor(manifestPath),
+    });
+
+    expect(result).toEqual({ ok: true, alreadyCurrent: true, version: "2.0.0" });
+    // Never reaches staging — nothing is downloaded for an alreadyCurrent
+    // short-circuit (an operator re-running `hana bundle pull` is normal,
+    // not an error).
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+    // The pre-existing pointer is untouched.
+    const current = await pointerStore.readPointer(homeDir, rendererChannel, "current");
+    expect(current.sha256).toBe("b".repeat(64));
+  });
+
+  it("rejects without downloading when the manifest's renderer version is OLDER than the activated one (never goes backward)", async () => {
+    const root = makeTempDir("hana-ota-renderer-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 9, version: "0.389.0" });
+    const homeDir = path.join(root, "home");
+    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
+    await pointerStore.writePointer(homeDir, rendererChannel, "current", {
+      train: 1,
+      kind: "renderer",
+      version: "0.446.20",
+      sha256: "b".repeat(64),
+    });
+
+    const result = await otaCoreDirect.downloadAndApplyRendererArtifact({
+      homeDir,
+      keyset: keys.keyset,
+      serverProtocolVersion: 1,
+      log: () => {},
+      devBypass: bypassFor(manifestPath),
+    });
+
+    expect(result.ok).toBe(false);
+    // Message must be attributable: both versions plus the recall playbook.
+    expect(result.error).toContain("0.389.0");
+    expect(result.error).toContain("0.446.20");
+    expect(result.error).toMatch(/higher version number/i);
+    expect(await pointerStore.readPointer(homeDir, rendererChannel, "next")).toBeNull();
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+  });
+
+  it("rejects when the train is not newer than the renderer pointer's train (replayed shelf)", async () => {
+    const root = makeTempDir("hana-ota-renderer-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 3, version: "4.0.0" });
+    const homeDir = path.join(root, "home");
+    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
+    await pointerStore.writePointer(homeDir, rendererChannel, "current", {
+      train: 5,
+      kind: "renderer",
+      version: "3.0.0",
+      sha256: "b".repeat(64),
+    });
+
+    const result = await otaCoreDirect.downloadAndApplyRendererArtifact({
+      homeDir,
+      keyset: keys.keyset,
+      serverProtocolVersion: 1,
+      log: () => {},
+      devBypass: bypassFor(manifestPath),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/not newer/i);
+    expect(await pointerStore.readPointer(homeDir, rendererChannel, "next")).toBeNull();
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+  });
+
+  it("rejects when the manifest requires a newer server protocol than this server speaks; a missing field passes", async () => {
+    const root = makeTempDir("hana-ota-renderer-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 1, contractServerProtocol: 2 });
+    const homeDir = path.join(root, "home");
+
+    const result = await otaCoreDirect.downloadAndApplyRendererArtifact({
+      homeDir,
+      keyset: keys.keyset,
+      serverProtocolVersion: 1,
+      log: () => {},
+      devBypass: bypassFor(manifestPath),
+    });
+
+    expect(result.ok).toBe(false);
+    // Message must be attributable and actionable: required protocol,
+    // spoken protocol, and what to do about it.
+    expect(result.error).toMatch(/server protocol/i);
+    expect(result.error).toContain("2");
+    expect(result.error).toContain("1");
+    expect(result.error).toMatch(/upgrade the server first/i);
+    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
+    expect(await pointerStore.readPointer(homeDir, rendererChannel, "next")).toBeNull();
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+    // The missing-field read-time-compat half of this gate can't be
+    // reached through a schema-1 manifest (schema validation requires the
+    // field), so it's covered on the pure gate directly — see the
+    // isServerProtocolSatisfied describe block above.
+  });
+
+  it("rejects a quarantined train on the renderer pointer namespace", async () => {
+    const root = makeTempDir("hana-ota-renderer-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 7, version: "2.0.0" });
+    const homeDir = path.join(root, "home");
+    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
+    await pointerStore.appendQuarantine(homeDir, { channel: rendererChannel, train: 7 });
+
+    const result = await otaCoreDirect.downloadAndApplyRendererArtifact({
+      homeDir,
+      keyset: keys.keyset,
+      serverProtocolVersion: 1,
+      log: () => {},
+      devBypass: bypassFor(manifestPath),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/quarantined/i);
+    expect(await pointerStore.readPointer(homeDir, rendererChannel, "next")).toBeNull();
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+  });
+
+  it("rejects a signed-but-wrong-channel manifest (channel namespace assertion)", async () => {
+    const root = makeTempDir("hana-ota-renderer-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 1, channel: "beta" });
+    const homeDir = path.join(root, "home");
+
+    const result = await otaCoreDirect.downloadAndApplyRendererArtifact({
+      homeDir,
+      keyset: keys.keyset,
+      channel: "stable",
+      serverProtocolVersion: 1,
+      log: () => {},
+      devBypass: bypassFor(manifestPath),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/channel mismatch/i);
+    const rendererChannel = artifactBoot.rendererPointerChannel("stable");
+    expect(await pointerStore.readPointer(homeDir, rendererChannel, "next")).toBeNull();
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+  });
+});
