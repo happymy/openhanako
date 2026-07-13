@@ -3,9 +3,8 @@ import type { AgentReviewContext } from '../../stores/chat-types';
 import { useStore } from '../../stores';
 import { loadSessions, switchSession } from '../../stores/session-actions';
 import { AgentAvatar, resolveAgentDisplayInfo } from '../../utils/agent-display';
-import { renderMarkdown } from '../../utils/markdown';
-import { MarkdownContent } from './MarkdownContent';
 import styles from './Chat.module.css';
+import { AssistantContentPreview } from './AssistantContentPreview';
 import { ConversationEventCard } from './ConversationEventCard';
 import { useI18n } from '../../hooks/use-i18n';
 
@@ -67,9 +66,14 @@ export const AgentReviewCard = memo(function AgentReviewCard({ review }: { revie
         {review.status === 'running' && <span className={styles.agentReviewPulse} aria-hidden="true" />}
       </header>
       {review.status === 'completed' && review.text && (
-        <div className={`${styles.agentOriginBody} ${styles.agentReviewBody}`}>
-          <MarkdownContent html={renderMarkdown(review.text)} />
-        </div>
+        <AssistantContentPreview
+          content={review.text}
+          className={styles.agentReviewBody}
+          linkContext={reviewerSession?.path ? {
+            origin: 'session',
+            sessionPath: reviewerSession.path,
+          } : undefined}
+        />
       )}
       {review.status === 'running' && <div className={styles.agentOriginBody}>{statusLabel}</div>}
       {(review.status === 'failed' || review.status === 'cancelled') && (

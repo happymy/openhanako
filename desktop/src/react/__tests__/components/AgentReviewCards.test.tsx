@@ -96,12 +96,15 @@ describe('Agent review cards', () => {
       reviewerSessionId: REVIEWER_SESSION_ID,
       reviewerAgentId: 'maomao',
       reviewerAgentName: '毛毛',
-      text: '这是一条审阅意见。',
+      text: '<pulse>Vibe: 已完成审阅</pulse>\n\n## 审阅结论\n\n- 第一条意见\n- 第二条意见',
     }} />);
 
     expect(screen.getByText('来自 毛毛 的消息')).toBeInTheDocument();
     expect(screen.getByText('毛毛的审阅')).toBeInTheDocument();
-    expect(screen.getByText('这是一条审阅意见。')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: '审阅结论' })).toBeInTheDocument();
+    expect(screen.getByText('第一条意见')).toBeInTheDocument();
+    expect(screen.getByText('第二条意见')).toBeInTheDocument();
+    expect(screen.queryByText('<pulse>')).not.toBeInTheDocument();
     expect(screen.queryByText(REVIEWER_SESSION_ID)).not.toBeInTheDocument();
     const card = screen.getByRole('link', { name: '打开审阅对话' });
     fireEvent.keyDown(card, { key: 'Enter' });

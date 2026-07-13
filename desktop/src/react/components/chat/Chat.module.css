@@ -450,13 +450,12 @@
 }
 
 .conversationEventCardClickable {
-    cursor: pointer;
-    transition: background var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+    cursor: default;
+    transition: background var(--duration-fast) var(--ease-out);
 }
 
 .conversationEventCardClickable:hover {
-    background: var(--overlay-subtle);
-    box-shadow: 0 var(--space-2) var(--space-8) var(--shadow);
+    background: color-mix(in srgb, var(--tool-bg), var(--text) 6%);
 }
 
 .conversationEventCardClickable:focus-visible {
