@@ -121,11 +121,14 @@ describe("SessionCoordinator", () => {
     expect(createAgentSessionMock.mock.calls[0][0].resourceLoader.getSystemPrompt()).toBe("MEMORY OFF");
   });
 
-  it("builds a fresh session prompt snapshot with the effective cwd", async () => {
+  it("keeps the base prompt cwd-free and appends the fresh workspace scope and instructions", async () => {
     const newCwd = path.join(tempDir, "new-workspace");
     const oldCwd = path.join(tempDir, "old-workspace");
-    fs.mkdirSync(newCwd, { recursive: true });
+    const externalFolder = path.join(tempDir, "external-reference");
+    fs.mkdirSync(path.join(newCwd, ".git"), { recursive: true });
     fs.mkdirSync(oldCwd, { recursive: true });
+    fs.mkdirSync(externalFolder, { recursive: true });
+    fs.writeFileSync(path.join(newCwd, "AGENTS.md"), "SESSION_INSTRUCTION_BEACON\n", "utf-8");
 
     const agent = {
       id: "hana",
@@ -133,8 +136,12 @@ describe("SessionCoordinator", () => {
       sessionDir: path.join(tempDir, "agents", "hana", "sessions"),
       memoryMasterEnabled: true,
       sessionMemoryEnabled: true,
+      config: {
+        locale: "zh-CN",
+        workspace_context: { inject_agents_md: true },
+      },
       setMemoryEnabled: vi.fn(),
-      buildSystemPrompt: vi.fn(({ cwdOverride }: any = {}) => `prompt cwd=${cwdOverride || "missing"}`),
+      buildSystemPrompt: vi.fn(() => "stable agent base"),
       tools: [],
     };
     fs.mkdirSync(agent.sessionDir, { recursive: true });
@@ -170,12 +177,26 @@ describe("SessionCoordinator", () => {
       listAgents: () => [],
     });
 
-    await coordinator.createSession(null, newCwd, true);
+    await coordinator.createSession(null, newCwd, true, null, {
+      workspaceFolders: [externalFolder],
+    });
 
-    expect(agent.buildSystemPrompt).toHaveBeenCalledWith(expect.objectContaining({
-      cwdOverride: newCwd,
+    expect(agent.buildSystemPrompt).toHaveBeenCalledWith(expect.not.objectContaining({
+      cwdOverride: expect.anything(),
     }));
-    expect(createAgentSessionMock.mock.calls[0][0].resourceLoader.getSystemPrompt()).toBe(`prompt cwd=${newCwd}`);
+    const createArgs = createAgentSessionMock.mock.calls[0][0];
+    expect(createArgs.resourceLoader.getSystemPrompt()).toBe("stable agent base");
+    const append = createArgs.resourceLoader.getAppendSystemPrompt();
+    const joinedAppend = append.join("\n\n");
+    expect(joinedAppend).toContain("## 工作区范围");
+    expect(joinedAppend).toContain(`主工作台：${newCwd}`);
+    expect(joinedAppend).toContain("外部工作区文件夹");
+    expect(joinedAppend).toContain(externalFolder);
+    expect(joinedAppend).toContain("## 工作区说明");
+    expect(joinedAppend).toContain("SESSION_INSTRUCTION_BEACON");
+    expect(joinedAppend.indexOf("## 工作区范围")).toBeLessThan(joinedAppend.indexOf("## 工作区说明"));
+    expect(joinedAppend).not.toContain("当前工作目录");
+    expect(joinedAppend).not.toContain("相对路径");
   });
 
   it("restores the missing default workspace only for fresh sessions using the configured home cwd", async () => {
@@ -1992,7 +2013,7 @@ describe("SessionCoordinator", () => {
       }),
     );
     const appendPrompt = createAgentSessionMock.mock.calls[0][0].resourceLoader.getAppendSystemPrompt();
-    expect(appendPrompt.join("\n")).toContain("额外文件夹");
+    expect(appendPrompt.join("\n")).toContain("外部工作区文件夹");
     expect(appendPrompt.join("\n")).toContain(extra);
 
     const meta = JSON.parse(fs.readFileSync(path.join(agent.sessionDir, "session-meta.json"), "utf-8"));
@@ -4272,7 +4293,7 @@ describe("SessionCoordinator", () => {
     );
   });
 
-  it("executeIsolated builds the subagent prompt against the inherited execution cwd", async () => {
+  it("executeIsolated keeps the subagent base cwd-free and appends its inherited workspace scope", async () => {
     const sessionFile = path.join(tempDir, "isolated-cwd-prompt.jsonl");
     const inheritedCwd = path.join(tempDir, "inherited-session-cwd");
     const agent = {
@@ -4281,9 +4302,9 @@ describe("SessionCoordinator", () => {
       sessionDir: path.join(tempDir, "agents", "hana", "sessions"),
       agentName: "hana",
       memoryMasterEnabled: true,
-      config: { models: { chat: { id: "default-model", provider: "test" } } },
+      config: { locale: "en-US", models: { chat: { id: "default-model", provider: "test" } } },
       tools: [{ name: "write" }],
-      buildSystemPrompt: vi.fn(({ cwdOverride }: any = {}) => `SUBAGENT PROMPT ${cwdOverride || "missing"}`),
+      buildSystemPrompt: vi.fn(() => "SUBAGENT PROMPT"),
     };
 
     sessionManagerCreateMock.mockReturnValue({
@@ -4334,11 +4355,13 @@ describe("SessionCoordinator", () => {
     expect(agent.buildSystemPrompt).toHaveBeenCalledWith(
       expect.objectContaining({
         forSubagent: true,
-        cwdOverride: inheritedCwd,
       }),
     );
     expect(createAgentSessionMock.mock.calls[0][0].resourceLoader.getSystemPrompt())
-      .toBe(`SUBAGENT PROMPT ${inheritedCwd}`);
+      .toBe("SUBAGENT PROMPT");
+    const append = createAgentSessionMock.mock.calls[0][0].resourceLoader.getAppendSystemPrompt();
+    expect(append.join("\n\n")).toContain(`Primary workbench: ${inheritedCwd}`);
+    expect(append.join("\n\n")).not.toContain("Current working directory");
   });
 
   it("executeIsolated reports incomplete final assistant stop reasons", async () => {

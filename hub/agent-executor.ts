@@ -11,7 +11,7 @@ import fs from "fs";
 import path from "path";
 import { createAgentSession, SessionManager } from "../lib/pi-sdk/index.ts";
 import { debugLog } from "../lib/debug-log.ts";
-import { t } from "../lib/i18n.ts";
+import { getLocale, t } from "../lib/i18n.ts";
 import { createDefaultSettings } from "../core/session-defaults.ts";
 import { SESSION_PERMISSION_MODES } from "../core/session-permission-mode.ts";
 import { teardownSessionResources } from "../core/session-teardown.ts";
@@ -39,6 +39,8 @@ import {
   normalizeSessionPromptSnapshot,
 } from "../core/session-prompt-snapshot.ts";
 import { stripClosedInternalNarrationBlocks } from "../lib/text/internal-narration.ts";
+import { formatWorkspaceScopePrompt } from "../shared/workspace-scope.ts";
+import { buildWorkspaceInstructionPrompt } from "../core/workspace-instruction-files.ts";
 
 function resolveAgentPhoneModel(engine, ctx, agentConfig, modelOverride) {
   if (!modelOverride) return ctx.resolveModel(agentConfig);
@@ -121,10 +123,26 @@ function recordAgentPhoneAssistantUsage({
   return null;
 }
 
-function buildAgentPhonePromptSnapshot(agent, ctx, systemPrompt) {
+function buildAgentPhonePromptSnapshot(agent, ctx, systemPrompt, cwd) {
+  const locale = agent.config?.locale || getLocale();
+  const baseAppend = ctx.resourceLoader?.getAppendSystemPrompt?.() || [];
+  const workspacePrompt = formatWorkspaceScopePrompt({
+    primaryCwd: cwd,
+    workspaceFolders: [],
+    locale,
+  });
+  const workspaceInstructions = buildWorkspaceInstructionPrompt({
+    cwd,
+    workspaceContext: agent.config?.workspace_context,
+    locale,
+  });
   return buildSessionPromptSnapshot({
     systemPrompt,
-    appendSystemPrompt: ctx.resourceLoader?.getAppendSystemPrompt?.() || [],
+    appendSystemPrompt: [
+      ...(Array.isArray(baseAppend) ? baseAppend : []),
+      ...(workspacePrompt ? [workspacePrompt] : []),
+      ...(workspaceInstructions ? [workspaceInstructions] : []),
+    ],
     skillsResult: ctx.getSkillsForAgent?.(agent),
     agentsFilesResult: ctx.resourceLoader?.getAgentsFiles?.(),
   });
@@ -338,8 +356,8 @@ export async function runAgentPhoneSession(agentId, rounds, {
   });
   const promptSnapshot = openedExistingSession
     ? (normalizeSessionPromptSnapshot(runtime.promptSnapshot)
-      || buildAgentPhonePromptSnapshot(agent, ctx, currentSystemPrompt))
-    : buildAgentPhonePromptSnapshot(agent, ctx, currentSystemPrompt);
+      || buildAgentPhonePromptSnapshot(agent, ctx, currentSystemPrompt, cwd))
+    : buildAgentPhonePromptSnapshot(agent, ctx, currentSystemPrompt, cwd);
   const tempResourceLoader = createPromptSnapshotResourceLoader(ctx.resourceLoader, promptSnapshot);
   const sessionManager = openedExistingSession && existingSessionPath
     ? SessionManager.open(existingSessionPath, sessionDir)

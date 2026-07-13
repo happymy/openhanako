@@ -97,6 +97,7 @@ function buildPromptFixture({
   date = "Monday, June 8, 2026, 10:00 CST",
   clockLabel = "Session start time",
   locale = "zh",
+  workspaceInstructions = "",
 }: {
   persona?: string;
   appearance?: string;
@@ -105,15 +106,16 @@ function buildPromptFixture({
   date?: string;
   clockLabel?: "Current date and time" | "Session start time";
   locale?: string;
+  workspaceInstructions?: string;
 } = {}) {
   const isZh = locale.startsWith("zh");
   const parts: string[] = [persona];
   if (appearance) {
     parts.push(`## ${isZh ? "你的样子" : "Your Appearance"}\n\n${appearance}`);
   }
-  parts.push(isZh
-    ? "\n## 工作台\n\n用户所说的「工作台」指的是当前工作目录（cwd）。\n当前工作目录：/tmp/ws\n用户提到的文件、目录默认在当前工作目录下查找。"
-    : "\n## Workspace\n\nWhen the user says \"workspace\", they mean the current working directory (cwd).\nCurrent working directory: /tmp/ws\nFiles and directories mentioned by the user should be searched in the current working directory first.");
+  if (workspaceInstructions) {
+    parts.push(`\n## ${isZh ? "工作区说明" : "Workspace Instructions"}\n\n${workspaceInstructions}`);
+  }
   parts.push(isZh
     ? "\n## 文件与命令工具使用\n\n查看文件和目录时优先用 read/grep/find/ls。"
     : "\n## Tool Use For Files And Commands\n\nUse read/grep/find/ls to inspect files.");
@@ -231,9 +233,23 @@ describe("normalizeSystemPromptForFingerprint — dynamic segments (#1624 C1)", 
     expect(a).toBe(b);
   });
 
-  it("does not strip the Workspace Instructions section (heading prefix collision)", () => {
-    const withInstructions = (agentsMd: string) => buildPromptFixture({ appearance: "银发。" })
-      .replace("\n## 文件与命令工具使用", `\n## Workspace Instructions\n\n### AGENTS.md\n\n${agentsMd}\n\n## 文件与命令工具使用`);
+  it("keeps the appearance seam stable for legacy frozen prompts with the old Workspace heading", () => {
+    const legacyPrompt = (appearance: string) => buildPromptFixture({ locale: "en", appearance })
+      .replace(
+        "\n## Tool Use For Files And Commands",
+        "\n## Workspace\n\nCurrent working directory: /tmp/legacy\n\n## Tool Use For Files And Commands",
+      );
+    const a = computeSessionCapabilityFingerprint({ toolNames: ["read"], systemPrompt: legacyPrompt("Silver hair.") });
+    const b = computeSessionCapabilityFingerprint({ toolNames: ["read"], systemPrompt: legacyPrompt("Black hair.") });
+    expect(a).toBe(b);
+  });
+
+  it("does not strip a legacy inline Workspace Instructions section (heading prefix collision)", () => {
+    const withInstructions = (agentsMd: string) => buildPromptFixture({
+      appearance: "银发。",
+      locale: "en",
+      workspaceInstructions: `### AGENTS.md\n\n${agentsMd}`,
+    });
     const a = computeSessionCapabilityFingerprint({ toolNames: ["read"], systemPrompt: withInstructions("Rule v1") });
     const b = computeSessionCapabilityFingerprint({ toolNames: ["read"], systemPrompt: withInstructions("Rule v2") });
     expect(a).not.toBe(b);

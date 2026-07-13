@@ -1040,11 +1040,11 @@ describe("session-coordinator tool snapshot (createSession)", () => {
   // ── #1624: dormant capability drift template ─────────────
 
   describe("capability drift (#1624)", () => {
-    function promptSnapshotEntry(systemPrompt) {
+    function promptSnapshotEntry(systemPrompt, appendSystemPrompt = []) {
       return {
         version: 1,
         systemPrompt,
-        appendSystemPrompt: [],
+        appendSystemPrompt,
         skillsResult: { skills: [], diagnostics: [] },
         agentsFilesResult: { agentsFiles: [] },
       };
@@ -1067,7 +1067,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
         JSON.stringify({
           [path.basename(fakeSessionPath)]: {
             toolNames: frozen,
-            promptSnapshot: promptSnapshotEntry("mock-prompt"),
+            promptSnapshot: promptSnapshotEntry("mock-prompt", ["legacy frozen workspace scope"]),
           },
         }, null, 2),
       );
@@ -1079,6 +1079,8 @@ describe("session-coordinator tool snapshot (createSession)", () => {
       expect(activeToolsSpy.mock.calls[0][0]).not.toContain("office");
       expect(coord.getSessionCapabilityDriftNotice(sessionPath)).toBeNull();
       expect(buildSystemPromptSpy).not.toHaveBeenCalled();
+      const resourceLoader = createAgentSessionMock.mock.calls.at(-1)[0].resourceLoader;
+      expect(resourceLoader.getAppendSystemPrompt()).toEqual(["legacy frozen workspace scope"]);
     });
 
     it("manual drift entries still use the existing notice and dismiss chain", async () => {

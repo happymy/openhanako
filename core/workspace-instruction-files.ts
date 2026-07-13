@@ -114,6 +114,13 @@ export function formatWorkspaceInstructionFiles(files: any, { locale }: { locale
   }).join("\n\n");
 
   return isZh
-    ? `\n## 工作区说明\n\n以下内容来自当前工作目录链路中的 AGENTS.md / CLAUDE.md。它们是项目级工作规则，只对当前工作区上下文生效。\n\n${body}`
-    : `\n## Workspace Instructions\n\nThe following content comes from AGENTS.md / CLAUDE.md files in the current working-directory chain. Treat them as project-level working rules for this workspace context.\n\n${body}`;
+    ? `\n## 工作区说明\n\n以下内容来自主工作台目录链路中的 AGENTS.md / CLAUDE.md。它们是项目级工作规则，只对当前工作区上下文生效。\n\n${body}`
+    : `\n## Workspace Instructions\n\nThe following content comes from AGENTS.md / CLAUDE.md files in the primary workbench's directory chain. Treat them as project-level working rules for this workspace context.\n\n${body}`;
+}
+
+export function buildWorkspaceInstructionPrompt({ cwd, workspaceContext, locale }: { cwd?: string; workspaceContext?: unknown; locale?: string } = {}) {
+  return formatWorkspaceInstructionFiles(
+    collectWorkspaceInstructionFiles({ cwd, workspaceContext }),
+    { locale },
+  );
 }

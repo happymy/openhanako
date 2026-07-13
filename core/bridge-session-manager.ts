@@ -55,6 +55,8 @@ import {
   resolveModelDefaultThinkingLevel,
 } from "./session-thinking-level.ts";
 import { sameToolNames } from "./tool-snapshot-repair.ts";
+import { formatWorkspaceScopePrompt } from "../shared/workspace-scope.ts";
+import { buildWorkspaceInstructionPrompt } from "./workspace-instruction-files.ts";
 
 const log = createModuleLogger("bridge-session");
 const BRIDGE_OWNER_DENIED_TOOL_NAMES = Object.freeze([
@@ -637,14 +639,31 @@ export class BridgeSessionManager {
 
   _buildOwnerPromptSnapshot(agent, homeCwd, bridgeContext) {
     const ownerPromptBase = agent.buildSystemPrompt({
-      cwdOverride: homeCwd,
       forceMemoryEnabled: agent.memoryMasterEnabled,
       ...(typeof agent.experienceEnabled === "boolean"
         ? { forceExperienceEnabled: agent.experienceEnabled === true }
         : {}),
     });
     const systemPrompt = appendBridgePromptLine(ownerPromptBase, bridgeContext, getLocale());
-    return this._buildPromptSnapshot(agent, systemPrompt);
+    const locale = agent.config?.locale || getLocale();
+    const baseAppend = this._deps.getResourceLoader?.()?.getAppendSystemPrompt?.() || [];
+    const workspacePrompt = formatWorkspaceScopePrompt({
+      primaryCwd: homeCwd,
+      workspaceFolders: [],
+      locale,
+    });
+    const workspaceInstructions = buildWorkspaceInstructionPrompt({
+      cwd: homeCwd,
+      workspaceContext: agent.config?.workspace_context,
+      locale,
+    });
+    return this._buildPromptSnapshot(agent, systemPrompt, {
+      appendSystemPrompt: [
+        ...(Array.isArray(baseAppend) ? baseAppend : []),
+        ...(workspacePrompt ? [workspacePrompt] : []),
+        ...(workspaceInstructions ? [workspaceInstructions] : []),
+      ],
+    });
   }
 
   _buildGuestPromptSnapshot(agent, bridgeContext, opts: any = {}) {

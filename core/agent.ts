@@ -44,10 +44,6 @@ import { createShowCardTool } from "../lib/tools/show-card-tool.ts";
 import { runCompatChecks } from "../lib/compat/index.ts";
 import { getPlatformPromptNote } from "./platform-prompt.ts";
 import { assertAgentConfigPatchYuan, getAgentConfigRepairState } from "./yuan-registry.ts";
-import {
-  collectWorkspaceInstructionFiles,
-  formatWorkspaceInstructionFiles,
-} from "./workspace-instruction-files.ts";
 import { callText } from "./llm-client.ts";
 import { createModuleLogger } from "../lib/debug-log.ts";
 import {
@@ -86,7 +82,6 @@ type BuildSystemPromptOptions = {
   forSubagent?: boolean;
   forceMemoryEnabled?: boolean;
   forceExperienceEnabled?: boolean;
-  cwdOverride?: string;
   targetModel?: AgentAppearanceModel | null;
 };
 
@@ -1170,17 +1165,12 @@ export class Agent {
    * @param {boolean} [options.forSubagent] - 为 subagent 构造的轻量 prompt：
    *   跳过记忆三段（规则 + pinned.md + memory.md）和团队 agent 名单。
    *   Subagent 是隔离子会话，不注入长期记忆和多 agent 协作上下文。
-   * @param {string} [options.cwdOverride] - 覆盖 prompt 中“工作台”章节展示的 cwd。
-   *   用于新建隔离 session 时，让 prompt 快照和实际执行目录保持一致。
    * @param {object} [options.targetModel] - 新会话即将使用的模型，用于判断是否能读取头像。
    */
   buildSystemPrompt( options: BuildSystemPromptOptions = {}) {
     const forSubagent = !!options.forSubagent;
     const forceMemoryEnabled = Object.prototype.hasOwnProperty.call(options, "forceMemoryEnabled")
       ? options.forceMemoryEnabled
-      : null;
-    const cwdOverride = Object.prototype.hasOwnProperty.call(options, "cwdOverride")
-      ? (typeof options.cwdOverride === "string" ? options.cwdOverride : "")
       : null;
     const targetModel = Object.prototype.hasOwnProperty.call(options, "targetModel")
       ? options.targetModel
@@ -1209,7 +1199,7 @@ export class Agent {
     // cache 命中率（KV cache / Anthropic prompt cache 都按严格前缀匹配）。
     // 顺序：平台 → 环境 → 行为指南（任务/经验/工具/安全/网页/设置/技能/团队）
     //      ── cache 分界线 ──
-    //      用户档案 → ishiki（依赖 userName）→ 工作台 → 工作区说明文件 → 记忆规则/置顶/记忆 → 当前时间
+    //      用户档案 → ishiki（依赖 userName）→ 记忆规则/置顶/记忆 → 当前时间
     //
     // ishiki 放在用户档案之后：模板里有「你和{userName}是认识很久的人」这类引用，
     // 叙事顺序上先告诉模型"用户是谁"，再告诉它"你是谁、你和用户什么关系"。
@@ -1447,7 +1437,7 @@ export class Agent {
     }
 
     // ── cache 分界线 ──
-    // 以下内容会在不同 session 之间变化（用户档案编辑、cwd 切换、记忆更新、时间戳推进），
+    // 以下内容会在不同 session 之间变化（用户档案编辑、记忆更新、时间戳推进），
     // 统一放在 prompt 末尾以保护前面静态前缀的 cache 命中率。
 
     // 用户档案（user.md）
@@ -1484,30 +1474,6 @@ export class Agent {
         ? formatAgentAppearancePrompt(appearance.summary, this._config.locale || "")
         : "";
       if (appearancePrompt) parts.push(appearancePrompt);
-    }
-
-    // 工作台 = 当前工作目录（注入实际路径）
-    const cwdPath = cwdOverride !== null ? cwdOverride : (this._cb?.getCwd?.() || "");
-    parts.push(isZh
-      ? `\n## 工作台\n\n` +
-        `用户所说的「工作台」指的是当前工作目录（cwd）。` +
-        (cwdPath ? `\n当前工作目录：${cwdPath}` : "") +
-        `\n用户提到的文件、目录默认在当前工作目录下查找。`
-      : `\n## Workspace\n\n` +
-        `When the user says "workspace", they mean the current working directory (cwd).` +
-        (cwdPath ? `\nCurrent working directory: ${cwdPath}` : "") +
-        `\nFiles and directories mentioned by the user should be searched in the current working directory first.`
-    );
-
-    const workspaceInstructionBlock = formatWorkspaceInstructionFiles(
-      collectWorkspaceInstructionFiles({
-        cwd: cwdPath,
-        workspaceContext: this._config?.workspace_context,
-      }),
-      { locale: this._config.locale || "" },
-    );
-    if (workspaceInstructionBlock) {
-      parts.push(workspaceInstructionBlock);
     }
 
     parts.push(isZh

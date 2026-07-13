@@ -46,6 +46,7 @@ import {
 } from "./tool-availability.ts";
 import { isActiveSessionPath, isArchivedDesktopSessionPath } from "./message-utils.ts";
 import { formatWorkspaceScopePrompt, normalizeSessionFolderScope, normalizeWorkspaceScope } from "../shared/workspace-scope.ts";
+import { buildWorkspaceInstructionPrompt } from "./workspace-instruction-files.ts";
 import { getProviderPromptPatches } from "./provider-prompt-patches.ts";
 import {
   DEEPSEEK_ROLEPLAY_REASONING_PATCH_EXPERIMENT_ID,
@@ -655,6 +656,7 @@ function buildAppendSystemPromptSnapshot({
   hasDeferredResultStore,
   locale,
   workspaceScope,
+  workspaceContext,
 }: any) {
   const parts = [
     ...(Array.isArray(baseAppend) ? baseAppend : []),
@@ -669,6 +671,12 @@ function buildAppendSystemPromptSnapshot({
     locale,
   });
   if (workspacePrompt) parts.push(workspacePrompt);
+  const workspaceInstructions = buildWorkspaceInstructionPrompt({
+    cwd: workspaceScope.primaryCwd,
+    workspaceContext,
+    locale,
+  });
+  if (workspaceInstructions) parts.push(workspaceInstructions);
   return normalizeStringArray(parts);
 }
 
@@ -1463,7 +1471,6 @@ export class SessionCoordinator {
       ?? agent.buildSystemPrompt({
         forceMemoryEnabled: frozenMemoryEnabled,
         forceExperienceEnabled: frozenExperienceEnabled,
-        cwdOverride: effectiveCwd,
         targetModel: promptPatchModel,
       });
     const memoryReflectionSnapshot = (!restore && typeof agent.buildMemoryReflectionSnapshot === "function")
@@ -1479,6 +1486,7 @@ export class SessionCoordinator {
         hasDeferredResultStore: !!this._d.getDeferredResultStore?.(),
         locale: localeSnapshot,
         workspaceScope,
+        workspaceContext: agent.config?.workspace_context,
       });
     const rawSkillsResultSnapshot = restoredPromptSnapshot?.skillsResult
       ?? (
@@ -5258,7 +5266,7 @@ export class SessionCoordinator {
       if (opts.subagentContext) {
         // Subagent 专用 prompt：跳过长期记忆、pinned、记忆规则、团队 agent 名单。
         // 不走 cached systemPrompt getter，因为它返回"完整 prompt"的缓存。
-        isolatedPrompt = targetAgent.buildSystemPrompt({ forSubagent: true, cwdOverride: execCwd });
+        isolatedPrompt = targetAgent.buildSystemPrompt({ forSubagent: true });
       } else {
         // 非 session 路径（巡检/cron 等）统一用 master 版本的 systemPrompt cache。
         // per-session 开关只管该 session 自己的对话窗口，不影响这里。
@@ -5274,7 +5282,16 @@ export class SessionCoordinator {
               workspaceFolders: execWorkspaceScope.workspaceFolders,
               locale: targetAgent.config?.locale || getLocale(),
             });
-            return workspacePrompt ? [...base, workspacePrompt] : base;
+            const workspaceInstructions = buildWorkspaceInstructionPrompt({
+              cwd: execWorkspaceScope.primaryCwd,
+              workspaceContext: targetAgent.config?.workspace_context,
+              locale: targetAgent.config?.locale || getLocale(),
+            });
+            return [
+              ...base,
+              ...(workspacePrompt ? [workspacePrompt] : []),
+              ...(workspaceInstructions ? [workspaceInstructions] : []),
+            ];
           },
         },
       };

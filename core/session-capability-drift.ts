@@ -34,10 +34,11 @@ export const SESSION_CAPABILITY_FINGERPRINT_VERSION = 1;
  *    memory.md is recompiled in the background and pinned.md is writable by
  *    the agent mid-conversation.
  *  - Appearance summary: "## 你的样子" / "## Your Appearance" up to the
- *    "## 工作台" / "## Workspace" heading that always follows it. The summary
- *    is refreshed asynchronously from the avatar. The end anchor requires a
- *    newline right after the heading so "## Workspace Instructions" (the
- *    AGENTS.md block, which IS user-managed config) can never match.
+ *    next stable configuration heading. Current prompts continue at tool-use;
+ *    legacy frozen prompts may continue at the old workspace heading, and
+ *    older prompts with inline workspace instructions continue there. The end
+ *    anchor requires a newline right after the exact heading so "Workspace"
+ *    can never consume the "Workspace Instructions" prefix accidentally.
  *  - Clock line: either supported clock label (every occurrence).
  *
  * Each segment pattern matches the newline seam in front of its stable end
@@ -49,11 +50,12 @@ export const SESSION_CAPABILITY_FINGERPRINT_VERSION = 1;
  *
  * Deliberately KEPT in the comparison (user-managed configuration): persona /
  * identity / ishiki text, user profile (user.md, only writable via settings),
- * team roster, workspace instruction files (AGENTS.md / CLAUDE.md), and
- * feature-gated behavior sections.
+ * team roster, legacy inline workspace instruction files, and feature-gated
+ * behavior sections. Current workspace instructions live in the frozen append
+ * snapshot and are never hot-renewed by this system-prompt fingerprint.
  */
 const MEMORY_SEAM_PATTERN = /\n+(?:## (?:记忆使用规则|Memory Rules)\n[\s\S]*?\n+)?(?=(?:Current date and time|Session start time): )/g;
-const APPEARANCE_SEAM_PATTERN = /\n+(?:## (?:你的样子|Your Appearance)\n[\s\S]*?\n+)?(?=## (?:工作台|Workspace)\n)/g;
+const APPEARANCE_SEAM_PATTERN = /\n+(?:## (?:你的样子|Your Appearance)\n[\s\S]*?\n+)?(?=## (?:工作台|Workspace|工作区说明|Workspace Instructions|文件与命令工具使用|Tool Use For Files And Commands)\n)/g;
 const CLOCK_LINE_PATTERN = /^(?:Current date and time|Session start time): .*$/gm;
 
 export function normalizeSystemPromptForFingerprint(systemPrompt) {

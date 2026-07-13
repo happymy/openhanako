@@ -45,7 +45,11 @@ function makeAgent(root) {
     tools: [],
     personality: "personality",
     systemPrompt: "system prompt",
-    config: { models: { chat: { id: "gpt-4o", provider: "openai" } } },
+    config: {
+      locale: "",
+      workspace_context: {},
+      models: { chat: { id: "gpt-4o", provider: "openai" } },
+    },
   };
 }
 
@@ -684,6 +688,10 @@ describe("runAgentSession teardown", () => {
     const cwd = path.join(rootDir, "cwd");
     fs.mkdirSync(cwd, { recursive: true });
     const agent = makeAgent(rootDir);
+    agent.config.locale = "en-US";
+    agent.config.workspace_context = { inject_agents_md: true };
+    fs.mkdirSync(path.join(cwd, ".git"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, "AGENTS.md"), "PHONE_WORKSPACE_INSTRUCTION\n", "utf-8");
     const engine = makeEngine(agent, cwd);
     const sessionFile = path.join(agent.agentDir, "phone", "sessions", "ch_crew", "phone-snapshot.jsonl");
     fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
@@ -711,6 +719,9 @@ describe("runAgentSession teardown", () => {
     let runtime = readAgentPhoneRuntime(agent.agentDir, "ch_crew");
     const snapshot = runtime.promptSnapshot;
     expect(snapshot?.systemPrompt).toBe("system prompt");
+    expect(snapshot?.appendSystemPrompt.join("\n\n")).toContain(`Primary workbench: ${cwd}`);
+    expect(snapshot?.appendSystemPrompt.join("\n\n")).toContain("PHONE_WORKSPACE_INSTRUCTION");
+    expect(snapshot?.appendSystemPrompt.join("\n\n")).not.toContain("Current working directory");
 
     agent.systemPrompt = "system prompt v2";
     await runAgentPhoneSession("agent-a", [{ text: "hello again", capture: true }], {
@@ -720,6 +731,7 @@ describe("runAgentSession teardown", () => {
     });
     const secondCreateArgs = createAgentSessionMock.mock.calls.at(-1)[0];
     expect(secondCreateArgs.resourceLoader.getSystemPrompt()).toBe("system prompt");
+    expect(secondCreateArgs.resourceLoader.getAppendSystemPrompt()).toEqual(snapshot.appendSystemPrompt);
     runtime = readAgentPhoneRuntime(agent.agentDir, "ch_crew");
     expect(runtime.promptSnapshot.systemPrompt).toBe("system prompt");
   });

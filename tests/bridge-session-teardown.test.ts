@@ -58,6 +58,8 @@ function makeAgent(rootDir, id = "agent-a") {
     yuanPrompt: "yuan",
     publicIshiki: "public-ishiki",
     config: {
+      locale: "",
+      workspace_context: {},
       models: { chat: { id: "gpt-4o", provider: "openai" } },
       bridge: {},
     },
@@ -991,7 +993,11 @@ describe("BridgeSessionManager teardown", () => {
 
   it("owner bridge session prompt snapshot uses the same home cwd as execution", async () => {
     const agent = makeAgent(rootDir);
-    agent.buildSystemPrompt = vi.fn(({ cwdOverride }: any = {}) => `system prompt @ ${cwdOverride ?? "missing"}`);
+    agent.config.locale = "en-US";
+    agent.config.workspace_context = { inject_agents_md: true };
+    fs.mkdirSync(path.join(rootCwd, ".git"), { recursive: true });
+    fs.writeFileSync(path.join(rootCwd, "AGENTS.md"), "BRIDGE_WORKSPACE_INSTRUCTION\n", "utf-8");
+    agent.buildSystemPrompt = vi.fn(() => "stable owner prompt");
     const mgrPath = path.join(agent.sessionDir, "bridge", "owner", "s-home.jsonl");
     const manager = new BridgeSessionManager(makeDeps(agent));
     sessionManagerCreateMock.mockReturnValue({ getSessionFile: () => mgrPath });
@@ -1010,14 +1016,19 @@ describe("BridgeSessionManager teardown", () => {
 
     await manager.executeExternalMessage("hello", "bridge-k-home", null, { agentId: "agent-a" });
 
-    expect(agent.buildSystemPrompt).toHaveBeenCalledWith(expect.objectContaining({ cwdOverride: rootCwd }));
+    expect(agent.buildSystemPrompt).toHaveBeenCalledWith(expect.not.objectContaining({ cwdOverride: expect.anything() }));
     const createArgs = createAgentSessionMock.mock.calls.at(-1)[0];
     expect(createArgs.cwd).toBe(rootCwd);
-    expect(createArgs.resourceLoader.getSystemPrompt()).toBe(`system prompt @ ${rootCwd}`);
+    expect(createArgs.resourceLoader.getSystemPrompt()).toContain("stable owner prompt");
+    const append = createArgs.resourceLoader.getAppendSystemPrompt().join("\n\n");
+    expect(append).toContain(`Primary workbench: ${rootCwd}`);
+    expect(append).toContain("BRIDGE_WORKSPACE_INSTRUCTION");
+    expect(append).not.toContain("Current working directory");
   });
 
   it("owner bridge sessions persist and reuse their prompt snapshot", async () => {
     const agent = makeAgent(rootDir);
+    agent.config.locale = "en-US";
     agent.buildSystemPrompt = vi.fn()
       .mockReturnValueOnce("owner prompt v1")
       .mockReturnValueOnce("owner prompt v2");
@@ -1044,10 +1055,12 @@ describe("BridgeSessionManager teardown", () => {
     const snapshot = manager.readIndex(agent)["tg_dm_snapshot@agent-a"].promptSnapshot;
     expect(snapshot?.systemPrompt).toContain("owner prompt v1");
     expect(snapshot?.systemPrompt).not.toContain("owner prompt v2");
+    expect(snapshot?.appendSystemPrompt.join("\n\n")).toContain(`Primary workbench: ${rootCwd}`);
 
     await manager.executeExternalMessage("hello again", "tg_dm_snapshot@agent-a", null, { agentId: "agent-a" });
     const secondCreateArgs = createAgentSessionMock.mock.calls.at(-1)[0];
     expect(secondCreateArgs.resourceLoader.getSystemPrompt()).toBe(snapshot.systemPrompt);
+    expect(secondCreateArgs.resourceLoader.getAppendSystemPrompt()).toEqual(snapshot.appendSystemPrompt);
     expect(agent.buildSystemPrompt).toHaveBeenCalledTimes(1);
   });
 
