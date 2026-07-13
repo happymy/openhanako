@@ -443,7 +443,7 @@ export function AgentTab() {
       {/* 默认关闭 dm / workflow，与后端 DEFAULT_DISABLED_TOOL_NAMES 保持同步 */}
       <AgentToolsSection
         availableTools={availableTools}
-        disabled={settingsConfig ? settingsConfig.tools?.disabled ?? ["dm", "workflow"] : undefined}
+        disabled={settingsConfig ? settingsConfig.tools?.disabled ?? ["workflow"] : undefined}
       />
 
       {exportPlanningAgentId && createPortal((

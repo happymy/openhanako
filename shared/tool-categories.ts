@@ -53,13 +53,13 @@ export const GLOBAL_TOOL_NAMES = [
 
 export const LEGACY_INTERNAL_TOOL_NAMES = [
   "terminal",
+  "dm",
 ];
 
 export const OPTIONAL_TOOL_NAMES = [
   "automation",
   "beautify",
   "browser",
-  "dm",
   "install_skill",
   "office",
   "session",
@@ -84,13 +84,11 @@ const OPTIONAL_TOOL_NAMES_SET = new Set(OPTIONAL_TOOL_NAMES);
  * two from drifting.
  *
  * Rationale:
- *   dm              — direct-messages between agents; off by default because
- *                     single-agent setups have no peers and it adds context.
  *   workflow        — deterministic multi-agent orchestration; a heavy fan-out
  *                     capability, opt-in per agent until it has baked.
  *   (beautify 已于 0.375.x 毕业为默认开启。)
  */
-export const DEFAULT_DISABLED_TOOL_NAMES = ["dm", "workflow"];
+export const DEFAULT_DISABLED_TOOL_NAMES = ["workflow"];
 
 export function uniqueToolNames(names) {
   const seen = new Set();

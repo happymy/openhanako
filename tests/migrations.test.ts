@@ -3846,9 +3846,9 @@ describe("migration #33 — beautify default is explicit opt-in", () => {
 
     runFrom32();
 
-    // 升级到最新版后物化为完整默认禁用集合（dm + beautify + workflow）
+    // 升级到最新版后物化为当前仍可配置的默认禁用集合。
     expect(new Set(readAgentConfig(agentsDir, "missing").tools.disabled))
-      .toEqual(new Set(["dm", "beautify", "workflow"]));
+      .toEqual(new Set(["beautify", "workflow"]));
   });
 });
 

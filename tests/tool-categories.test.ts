@@ -39,8 +39,13 @@ describe("tool-categories constants", () => {
 
   it("OPTIONAL_TOOL_NAMES is exactly the user-toggleable whitelist", () => {
     expect(new Set(OPTIONAL_TOOL_NAMES)).toEqual(
-      new Set(["automation", "beautify", "browser", "dm", "install_skill", "office", "session", "update_settings", "workflow"])
+      new Set(["automation", "beautify", "browser", "install_skill", "office", "session", "update_settings", "workflow"])
     );
+  });
+
+  it("does not expose the retired Agent DM tool", () => {
+    expect(OPTIONAL_TOOL_NAMES).not.toContain("dm");
+    expect(computeSettingsAvailableToolNames(["current_status"], { pluginTools: [] })).not.toContain("dm");
   });
 
   it("does not keep the removed legacy cron Agent tool in any category", () => {
@@ -61,8 +66,9 @@ describe("tool-categories constants", () => {
   });
 
   it("keeps retired transports categorized without re-exposing them to agents", () => {
-    expect(new Set(LEGACY_INTERNAL_TOOL_NAMES)).toEqual(new Set(["terminal"]));
+    expect(new Set(LEGACY_INTERNAL_TOOL_NAMES)).toEqual(new Set(["terminal", "dm"]));
     expect(OPTIONAL_TOOL_NAMES).not.toContain("terminal");
+    expect(OPTIONAL_TOOL_NAMES).not.toContain("dm");
     expect(GLOBAL_TOOL_NAMES).not.toContain("terminal");
   });
 
@@ -104,7 +110,6 @@ describe("computeSettingsAvailableToolNames", () => {
       "automation",
       "beautify",
       "browser",
-      "dm",
       "install_skill",
       "office",
       "update_settings",

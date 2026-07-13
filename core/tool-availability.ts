@@ -12,7 +12,7 @@ export function toolNamesFromObjects(tools, { includePluginTools = true } = {}) 
 
 export function getStableFeatureDisabledToolNames({ channelsEnabled }: { channelsEnabled?: any } = {}) {
   const disabled = [];
-  if (channelsEnabled === false) disabled.push("channel", "dm");
+  if (channelsEnabled === false) disabled.push("channel");
   return disabled;
 }
 

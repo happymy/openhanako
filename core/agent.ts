@@ -21,7 +21,6 @@ import { createWebFetchTool } from "../lib/tools/web-fetch.ts";
 import { createStageFilesTool } from "../lib/tools/output-file-tool.ts";
 import { createFileTool } from "../lib/tools/file-tool.ts";
 import { createChannelTool } from "../lib/tools/channel-tool.ts";
-import { createDmTool } from "../lib/tools/dm-tool.ts";
 import { createBrowserTool } from "../lib/tools/browser-tool.ts";
 import { createComputerUseTool } from "../lib/tools/computer-use-tool.ts";
 import { createPinnedMemoryTools } from "../lib/tools/pinned-memory.ts";
@@ -106,7 +105,6 @@ export class Agent {
   declare _deskManager: any;
   declare _disposing: any;
   declare _dmSentHandler: any;
-  declare _dmTool: any;
   declare _enabledSkills: any;
   declare _experienceEnabled: any;
   declare _experienceTools: any;
@@ -556,7 +554,7 @@ export class Agent {
       emitEvent: (event, sp) => { if (sp) this._cb?.emitEvent?.(event, sp); },
     });
 
-    // 9. 频道工具 + 私信工具（需要 channelsDir 和 agentsDir）
+    // 9. 频道工具（需要 channelsDir 和 agentsDir）
     if (this.channelsDir && this.agentsDir) {
       const agentId = this.id;
       // 花名册来自构造期装配的 active-agent provider（见 constructor），
@@ -575,13 +573,6 @@ export class Agent {
         },
       });
 
-      this._dmTool = createDmTool({
-        agentId,
-        agentsDir: path.dirname(this.agentDir),
-        listAgents,
-        isEnabled: () => this._cb?.isChannelsEnabled?.() ?? false,
-        onDmSent: (fromId, toId) => this._dmSentHandler?.(fromId, toId),
-      });
     }
 
     // 10. install_skill 工具（需要 agentDir + config + engine.resolveUtilityConfig）
@@ -891,7 +882,6 @@ export class Agent {
       this._stageFilesTool,
       this._fileTool,
       this._channelTool,
-      this._dmTool,
       this._browserTool,
       ...computerUseTools,
       this._installSkillTool,
@@ -1444,12 +1434,12 @@ export class Agent {
         parts.push(isZh
           ? `\n## 团队\n\n` +
             `你不是独自工作。当前环境中有多个 agent，各有不同的专长和模型：\n\n${roster}\n\n` +
-            `调用 subagent 或 dm 工具时，agent 参数必须传上面反引号里的 id 字段值，不是括号里的显示名。\n` +
+            `调用 subagent 工具时，agent 参数必须传上面反引号里的 id 字段值，不是括号里的显示名。\n` +
             `遇到明显更适合其他 agent 专长的任务，或需要不同视角审核重要结论时，用 subagent 并指定 agent 参数请求协助。` +
             `先判断这件事自己做合不合适，再决定是否交出去。不确定找谁时传 \`agent="?"\` 查看详情。`
           : `\n## Team\n\n` +
             `You are not working alone. Multiple agents are available, each with different strengths and models:\n\n${roster}\n\n` +
-            `When calling subagent or dm tools, the agent parameter must be the id field value shown in backticks above, not the display name in parentheses.\n` +
+            `When calling the subagent tool, the agent parameter must be the id field value shown in backticks above, not the display name in parentheses.\n` +
             `When a task clearly falls within another agent's expertise, or when an important conclusion would benefit from a different perspective, use subagent with the agent parameter to request help. ` +
             `Judge whether you're the best fit for the job before deciding to delegate. Pass \`agent="?"\` if unsure who to ask.`
         );

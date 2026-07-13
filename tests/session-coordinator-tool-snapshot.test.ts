@@ -61,7 +61,7 @@ const HANAKO_CUSTOM_OBJS = [
   "web_fetch", "todo_write", "notify",
   "stage_files", "subagent", "channel", "record_experience",
   "recall_experience", "check_pending_tasks", "current_status", "stop_task",
-  "session_folders", "browser", "automation", "dm", "install_skill", "update_settings",
+  "session_folders", "browser", "automation", "install_skill", "update_settings",
 ].map(makeTool);
 
 function allNames() {
@@ -72,7 +72,7 @@ function allNames() {
 }
 
 function defaultBaselineNames() {
-  return allNames().filter((name) => name !== "dm");
+  return allNames();
 }
 
 function restoredSnapshot(names, availableNames = allNames()) {
@@ -211,7 +211,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     expect(getSkillsForAgent).toHaveBeenCalledWith(targetAgent, { workspacePaths });
   });
 
-  it("Case C: new session with NO tools config applies DEFAULT_DISABLED (dm off, update_settings on)", async () => {
+  it("Case C: new session with NO tools config does not expose retired dm and keeps update_settings on", async () => {
     currentAgentConfig = {}; // fresh agent or upgrade, tools field absent
     const { sessionPath } = await coord.createSession(null, tmpDir, true);
 
@@ -509,7 +509,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     expect(meta[path.basename(fakeSessionPath)].toolNames).toEqual(allNames());
   });
 
-  it("Case C: fresh session hides channel and dm when the global phone feature is disabled", async () => {
+  it("Case C: fresh session hides channel when the global phone feature is disabled", async () => {
     channelsEnabled = false;
     currentAgentConfig = { tools: { disabled: [] } };
 
@@ -660,7 +660,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     const persisted = meta[path.basename(fakeSessionPath)].toolNames;
     expect(persisted).not.toContain("browser");
     expect(persisted).not.toContain("automation");
-    expect(persisted).toContain("dm");
+    expect(persisted).not.toContain("dm");
     expect(persisted).toContain("install_skill");
   });
 

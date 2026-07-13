@@ -204,7 +204,6 @@ describe("agents route: tools.disabled", () => {
     expect(body.availableTools).toEqual(expect.arrayContaining([
       "automation",
       "browser",
-      "dm",
       "install_skill",
       "update_settings",
       "beautify",
