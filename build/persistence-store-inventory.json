@@ -424,6 +424,48 @@
       "exemption": null
     },
     {
+      "id": "data-epoch-transition-journal",
+      "ownerModule": "core/data-epoch-coordinator.ts",
+      "pathPattern": "data-epoch-transition.json",
+      "pathPatterns": [
+        "data-epoch-transition.json"
+      ],
+      "pathExclusions": [],
+      "pathKind": "file",
+      "format": "json",
+      "schemaSource": {
+        "kind": "runtime-contract",
+        "module": "shared/data-epoch.cjs",
+        "contract": "transition journal parser, invariant checks, and durable writer"
+      },
+      "schemaContract": {
+        "kind": "runtime-source",
+        "source": "shared/data-epoch.cjs",
+        "compatibility": "The named runtime reader is canonical; this inventory does not imply stricter validation than runtime currently performs."
+      },
+      "openEntry": [
+        "coordinateDataEpochStartup",
+        "inspectDataEpochMaintenance"
+      ],
+      "migrationEntry": [
+        "core/data-epoch-migrations.ts DATA_EPOCH_MIGRATIONS"
+      ],
+      "protocolModules": [
+        "core/data-epoch-coordinator.ts",
+        "core/data-epoch-migrations.ts"
+      ],
+      "firstPossibleOpenPhase": "epoch_read_preflight",
+      "firstPossibleWritePhase": "epoch_transition",
+      "epochPolicy": "compatible",
+      "checkpointPolicy": "Never include the transition journal in the affected-store checkpoint it coordinates.",
+      "restorePolicy": "Never restore independently; maintenance interprets it together with the epoch stamp and verified checkpoint receipt.",
+      "affectedByEpochMigration": false,
+      "bootstrapSafety": null,
+      "preCoordinatorReadProjection": null,
+      "identityContract": "transitionId identifies one in-progress transition for one canonical HANA_HOME.",
+      "exemption": null
+    },
+    {
       "id": "deferred-result-state",
       "ownerModule": "lib/deferred-result-store.ts",
       "pathPattern": ".ephemeral/deferred-tasks.json",
@@ -7371,7 +7413,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 459,
+      "line": 444,
       "kind": "persistent-store-constructor",
       "excerpt": "new DeferredResultStore( hub.eventBus, path.join(hanakoHome, \".ephemeral\", \"deferred-tasks.json\"), { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null }, )",
       "reason": "Constructs the deferred result store.",
@@ -7380,7 +7422,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 659,
+      "line": 644,
       "kind": "persistent-store-constructor",
       "excerpt": "new ConfirmStore({ getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null, })",
       "reason": "ConfirmStore is deliberately process-memory-only: pending approvals time out or abort with their session and have no restart replay contract.",
@@ -7389,7 +7431,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 664,
+      "line": 649,
       "kind": "persistent-store-constructor",
       "excerpt": "new SubagentRunStore( path.join(hanakoHome, \"subagent-runs.json\"), { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null }, )",
       "reason": "Constructs subagent stores.",
@@ -7398,7 +7440,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 670,
+      "line": 655,
       "kind": "persistent-store-constructor",
       "excerpt": "new SubagentThreadStore( path.join(hanakoHome, \"subagent-threads.json\"), { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null }, )",
       "reason": "Constructs subagent stores.",
@@ -7407,7 +7449,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 681,
+      "line": 666,
       "kind": "persistent-store-constructor",
       "excerpt": "new WorkflowActivityStore( path.join(hanakoHome, \"workflow-activity.json\"), )",
       "reason": "Constructs the workflow activity store.",
@@ -7416,7 +7458,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1159,
+      "line": 1144,
       "kind": "append-file",
       "excerpt": "fs.promises.appendFile(_bwsLogPath, chunk)",
       "reason": "Appends the browser worker log.",
@@ -7425,7 +7467,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1218,
+      "line": 1203,
       "kind": "write-file",
       "excerpt": "fs.writeFileSync(serverInfoPath, JSON.stringify({ pid: process.pid, port: actualPort, host, configuredHost: serverRuntimeState.listenHost, networkMode: serverRuntimeState.mode, configuredMode: serverRuntimeState.configuredMode, configuredLi",
       "reason": "Writes or deletes live server discovery state.",
@@ -7434,7 +7476,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1316,
+      "line": 1301,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(path.join(hanakoHome, \"server-info.json\"))",
       "reason": "Writes or deletes live server discovery state.",
@@ -8379,20 +8421,74 @@
     },
     {
       "sourceFile": "shared/data-epoch.cjs",
-      "line": 94,
+      "line": 227,
+      "kind": "mkdir",
+      "excerpt": "fs.promises.mkdir(path.dirname(filePath), { recursive: true })",
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "storeId": null,
+      "exemptionId": "data-epoch-durable-json-primitive"
+    },
+    {
+      "sourceFile": "shared/data-epoch.cjs",
+      "line": 232,
+      "kind": "write-file",
+      "excerpt": "fs.promises.open(temporaryPath, \"wx\")",
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "storeId": null,
+      "exemptionId": "data-epoch-durable-json-primitive"
+    },
+    {
+      "sourceFile": "shared/data-epoch.cjs",
+      "line": 233,
+      "kind": "write-file",
+      "excerpt": "handle.writeFile(serialized, \"utf8\")",
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "storeId": null,
+      "exemptionId": "data-epoch-durable-json-primitive"
+    },
+    {
+      "sourceFile": "shared/data-epoch.cjs",
+      "line": 237,
+      "kind": "rename",
+      "excerpt": "fs.promises.rename(temporaryPath, filePath)",
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "storeId": null,
+      "exemptionId": "data-epoch-durable-json-primitive"
+    },
+    {
+      "sourceFile": "shared/data-epoch.cjs",
+      "line": 241,
+      "kind": "remove-path",
+      "excerpt": "fs.promises.unlink(temporaryPath)",
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "storeId": null,
+      "exemptionId": "data-epoch-durable-json-primitive"
+    },
+    {
+      "sourceFile": "shared/data-epoch.cjs",
+      "line": 269,
       "kind": "atomic-write",
-      "excerpt": "atomicWriteJson(stampPath, { epoch: ownEpoch, lastVersion: ownVersion, updatedAt: new Date().toISOString() })",
+      "excerpt": "durableWriteJson(dataEpochStampPath(homeDir), stamp)",
       "reason": "Atomically writes the DATA_EPOCH coordinator stamp.",
       "storeId": "data-epoch-stamp",
       "exemptionId": null
     },
     {
       "sourceFile": "shared/data-epoch.cjs",
-      "line": 144,
+      "line": 332,
       "kind": "atomic-write",
-      "excerpt": "atomicWriteJson(stampPath, { epoch: ownEpoch, lastVersion: ownVersion, updatedAt: new Date().toISOString() })",
-      "reason": "Atomically writes the DATA_EPOCH coordinator stamp.",
-      "storeId": "data-epoch-stamp",
+      "excerpt": "durableWriteJson(dataEpochJournalPath(homeDir), journal)",
+      "reason": "Atomically writes the data epoch transition journal.",
+      "storeId": "data-epoch-transition-journal",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "shared/data-epoch.cjs",
+      "line": 339,
+      "kind": "remove-path",
+      "excerpt": "fs.promises.unlink(filePath)",
+      "reason": "Removes only a proven committed transition journal tail.",
+      "storeId": "data-epoch-transition-journal",
       "exemptionId": null
     },
     {
@@ -8624,6 +8720,20 @@
         "atomic-write",
         "persistent-store-constructor"
       ]
+    },
+    {
+      "id": "data-epoch-durable-json-primitive",
+      "ownerModule": "shared/data-epoch.cjs",
+      "sourceFile": "shared/data-epoch.cjs",
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "expiresOn": "2026-10-31",
+      "kinds": [
+        "mkdir",
+        "write-file",
+        "rename",
+        "remove-path"
+      ],
+      "linePattern": "(?:path[.]dirname\\(filePath\\)|serialized|temporaryPath)"
     },
     {
       "id": "desktop-caller-selected-output",

@@ -57,6 +57,26 @@ describe("persistence startup receipt", () => {
     expect(epochStamp.firstPossibleOpenPhase).toBe("epoch_read_preflight");
     expect(epochStamp.firstPossibleWritePhase).toBe("epoch_transition");
     expect(epochStamp.breakingMigrationRequiresAccessMove).toBe(false);
+    const epochJournal = receipt.stores.find((store) => store.id === "data-epoch-transition-journal")!;
+    expect(epochJournal.firstPossibleOpenPhase).toBe("epoch_read_preflight");
+    expect(epochJournal.firstPossibleWritePhase).toBe("epoch_transition");
+
+    const preferences = receipt.stores.find((store) => store.id === "user-preferences")!;
+    expect(preferences.firstPossibleOpenPhase).toBe("desktop_bootstrap");
+    expect(preferences.preCoordinatorReadProjection).toMatchObject({
+      compatibility: "additive-only",
+      fields: expect.arrayContaining(["hardware_acceleration", "network_proxy", "keep_awake", "update_channel"]),
+    });
+
+    const network = receipt.stores.find((store) => store.id === "server-network-config")!;
+    expect(network.firstPossibleOpenPhase).toBe("post_epoch_pre_bind");
+    expect(network.firstPossibleWritePhase).toBe("post_epoch_pre_bind");
+
+    for (const id of ["server-node-identity", "user-studio-registries"]) {
+      const identity = receipt.stores.find((store) => store.id === id)!;
+      expect(identity.firstPossibleOpenPhase).toBe("identity_seed");
+      expect(identity.firstPossibleWritePhase).toBe("identity_seed");
+    }
   });
 
   it("matches the committed deterministic startup receipt", () => {

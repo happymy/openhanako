@@ -62,6 +62,7 @@ describe("persistent store registry", () => {
     const ids = new Set(PERSISTENT_STORES.map((store) => store.id));
     expect([...ids]).toEqual(expect.arrayContaining([
       "data-epoch-stamp",
+      "data-epoch-transition-journal",
       "server-node-identity",
       "user-studio-registries",
       "local-user-auth",

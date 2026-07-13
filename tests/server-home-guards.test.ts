@@ -61,7 +61,7 @@ describe("server/index.ts source-order contract: home guards run before any stor
 
   it("runs the mutex probe and the data-epoch gate before bindServerTransportOwnership, ensureFirstRun, ensureLocalIdentityRegistries, and HanaEngine construction", () => {
     const probeIndex = source.indexOf("await probeServerInfo({ info: existingServerInfo })");
-    const epochIndex = source.indexOf("await assertAndStampDataEpoch(");
+    const epochIndex = source.indexOf("await coordinateDataEpochStartup(");
     const bindIndex = source.indexOf("await bindServerTransportOwnership");
     const firstRunIndex = source.indexOf("ensureFirstRun(");
     const identityIndex = source.indexOf("ensureLocalIdentityRegistries(");
@@ -201,6 +201,65 @@ describe("server home guards — real spawn behavior (fast failure paths, before
       expect(result).toMatchObject({ code: 1, signal: null });
       expect(result.stderr).toContain("data-epoch");
       expect(result.stderr.toLowerCase()).toContain("corrupt");
+      expectNoPiRuntimeTrees(hanaHome);
+    } finally {
+      fs.rmSync(hanaHome, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("exits 1 on a corrupt transition journal before binding or seeding any store", async () => {
+    const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-journal-corrupt-test-"));
+    try {
+      fs.writeFileSync(path.join(hanaHome, "data-epoch-transition.json"), "{ not valid json", "utf-8");
+
+      const child = spawnServerBootstrap(hanaHome);
+      const result = await waitForExit(child);
+
+      expect(result).toMatchObject({ code: 1, signal: null });
+      expect(result.stderr).toContain("corrupt-journal");
+      expect(result.stdout + result.stderr).not.toContain("ensureFirstRun");
+      expect(result.stdout + result.stderr).not.toContain("HanaEngine");
+      expectNoPiRuntimeTrees(hanaHome);
+    } finally {
+      fs.rmSync(hanaHome, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("does not let HANA_ALLOW_DATA_DOWNGRADE bypass an incomplete transition", async () => {
+    const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-journal-incomplete-test-"));
+    try {
+      fs.writeFileSync(path.join(hanaHome, "data-epoch.json"), JSON.stringify({
+        schemaVersion: 2,
+        epoch: 2,
+        minimumReaderEpoch: 2,
+        committedDataEpoch: 1,
+        lastVersion: "2.0.0",
+        updatedAt: new Date().toISOString(),
+      }), "utf-8");
+      fs.writeFileSync(path.join(hanaHome, "data-epoch-transition.json"), JSON.stringify({
+        schemaVersion: 1,
+        transitionId: "transition-1-2",
+        fromEpoch: 1,
+        toEpoch: 2,
+        migrationIds: ["preferences-1-to-2"],
+        recoveryModes: { "preferences-1-to-2": "restore-only" },
+        phase: "migrating",
+        lastVersion: "2.0.0",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        affectedStoreIds: ["user-preferences"],
+        checkpointId: "checkpoint-1-2",
+        checkpointReceipt: { id: "checkpoint-1-2" },
+      }), "utf-8");
+
+      const child = spawnServerBootstrap(hanaHome, { HANA_ALLOW_DATA_DOWNGRADE: "1" });
+      const result = await waitForExit(child);
+
+      expect(result).toMatchObject({ code: 1, signal: null });
+      expect(result.stderr).toContain("incomplete-transition");
+      expect(result.stderr).toContain("migrating");
+      expect(result.stdout + result.stderr).not.toContain("ensureFirstRun");
+      expect(result.stdout + result.stderr).not.toContain("HanaEngine");
       expectNoPiRuntimeTrees(hanaHome);
     } finally {
       fs.rmSync(hanaHome, { recursive: true, force: true });

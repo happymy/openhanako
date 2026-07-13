@@ -136,7 +136,28 @@ export const PERSISTENT_STORES: readonly StoreDescriptor[] = Object.freeze([
       unstampedHomeSafePaths: [],
     },
     identityContract: "One high-water stamp belongs to one canonical HANA_HOME.",
-    siteRules: rules(["shared/data-epoch.cjs"], "Atomically writes the DATA_EPOCH coordinator stamp.", ["atomic-write"], "stampPath"),
+    siteRules: rules(["shared/data-epoch.cjs"], "Atomically writes the DATA_EPOCH coordinator stamp.", ["atomic-write"], "dataEpochStampPath"),
+  }),
+  defineStore({
+    id: "data-epoch-transition-journal",
+    ownerModule: "core/data-epoch-coordinator.ts",
+    pathPatterns: ["data-epoch-transition.json"],
+    format: "json",
+    schemaSource: runtimeSource("shared/data-epoch.cjs", "transition journal parser, invariant checks, and durable writer"),
+    openEntry: ["coordinateDataEpochStartup", "inspectDataEpochMaintenance"],
+    migrationEntry: ["core/data-epoch-migrations.ts DATA_EPOCH_MIGRATIONS"],
+    protocolModules: ["core/data-epoch-coordinator.ts", "core/data-epoch-migrations.ts"],
+    firstPossibleOpenPhase: "epoch_read_preflight",
+    firstPossibleWritePhase: "epoch_transition",
+    epochPolicy: "compatible",
+    checkpointPolicy: "Never include the transition journal in the affected-store checkpoint it coordinates.",
+    restorePolicy: "Never restore independently; maintenance interprets it together with the epoch stamp and verified checkpoint receipt.",
+    affectedByEpochMigration: false,
+    identityContract: "transitionId identifies one in-progress transition for one canonical HANA_HOME.",
+    siteRules: [
+      ...rules(["shared/data-epoch.cjs"], "Atomically writes the data epoch transition journal.", ["atomic-write"], "dataEpochJournalPath"),
+      ...rules(["shared/data-epoch.cjs"], "Removes only a proven committed transition journal tail.", ["remove-path"], "unlink\\(filePath"),
+    ],
   }),
   defineStore({
     id: "server-runtime-info",
@@ -1159,6 +1180,15 @@ function exemption(
 }
 
 export const PERSISTENCE_EXEMPTIONS: readonly PersistenceExemption[] = Object.freeze([
+  exemption(
+    "data-epoch-durable-json-primitive",
+    "shared/data-epoch.cjs",
+    "shared/data-epoch.cjs",
+    "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+    "2026-10-31",
+    ["mkdir", "write-file", "rename", "remove-path"],
+    "(?:path[.]dirname\\(filePath\\)|serialized|temporaryPath)",
+  ),
   exemption(
     "desktop-gpu-json-primitive",
     "desktop/src/shared/gpu-startup-policy.cjs",

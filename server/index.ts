@@ -104,7 +104,7 @@ import { registerDeferredResultBusHandlers } from "./deferred-result-bus-handler
 import { resolveHanakoHome } from "../shared/hana-runtime-paths.ts";
 import { DATA_EPOCH } from "../shared/contract-versions.cjs";
 import { describeForeignServerBlock, isForeignServerBlocking, probeServerInfo } from "../shared/server-info-probe.cjs";
-import { assertAndStampDataEpoch, describeDataEpochBlock } from "../shared/data-epoch.cjs";
+import { coordinateDataEpochStartup, describeDataEpochStartupBlock } from "../core/data-epoch-coordinator.ts";
 // internal-browser WS is handled directly via raw ws.WebSocketServer in the
 // upgrade handler below (WsTransport needs raw ws .on()/.off() methods)
 import { ConfirmStore } from "../lib/confirm-store.ts";
@@ -297,13 +297,13 @@ try {
   }
 }
 
-// ── 数据 epoch 单调闸 ──
-// 紧跟在上面的同宅互斥闸之后、任何 store 被打开之前：拒止用旧数据格式理解
-// 能力打开被更高 epoch 内核触碰过的数据目录，避免静默逻辑损坏。见
-// shared/data-epoch.cjs 的模块注释了解完整设计取舍。
+// ── 数据 epoch 事务闸 ──
+// 紧跟在同宅互斥闸之后、任何 store 或端口被打开之前。过渡日志优先于
+// 降级覆盖：半途迁移只能由显式维护流程处理，普通启动不会自动续跑、回滚
+// 或猜测数据处于哪个版本。
 {
   const allowDataDowngrade = process.env.HANA_ALLOW_DATA_DOWNGRADE === "1";
-  const epochResult = await assertAndStampDataEpoch({
+  const epochResult = await coordinateDataEpochStartup({
     homeDir: hanakoHome,
     ownEpoch: DATA_EPOCH,
     ownVersion: appVersion,
@@ -311,22 +311,7 @@ try {
     log: { warn: (msg: string) => console.warn(msg) },
   });
   if (epochResult.allowed === false) {
-    if (epochResult.reason === "corrupt-stamp") {
-      console.error(
-        `[data-epoch] 数据 epoch 印章文件损坏，无法确认此数据目录的历史状态，已拒绝启动：${epochResult.stampPath}\n`
-        + `请人工检查该文件；确认数据本身完好后可删除该文件以重新建立印章，或从备份恢复。\n`
-        + `[data-epoch] The data-epoch stamp file is corrupt; refusing to start because this home's history `
-        + `cannot be established: ${epochResult.stampPath}\n`
-        + `Inspect the file by hand; once you've confirmed the data itself is intact you may delete it to `
-        + `re-stamp, or restore from backup.`
-      );
-    } else {
-      console.error(describeDataEpochBlock({
-        stampEpoch: epochResult.stampEpoch,
-        ownEpoch: epochResult.ownEpoch,
-        stampLastVersion: epochResult.stampLastVersion,
-      }));
-    }
+    console.error(describeDataEpochStartupBlock(epochResult));
     process.exit(1);
   }
 }

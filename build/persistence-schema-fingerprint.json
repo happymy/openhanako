@@ -113,6 +113,20 @@
       "sourceFile": "core/migrations.ts"
     },
     {
+      "expiresOn": "2026-10-31",
+      "id": "data-epoch-durable-json-primitive",
+      "kinds": [
+        "mkdir",
+        "write-file",
+        "rename",
+        "remove-path"
+      ],
+      "linePattern": "(?:path[.]dirname\\(filePath\\)|serialized|temporaryPath)",
+      "ownerModule": "shared/data-epoch.cjs",
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "sourceFile": "shared/data-epoch.cjs"
+    },
+    {
       "expiresOn": "2027-01-31",
       "id": "desktop-caller-selected-output",
       "kinds": [
@@ -613,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:a335648618f99c295fa1289a9eae11cbdfb1d1fcdb9940c26f07ee12f87b4b77",
+  "payloadFingerprint": "sha256:2a7cc68b4cd87496bc6ec91663e5ac40a3b31bab40d92b15f1edb99f0f0607b1",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -988,6 +1002,48 @@
       },
       "schemaSource": {
         "contract": "DATA_EPOCH stamp parser and atomic writer",
+        "kind": "runtime-contract",
+        "module": "shared/data-epoch.cjs"
+      }
+    },
+    {
+      "affectedByEpochMigration": false,
+      "bootstrapSafety": null,
+      "checkpointPolicy": "Never include the transition journal in the affected-store checkpoint it coordinates.",
+      "epochPolicy": "compatible",
+      "exemption": null,
+      "firstPossibleOpenPhase": "epoch_read_preflight",
+      "firstPossibleWritePhase": "epoch_transition",
+      "format": "json",
+      "id": "data-epoch-transition-journal",
+      "identityContract": "transitionId identifies one in-progress transition for one canonical HANA_HOME.",
+      "migrationEntry": [
+        "core/data-epoch-migrations.ts DATA_EPOCH_MIGRATIONS"
+      ],
+      "openEntry": [
+        "coordinateDataEpochStartup",
+        "inspectDataEpochMaintenance"
+      ],
+      "ownerModule": "core/data-epoch-coordinator.ts",
+      "pathExclusions": [],
+      "pathKind": "file",
+      "pathPattern": "data-epoch-transition.json",
+      "pathPatterns": [
+        "data-epoch-transition.json"
+      ],
+      "preCoordinatorReadProjection": null,
+      "protocolModules": [
+        "core/data-epoch-coordinator.ts",
+        "core/data-epoch-migrations.ts"
+      ],
+      "restorePolicy": "Never restore independently; maintenance interprets it together with the epoch stamp and verified checkpoint receipt.",
+      "schemaContract": {
+        "compatibility": "The named runtime reader is canonical; this inventory does not imply stricter validation than runtime currently performs.",
+        "kind": "runtime-source",
+        "source": "shared/data-epoch.cjs"
+      },
+      "schemaSource": {
+        "contract": "transition journal parser, invariant checks, and durable writer",
         "kind": "runtime-contract",
         "module": "shared/data-epoch.cjs"
       }
@@ -2746,8 +2802,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Expands persistence census coverage and records existing desktop-owned stores without changing stored data formats.",
-    "payloadFingerprint": "sha256:a335648618f99c295fa1289a9eae11cbdfb1d1fcdb9940c26f07ee12f87b4b77"
+    "compatibilityReason": "Adds a versioned data-epoch transition journal and coordinator protocol without changing user store schemas or the current data epoch.",
+    "payloadFingerprint": "sha256:2a7cc68b4cd87496bc6ec91663e5ac40a3b31bab40d92b15f1edb99f0f0607b1"
   },
   "schemas": [
     {
@@ -2857,8 +2913,25 @@
       "contract": "DATA_EPOCH stamp parser and atomic writer",
       "kind": "runtime-contract",
       "module": "shared/data-epoch.cjs",
-      "sourceHash": "sha256:9a77c5685546755b84f3dfe7f578292396d1477f67fb95588e9afb99928e8397",
+      "sourceHash": "sha256:7a5b788e58d5f8ff9a09bd0520c6777b7eb6af1e29ab78d3ec6b0f56012f4614",
       "storeId": "data-epoch-stamp"
+    },
+    {
+      "contract": "transition journal parser, invariant checks, and durable writer",
+      "kind": "runtime-contract",
+      "module": "shared/data-epoch.cjs",
+      "protocolModules": [
+        {
+          "module": "core/data-epoch-coordinator.ts",
+          "sourceHash": "sha256:58c1e83c4f8c57fcb3491b3ad1bd2991032dc7c6afdce30d09e84f429e26c86e"
+        },
+        {
+          "module": "core/data-epoch-migrations.ts",
+          "sourceHash": "sha256:f029751febc9e97a1786dac99390ff409efb0cc8f226085fc396537b66b1d933"
+        }
+      ],
+      "sourceHash": "sha256:7a5b788e58d5f8ff9a09bd0520c6777b7eb6af1e29ab78d3ec6b0f56012f4614",
+      "storeId": "data-epoch-transition-journal"
     },
     {
       "contract": "DeferredResultStore normalization, seven-day cleanup, and atomic serializer",
@@ -3045,7 +3118,7 @@
       "contract": "server-info writer and desktop bootstrap reader",
       "kind": "runtime-contract",
       "module": "server/index.ts",
-      "sourceHash": "sha256:f7308c6262adf096ac20e9ebdb0594cb73e7af56fb751b1f7cc5602a3c9a6944",
+      "sourceHash": "sha256:c9c7ad87cc21f439f1e74e261e7692c4c5a23d5e175843958efadde599d22444",
       "storeId": "server-runtime-info"
     },
     {
@@ -7867,7 +7940,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 459,
+      "line": 444,
       "reason": "Constructs the deferred result store.",
       "sourceFile": "server/index.ts",
       "storeId": "deferred-result-state"
@@ -7875,7 +7948,7 @@
     {
       "exemptionId": "in-memory-confirm-registry",
       "kind": "persistent-store-constructor",
-      "line": 659,
+      "line": 644,
       "reason": "ConfirmStore is deliberately process-memory-only: pending approvals time out or abort with their session and have no restart replay contract.",
       "sourceFile": "server/index.ts",
       "storeId": null
@@ -7883,7 +7956,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 664,
+      "line": 649,
       "reason": "Constructs subagent stores.",
       "sourceFile": "server/index.ts",
       "storeId": "subagent-state"
@@ -7891,7 +7964,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 670,
+      "line": 655,
       "reason": "Constructs subagent stores.",
       "sourceFile": "server/index.ts",
       "storeId": "subagent-state"
@@ -7899,7 +7972,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 681,
+      "line": 666,
       "reason": "Constructs the workflow activity store.",
       "sourceFile": "server/index.ts",
       "storeId": "workflow-state"
@@ -7907,7 +7980,7 @@
     {
       "exemptionId": null,
       "kind": "append-file",
-      "line": 1159,
+      "line": 1144,
       "reason": "Appends the browser worker log.",
       "sourceFile": "server/index.ts",
       "storeId": "runtime-diagnostics"
@@ -7915,7 +7988,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 1218,
+      "line": 1203,
       "reason": "Writes or deletes live server discovery state.",
       "sourceFile": "server/index.ts",
       "storeId": "server-runtime-info"
@@ -7923,7 +7996,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 1316,
+      "line": 1301,
       "reason": "Writes or deletes live server discovery state.",
       "sourceFile": "server/index.ts",
       "storeId": "server-runtime-info"
@@ -8761,9 +8834,49 @@
       "storeId": null
     },
     {
+      "exemptionId": "data-epoch-durable-json-primitive",
+      "kind": "mkdir",
+      "line": 227,
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "sourceFile": "shared/data-epoch.cjs",
+      "storeId": null
+    },
+    {
+      "exemptionId": "data-epoch-durable-json-primitive",
+      "kind": "write-file",
+      "line": 232,
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "sourceFile": "shared/data-epoch.cjs",
+      "storeId": null
+    },
+    {
+      "exemptionId": "data-epoch-durable-json-primitive",
+      "kind": "write-file",
+      "line": 233,
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "sourceFile": "shared/data-epoch.cjs",
+      "storeId": null
+    },
+    {
+      "exemptionId": "data-epoch-durable-json-primitive",
+      "kind": "rename",
+      "line": 237,
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "sourceFile": "shared/data-epoch.cjs",
+      "storeId": null
+    },
+    {
+      "exemptionId": "data-epoch-durable-json-primitive",
+      "kind": "remove-path",
+      "line": 241,
+      "reason": "The same-directory temp write, fsync, rename, and temp cleanup primitive has no independent store identity; its durableWriteJson call sites are assigned to stamp or journal ownership.",
+      "sourceFile": "shared/data-epoch.cjs",
+      "storeId": null
+    },
+    {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 94,
+      "line": 269,
       "reason": "Atomically writes the DATA_EPOCH coordinator stamp.",
       "sourceFile": "shared/data-epoch.cjs",
       "storeId": "data-epoch-stamp"
@@ -8771,10 +8884,18 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 144,
-      "reason": "Atomically writes the DATA_EPOCH coordinator stamp.",
+      "line": 332,
+      "reason": "Atomically writes the data epoch transition journal.",
       "sourceFile": "shared/data-epoch.cjs",
-      "storeId": "data-epoch-stamp"
+      "storeId": "data-epoch-transition-journal"
+    },
+    {
+      "exemptionId": null,
+      "kind": "remove-path",
+      "line": 339,
+      "reason": "Removes only a proven committed transition journal tail.",
+      "sourceFile": "shared/data-epoch.cjs",
+      "storeId": "data-epoch-transition-journal"
     },
     {
       "exemptionId": "external-default-workspace",

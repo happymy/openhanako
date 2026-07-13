@@ -1,175 +1,156 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
-  assertAndStampDataEpoch,
+  createDataEpochJournal,
+  createDataEpochStamp,
+  dataEpochJournalPath,
   dataEpochStampPath,
   describeDataEpochBlock,
+  readDataEpochJournal,
+  readDataEpochStamp,
+  removeDataEpochJournal,
+  writeDataEpochJournal,
+  writeDataEpochStamp,
 } from "../shared/data-epoch.cjs";
 
 const tempDirs: string[] = [];
 
 function makeHomeDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-data-epoch-"));
-  tempDirs.push(dir);
-  return dir;
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "hana-data-epoch-"));
+  tempDirs.push(directory);
+  return directory;
 }
 
 afterEach(() => {
-  while (tempDirs.length) {
-    const dir = tempDirs.pop()!;
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  while (tempDirs.length > 0) fs.rmSync(tempDirs.pop()!, { recursive: true, force: true });
 });
 
-function readStampBytes(homeDir: string) {
-  return fs.readFileSync(dataEpochStampPath(homeDir), "utf-8");
-}
-
-describe("assertAndStampDataEpoch — six branches", () => {
-  it("1. missing stamp -> writes a new stamp at ownEpoch and allows", async () => {
+describe("data epoch stamp", () => {
+  it("maps the legacy high-water shape to one fully committed epoch", () => {
     const homeDir = makeHomeDir();
+    fs.writeFileSync(dataEpochStampPath(homeDir), JSON.stringify({ epoch: 3, lastVersion: "1.0.0" }));
 
-    const result = await assertAndStampDataEpoch({ homeDir, ownEpoch: 3, ownVersion: "1.0.0" });
-
-    expect(result).toEqual({ allowed: true, action: "stamped-new", epoch: 3, stampPath: dataEpochStampPath(homeDir) });
-    const onDisk = JSON.parse(readStampBytes(homeDir));
-    expect(onDisk.epoch).toBe(3);
-    expect(onDisk.lastVersion).toBe("1.0.0");
-    expect(typeof onDisk.updatedAt).toBe("string");
-  });
-
-  it("2. corrupt stamp (invalid JSON) -> fail-closed, refuses to start", async () => {
-    const homeDir = makeHomeDir();
-    fs.writeFileSync(dataEpochStampPath(homeDir), "{ not valid json", "utf-8");
-
-    const result: any = await assertAndStampDataEpoch({ homeDir, ownEpoch: 3, ownVersion: "1.0.0" });
-
-    expect(result.allowed).toBe(false);
-    expect(result.reason).toBe("corrupt-stamp");
-    expect(result.stampPath).toBe(dataEpochStampPath(homeDir));
-    // Fail-closed must not touch the corrupt file.
-    expect(readStampBytes(homeDir)).toBe("{ not valid json");
-  });
-
-  it("2b. stamp missing a valid integer epoch field -> also corrupt-stamp", async () => {
-    const homeDir = makeHomeDir();
-    fs.writeFileSync(dataEpochStampPath(homeDir), JSON.stringify({ lastVersion: "1.0.0" }), "utf-8");
-
-    const result: any = await assertAndStampDataEpoch({ homeDir, ownEpoch: 3, ownVersion: "1.0.0" });
-
-    expect(result.allowed).toBe(false);
-    expect(result.reason).toBe("corrupt-stamp");
-  });
-
-  it("3. stamp.epoch > ownEpoch, no override -> blocked", async () => {
-    const homeDir = makeHomeDir();
-    fs.writeFileSync(
-      dataEpochStampPath(homeDir),
-      JSON.stringify({ epoch: 5, lastVersion: "2.0.0", updatedAt: "2026-01-01T00:00:00.000Z" }),
-      "utf-8",
-    );
-
-    const result: any = await assertAndStampDataEpoch({ homeDir, ownEpoch: 3, ownVersion: "1.0.0" });
-
-    expect(result).toEqual({
-      allowed: false,
-      reason: "epoch-downgrade-blocked",
-      stampEpoch: 5,
-      ownEpoch: 3,
-      stampLastVersion: "2.0.0",
-      stampPath: dataEpochStampPath(homeDir),
+    expect(readDataEpochStamp(homeDir)).toMatchObject({
+      status: "ok",
+      format: "legacy-v1",
+      stamp: {
+        schemaVersion: 1,
+        epoch: 3,
+        minimumReaderEpoch: 3,
+        committedDataEpoch: 3,
+        lastVersion: "1.0.0",
+      },
     });
-    // Blocked path must not touch the stamp file.
-    const onDisk = JSON.parse(readStampBytes(homeDir));
-    expect(onDisk.epoch).toBe(5);
   });
 
-  it("4. stamp.epoch > ownEpoch, allowDowngrade true -> allowed, loud warning, stamp NOT rewritten (only-up rule)", async () => {
+  it("writes and rereads a v2 barrier/commit pair with durable JSON bytes", async () => {
     const homeDir = makeHomeDir();
-    fs.writeFileSync(
-      dataEpochStampPath(homeDir),
-      JSON.stringify({ epoch: 5, lastVersion: "2.0.0", updatedAt: "2026-01-01T00:00:00.000Z" }),
-      "utf-8",
-    );
-    const warn = vi.fn();
-
-    const result: any = await assertAndStampDataEpoch({
-      homeDir,
-      ownEpoch: 3,
-      ownVersion: "1.0.0",
-      allowDowngrade: true,
-      log: { warn },
+    const written = await writeDataEpochStamp(homeDir, {
+      minimumReaderEpoch: 4,
+      committedDataEpoch: 3,
+      lastVersion: "2.0.0",
     });
 
-    expect(result).toEqual({ allowed: true, action: "downgrade-allowed", epoch: 5, stampPath: dataEpochStampPath(homeDir) });
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0][0]).toContain("WARNING");
-    expect(warn.mock.calls[0][0]).toContain("警告");
-    // Stamp on disk must be untouched — epoch never goes down.
-    const onDisk = JSON.parse(readStampBytes(homeDir));
-    expect(onDisk.epoch).toBe(5);
-    expect(onDisk.lastVersion).toBe("2.0.0");
+    expect(written).toMatchObject({
+      schemaVersion: 2,
+      epoch: 4,
+      minimumReaderEpoch: 4,
+      committedDataEpoch: 3,
+      lastVersion: "2.0.0",
+    });
+    expect(fs.readFileSync(dataEpochStampPath(homeDir), "utf8")).toMatch(/\n$/);
+    expect(readDataEpochStamp(homeDir)).toMatchObject({ status: "ok", format: "v2", stamp: written });
   });
 
-  it("5. stamp.epoch === ownEpoch -> allowed, stamp rewritten (lastVersion refreshed)", async () => {
+  it("fails closed on corrupt JSON and impossible v2 epoch relationships", () => {
     const homeDir = makeHomeDir();
-    fs.writeFileSync(
-      dataEpochStampPath(homeDir),
-      JSON.stringify({ epoch: 3, lastVersion: "0.9.0", updatedAt: "2026-01-01T00:00:00.000Z" }),
-      "utf-8",
-    );
+    fs.writeFileSync(dataEpochStampPath(homeDir), "{broken");
+    expect(readDataEpochStamp(homeDir)).toMatchObject({ status: "corrupt" });
 
-    const result: any = await assertAndStampDataEpoch({ homeDir, ownEpoch: 3, ownVersion: "1.0.0" });
+    fs.writeFileSync(dataEpochStampPath(homeDir), JSON.stringify({
+      schemaVersion: 2,
+      epoch: 3,
+      minimumReaderEpoch: 4,
+      committedDataEpoch: 3,
+      lastVersion: "1.0.0",
+      updatedAt: new Date().toISOString(),
+    }));
+    expect(readDataEpochStamp(homeDir)).toMatchObject({
+      status: "corrupt",
+      detail: expect.stringContaining("epoch` to equal `minimumReaderEpoch"),
+    });
 
-    expect(result).toEqual({ allowed: true, action: "stamped-upgrade", epoch: 3, stampPath: dataEpochStampPath(homeDir) });
-    const onDisk = JSON.parse(readStampBytes(homeDir));
-    expect(onDisk.epoch).toBe(3);
-    expect(onDisk.lastVersion).toBe("1.0.0");
-  });
-
-  it("6. stamp.epoch < ownEpoch -> allowed, stamp bumped up to ownEpoch", async () => {
-    const homeDir = makeHomeDir();
-    fs.writeFileSync(
-      dataEpochStampPath(homeDir),
-      JSON.stringify({ epoch: 1, lastVersion: "0.5.0", updatedAt: "2026-01-01T00:00:00.000Z" }),
-      "utf-8",
-    );
-
-    const result: any = await assertAndStampDataEpoch({ homeDir, ownEpoch: 4, ownVersion: "2.0.0" });
-
-    expect(result).toEqual({ allowed: true, action: "stamped-upgrade", epoch: 4, stampPath: dataEpochStampPath(homeDir) });
-    const onDisk = JSON.parse(readStampBytes(homeDir));
-    expect(onDisk.epoch).toBe(4);
-    expect(onDisk.lastVersion).toBe("2.0.0");
+    expect(() => createDataEpochStamp({
+      minimumReaderEpoch: 3,
+      committedDataEpoch: 4,
+      lastVersion: "1.0.0",
+    })).toThrow(/cannot exceed/);
   });
 });
 
-describe("assertAndStampDataEpoch — stamp bytes are re-readable", () => {
-  it("the JSON written to disk can be parsed back with the exact same fields", async () => {
-    const homeDir = makeHomeDir();
-    await assertAndStampDataEpoch({ homeDir, ownEpoch: 7, ownVersion: "3.1.4" });
+describe("data epoch transition journal", () => {
+  const base = {
+    transitionId: "transition-1-2",
+    fromEpoch: 1,
+    toEpoch: 2,
+    migrationIds: ["preferences-1-to-2"],
+    affectedStoreIds: ["user-preferences"],
+    recoveryModes: { "preferences-1-to-2": "restore-only" as const },
+    lastVersion: "2.0.0",
+  };
 
-    const raw = readStampBytes(homeDir);
-    const parsed = JSON.parse(raw);
-    expect(parsed).toEqual({ epoch: 7, lastVersion: "3.1.4", updatedAt: parsed.updatedAt });
-    expect(() => new Date(parsed.updatedAt).toISOString()).not.toThrow();
+  it("requires a checkpoint receipt after the prepared phase", () => {
+    expect(createDataEpochJournal({ ...base, phase: "prepared" })).toMatchObject({
+      schemaVersion: 1,
+      phase: "prepared",
+      checkpointId: null,
+      checkpointReceipt: null,
+    });
+    expect(() => createDataEpochJournal({ ...base, phase: "checkpoint_complete" })).toThrow(/requires a checkpoint/);
+  });
+
+  it("writes, validates, and durably removes a journal", async () => {
+    const homeDir = makeHomeDir();
+    const written = await writeDataEpochJournal(homeDir, {
+      ...base,
+      phase: "checkpoint_complete",
+      checkpointId: "checkpoint-1",
+      checkpointReceipt: { id: "checkpoint-1", digest: "sha256:test" },
+    });
+
+    expect(readDataEpochJournal(homeDir)).toMatchObject({ status: "ok", journal: written });
+    expect(await removeDataEpochJournal(homeDir)).toBe(true);
+    expect(await removeDataEpochJournal(homeDir)).toBe(false);
+    expect(readDataEpochJournal(homeDir)).toMatchObject({ status: "missing" });
+  });
+
+  it("rejects malformed or unknown journal phases instead of guessing", () => {
+    const homeDir = makeHomeDir();
+    fs.writeFileSync(dataEpochJournalPath(homeDir), JSON.stringify({
+      ...base,
+      schemaVersion: 1,
+      phase: "mystery",
+      checkpointId: null,
+      checkpointReceipt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
+    expect(readDataEpochJournal(homeDir)).toMatchObject({
+      status: "corrupt",
+      detail: expect.stringContaining("invalid phase"),
+    });
   });
 });
 
 describe("describeDataEpochBlock", () => {
-  it("includes both epochs and the last-touching version in a bilingual message", () => {
+  it("includes both epochs, the last version, and the explicit override in both languages", () => {
     const message = describeDataEpochBlock({ stampEpoch: 5, ownEpoch: 3, stampLastVersion: "2.0.0" });
     expect(message).toContain("epoch=5");
     expect(message).toContain("epoch=3");
     expect(message).toContain("2.0.0");
     expect(message).toContain("HANA_ALLOW_DATA_DOWNGRADE=1");
-    expect(message).toContain("--allow-data-downgrade");
-  });
-
-  it("omits the last-version parenthetical when stampLastVersion is null", () => {
-    const message = describeDataEpochBlock({ stampEpoch: 5, ownEpoch: 3, stampLastVersion: null });
-    expect(message).not.toContain("last opened by version");
+    expect(message).toContain("继续使用旧内核");
   });
 });

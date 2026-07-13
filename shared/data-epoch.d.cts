@@ -1,24 +1,82 @@
-export type DataEpochResult =
-  | { allowed: true; action: "stamped-new" | "stamped-upgrade" | "downgrade-allowed"; epoch: number; stampPath: string }
-  | { allowed: false; reason: "corrupt-stamp"; detail: string; stampPath: string }
-  | {
-      allowed: false;
-      reason: "epoch-downgrade-blocked";
-      stampEpoch: number;
-      ownEpoch: number;
-      stampLastVersion: string | null;
-      stampPath: string;
-    };
+export const DATA_EPOCH_STAMP_SCHEMA_VERSION: 2;
+export const DATA_EPOCH_JOURNAL_SCHEMA_VERSION: 1;
+
+export type DataEpochJournalPhase =
+  | "prepared"
+  | "checkpoint_complete"
+  | "barrier_raised"
+  | "migrating"
+  | "migrated"
+  | "validated"
+  | "committed";
+
+export const DATA_EPOCH_JOURNAL_PHASES: readonly DataEpochJournalPhase[];
+
+export interface DataEpochStamp {
+  schemaVersion: 1 | 2;
+  epoch: number;
+  minimumReaderEpoch: number;
+  committedDataEpoch: number;
+  lastVersion: string | null;
+  updatedAt: string | null;
+}
+
+export interface DataEpochJournal {
+  schemaVersion: 1;
+  transitionId: string;
+  fromEpoch: number;
+  toEpoch: number;
+  migrationIds: string[];
+  affectedStoreIds: string[];
+  recoveryModes: Record<string, "resume-idempotent" | "restore-only">;
+  phase: DataEpochJournalPhase;
+  checkpointId: string | null;
+  checkpointReceipt: null | { id: string; [key: string]: unknown };
+  createdAt: string;
+  updatedAt: string;
+  lastVersion: string;
+}
+
+export type DataEpochReadResult<T, K extends string> =
+  | { status: "missing"; filePath: string }
+  | { status: "corrupt"; filePath: string; detail: string }
+  | ({ status: "ok"; filePath: string } & Record<K, T>);
 
 export function dataEpochStampPath(homeDir: string): string;
+export function dataEpochJournalPath(homeDir: string): string;
+export function readDataEpochStamp(homeDir: string): DataEpochReadResult<DataEpochStamp, "stamp"> & { format?: "legacy-v1" | "v2" };
+export function readDataEpochJournal(homeDir: string): DataEpochReadResult<DataEpochJournal, "journal">;
 
-export function assertAndStampDataEpoch(args: {
-  homeDir: string;
-  ownEpoch: number;
-  ownVersion: string;
-  allowDowngrade?: boolean;
-  log?: { warn: (msg: string) => void };
-}): Promise<DataEpochResult>;
+export function durableWriteJson(filePath: string, value: unknown): Promise<void>;
+export function createDataEpochStamp(input: {
+  minimumReaderEpoch: number;
+  committedDataEpoch: number;
+  lastVersion: string;
+  updatedAt?: string;
+}): DataEpochStamp & { schemaVersion: 2; lastVersion: string; updatedAt: string };
+export function writeDataEpochStamp(homeDir: string, input: {
+  minimumReaderEpoch: number;
+  committedDataEpoch: number;
+  lastVersion: string;
+  updatedAt?: string;
+}): Promise<DataEpochStamp & { schemaVersion: 2; lastVersion: string; updatedAt: string }>;
+
+export function createDataEpochJournal(input: {
+  transitionId: string;
+  fromEpoch: number;
+  toEpoch: number;
+  migrationIds: string[];
+  affectedStoreIds: string[];
+  recoveryModes: Record<string, "resume-idempotent" | "restore-only">;
+  phase: DataEpochJournalPhase;
+  checkpointId?: string | null;
+  checkpointReceipt?: null | { id: string; [key: string]: unknown };
+  createdAt?: string;
+  updatedAt?: string;
+  lastVersion: string;
+}): DataEpochJournal;
+export function writeDataEpochJournal(homeDir: string, input: Parameters<typeof createDataEpochJournal>[0]): Promise<DataEpochJournal>;
+export function removeDataEpochJournal(homeDir: string): Promise<boolean>;
 
 export function describeDataEpochBlock(args: {
   stampEpoch: number;

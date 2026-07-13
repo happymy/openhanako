@@ -111,6 +111,16 @@
       "breakingMigrationRequiresAccessMove": false
     },
     {
+      "id": "data-epoch-transition-journal",
+      "firstPossibleOpenPhase": "epoch_read_preflight",
+      "firstPossibleWritePhase": "epoch_transition",
+      "opensBeforeFutureCoordinator": true,
+      "writesBeforeFutureCoordinator": false,
+      "bootstrapSafety": null,
+      "preCoordinatorReadProjection": null,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
       "id": "deferred-result-state",
       "firstPossibleOpenPhase": "engine_construct",
       "firstPossibleWritePhase": "engine_construct",

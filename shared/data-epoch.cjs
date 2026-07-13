@@ -1,170 +1,376 @@
 "use strict";
 
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
-const { atomicWriteJson } = require("./artifact-core/pointer-store.cjs");
 
-/**
- * shared/data-epoch.cjs — the "only-goes-up" data format contract gate.
- *
- * Threat model this closes (轮流开 / alternating-use degradation, distinct
- * from the same-time double-open mutex in shared/server-info-probe.cjs):
- * a user runs a newer kernel that evolves the on-disk data format (a new
- * SQLite column with meaning the old code doesn't know about, a changed
- * session JSONL shape, etc.), then later opens the same HANA_HOME with an
- * older kernel binary — an old desktop build reinstalled, a pinned `hana`
- * CLI version, a downgrade. The old code reads the new data with its old
- * understanding of the shape and silently corrupts it: no crash, no error,
- * just logically wrong state that surfaces as confusing bugs much later.
- * Before this gate there was zero defense against that path.
- *
- * DATA_EPOCH (see shared/contract-versions.cjs) is a small integer that
- * only increments on a breaking data-format change — never on additive
- * schema growth (new table, new optional field). Every kernel build knows
- * its own epoch. This module stamps the *highest* epoch any kernel has
- * ever confirmed against a given HANA_HOME into `data-epoch.json`, and
- * refuses to start a kernel whose own epoch is lower than that stamp
- * unless the operator explicitly opts in.
- *
- * Design choices, and why they differ from the two closest prior-art
- * systems:
- *   - Postgres's postmaster.pid: a raw PID + inode identity file that
- *     requires a human to delete it by hand after a crash, and can
- *     misjudge a recycled PID as still-owning. This module doesn't touch
- *     PID logic at all — that's shared/server-info-probe.cjs's job. This
- *     module is purely a data-format version, and the epoch stamp itself
- *     is corruption-resistant (fail-closed on unparsable JSON, see below)
- *     rather than requiring manual cleanup on the happy path.
- *   - Firefox's compatibility.ini: blocks on *any* version regression,
- *     which is user-hostile for the common case of "I reinstalled an
- *     older build to work around an unrelated regression" — a pure
- *     version rollback that touches no data format at all gets needlessly
- *     blocked. This module deliberately tracks `lastVersion` for
- *     diagnostics only and NEVER gates on it — only the independent
- *     DATA_EPOCH integer gates. An old kernel with an unchanged data
- *     format can always reopen a HANA_HOME a newer build touched.
- *
- * Stamp file shape: `{ epoch: number, lastVersion: string, updatedAt: string }`.
- *
- * assertAndStampDataEpoch() returns a structured decision and performs the
- * stamp write itself (via the single atomicWriteJson source shared with
- * artifact-core) but deliberately never calls process.exit — the caller
- * (server/index.ts, or a test) decides what "not allowed" means for its
- * context, which keeps this module unit-testable without spawning a real
- * process.
- */
+const DATA_EPOCH_STAMP_SCHEMA_VERSION = 2;
+const DATA_EPOCH_JOURNAL_SCHEMA_VERSION = 1;
+const DATA_EPOCH_JOURNAL_PHASES = Object.freeze([
+  "prepared",
+  "checkpoint_complete",
+  "barrier_raised",
+  "migrating",
+  "migrated",
+  "validated",
+  "committed",
+]);
 
-/**
- * @param {string} homeDir
- * @returns {string}
- */
 function dataEpochStampPath(homeDir) {
   return path.join(homeDir, "data-epoch.json");
 }
 
-/**
- * @param {{ homeDir: string, ownEpoch: number, ownVersion: string,
- *            allowDowngrade?: boolean, log?: { warn: (msg: string) => void } }} args
- * @returns {Promise<
- *   | { allowed: true, action: "stamped-new" | "stamped-upgrade" | "downgrade-allowed", epoch: number, stampPath: string }
- *   | { allowed: false, reason: "corrupt-stamp", detail: string, stampPath: string }
- *   | { allowed: false, reason: "epoch-downgrade-blocked", stampEpoch: number, ownEpoch: number, stampLastVersion: string | null, stampPath: string }
- * >}
- */
-async function assertAndStampDataEpoch({ homeDir, ownEpoch, ownVersion, allowDowngrade = false, log = console } = {}) {
-  const stampPath = dataEpochStampPath(homeDir);
+function dataEpochJournalPath(homeDir) {
+  return path.join(homeDir, "data-epoch-transition.json");
+}
 
-  let raw = null;
+function isPositiveInteger(value) {
+  return Number.isInteger(value) && value >= 1;
+}
+
+function isTimestamp(value) {
+  return typeof value === "string" && value.length > 0 && !Number.isNaN(Date.parse(value));
+}
+
+function corrupt(filePath, detail) {
+  return { status: "corrupt", filePath, detail };
+}
+
+function readJsonFile(filePath) {
+  let raw;
   try {
-    raw = fs.readFileSync(stampPath, "utf-8");
-  } catch (err) {
-    if (err.code !== "ENOENT") {
-      // Unexpected filesystem error (permissions, etc.) — treat the same as
-      // a corrupt stamp: we cannot establish what epoch this home is at,
-      // so fail closed rather than guess.
-      return { allowed: false, reason: "corrupt-stamp", detail: err.message, stampPath };
-    }
+    raw = fs.readFileSync(filePath, "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") return { status: "missing", filePath };
+    return corrupt(filePath, error instanceof Error ? error.message : String(error));
   }
 
-  if (raw === null) {
-    // Never-stamped home directory — either brand new, or an existing user
-    // directory from before this gate shipped. Both cases are safe to
-    // adopt at this kernel's own epoch: an unstamped directory has no
-    // record of ever having been touched by a higher epoch.
-    await atomicWriteJson(stampPath, { epoch: ownEpoch, lastVersion: ownVersion, updatedAt: new Date().toISOString() });
-    return { allowed: true, action: "stamped-new", epoch: ownEpoch, stampPath };
-  }
-
-  let stamp;
   try {
-    stamp = JSON.parse(raw);
-  } catch (err) {
-    // Fail-closed: a stamp file that exists but cannot be parsed is an
-    // unknown state, not an absent one. Guessing here (e.g. treating it
-    // like "stamped-new") could silently let a downgraded kernel back in
-    // after a partial write or external corruption. Refuse and tell the
-    // operator exactly which file to look at.
-    return { allowed: false, reason: "corrupt-stamp", detail: err.message, stampPath };
+    return { status: "present", filePath, value: JSON.parse(raw) };
+  } catch (error) {
+    return corrupt(filePath, error instanceof Error ? error.message : String(error));
   }
-
-  if (!stamp || typeof stamp.epoch !== "number" || !Number.isInteger(stamp.epoch)) {
-    return { allowed: false, reason: "corrupt-stamp", detail: "stamp file is missing a valid integer `epoch` field", stampPath };
-  }
-
-  if (stamp.epoch > ownEpoch) {
-    if (!allowDowngrade) {
-      return {
-        allowed: false,
-        reason: "epoch-downgrade-blocked",
-        stampEpoch: stamp.epoch,
-        ownEpoch,
-        stampLastVersion: typeof stamp.lastVersion === "string" ? stamp.lastVersion : null,
-        stampPath,
-      };
-    }
-    // Operator explicitly accepted the risk. The stamp is intentionally
-    // NOT rewritten here — "only goes up" means a downgraded kernel run
-    // must never lower the recorded epoch, so the next upgrade back to a
-    // newer kernel still sees the true high-water mark.
-    log.warn(
-      `[data-epoch] WARNING: opening a data directory last touched by a newer data format `
-      + `(stamp epoch=${stamp.epoch}, this kernel epoch=${ownEpoch}). Proceeding because an explicit `
-      + `downgrade override was set. This kernel may not understand newer data and could corrupt it. `
-      + `警告：正在以旧内核（epoch=${ownEpoch}）打开被更高数据格式（epoch=${stamp.epoch}）触碰过的数据目录，`
-      + `已按显式覆盖设置放行，但本内核可能无法正确理解较新的数据，存在损坏风险。`
-    );
-    return { allowed: true, action: "downgrade-allowed", epoch: stamp.epoch, stampPath };
-  }
-
-  // stamp.epoch <= ownEpoch: this kernel is at least as new as anything
-  // that has touched this home before. Bump the stamp to this kernel's own
-  // epoch (a no-op write when already equal) and refresh lastVersion —
-  // lastVersion is diagnostic only, see the module doc comment for why it
-  // must never gate.
-  await atomicWriteJson(stampPath, { epoch: ownEpoch, lastVersion: ownVersion, updatedAt: new Date().toISOString() });
-  return { allowed: true, action: "stamped-upgrade", epoch: ownEpoch, stampPath };
 }
 
 /**
- * Pure formatter for the bilingual rejection message, kept separate from
- * assertAndStampDataEpoch's I/O so its exact wording is unit-testable.
- * @param {{ stampEpoch: number, ownEpoch: number, stampLastVersion: string | null }} args
+ * Reads both the legacy v1 high-water stamp and the v2 transition-aware
+ * stamp. v1 had no schemaVersion and one `epoch` field; it maps to a fully
+ * committed state at that epoch. v2 separates the minimum reader barrier
+ * from the last epoch whose migration was committed.
  */
+function readDataEpochStamp(homeDir) {
+  const filePath = dataEpochStampPath(homeDir);
+  const read = readJsonFile(filePath);
+  if (read.status !== "present") return read;
+
+  const value = read.value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return corrupt(filePath, "stamp must be a JSON object");
+  }
+
+  if (value.schemaVersion === undefined) {
+    if (!isPositiveInteger(value.epoch)) {
+      return corrupt(filePath, "legacy stamp is missing a positive integer `epoch`");
+    }
+    if (value.lastVersion !== undefined && typeof value.lastVersion !== "string") {
+      return corrupt(filePath, "legacy stamp has an invalid `lastVersion`");
+    }
+    if (value.updatedAt !== undefined && !isTimestamp(value.updatedAt)) {
+      return corrupt(filePath, "legacy stamp has an invalid `updatedAt`");
+    }
+    return {
+      status: "ok",
+      filePath,
+      format: "legacy-v1",
+      stamp: {
+        schemaVersion: 1,
+        epoch: value.epoch,
+        minimumReaderEpoch: value.epoch,
+        committedDataEpoch: value.epoch,
+        lastVersion: typeof value.lastVersion === "string" ? value.lastVersion : null,
+        updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : null,
+      },
+    };
+  }
+
+  if (value.schemaVersion !== DATA_EPOCH_STAMP_SCHEMA_VERSION) {
+    return corrupt(filePath, `unsupported stamp schemaVersion: ${String(value.schemaVersion)}`);
+  }
+  if (!isPositiveInteger(value.epoch) || !isPositiveInteger(value.minimumReaderEpoch)) {
+    return corrupt(filePath, "v2 stamp requires positive integer `epoch` and `minimumReaderEpoch`");
+  }
+  if (value.epoch !== value.minimumReaderEpoch) {
+    return corrupt(filePath, "v2 stamp requires `epoch` to equal `minimumReaderEpoch`");
+  }
+  if (!isPositiveInteger(value.committedDataEpoch)) {
+    return corrupt(filePath, "v2 stamp requires a positive integer `committedDataEpoch`");
+  }
+  if (value.committedDataEpoch > value.minimumReaderEpoch) {
+    return corrupt(filePath, "v2 stamp cannot commit a higher epoch than its minimum reader barrier");
+  }
+  if (typeof value.lastVersion !== "string" || value.lastVersion.length === 0) {
+    return corrupt(filePath, "v2 stamp requires a non-empty `lastVersion`");
+  }
+  if (!isTimestamp(value.updatedAt)) {
+    return corrupt(filePath, "v2 stamp requires a valid `updatedAt`");
+  }
+
+  return {
+    status: "ok",
+    filePath,
+    format: "v2",
+    stamp: {
+      schemaVersion: DATA_EPOCH_STAMP_SCHEMA_VERSION,
+      epoch: value.epoch,
+      minimumReaderEpoch: value.minimumReaderEpoch,
+      committedDataEpoch: value.committedDataEpoch,
+      lastVersion: value.lastVersion,
+      updatedAt: value.updatedAt,
+    },
+  };
+}
+
+function readDataEpochJournal(homeDir) {
+  const filePath = dataEpochJournalPath(homeDir);
+  const read = readJsonFile(filePath);
+  if (read.status !== "present") return read;
+
+  const value = read.value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return corrupt(filePath, "transition journal must be a JSON object");
+  }
+  if (value.schemaVersion !== DATA_EPOCH_JOURNAL_SCHEMA_VERSION) {
+    return corrupt(filePath, `unsupported transition journal schemaVersion: ${String(value.schemaVersion)}`);
+  }
+  if (typeof value.transitionId !== "string" || value.transitionId.length === 0) {
+    return corrupt(filePath, "transition journal requires a non-empty transitionId");
+  }
+  if (!isPositiveInteger(value.fromEpoch) || !isPositiveInteger(value.toEpoch) || value.fromEpoch >= value.toEpoch) {
+    return corrupt(filePath, "transition journal requires fromEpoch < toEpoch");
+  }
+  if (!DATA_EPOCH_JOURNAL_PHASES.includes(value.phase)) {
+    return corrupt(filePath, `transition journal has an invalid phase: ${String(value.phase)}`);
+  }
+  if (!Array.isArray(value.migrationIds)
+    || value.migrationIds.length === 0
+    || value.migrationIds.some((id) => typeof id !== "string" || id.length === 0)
+    || new Set(value.migrationIds).size !== value.migrationIds.length) {
+    return corrupt(filePath, "transition journal requires unique migrationIds");
+  }
+  if (!value.recoveryModes || typeof value.recoveryModes !== "object" || Array.isArray(value.recoveryModes)) {
+    return corrupt(filePath, "transition journal requires recoveryModes");
+  }
+  const recoveryModeKeys = Object.keys(value.recoveryModes).sort();
+  const migrationIds = [...value.migrationIds];
+  if (JSON.stringify(recoveryModeKeys) !== JSON.stringify([...migrationIds].sort())
+    || recoveryModeKeys.some((id) => !["resume-idempotent", "restore-only"].includes(value.recoveryModes[id]))) {
+    return corrupt(filePath, "transition journal recoveryModes must exactly cover migrationIds");
+  }
+  if (!Array.isArray(value.affectedStoreIds)
+    || value.affectedStoreIds.length === 0
+    || value.affectedStoreIds.some((id) => typeof id !== "string" || id.length === 0)
+    || new Set(value.affectedStoreIds).size !== value.affectedStoreIds.length) {
+    return corrupt(filePath, "transition journal requires unique affectedStoreIds");
+  }
+  if (typeof value.lastVersion !== "string" || value.lastVersion.length === 0) {
+    return corrupt(filePath, "transition journal requires a non-empty lastVersion");
+  }
+  if (!isTimestamp(value.createdAt) || !isTimestamp(value.updatedAt)) {
+    return corrupt(filePath, "transition journal requires valid timestamps");
+  }
+  const checkpointRequired = value.phase !== "prepared";
+  if (checkpointRequired) {
+    if (typeof value.checkpointId !== "string" || value.checkpointId.length === 0
+      || !value.checkpointReceipt || typeof value.checkpointReceipt !== "object" || Array.isArray(value.checkpointReceipt)
+      || value.checkpointReceipt.id !== value.checkpointId) {
+      return corrupt(filePath, `transition journal phase ${value.phase} requires a checkpoint receipt`);
+    }
+  } else if (value.checkpointId !== null || value.checkpointReceipt !== null) {
+    return corrupt(filePath, "prepared transition journal must not claim a completed checkpoint");
+  }
+
+  return {
+    status: "ok",
+    filePath,
+    journal: {
+      schemaVersion: DATA_EPOCH_JOURNAL_SCHEMA_VERSION,
+      transitionId: value.transitionId,
+      fromEpoch: value.fromEpoch,
+      toEpoch: value.toEpoch,
+      migrationIds,
+      phase: value.phase,
+      recoveryModes: { ...value.recoveryModes },
+      lastVersion: value.lastVersion,
+      createdAt: value.createdAt,
+      updatedAt: value.updatedAt,
+      affectedStoreIds: [...value.affectedStoreIds],
+      checkpointId: value.checkpointId,
+      checkpointReceipt: value.checkpointReceipt,
+    },
+  };
+}
+
+async function syncParentDirectory(filePath) {
+  // Windows does not expose a portable directory-fsync contract. The file
+  // itself is still fsynced before atomic rename; on POSIX we additionally
+  // fsync the parent directory so the rename survives a power loss.
+  if (process.platform === "win32") return;
+  const handle = await fs.promises.open(path.dirname(filePath), "r");
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+async function durableWriteJson(filePath, value) {
+  await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+  const temporaryPath = `${filePath}.tmp-${process.pid}-${crypto.randomBytes(8).toString("hex")}`;
+  const serialized = `${JSON.stringify(value, null, 2)}\n`;
+  let handle = null;
+  try {
+    handle = await fs.promises.open(temporaryPath, "wx");
+    await handle.writeFile(serialized, "utf8");
+    await handle.sync();
+    await handle.close();
+    handle = null;
+    await fs.promises.rename(temporaryPath, filePath);
+    await syncParentDirectory(filePath);
+  } catch (error) {
+    if (handle) await handle.close().catch(() => {});
+    await fs.promises.unlink(temporaryPath).catch(() => {});
+    throw error;
+  }
+}
+
+function createDataEpochStamp({ minimumReaderEpoch, committedDataEpoch, lastVersion, updatedAt = new Date().toISOString() }) {
+  if (!isPositiveInteger(minimumReaderEpoch) || !isPositiveInteger(committedDataEpoch)) {
+    throw new Error("data epoch stamp requires positive integer epochs");
+  }
+  if (committedDataEpoch > minimumReaderEpoch) {
+    throw new Error("committedDataEpoch cannot exceed minimumReaderEpoch");
+  }
+  if (typeof lastVersion !== "string" || lastVersion.length === 0) {
+    throw new Error("data epoch stamp requires lastVersion");
+  }
+  if (!isTimestamp(updatedAt)) throw new Error("data epoch stamp requires a valid updatedAt timestamp");
+  return {
+    schemaVersion: DATA_EPOCH_STAMP_SCHEMA_VERSION,
+    epoch: minimumReaderEpoch,
+    minimumReaderEpoch,
+    committedDataEpoch,
+    lastVersion,
+    updatedAt,
+  };
+}
+
+async function writeDataEpochStamp(homeDir, input) {
+  const stamp = createDataEpochStamp(input);
+  await durableWriteJson(dataEpochStampPath(homeDir), stamp);
+  return stamp;
+}
+
+function createDataEpochJournal(input) {
+  const now = input.updatedAt ?? new Date().toISOString();
+  const journal = {
+    schemaVersion: DATA_EPOCH_JOURNAL_SCHEMA_VERSION,
+    transitionId: input.transitionId,
+    fromEpoch: input.fromEpoch,
+    toEpoch: input.toEpoch,
+    migrationIds: [...input.migrationIds],
+    affectedStoreIds: [...input.affectedStoreIds],
+    recoveryModes: { ...input.recoveryModes },
+    phase: input.phase,
+    checkpointId: input.checkpointId ?? null,
+    checkpointReceipt: input.checkpointReceipt ?? null,
+    createdAt: input.createdAt ?? now,
+    updatedAt: now,
+    lastVersion: input.lastVersion,
+  };
+  const validation = readJournalValueForValidation(journal);
+  if (validation !== null) throw new Error(validation);
+  return journal;
+}
+
+function readJournalValueForValidation(value) {
+  if (typeof value.transitionId !== "string" || value.transitionId.length === 0) return "transition journal requires transitionId";
+  if (!isPositiveInteger(value.fromEpoch) || !isPositiveInteger(value.toEpoch) || value.fromEpoch >= value.toEpoch) {
+    return "transition journal requires fromEpoch < toEpoch";
+  }
+  if (!DATA_EPOCH_JOURNAL_PHASES.includes(value.phase)) return `invalid transition journal phase: ${String(value.phase)}`;
+  if (!Array.isArray(value.migrationIds) || value.migrationIds.length === 0
+    || value.migrationIds.some((id) => typeof id !== "string" || id.length === 0)
+    || new Set(value.migrationIds).size !== value.migrationIds.length) {
+    return "transition journal requires unique migrationIds";
+  }
+  if (!Array.isArray(value.affectedStoreIds) || value.affectedStoreIds.length === 0
+    || value.affectedStoreIds.some((id) => typeof id !== "string" || id.length === 0)
+    || new Set(value.affectedStoreIds).size !== value.affectedStoreIds.length) {
+    return "transition journal requires unique affectedStoreIds";
+  }
+  if (!value.recoveryModes || typeof value.recoveryModes !== "object" || Array.isArray(value.recoveryModes)
+    || JSON.stringify(Object.keys(value.recoveryModes).sort()) !== JSON.stringify([...value.migrationIds].sort())
+    || Object.values(value.recoveryModes).some((mode) => mode !== "resume-idempotent" && mode !== "restore-only")) {
+    return "transition journal recoveryModes must exactly cover migrationIds";
+  }
+  if (typeof value.lastVersion !== "string" || value.lastVersion.length === 0) return "transition journal requires lastVersion";
+  if (!isTimestamp(value.createdAt) || !isTimestamp(value.updatedAt)) return "transition journal requires valid timestamps";
+  if (value.phase === "prepared" && (value.checkpointId !== null || value.checkpointReceipt !== null)) {
+    return "prepared transition journal cannot contain a checkpoint";
+  }
+  if (value.phase !== "prepared"
+    && (typeof value.checkpointId !== "string" || value.checkpointId.length === 0
+      || !value.checkpointReceipt || typeof value.checkpointReceipt !== "object" || Array.isArray(value.checkpointReceipt)
+      || value.checkpointReceipt.id !== value.checkpointId)) {
+    return `transition journal phase ${value.phase} requires a checkpoint receipt`;
+  }
+  return null;
+}
+
+async function writeDataEpochJournal(homeDir, input) {
+  const journal = createDataEpochJournal(input);
+  await durableWriteJson(dataEpochJournalPath(homeDir), journal);
+  return journal;
+}
+
+async function removeDataEpochJournal(homeDir) {
+  const filePath = dataEpochJournalPath(homeDir);
+  try {
+    await fs.promises.unlink(filePath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+  await syncParentDirectory(filePath);
+  return true;
+}
+
 function describeDataEpochBlock({ stampEpoch, ownEpoch, stampLastVersion }) {
   const lastVersionNote = stampLastVersion ? ` (last opened by version ${stampLastVersion})` : "";
   return (
-    `此数据目录已被更高数据格式版本的内核使用过${lastVersionNote}（数据 epoch=${stampEpoch}，本内核 epoch=${ownEpoch}）。`
-    + `继续使用旧内核可能静默损坏数据。请升级到较新版本，或如果你清楚风险，`
-    + `设置环境变量 HANA_ALLOW_DATA_DOWNGRADE=1（或对 hana serve 传 --allow-data-downgrade）显式接受数据损坏风险后重试。\n`
-    + `This data directory has been used by a kernel with a newer data format${lastVersionNote} `
-    + `(data epoch=${stampEpoch}, this kernel epoch=${ownEpoch}). Continuing with an older kernel risks `
-    + `silently corrupting data. Upgrade to a newer version, or if you understand the risk, set `
-    + `HANA_ALLOW_DATA_DOWNGRADE=1 (or pass --allow-data-downgrade to hana serve) to proceed anyway.`
+    `此数据目录要求数据 epoch=${stampEpoch} 或更高版本的内核${lastVersionNote}，本内核 epoch=${ownEpoch}。`
+    + `继续使用旧内核可能静默损坏数据。请升级到较新版本，或在确认风险后设置 `
+    + `HANA_ALLOW_DATA_DOWNGRADE=1（或对 hana serve 传 --allow-data-downgrade）。\n`
+    + `This data directory requires a kernel at data epoch=${stampEpoch} or newer${lastVersionNote}; `
+    + `this kernel is epoch=${ownEpoch}. Continuing with an older kernel risks silent corruption. `
+    + `Upgrade, or explicitly accept the risk with HANA_ALLOW_DATA_DOWNGRADE=1 `
+    + `(or --allow-data-downgrade for hana serve).`
   );
 }
 
 module.exports = {
+  DATA_EPOCH_STAMP_SCHEMA_VERSION,
+  DATA_EPOCH_JOURNAL_SCHEMA_VERSION,
+  DATA_EPOCH_JOURNAL_PHASES,
   dataEpochStampPath,
-  assertAndStampDataEpoch,
+  dataEpochJournalPath,
+  readDataEpochStamp,
+  readDataEpochJournal,
+  durableWriteJson,
+  createDataEpochStamp,
+  writeDataEpochStamp,
+  createDataEpochJournal,
+  writeDataEpochJournal,
+  removeDataEpochJournal,
   describeDataEpochBlock,
 };

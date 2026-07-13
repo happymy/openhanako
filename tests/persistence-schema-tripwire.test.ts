@@ -97,6 +97,12 @@ describe("persistence schema tripwire", () => {
     ]);
     expect(sessions.extensions.every((entry) => entry.sourceHash.startsWith("sha256:"))).toBe(true);
 
+    const epochJournal = first.schemas.find((entry) => entry.storeId === "data-epoch-transition-journal");
+    expect(epochJournal.protocolModules).toEqual([
+      expect.objectContaining({ module: "core/data-epoch-coordinator.ts", sourceHash: expect.stringMatching(/^sha256:/) }),
+      expect.objectContaining({ module: "core/data-epoch-migrations.ts", sourceHash: expect.stringMatching(/^sha256:/) }),
+    ]);
+
     const serialized = JSON.stringify(first);
     expect(serialized).not.toMatch(/(?:\/Users\/|\/home\/|[A-Za-z]:\\)/);
     expect(first.siteMappings.every((site) => !site.sourceFile.includes("\\"))).toBe(true);
@@ -114,6 +120,15 @@ describe("persistence schema tripwire", () => {
       inventory,
       sourceOverrides: new Map([[module, mutatedSource]]),
     })).rejects.toThrow(/persistence schema fingerprint mismatch[\s\S]*compatible addition[\s\S]*breaking change/);
+
+    const coordinatorModule = "core/data-epoch-coordinator.ts";
+    const mutatedCoordinator = `${fs.readFileSync(path.join(ROOT, coordinatorModule), "utf-8")}\n// protocol drift mutation\n`;
+    await expect(assertCommittedPersistenceSchemaFingerprint({
+      rootDir: ROOT,
+      committedFingerprint: committed,
+      inventory,
+      sourceOverrides: new Map([[coordinatorModule, mutatedCoordinator]]),
+    })).rejects.toThrow(/persistence schema fingerprint mismatch/);
   });
 
   it("rejects a repinned payload until the committed review pins that exact payload", async () => {
