@@ -325,7 +325,7 @@ describe('AboutTab', () => {
 
     render(<AboutTab />);
 
-    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('25');
+    expect((screen.getByRole('progressbar') as HTMLProgressElement).value).toBe(25);
   });
 
   it('applying: shows the applying message and hides the manual check button', () => {
