@@ -1128,6 +1128,7 @@ describe("session reminder block injection", () => {
 
   it("prepends reminders before attachment markers and consumes the exact receipt after prompt acceptance", async () => {
     const session = makeFakeSession();
+    (session as any).sessionManager = { appendCustomEntry: vi.fn() };
     const engine = {
       ensureSessionLoaded: vi.fn(async () => session),
       promptSession: vi.fn(async (sessionPath, text, opts) => session.prompt(text, opts)),
@@ -1151,6 +1152,10 @@ describe("session reminder block injection", () => {
       { imageAttachmentPaths: ["/tmp/image.png"], context: { beforeUser: "world lore" } },
     );
     expect(engine.consumeRenderedSessionReminderBlock).toHaveBeenCalledWith("/tmp/desk.jsonl", receipt);
+    expect((session as any).sessionManager.appendCustomEntry).toHaveBeenCalledWith(
+      MESSAGE_PRESENTATION_RECORD_TYPE,
+      expect.objectContaining({ displayText: "hello" }),
+    );
     expect(engine.emitEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "session_user_message",

@@ -2319,6 +2319,30 @@ describe("sessions route", () => {
     ]);
   });
 
+  it("does not expose legacy reminder blocks in REST history projections", async () => {
+    const { createSessionsRoute } = await import("../server/routes/sessions.ts");
+    const msgUtils = await import("../core/message-utils.ts");
+    const app = new Hono();
+    const raw = "[hana_reminder at 2026-07-05 14:05]\n- Plugin demo loaded\n[/hana_reminder]\n\nhello";
+
+    vi.mocked(msgUtils.extractTextContent)
+      .mockReturnValueOnce({ text: raw, images: [], thinking: "", toolUses: [] });
+    vi.mocked(msgUtils.loadSessionHistoryMessages).mockResolvedValueOnce([
+      { role: "user", content: raw },
+    ]);
+
+    app.route("/api", createSessionsRoute({
+      agentsDir: "/tmp/agents",
+      deferredResults: null,
+    }));
+
+    const res = await app.request("/api/sessions/messages");
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.messages[0].content).toBe("hello");
+  });
+
   it("strips Bridge internal time tags from loadMessages history for bridge sessions", async () => {
     const { createSessionsRoute } = await import("../server/routes/sessions.ts");
     const msgUtils = await import("../core/message-utils.ts");

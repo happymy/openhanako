@@ -1236,64 +1236,6 @@ export class SessionCoordinator {
     return entry?.session?.agent?.streamFn || null;
   }
 
-  async reloadExtensionRunners(reason = "extension_factories_changed") {
-    const summary = { reloaded: 0, skipped: 0, failed: 0 };
-    for (const [sessionKey, entry] of this._sessions) {
-      const sessionPath = this._sessionPathForEntry(entry, sessionKey);
-      const session = entry?.session;
-      if (!session || typeof session.reload !== "function") {
-        summary.skipped += 1;
-        continue;
-      }
-      if (session.isStreaming || session.isCompacting || entry._switching) {
-        this._markExtensionRunnerDirty(entry, reason);
-        summary.skipped += 1;
-        continue;
-      }
-      try {
-        await session.reload();
-        this._clearExtensionRunnerDirty(entry);
-        entry.lastTouchedAt = Date.now();
-        summary.reloaded += 1;
-      } catch (err) {
-        summary.failed += 1;
-        log.warn(`reload extensions failed for ${path.basename(sessionPath)} (${reason}): ${err?.message || err}`);
-      }
-    }
-    return summary;
-  }
-
-  _markExtensionRunnerDirty(entry: any, reason = "extension_factories_changed") {
-    if (!entry) return;
-    entry.extensionRunnerDirty = true;
-    entry.extensionRunnerDirtyReason = reason;
-    entry.extensionRunnerDirtyAt = Date.now();
-  }
-
-  _clearExtensionRunnerDirty(entry: any) {
-    if (!entry) return;
-    entry.extensionRunnerDirty = false;
-    entry.extensionRunnerDirtyReason = null;
-    entry.extensionRunnerDirtyAt = null;
-  }
-
-  async _reloadDirtyExtensionRunnerIfPossible(entry: any, sessionPath: any, reason = "session_operation") {
-    if (!entry?.extensionRunnerDirty) return false;
-    const session = entry.session;
-    if (!session || typeof session.reload !== "function") return false;
-    if (session.isStreaming || session.isCompacting || entry._switching) return false;
-    try {
-      await session.reload();
-      this._clearExtensionRunnerDirty(entry);
-      entry.lastTouchedAt = Date.now();
-      log.log(`dirty extension runner reloaded for ${path.basename(sessionPath)} (${reason})`);
-      return true;
-    } catch (err) {
-      log.warn(`dirty extension runner reload failed for ${path.basename(sessionPath)} (${reason}): ${err?.message || err}`);
-      return false;
-    }
-  }
-
   // ── Session 创建 / 切换 ──
 
   async createSession(sessionMgr: any, cwd: any, memoryEnabled = true, model: any = null, {
@@ -2876,7 +2818,6 @@ export class SessionCoordinator {
       this._session = entry.session;
     }
     this._assertSessionModelAvailable(entry.session);
-    await this._reloadDirtyExtensionRunnerIfPossible(entry, sessionPath, "prompt_session");
     entry.lastTouchedAt = Date.now();
     if (entry.sessionVisibility !== "plugin_private" && entry.sessionVisibility !== "private") {
       entry.visibleInSessionList = true;

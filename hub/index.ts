@@ -28,6 +28,7 @@ import {
   isValidSessionPath,
 } from "../core/message-utils.ts";
 import { submitDesktopSessionMessage } from "../core/desktop-session-submit.ts";
+import { stripSessionReminderBlocks } from "../core/session-reminders.ts";
 import { extOfName, inferFileKind } from "../lib/file-metadata.ts";
 import { createModuleLogger } from "../lib/debug-log.ts";
 import { normalizeSessionTurnContext } from "../core/session-turn-context.ts";
@@ -557,8 +558,9 @@ export class Hub {
         if (m.role === "user") {
           const { text, images } = extractTextContent(m.content);
           const visibleImages = filterUnreferencedInlineImages(text, images);
-          if (text || visibleImages.length) {
-            messages.push({ role: "user", content: text, images: visibleImages.length ? visibleImages : undefined });
+          const visibleText = stripSessionReminderBlocks(text);
+          if (visibleText || visibleImages.length) {
+            messages.push({ role: "user", content: visibleText, images: visibleImages.length ? visibleImages : undefined });
           }
         } else if (m.role === "assistant") {
           const { text, thinking, toolUses } = extractTextContent(m.content, { stripThink: true });

@@ -22,6 +22,7 @@ import {
 import { repairOversizedSessionEntriesInFile } from "./session-jsonl-file.ts";
 import { isAssistantCommentaryTextBlock } from "../shared/text-signature.ts";
 import { TOOL_ARG_SUMMARY_KEYS, summarizeToolArgs } from "../shared/tool-arg-summary.ts";
+import { projectSessionMessageForDisplay } from "./session-reminders.ts";
 export { TOOL_ARG_SUMMARY_KEYS };
 
 const SESSION_TAIL_READ_THRESHOLD = 256 * 1024;
@@ -97,7 +98,7 @@ export function filterUnreferencedInlineImages(text, images) {
 }
 
 /**
- * 优先从 session JSONL 读取完整历史。
+ * 优先从 session JSONL 读取完整历史，并在返回边界移除模型专用的 Reminder 展示内容。
  * engine.messages 可能只是当前上下文窗口，切回页面时会导致旧消息缺失。
  * 读文件失败时再退回内存态，避免历史接口直接空白。
  */
@@ -115,7 +116,7 @@ export async function loadSessionHistoryMessages(engine, explicitPath) {
         const message = historyMessageFromEntry(entry);
         if (message) messages.push(message);
       }
-      if (messages.length > 0) return messages;
+      if (messages.length > 0) return messages.map(projectSessionMessageForDisplay);
     }
   } catch {
     // 旧文件或损坏文件继续走兼容读取，不让历史页直接空白。
@@ -136,7 +137,7 @@ export async function loadSessionHistoryMessages(engine, explicitPath) {
       }
     }
 
-    if (messages.length > 0) return messages;
+    if (messages.length > 0) return messages.map(projectSessionMessageForDisplay);
   } catch {
     // 文件读取失败
   }

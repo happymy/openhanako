@@ -6,6 +6,7 @@ import {
   noteTimeObservedForSession,
   REMINDER_BLOCK_END,
   REMINDER_BLOCK_PREFIX,
+  stripSessionReminderBlocks,
   TIME_STALENESS_MS,
 } from "../core/session-reminders.ts";
 
@@ -222,6 +223,31 @@ describe("collectReminderBlock", () => {
     expect(body.length).toBe(300);
     expect(Object.isFrozen(result)).toBe(true);
     expect(Object.isFrozen(result!.receipt)).toBe(true);
+  });
+});
+
+describe("stripSessionReminderBlocks", () => {
+  it("removes every internal reminder block while preserving user text", () => {
+    const visible = stripSessionReminderBlocks(
+      "[hana_reminder at 2026-07-05 14:05]\n"
+      + "- Current time: 2026-07-05 14:05\n"
+      + "[/hana_reminder]\n\n"
+      + "hello\n"
+      + "[hana_reminder at 2026-07-05 17:05]\n"
+      + "- Plugin secret loaded\n"
+      + "[/hana_reminder]\n"
+      + "world",
+    );
+
+    expect(visible).toBe("hello\nworld");
+    expect(visible).not.toContain("hana_reminder");
+    expect(visible).not.toContain("Plugin secret");
+  });
+
+  it("fails closed for an exact reminder header without a closing tag", () => {
+    expect(stripSessionReminderBlocks(
+      "visible\n[hana_reminder at 2026-07-05 14:05]\n- internal only",
+    )).toBe("visible");
   });
 });
 

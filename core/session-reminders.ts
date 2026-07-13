@@ -1,7 +1,7 @@
 /**
  * Renders internal reminder blocks for changes hidden by a session's frozen
- * prompt/tool snapshot. The block remains in model JSONL and is hidden only by
- * desktop/src/react/utils/message-parser.ts.
+ * prompt/tool snapshot. The block remains in model JSONL; server-owned display
+ * projections remove it, with the desktop parser retained as defense in depth.
  *
  * The renderer is pure with respect to session state. It returns an immutable
  * receipt, and callers apply that receipt only after the prompt/steer operation
@@ -19,7 +19,65 @@ export const REMINDER_BLOCK_PREFIX = "[hana_reminder";
 export const REMINDER_BLOCK_END = "[/hana_reminder]";
 export const TIME_STALENESS_MS = 3 * 60 * 60 * 1000;
 
+const REMINDER_HEADER_LINE_RE = /^\[hana_reminder at \d{4}-\d{2}-\d{2} \d{2}:\d{2}\]$/;
+
 const BLOCK_BODY_CHAR_LIMIT = 300;
+
+/**
+ * Removes model-only reminder blocks from user-visible session text.
+ *
+ * Historical JSONL stores reminder input inside the user message because the
+ * model must observe it. Display/export consumers must use this projection
+ * rather than exposing that internal input. An exact header without a closing
+ * line is removed through end-of-text so a truncated JSONL entry fails closed.
+ */
+export function stripSessionReminderBlocks(value: unknown): string {
+  if (typeof value !== "string" || !value) return typeof value === "string" ? value : "";
+
+  const visibleLines: string[] = [];
+  let insideReminder = false;
+  let dropSeparatorAfterReminder = false;
+
+  for (const line of value.split(/\r?\n/)) {
+    if (insideReminder) {
+      if (line === REMINDER_BLOCK_END) {
+        insideReminder = false;
+        dropSeparatorAfterReminder = true;
+      }
+      continue;
+    }
+    if (REMINDER_HEADER_LINE_RE.test(line)) {
+      insideReminder = true;
+      continue;
+    }
+    if (dropSeparatorAfterReminder && line === "") continue;
+    dropSeparatorAfterReminder = false;
+    visibleLines.push(line);
+  }
+
+  while (visibleLines.at(-1) === "") visibleLines.pop();
+  return visibleLines.join("\n");
+}
+
+/** Projects a persisted message for display without mutating the JSONL truth. */
+export function projectSessionMessageForDisplay(message: any): any {
+  if (!message || message.role !== "user") return message;
+  if (typeof message.content === "string") {
+    const content = stripSessionReminderBlocks(message.content);
+    return content === message.content ? message : { ...message, content };
+  }
+  if (!Array.isArray(message.content)) return message;
+
+  let changed = false;
+  const content = message.content.map((block: any) => {
+    if (block?.type !== "text" || typeof block.text !== "string") return block;
+    const text = stripSessionReminderBlocks(block.text);
+    if (text === block.text) return block;
+    changed = true;
+    return { ...block, text };
+  });
+  return changed ? { ...message, content } : message;
+}
 
 export interface ReminderSessionEntry {
   reminderEnvCursor: number;

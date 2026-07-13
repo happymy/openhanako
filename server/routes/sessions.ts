@@ -48,6 +48,7 @@ import {
   MESSAGE_ORIGIN_RECORD_TYPE,
   MESSAGE_PRESENTATION_RECORD_TYPE,
 } from "../../core/desktop-session-submit.ts";
+import { stripSessionReminderBlocks } from "../../core/session-reminders.ts";
 import { sessionFileRevision } from "../../core/session-list-projection-cache.ts";
 import {
   extractLatestTodos,
@@ -1000,9 +1001,12 @@ export function createSessionsRoute(engine, hub = null) {
         entries = cached.entries;
       } else {
         const sourceMessages = await loadSessionHistoryMessages(engine, queryPath);
-        const sanitize = isBridgeSessionPath(queryPath)
-          ? sanitizeBridgeVisibleText
-          : (value) => (typeof value === "string" ? value : "");
+        const sanitize = (value) => {
+          const withoutReminder = stripSessionReminderBlocks(value);
+          return isBridgeSessionPath(queryPath)
+            ? sanitizeBridgeVisibleText(withoutReminder)
+            : withoutReminder;
+        };
         entries = collectFindableHistoryEntries(sourceMessages, sanitize);
         if (revision) {
           findEntriesCache.set(queryPath, { revision, entries });
@@ -1246,9 +1250,12 @@ export function createSessionsRoute(engine, hub = null) {
           }
         }
       }
-      const sanitizeVisibleContent = isBridgeSessionPath(resolvedSessionPath)
-        ? sanitizeBridgeVisibleText
-        : (value) => (typeof value === "string" ? value : "");
+      const sanitizeVisibleContent = (value) => {
+        const withoutReminder = stripSessionReminderBlocks(value);
+        return isBridgeSessionPath(resolvedSessionPath)
+          ? sanitizeBridgeVisibleText(withoutReminder)
+          : withoutReminder;
+      };
 
       // 分页参数
       const beforeId = c.req.query("before") != null ? Number(c.req.query("before")) : null;

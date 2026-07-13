@@ -75,56 +75,6 @@ describe("SessionCoordinator", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("reloads extension runners for idle live sessions and skips active streams", async () => {
-    const idleReload = vi.fn(async () => {});
-    const streamingReload = vi.fn(async () => {});
-    const coordinator = Object.create(SessionCoordinator.prototype);
-    coordinator._sessions = new Map([
-      [path.join(tempDir, "idle.jsonl"), {
-        session: { reload: idleReload, isStreaming: false, isCompacting: false },
-        lastTouchedAt: 1,
-      }],
-      [path.join(tempDir, "streaming.jsonl"), {
-        session: { reload: streamingReload, isStreaming: true, isCompacting: false },
-      }],
-    ]);
-
-    const summary = await coordinator.reloadExtensionRunners("test");
-
-    expect(idleReload).toHaveBeenCalledTimes(1);
-    expect(streamingReload).not.toHaveBeenCalled();
-    expect(summary).toEqual({ reloaded: 1, skipped: 1, failed: 0 });
-    expect(coordinator._sessions.get(path.join(tempDir, "idle.jsonl")).lastTouchedAt).toBeGreaterThan(1);
-    expect(coordinator._sessions.get(path.join(tempDir, "idle.jsonl")).extensionRunnerDirty).toBe(false);
-    expect(coordinator._sessions.get(path.join(tempDir, "streaming.jsonl")).extensionRunnerDirty).toBe(true);
-    expect(coordinator._sessions.get(path.join(tempDir, "streaming.jsonl")).extensionRunnerDirtyReason).toBe("test");
-  });
-
-  it("reloads a dirty extension runner once the session is idle", async () => {
-    const reload = vi.fn(async () => {});
-    const coordinator = Object.create(SessionCoordinator.prototype);
-    const entry = {
-      session: { reload, isStreaming: false, isCompacting: false },
-      extensionRunnerDirty: true,
-      extensionRunnerDirtyReason: "plugin_extension_sync",
-      extensionRunnerDirtyAt: 1,
-      lastTouchedAt: 1,
-    };
-
-    const reloaded = await coordinator._reloadDirtyExtensionRunnerIfPossible(
-      entry,
-      path.join(tempDir, "dirty.jsonl"),
-      "prompt_session",
-    );
-
-    expect(reloaded).toBe(true);
-    expect(reload).toHaveBeenCalledTimes(1);
-    expect(entry.extensionRunnerDirty).toBe(false);
-    expect(entry.extensionRunnerDirtyReason).toBeNull();
-    expect(entry.extensionRunnerDirtyAt).toBeNull();
-    expect(entry.lastTouchedAt).toBeGreaterThan(1);
-  });
-
   it("builds the session prompt with path-scoped memory without mutating the agent session flag", async () => {
     const agent = {
       sessionDir: "/tmp/agent-sessions",

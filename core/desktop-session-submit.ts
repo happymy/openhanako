@@ -127,6 +127,7 @@ export function recordMessagePresentationEntry(
   sessionPath: string,
   promptText: string,
   displayMessage: any,
+  { forceDisplayText = false }: { forceDisplayText?: boolean } = {},
 ): void {
   if (!displayMessage || typeof displayMessage !== "object") return;
   const displayText = typeof displayMessage.text === "string" ? displayMessage.text : null;
@@ -134,7 +135,7 @@ export function recordMessagePresentationEntry(
     || Array.isArray(displayMessage.agentMentions)
     || !!displayMessage.agentReview
     || !!displayMessage.agentReviewRequest;
-  if (!hasStructuredPresentation && (displayText === null || displayText === promptText)) return;
+  if (!forceDisplayText && !hasStructuredPresentation && (displayText === null || displayText === promptText)) return;
   try {
     if (typeof session?.sessionManager?.appendCustomEntry !== "function") {
       throw new Error("appendCustomEntry unavailable");
@@ -214,6 +215,7 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
     let promptAudioAttachmentPaths = audioAttachmentPaths || [];
     let displayAttachments = displayMessage?.attachments;
     let promptText = text || "";
+    const displayComparisonPromptText = promptText;
     let promptSessionFileRefs = normalizeSessionFileRefs(sessionFileRefs, sessionPath, sessionId);
 
     if (displayAttachments?.length) {
@@ -267,9 +269,25 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
       );
     }
 
+    promptText = addAttachedImageMarkers(promptText, promptImageAttachmentPaths);
+    promptText = addAttachedVideoMarkers(promptText, promptVideoAttachmentPaths);
+    promptText = addAttachedAudioMarkers(promptText, promptAudioAttachmentPaths);
+    promptText = addSessionFileRefMarkers(promptText, promptSessionFileRefs);
+    const reminderBlock = renderPendingReminderBlock(engine, sessionPath);
+    if (reminderBlock) {
+      promptText = `${reminderBlock.block}\n\n${promptText}`;
+    }
+
     engine.emitEvent?.({ type: "session_status", isStreaming: true }, sessionPath);
-    // 来源元信息先于 prompt 持久化，让 origin 条目紧邻它注释的 user message。
-    recordMessagePresentationEntry(session, sessionPath, promptText, displayMessage);
+    // 展示投影与来源元信息先于 prompt 持久化，让 custom 条目注释其后的 user message。
+    // forceDisplayText 表示模型输入另含内部 Reminder；displayMessage 只保存用户可见正文。
+    recordMessagePresentationEntry(
+      session,
+      sessionPath,
+      displayComparisonPromptText,
+      displayMessage ?? { text: text ?? "" },
+      { forceDisplayText: !!reminderBlock },
+    );
     recordMessageOriginEntry(session, sessionPath, displayMessage);
     recordAgentReviewEntry(session, sessionPath, displayMessage);
     engine.emitEvent?.({
@@ -296,15 +314,6 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
       sessionPath,
       attachments: displayAttachments,
     });
-
-    promptText = addAttachedImageMarkers(promptText, promptImageAttachmentPaths);
-    promptText = addAttachedVideoMarkers(promptText, promptVideoAttachmentPaths);
-    promptText = addAttachedAudioMarkers(promptText, promptAudioAttachmentPaths);
-    promptText = addSessionFileRefMarkers(promptText, promptSessionFileRefs);
-    const reminderBlock = renderPendingReminderBlock(engine, sessionPath);
-    if (reminderBlock) {
-      promptText = `${reminderBlock.block}\n\n${promptText}`;
-    }
 
     let captured = "";
     const toolMedia = [];
@@ -413,6 +422,7 @@ export async function submitDesktopSessionInterjection(engine: any, opts: {
   let promptAudioAttachmentPaths = audioAttachmentPaths || [];
   let displayAttachments = displayMessage?.attachments;
   let promptText = text || "";
+  const displayComparisonPromptText = promptText;
   let promptSessionFileRefs = normalizeSessionFileRefs(sessionFileRefs, sessionPath, sessionId);
 
   if (displayAttachments?.length) {
@@ -501,9 +511,16 @@ export async function submitDesktopSessionInterjection(engine: any, opts: {
   const steered = engine.steerSession(sessionPath, promptText);
   if (!steered) throw new Error("session_busy");
   consumeRenderedReminderBlock(engine, sessionPath, reminderBlock);
-  // 来源元信息在 steer 成功后持久化，避免 steer 被拒绝时产生孤儿条目。
+  // 展示投影与来源元信息在 steer 成功后持久化，避免 steer 被拒绝时产生孤儿条目。
   // steerSession 同步返回，与 appendCustomEntry 之间无 await，紧邻性不受影响。
   // 契约：origin 条目注释其后第一条 user message（中间可能隔着在途 assistant 输出）。
+  recordMessagePresentationEntry(
+    session,
+    sessionPath,
+    displayComparisonPromptText,
+    displayMessage ?? { text: text ?? "" },
+    { forceDisplayText: !!reminderBlock },
+  );
   recordMessageOriginEntry(session, sessionPath, displayMessage);
   return { text: null, toolMedia: [], steered: true };
 }

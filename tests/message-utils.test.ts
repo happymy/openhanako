@@ -331,6 +331,27 @@ describe("loadSessionHistoryMessages", () => {
     ]);
   });
 
+  it("projects legacy reminder-prefixed JSONL user messages without internal reminder text", async () => {
+    const sessionPath = path.join(tmpDir, "legacy-reminder.jsonl");
+    fs.writeFileSync(sessionPath, [
+      JSON.stringify({
+        type: "message",
+        message: {
+          role: "user",
+          content: [{
+            type: "text",
+            text: "[hana_reminder at 2026-07-05 14:05]\n- Plugin demo loaded\n[/hana_reminder]\n\nhello",
+          }],
+        },
+      }),
+      "",
+    ].join("\n"), "utf-8");
+
+    const result = await loadSessionHistoryMessages({}, sessionPath);
+
+    expect(result[0].content).toEqual([{ type: "text", text: "hello" }]);
+  });
+
   it("只恢复当前 leaf 所在分支上的消息", async () => {
     const sessionDir = path.join(tmpDir, "sessions");
     const manager = SessionManager.create(tmpDir, sessionDir);
