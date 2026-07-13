@@ -1319,7 +1319,7 @@
       "updateAvailable": "New version available: v{version}",
       "updateDownload": "Download",
       "updateChecking": "Checking for updates…",
-      "updateDownloading": "{agentName} is preparing a new home {percent}%",
+      "updateDownloading": "{agentName} is preparing a new home",
       "updateReadyInstall": "v{version} ready to install",
       "updateInstalling": "Installing update. HanaAgent will restart automatically…",
       "updateInstallManualHint": "Install after clicking Restart to update; quitting will not install automatically",

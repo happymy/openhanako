@@ -173,18 +173,22 @@ function TrainUpdateArea({
   }
 
   if (phase === 'downloading') {
-    // 文字进度，不画填充条：填充条需要按百分比算内联宽度，会撞上
-    // settings/tabs 目录的内联样式 ratchet（`settings-primitives-contract.test.ts`
-    // 只允许往下迁移、不允许新增）。贴纸（SidebarNoticeSlot）同样是纯文字
-    // 进度，两处一致，不是各自将就。
     const percent = updatePercentOf(progress);
     return (
       <div className={updateStyles.root}>
-        <div className={updateStyles.row} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
-          <span className={updateStyles.message}>
-            {t('settings.about.updateDownloading', { agentName, percent })}
-          </span>
-          <span className={updateStyles.progressValue}>{t('settings.about.updateProgress', { percent })}</span>
+        <div className={updateStyles.column}>
+          <div className={updateStyles.downloadHeader}>
+            <span className={updateStyles.message}>
+              {t('settings.about.updateDownloading', { agentName })}
+            </span>
+            <span className={updateStyles.progressValue}>{t('settings.about.updateProgress', { percent })}</span>
+          </div>
+          <progress
+            className={updateStyles.nativeProgress}
+            aria-label={t('settings.about.updateDownloading', { agentName })}
+            max={100}
+            value={percent}
+          />
         </div>
       </div>
     );

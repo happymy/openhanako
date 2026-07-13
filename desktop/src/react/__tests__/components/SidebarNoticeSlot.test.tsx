@@ -81,6 +81,8 @@ describe('SidebarUpdateNoticeCard', () => {
 
     expect(screen.getByText('有新版本可用')).toBeInTheDocument();
     expect(screen.getByText('v0.400.0')).toBeInTheDocument();
+    const action = screen.getByRole('button', { name: /有新版本可用/ });
+    expect(action.firstElementChild?.querySelector('svg')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('有新版本可用'));
     expect(onApplyTrain).toHaveBeenCalledTimes(1);

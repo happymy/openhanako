@@ -235,12 +235,12 @@ export function SidebarUpdateNoticeCard({
     <div className={styles.slot}>
       <section className={styles.card} role="status" aria-live="polite">
         <button type="button" className={styles.cardButton} onClick={handleAction}>
+          <span className={styles.refreshIcon}>
+            {content.kind === 'fallback' ? <AlertIcon /> : <RefreshIcon />}
+          </span>
           <span className={styles.textBlock}>
             <span className={styles.title}>{content.title}</span>
             {content.subtitle && <span className={styles.subtitle}>{content.subtitle}</span>}
-          </span>
-          <span className={styles.refreshIcon}>
-            {content.kind === 'fallback' ? <AlertIcon /> : <RefreshIcon />}
           </span>
         </button>
         <button

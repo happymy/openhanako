@@ -1253,7 +1253,7 @@
       "updateAvailable": "新しいバージョンがあります：v{version}",
       "updateDownload": "ダウンロード",
       "updateChecking": "アップデートを確認中…",
-      "updateDownloading": "{agentName}が新しいお家を準備中 {percent}%",
+      "updateDownloading": "{agentName}が新しいお家を準備中",
       "updateReadyInstall": "v{version} インストール準備完了",
       "updateInstalling": "アップデートをインストール中です。HanaAgent は自動で再起動します…",
       "updateInstallManualHint": "「再起動して更新」を押すとインストールします。終了だけでは自動インストールしません",
