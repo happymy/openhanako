@@ -120,6 +120,304 @@ describe("desktop GPU startup policy", () => {
     });
   });
 
+  it("migrates an exact legacy GPU child crash marker into staged compatibility once", () => {
+    const hanakoHome = makeHome();
+    const crashAt = "2026-05-19T01:02:00.000Z";
+    writePrefs(hanakoHome, { locale: "zh-CN", hardware_acceleration: false });
+    writeGpuState(hanakoHome, {
+      version: 1,
+      safeMode: {
+        enabled: true,
+        reason: "gpu-child-process-gone",
+        updatedAt: crashAt,
+      },
+      lastGpuCrash: {
+        type: "GPU",
+        reason: "crashed",
+        exitCode: -2147483645,
+        platform: "win32",
+        at: crashAt,
+      },
+    });
+
+    const firstPolicy = resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "win32",
+      argv: ["Hanako.exe"],
+      env: {},
+      now: "2026-05-21T01:00:00.000Z",
+    });
+
+    expect(firstPolicy).toMatchObject({
+      mode: "gpu-sandbox-compat",
+      hardwareAccelerationEnabled: true,
+      reason: "legacy-auto-safe-mode-migration",
+    });
+    expect(readPrefs(hanakoHome)).toEqual({ locale: "zh-CN" });
+    const migratedState = readJson(path.join(hanakoHome, "user", "gpu-startup.json"));
+    expect(migratedState.safeMode).toBeUndefined();
+    expect(migratedState.lastGpuCrash).toMatchObject({ at: crashAt, exitCode: -2147483645 });
+    expect(migratedState.autoGpuMode).toMatchObject({
+      mode: "gpu-sandbox-compat",
+      reason: "legacy-auto-safe-mode-migration",
+      previousMode: "software-safe",
+    });
+    expect(migratedState.legacySafeModeMigration).toMatchObject({
+      sourceReason: "gpu-child-process-gone",
+      sourceUpdatedAt: crashAt,
+      status: "completed",
+    });
+
+    const secondPolicy = resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "win32",
+      argv: ["Hanako.exe"],
+      env: {},
+      now: "2026-05-22T01:00:00.000Z",
+    });
+
+    expect(secondPolicy.mode).toBe("gpu-sandbox-compat");
+    expect(readJson(path.join(hanakoHome, "user", "gpu-startup.json"))).toEqual(migratedState);
+  });
+
+  it("does not migrate a user hardware preference without an exact legacy GPU crash marker", () => {
+    const hanakoHome = makeHome();
+    writePrefs(hanakoHome, { hardware_acceleration: false });
+    writeGpuState(hanakoHome, {
+      version: 1,
+      safeMode: {
+        enabled: true,
+        reason: "gpu-child-process-gone",
+        updatedAt: "2026-05-19T01:02:00.000Z",
+      },
+      lastGpuCrash: {
+        type: "GPU",
+        reason: "crashed",
+        exitCode: -2147483645,
+        platform: "win32",
+        at: "2026-05-19T01:02:01.000Z",
+      },
+    });
+
+    const policy = resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "win32",
+      argv: ["Hanako.exe"],
+      env: {},
+    });
+
+    expect(policy).toMatchObject({ mode: "software-safe", reason: "preference" });
+    expect(readPrefs(hanakoHome).hardware_acceleration).toBe(false);
+    const state = readJson(path.join(hanakoHome, "user", "gpu-startup.json"));
+    expect(state.safeMode.reason).toBe("gpu-child-process-gone");
+    expect(state.autoGpuMode).toBeUndefined();
+    expect(state.legacySafeModeMigration).toBeUndefined();
+  });
+
+  it("does not migrate legacy GPU child crash state outside Windows", () => {
+    const hanakoHome = makeHome();
+    const crashAt = "2026-05-19T01:02:00.000Z";
+    writePrefs(hanakoHome, { hardware_acceleration: false });
+    writeGpuState(hanakoHome, {
+      version: 1,
+      safeMode: { enabled: true, reason: "gpu-child-process-gone", updatedAt: crashAt },
+      lastGpuCrash: { type: "GPU", reason: "crashed", platform: "win32", at: crashAt },
+    });
+
+    const policy = resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "darwin",
+      argv: ["Hanako"],
+      env: {},
+    });
+
+    expect(policy).toMatchObject({ mode: "software-safe", reason: "preference" });
+    expect(readPrefs(hanakoHome).hardware_acceleration).toBe(false);
+  });
+
+  it("keeps an explicit hardware preference authoritative when current auto GPU state exists", () => {
+    const hanakoHome = makeHome();
+    const crashAt = "2026-05-19T01:02:00.000Z";
+    writePrefs(hanakoHome, { hardware_acceleration: false });
+    writeGpuState(hanakoHome, {
+      version: 2,
+      safeMode: { enabled: true, reason: "gpu-child-process-gone", updatedAt: crashAt },
+      autoGpuMode: {
+        mode: "gpu-sandbox-compat",
+        reason: "gpu-child-process-gone",
+        previousMode: "hardware",
+        updatedAt: crashAt,
+      },
+      lastGpuCrash: { type: "GPU", reason: "crashed", platform: "win32", at: crashAt },
+    });
+
+    const policy = resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "win32",
+      argv: ["Hanako.exe"],
+      env: {},
+    });
+
+    expect(policy).toMatchObject({ mode: "software-safe", reason: "preference" });
+    expect(readPrefs(hanakoHome).hardware_acceleration).toBe(false);
+    expect(readJson(path.join(hanakoHome, "user", "gpu-startup.json")).legacySafeModeMigration).toBeUndefined();
+  });
+
+  it("resumes a prepared legacy GPU migration after a preference write interruption", () => {
+    const hanakoHome = makeHome();
+    const crashAt = "2026-05-19T01:02:00.000Z";
+    const prefsPath = path.join(hanakoHome, "user", "preferences.json");
+    const blockedTmpPath = `${prefsPath}.${process.pid}.tmp`;
+    writePrefs(hanakoHome, { hardware_acceleration: false });
+    writeGpuState(hanakoHome, {
+      version: 1,
+      safeMode: { enabled: true, reason: "gpu-child-process-gone", updatedAt: crashAt },
+      lastGpuCrash: { type: "GPU", reason: "crashed", platform: "win32", at: crashAt },
+    });
+    fs.mkdirSync(blockedTmpPath);
+
+    expect(() => resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "win32",
+      argv: ["Hanako.exe"],
+      env: {},
+      now: "2026-05-21T01:00:00.000Z",
+    })).toThrow(/legacy GPU safe-mode migration.*preferences/i);
+
+    const preparedState = readJson(path.join(hanakoHome, "user", "gpu-startup.json"));
+    expect(preparedState.safeMode).toMatchObject({
+      enabled: true,
+      reason: "gpu-child-process-gone",
+    });
+    expect(preparedState.autoGpuMode).toBeUndefined();
+    expect(preparedState.legacySafeModeMigration).toMatchObject({
+      sourceUpdatedAt: crashAt,
+      status: "prepared",
+    });
+    expect(readPrefs(hanakoHome).hardware_acceleration).toBe(false);
+
+    fs.rmSync(blockedTmpPath, { recursive: true, force: true });
+    const recoveredPolicy = resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "win32",
+      argv: ["Hanako.exe"],
+      env: {},
+      now: "2026-05-21T01:01:00.000Z",
+    });
+
+    expect(recoveredPolicy.mode).toBe("gpu-sandbox-compat");
+    expect(readPrefs(hanakoHome).hardware_acceleration).toBeUndefined();
+    const completedState = readJson(path.join(hanakoHome, "user", "gpu-startup.json"));
+    expect(completedState.safeMode).toBeUndefined();
+    expect(completedState.legacySafeModeMigration.status).toBe("completed");
+  });
+
+  it("finishes a prepared legacy GPU migration after the preference was already cleared", () => {
+    const hanakoHome = makeHome();
+    const crashAt = "2026-05-19T01:02:00.000Z";
+    writePrefs(hanakoHome, { locale: "zh-CN" });
+    writeGpuState(hanakoHome, {
+      version: 2,
+      safeMode: { enabled: true, reason: "gpu-child-process-gone", updatedAt: crashAt },
+      lastGpuCrash: { type: "GPU", reason: "crashed", platform: "win32", at: crashAt },
+      legacySafeModeMigration: {
+        version: 1,
+        sourceReason: "gpu-child-process-gone",
+        sourceUpdatedAt: crashAt,
+        status: "prepared",
+        preparedAt: "2026-05-21T01:00:00.000Z",
+      },
+    });
+
+    const policy = resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "win32",
+      argv: ["Hanako.exe"],
+      env: {},
+      now: "2026-05-21T01:01:00.000Z",
+    });
+
+    expect(policy.mode).toBe("gpu-sandbox-compat");
+    expect(readPrefs(hanakoHome)).toEqual({ locale: "zh-CN" });
+    const state = readJson(path.join(hanakoHome, "user", "gpu-startup.json"));
+    expect(state.safeMode).toBeUndefined();
+    expect(state.legacySafeModeMigration).toMatchObject({
+      status: "completed",
+      preparedAt: "2026-05-21T01:00:00.000Z",
+      completedAt: "2026-05-21T01:01:00.000Z",
+    });
+  });
+
+  it("fails explicitly when Windows GPU startup state is malformed", () => {
+    const hanakoHome = makeHome();
+    const statePath = path.join(hanakoHome, "user", "gpu-startup.json");
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(statePath, "{ invalid json\n", "utf-8");
+
+    expect(() => resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "win32",
+      argv: ["Hanako.exe"],
+      env: {},
+    })).toThrow(/failed to read GPU startup state.*gpu-startup\.json/i);
+  });
+
+  it("lets explicit safe mode bypass malformed Windows GPU persistence", () => {
+    const hanakoHome = makeHome();
+    const userDir = path.join(hanakoHome, "user");
+    fs.mkdirSync(userDir, { recursive: true });
+    fs.writeFileSync(path.join(userDir, "gpu-startup.json"), "{ invalid state\n", "utf-8");
+    fs.writeFileSync(path.join(userDir, "preferences.json"), "{ invalid prefs\n", "utf-8");
+
+    const policy = resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "win32",
+      argv: ["Hanako.exe", "--hana-gpu-safe-mode"],
+      env: {},
+    });
+
+    expect(policy).toMatchObject({
+      mode: "software-safe",
+      hardwareAccelerationEnabled: false,
+      reason: "explicit",
+    });
+  });
+
+  it("keeps the legacy preference fallback when no GPU migration evidence exists", () => {
+    const hanakoHome = makeHome();
+    const prefsPath = path.join(hanakoHome, "user", "preferences.json");
+    fs.mkdirSync(path.dirname(prefsPath), { recursive: true });
+    fs.writeFileSync(prefsPath, "{ invalid prefs\n", "utf-8");
+
+    const policy = resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "win32",
+      argv: ["Hanako.exe"],
+      env: {},
+    });
+
+    expect(policy).toMatchObject({ mode: "hardware", reason: "default" });
+  });
+
+  it("fails explicitly on malformed preferences for an exact legacy GPU migration", () => {
+    const hanakoHome = makeHome();
+    const crashAt = "2026-05-19T01:02:00.000Z";
+    const prefsPath = path.join(hanakoHome, "user", "preferences.json");
+    writeGpuState(hanakoHome, {
+      version: 1,
+      safeMode: { enabled: true, reason: "gpu-child-process-gone", updatedAt: crashAt },
+      lastGpuCrash: { type: "GPU", reason: "crashed", platform: "win32", at: crashAt },
+    });
+    fs.writeFileSync(prefsPath, "{ invalid prefs\n", "utf-8");
+
+    expect(() => resolveGpuStartupPolicy({
+      hanakoHome,
+      platform: "win32",
+      argv: ["Hanako.exe"],
+      env: {},
+    })).toThrow(/failed to read GPU startup preferences.*preferences\.json/i);
+  });
+
   it("turns on GPU sandbox compatibility on Windows after an incomplete early startup", () => {
     const hanakoHome = makeHome();
     markGpuStartupPending({
