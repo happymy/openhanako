@@ -8,6 +8,16 @@ import vm from "vm";
 const root = process.cwd();
 
 describe("server startup diagnostics contract", () => {
+  it("enables Windows system CA trust in the independent server child environment", () => {
+    const mainSource = fs.readFileSync(path.join(root, "desktop", "main.cjs"), "utf-8");
+    const enableIndex = mainSource.indexOf("serverEnv = withWindowsSystemCaEnv(serverEnv);");
+    const spawnIndex = mainSource.indexOf("serverProcess = spawn(launcherBin, launcherArgs", enableIndex);
+
+    expect(mainSource).toContain('require("./src/shared/windows-system-ca.cjs")');
+    expect(enableIndex).toBeGreaterThan(-1);
+    expect(spawnIndex).toBeGreaterThan(enableIndex);
+  });
+
   it("records child process identity when server startup times out without output", () => {
     const mainSource = fs.readFileSync(path.join(root, "desktop", "main.cjs"), "utf-8");
 

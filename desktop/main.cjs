@@ -85,6 +85,9 @@ const {
   buildWin32ServerEnv,
 } = require("./src/shared/server-process-env.cjs");
 const {
+  withWindowsSystemCaEnv,
+} = require("./src/shared/windows-system-ca.cjs");
+const {
   buildWindowsServerGuardianArgs,
   isWindowsServerGuardianShutdownConfirmed,
   requestWindowsServerGuardianStop,
@@ -1659,6 +1662,7 @@ async function _spawnServerOnce(serverInfoPath, artifactBootContext) {
     serverEnv.HANA_RENDERER_DIST = _distRenderer;
   }
   serverEnv = await serverEnvironmentForNetworkProxy(serverEnv);
+  serverEnv = withWindowsSystemCaEnv(serverEnv);
   // Windows: 注入 bundled Git runtime（MinGit）路径，并从注册表补齐当前系统 / 用户 PATH。
   if (process.platform === "win32") {
     // MinGit 结构：cmd/git.exe, usr/bin/*（含 sh.exe）, mingw64/bin/*；

@@ -12,6 +12,7 @@ describe("desktop launch bootstrap contract", () => {
     expect(packageJson.build?.extraMetadata?.main).toBe("desktop/bootstrap.cjs");
     expect(packageJson.build?.files).toContain("desktop/bootstrap.cjs");
     expect(packageJson.build?.files).toContain("desktop/src/shared/launch-integrity.cjs");
+    expect(packageJson.build?.files).toContain("desktop/src/shared/windows-system-ca.cjs");
     expect(packageJson.build?.files).toContain("shared/hana-runtime-paths.cjs");
     expect(packageJson.build?.files).toContain("desktop/main.bundle.cjs");
   });
@@ -35,5 +36,16 @@ describe("desktop launch bootstrap contract", () => {
     expect(markerIndex).toBeLessThan(loadIndex);
     expect(source).toContain("main.bundle.cjs");
     expect(source).toContain("main.cjs");
+  });
+
+  it("enables Windows system CAs before loading Electron or the full desktop main", () => {
+    const source = fs.readFileSync(bootstrapPath, "utf-8");
+    const enableIndex = source.indexOf("enableWindowsSystemCaForCurrentProcess();");
+    const electronIndex = source.indexOf('require("electron")');
+    const mainIndex = source.indexOf("loadDesktopMain();");
+
+    expect(enableIndex).toBeGreaterThan(-1);
+    expect(electronIndex).toBeGreaterThan(enableIndex);
+    expect(mainIndex).toBeGreaterThan(enableIndex);
   });
 });
