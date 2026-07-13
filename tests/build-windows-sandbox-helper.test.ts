@@ -1,13 +1,16 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildWindowsSandboxBatchScript,
   buildWindowsSandboxCompileCommand,
   shouldBuildWindowsSandboxHelper,
   windowsSandboxHelperOutputDir,
 } from "../scripts/build-windows-sandbox-helper.mjs";
+import {
+  ensureWindowsSandboxHelper,
+} from "../scripts/ensure-windows-sandbox-helper.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -205,6 +208,88 @@ describe("Windows sandbox helper build script", () => {
     expect(source).not.toContain("taskkill");
     expect(source).not.toContain("CreateToolhelp32Snapshot");
     expect(source).not.toContain("Process32First");
+  });
+
+  it("supervises the desktop server tree with a parent HANDLE and kill-on-close Job", () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, "../desktop/native/HanaWindowsSandboxHelper/main.cpp"),
+      "utf8"
+    );
+    const guardian = source.match(
+      /static int superviseServer\(const Options& opts\) \{[\s\S]*?\n\}/
+    )?.[0] || "";
+
+    expect(source).toContain("--supervise-server");
+    expect(source).toContain("--parent-pid");
+    expect(guardian).toContain("OpenProcess(SYNCHRONIZE");
+    expect(guardian).toContain("CreateProcessW(");
+    expect(guardian).toContain("CREATE_SUSPENDED");
+    expect(guardian).toContain("AssignProcessToJobObject");
+    expect(guardian).toContain("WaitForMultipleObjects");
+    expect(guardian).toContain("GetStdHandle(STD_INPUT_HANDLE)");
+    expect(source).toContain("ReadFile(");
+    expect(source).toContain("SetEvent(");
+    expect(source).toContain("CancelSynchronousIo(");
+    expect(guardian).toContain("stopGuardianControlWatch(controlWatch)");
+    expect(guardian).toContain("controlWatch->event");
+    expect(guardian).not.toMatch(/HANDLE watched\[\][^;]*controlInput/);
+    expect(source).toContain("JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE");
+    expect(source).toContain("guardian-v1");
+    expect(source).not.toContain("taskkill");
+  });
+
+  it("keeps Windows dev startup fast when the native helper is current", () => {
+    const rootDir = "C:\\repo";
+    const target = path.join(rootDir, "dist-sandbox", "win-x64", "hana-win-sandbox.exe");
+    const build = vi.fn();
+    const result = ensureWindowsSandboxHelper({
+      rootDir,
+      platform: "win32",
+      arch: "x64",
+      existsSync: () => true,
+      statSync: (candidate: string) => ({ mtimeMs: candidate === target ? 20 : 10 }),
+      build,
+    });
+
+    expect(result).toEqual({ skipped: false, built: false, target });
+    expect(build).not.toHaveBeenCalled();
+  });
+
+  it("builds the Windows dev helper when missing or stale, and is a no-op elsewhere", () => {
+    const build = vi.fn(() => ({ skipped: false, target: "built-helper.exe" }));
+    expect(ensureWindowsSandboxHelper({ platform: "darwin", build }))
+      .toEqual({ skipped: true, built: false });
+    expect(build).not.toHaveBeenCalled();
+
+    const result = ensureWindowsSandboxHelper({
+      rootDir: "C:\\repo",
+      platform: "win32",
+      arch: "x64",
+      existsSync: (candidate: string) => !candidate.endsWith("hana-win-sandbox.exe"),
+      statSync: () => ({ mtimeMs: 10 }),
+      build,
+    });
+    expect(result).toEqual({ skipped: false, built: true, target: "built-helper.exe" });
+    expect(build).toHaveBeenCalledOnce();
+  });
+
+  it("preflights the guardian for every Electron dev entry point", () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+    const preflight = "node scripts/ensure-windows-sandbox-helper.mjs && ";
+
+    expect(packageJson.scripts.start).toContain(preflight);
+    expect(packageJson.scripts["start:dev"]).toContain(preflight);
+    expect(packageJson.scripts["start:vite"]).toContain(preflight);
+  });
+
+  it("packages the same native helper for sandbox commands and server supervision", () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+    const resources = packageJson.build?.win?.extraResources || packageJson.build?.extraResources || [];
+
+    expect(resources).toContainEqual(expect.objectContaining({
+      from: "dist-sandbox/win-${arch}/",
+      to: "sandbox/windows/",
+    }));
   });
 
   it("canonicalizes existing paths through the Win32 final path API before comparing sandbox roots", () => {

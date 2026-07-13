@@ -85,6 +85,13 @@ const {
   buildWin32ServerEnv,
 } = require("./src/shared/server-process-env.cjs");
 const {
+  buildWindowsServerGuardianArgs,
+  isWindowsServerGuardianShutdownConfirmed,
+  requestWindowsServerGuardianStop,
+  resolveBeforeQuitServerAction,
+  resolveWindowsServerGuardian,
+} = require("./src/shared/windows-server-guardian.cjs");
+const {
   createDesktopLaunchDiagnostics,
 } = require("./src/shared/desktop-launch-diagnostics.cjs");
 const {
@@ -536,6 +543,7 @@ function isAllowedBrowserUrl(url) {
 let _browserViewerTheme = themeRegistry.DEFAULT_THEME; // 当前主题（用于 backgroundColor）
 const TITLEBAR_HEIGHT = 44;        // 浏览器窗口标题栏高度（px）
 let serverProcess = null;
+const _intentionalServerStops = new WeakSet();
 let serverPort = null;
 let serverToken = null;
 let isQuitting = false;  // 区分关窗口（hide）和真正退出（quit）
@@ -545,6 +553,7 @@ let reusedServerOwned = false; // 仅 desktop-owned 的复用 server 才由 desk
 let isExitingServer = false; // 只有托盘"退出"时才 kill server，其余路径仅关前端
 let _isUpdating = false;  // auto-updater 正在执行 quitAndInstall，before-quit 跳过 server 清理
 let _isApplyingTrainUpdate = false; // 列车更新"立即应用"进行中：优雅停掉再重新 spawn server 期间，monitorServer 的崩溃自动重启要跳过这段窗口，同 _isUpdating/isExitingServer 的既有模式
+let _beforeQuitServerShutdownState = "idle";
 let _autoUpdaterInitialized = false;
 let _otaSchedulerStarted = false; // 进程级只调度一次；窗口重建（activate 等）不重复起定时器
 let forceQuitApp = false;   // 启动失败等场景需要真正退出，绕过"隐藏保持运行"拦截
@@ -607,16 +616,14 @@ function mt(dotPath, vars, fallback) {
 /** 重置 i18n 缓存（locale 变更时调用） */
 function resetMainI18n() { _mainI18nData = null; }
 
-/** 跨平台杀进程：Windows 用 taskkill，POSIX 用 signal */
-function killPid(pid, force = false) {
-  if (process.platform === "win32") {
-    try {
-      require("child_process").execFileSync("taskkill",
-        force ? ["/F", "/T", "/PID", String(pid)] : ["/PID", String(pid)],
-        { stdio: "ignore", windowsHide: true });
-    } catch {}
-  } else {
-    try { process.kill(pid, force ? "SIGKILL" : "SIGTERM"); } catch {}
+/** POSIX server lifecycle signal. Windows termination belongs to the native Job guardian. */
+function signalPidOnPosix(pid, force = false) {
+  if (process.platform === "win32") return false;
+  try {
+    process.kill(pid, force ? "SIGKILL" : "SIGTERM");
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -852,17 +859,31 @@ async function waitForProcessExit(proc, pid, timeoutMs) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (exitObserved || hasChildExitObserved(proc)) return true;
-      if (pid && !isPidAliveForDiagnostics(pid)) return true;
+      if (!proc && pid && !isPidAliveForDiagnostics(pid)) return true;
       const waitMs = Math.min(SERVER_SHUTDOWN_POLL_MS, Math.max(0, deadline - Date.now()));
       if (waitMs <= 0) break;
       await new Promise(r => setTimeout(r, waitMs));
     }
     if (exitObserved || hasChildExitObserved(proc)) return true;
-    return !!pid && !isPidAliveForDiagnostics(pid);
+    return !proc && !!pid && !isPidAliveForDiagnostics(pid);
   } finally {
     if (proc && onExit && typeof proc.removeListener === "function") {
       proc.removeListener("exit", onExit);
     }
+  }
+}
+
+async function requestServerShutdown(port, token, timeoutMs = 5000) {
+  if (!Number.isInteger(Number(port)) || !token) return false;
+  try {
+    const response = await fetch(`http://127.0.0.1:${Number(port)}/api/shutdown`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return response.ok;
+  } catch {
+    return false;
   }
 }
 
@@ -1135,11 +1156,18 @@ async function startServer() {
 
       let knownDead = false;
       if (verification.terminate) {
-        console.log(`[desktop] 可信旧 server 不可复用（${verification.reason}），正在终止 PID ${existingInfo.pid}`);
-        killPid(existingInfo.pid);
-        knownDead = await waitForProcessExit(null, existingInfo.pid, STALE_SERVER_EXIT_GRACE_MS);
-        if (!knownDead) {
-          killPid(existingInfo.pid, true);
+        console.log(`[desktop] 可信旧 server 不可复用（${verification.reason}），正在请求认证关闭 PID ${existingInfo.pid}`);
+        await requestServerShutdown(existingInfo.port, existingInfo.token);
+        const authenticatedShutdownGraceMs = process.platform === "win32" && isDesktopOwnedServerInfo(existingInfo)
+          ? SERVER_SHUTDOWN_GRACE_MS
+          : STALE_SERVER_EXIT_GRACE_MS;
+        knownDead = await waitForProcessExit(null, existingInfo.pid, authenticatedShutdownGraceMs);
+        if (!knownDead && process.platform !== "win32") {
+          signalPidOnPosix(existingInfo.pid);
+          knownDead = await waitForProcessExit(null, existingInfo.pid, STALE_SERVER_EXIT_GRACE_MS);
+        }
+        if (!knownDead && process.platform !== "win32") {
+          signalPidOnPosix(existingInfo.pid, true);
           knownDead = await waitForProcessExit(null, existingInfo.pid, SERVER_FORCE_KILL_WAIT_MS);
         }
       } else {
@@ -1631,7 +1659,6 @@ async function _spawnServerOnce(serverInfoPath, artifactBootContext) {
     serverEnv.HANA_RENDERER_DIST = _distRenderer;
   }
   serverEnv = await serverEnvironmentForNetworkProxy(serverEnv);
-
   // Windows: 注入 bundled Git runtime（MinGit）路径，并从注册表补齐当前系统 / 用户 PATH。
   if (process.platform === "win32") {
     // MinGit 结构：cmd/git.exe, usr/bin/*（含 sh.exe）, mingw64/bin/*；
@@ -1649,7 +1676,7 @@ async function _spawnServerOnce(serverInfoPath, artifactBootContext) {
   }
 
   // 选择 server 启动方式
-  let serverBin, serverArgs;
+  let serverBin, serverArgs, serverCwd;
   if (artifactBootContext) {
     // 打包模式：从 HANA_HOME/artifacts 的版本化目录启动（首启已由
     // resolvePackagedArtifactBoot 解压 seed；目录布局与旧 Resources/server 一致）
@@ -1660,6 +1687,7 @@ async function _spawnServerOnce(serverInfoPath, artifactBootContext) {
     const bin = process.platform === "win32" ? bundledServer + ".exe" : bundledServer;
     const entry = path.join(versionedServerRoot, "bundle", "index.js");
     serverBin = bin;
+    serverCwd = versionedServerRoot;
     serverArgs = process.platform === "win32"
       ? [path.join(versionedServerRoot, "bootstrap.js")]
       : [];
@@ -1674,6 +1702,7 @@ async function _spawnServerOnce(serverInfoPath, artifactBootContext) {
     // native addon 被 Electron 自带 Node 误加载。
     const devRoot = path.join(__dirname, "..");
     serverBin = process.env.HANA_DEV_NODE_BIN || process.env.npm_node_execpath || "node";
+    serverCwd = devRoot;
     serverArgs = [path.join(devRoot, "server", "bootstrap.ts")];
     serverEnv.HANA_ROOT = devRoot;
     serverEnv.HANA_SERVER_ENTRY = path.join(devRoot, "server", "index.ts");
@@ -1691,14 +1720,43 @@ async function _spawnServerOnce(serverInfoPath, artifactBootContext) {
     await artifactBoot.writeBootSentinel(hanakoHome, artifactBootContext.channel, artifactBootContext.train);
   }
 
+  let launcherBin = serverBin;
+  let launcherArgs = serverArgs;
+  let launcherDetached = true;
+  if (process.platform === "win32") {
+    const guardianBin = resolveWindowsServerGuardian({
+      resourcesPath: process.resourcesPath,
+      appRoot: path.join(__dirname, ".."),
+    });
+    if (!guardianBin) {
+      throw new Error(
+        "WINDOWS_SERVER_GUARDIAN_MISSING: hana-win-sandbox.exe is required to supervise the server process tree. Rebuild or reinstall HanaAgent."
+      );
+    }
+    launcherBin = guardianBin;
+    launcherArgs = buildWindowsServerGuardianArgs({
+      parentPid: process.pid,
+      cwd: serverCwd,
+      executable: serverBin,
+      args: serverArgs,
+    });
+    launcherDetached = false;
+  }
+
+  if (isQuitting) {
+    throw new Error("SERVER_START_ABORTED: application is quitting");
+  }
+
   _lastServerSpawn = {
     command: serverBin,
     args: serverArgs,
+    launcher: launcherBin,
+    launcherArgs,
     pid: null,
     startedAt: new Date().toISOString(),
   };
-  serverProcess = spawn(serverBin, serverArgs, {
-    detached: true,
+  serverProcess = spawn(launcherBin, launcherArgs, {
+    detached: launcherDetached,
     windowsHide: true,
     env: serverEnv,
     stdio: ["pipe", "pipe", "pipe"],
@@ -1740,6 +1798,9 @@ async function _spawnServerOnce(serverInfoPath, artifactBootContext) {
     process: serverProcess,
     getLastProgressAtMs: () => _lastServerProgressAtMs,
   });
+  if (_lastServerSpawn?.pid === spawnedProcess.pid) {
+    _lastServerSpawn.serverPid = info.pid || null;
+  }
   serverPort = info.port;
   serverToken = info.token;
   serverProcess.unref(); // 脱离 Electron 事件循环，允许 Electron 独立退出
@@ -1760,13 +1821,14 @@ async function _spawnServerOnce(serverInfoPath, artifactBootContext) {
 let _serverRestartAttempts = 0;
 function monitorServer() {
   if (!serverProcess) return;
-  serverProcess.on("exit", async (code, signal) => {
+  const monitoredProcess = serverProcess;
+  monitoredProcess.on("exit", async (code, signal) => {
     // 任何"主动退出"路径都跳过：用户 quit、托盘 quit、auto-updater 安装、
     // shutdownServer 主动 kill、列车更新"立即应用"正在优雅重启 server。
     // 否则这里会和 quitAndInstall / shutdownServer / applyTrainUpdateNow
     // 抢时间去 spawn 新 server，造成 serverProcess 被并发改写成 null，
     // 后续 serverProcess.unref() 报 "Cannot read properties of null"。
-    if (isQuitting || _isUpdating || isExitingServer || _isApplyingTrainUpdate) return;
+    if (_intentionalServerStops.has(monitoredProcess) || isQuitting || _isUpdating || isExitingServer || _isApplyingTrainUpdate) return;
     const reason = signal ? `信号 ${signal}` : `退出码 ${code}`;
     console.error(`[desktop] Server 意外退出 (${reason})`);
 
@@ -1903,9 +1965,11 @@ function buildServerCrashDiagnostics() {
   if (_lastServerSpawn) {
     const childAlive = isPidAliveForDiagnostics(_lastServerSpawn.pid);
     const exitObserved = _lastServerSpawn.exitCode !== undefined || _lastServerSpawn.exitSignal !== undefined;
-    items.push(`Server PID: ${_lastServerSpawn.pid || "unknown"}`);
+    items.push(`Server PID: ${_lastServerSpawn.serverPid || _lastServerSpawn.pid || "unknown"}`);
     items.push(`Server command: ${_lastServerSpawn.command || "unknown"}`);
     items.push(`Server args: ${JSON.stringify(_lastServerSpawn.args || [])}`);
+    items.push(`Server launcher: ${_lastServerSpawn.launcher || _lastServerSpawn.command || "unknown"}`);
+    items.push(`Server launcher PID: ${_lastServerSpawn.pid || "unknown"}`);
     items.push(`Server started at: ${_lastServerSpawn.startedAt || "unknown"}`);
     items.push(`Server child alive: ${childAlive}`);
     items.push(`Server exit: ${exitObserved ? `code=${_lastServerSpawn.exitCode ?? "null"} signal=${_lastServerSpawn.exitSignal ?? "null"}` : "not observed"}`);
@@ -4666,9 +4730,13 @@ async function applyTrainUpdateNow(senderWebContents) {
     },
     shutdownServer: async () => {
       _isApplyingTrainUpdate = true;
-      await shutdownServer();
+      const shutdownResult = await shutdownServer();
+      trainUpdateApply.assertServerShutdownConfirmed(shutdownResult);
     },
     startServer: async () => {
+      if (isQuitting) {
+        throw new Error("train-update-apply: server restart aborted because the application is quitting");
+      }
       await startServer();
       _serverRestartAttempts = 0;
       monitorServer(); // 新 serverProcess 需要重新挂一次崩溃监控（旧监听器绑定的是已退出的旧进程实例）
@@ -5784,34 +5852,48 @@ app.on("will-quit", () => {
 
 async function shutdownServer() {
   let removeServerInfo = true;
+  let shutdownReason = null;
+  if (serverProcess && hasChildExitObserved(serverProcess)) {
+    if (process.platform === "win32" && !isWindowsServerGuardianShutdownConfirmed(serverProcess, true)) {
+      removeServerInfo = false;
+      shutdownReason = "Windows server guardian reported Job convergence failure";
+    } else {
+      serverProcess = null;
+    }
+  }
   if (serverProcess && !hasChildExitObserved(serverProcess)) {
     const proc = serverProcess;
     const pid = proc.pid;
+    _intentionalServerStops.add(proc);
     console.log("[desktop] shutdownServer: 正在关闭 owned server...");
     if (process.platform === "win32") {
-      try {
-        await fetch(`http://127.0.0.1:${serverPort}/api/shutdown`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${serverToken}` },
-          signal: AbortSignal.timeout(5000),
-        });
-      } catch {}
+      await requestServerShutdown(serverPort, serverToken);
     } else {
       try { proc.kill("SIGTERM"); } catch {}
     }
 
     let exited = await waitForProcessExit(proc, pid, SERVER_SHUTDOWN_GRACE_MS);
     if (!exited && pid) {
-      console.warn(`[desktop] shutdownServer: server PID ${pid} 未在 ${SERVER_SHUTDOWN_GRACE_MS}ms 内退出，强制终止`);
-      killPid(pid, true);
-      exited = await waitForProcessExit(proc, pid, SERVER_FORCE_KILL_WAIT_MS);
-      if (!exited) {
-        console.warn(`[desktop] shutdownServer: server PID ${pid} 强制终止后仍未确认退出`);
-        removeServerInfo = false;
+      if (process.platform === "win32") {
+        console.warn(`[desktop] shutdownServer: guardian PID ${pid} 未在 ${SERVER_SHUTDOWN_GRACE_MS}ms 内退出，请求 Job 收敛`);
+        requestWindowsServerGuardianStop(proc);
+      } else {
+        console.warn(`[desktop] shutdownServer: server PID ${pid} 未在 ${SERVER_SHUTDOWN_GRACE_MS}ms 内退出，强制终止`);
+        signalPidOnPosix(pid, true);
       }
+      exited = await waitForProcessExit(proc, pid, SERVER_FORCE_KILL_WAIT_MS);
+    }
+    if (process.platform === "win32" && exited && !isWindowsServerGuardianShutdownConfirmed(proc, exited)) {
+      exited = false;
+      shutdownReason = "Windows server guardian reported Job convergence failure";
+    }
+    if (!exited) {
+      console.warn(`[desktop] shutdownServer: launcher PID ${pid || "unknown"} 终止后仍未确认退出`);
+      removeServerInfo = false;
+      shutdownReason ||= "owned server launcher exit was not confirmed";
     }
 
-    if (serverProcess === proc) serverProcess = null;
+    if (exited && serverProcess === proc) serverProcess = null;
   } else if (reusedServerPid) {
     const pid = reusedServerPid;
     if (!reusedServerOwned) {
@@ -5819,30 +5901,26 @@ async function shutdownServer() {
       reusedServerPid = null;
       reusedServerOwned = false;
       removeServerInfo = false;
-      return;
+      return { confirmed: false, reason: "external server is still running" };
     }
 
     console.log("[desktop] shutdownServer: 正在关闭 reused server...");
-    try {
-      await fetch(`http://127.0.0.1:${serverPort}/api/shutdown`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${serverToken}` },
-        signal: AbortSignal.timeout(2000),
-      });
-    } catch {
-      killPid(pid);
+    const shutdownRequested = await requestServerShutdown(serverPort, serverToken, 2000);
+    if (!shutdownRequested && process.platform !== "win32") {
+      signalPidOnPosix(pid);
     }
 
     let exited = await waitForProcessExit(null, pid, SERVER_SHUTDOWN_GRACE_MS);
-    if (!exited) {
-      killPid(pid, true);
+    if (!exited && process.platform !== "win32") {
+      signalPidOnPosix(pid, true);
       exited = await waitForProcessExit(null, pid, SERVER_FORCE_KILL_WAIT_MS);
-      if (!exited) {
-        console.warn(`[desktop] shutdownServer: reused server PID ${pid} 强制终止后仍未确认退出`);
-        removeServerInfo = false;
-      }
     }
-    if (reusedServerPid === pid) {
+    if (!exited) {
+      console.warn(`[desktop] shutdownServer: reused server PID ${pid} 未确认退出；不按裸 PID 终止`);
+      removeServerInfo = false;
+      shutdownReason = "reused server exit was not confirmed";
+    }
+    if (exited && reusedServerPid === pid) {
       reusedServerPid = null;
       reusedServerOwned = false;
     }
@@ -5853,6 +5931,9 @@ async function shutdownServer() {
   } else {
     console.warn("[desktop] shutdownServer: 保留 server-info.json，供下次启动识别残留 server");
   }
+  return removeServerInfo
+    ? { confirmed: true }
+    : { confirmed: false, reason: shutdownReason || "server-info retained" };
 }
 
 app.on("before-quit", async (event) => {
@@ -5879,10 +5960,26 @@ app.on("before-quit", async (event) => {
   _currentBrowserSession = null;
   _currentBrowserTabId = null;
 
-  // server 清理
-  if ((serverProcess && !hasChildExitObserved(serverProcess)) || (reusedServerPid && reusedServerOwned)) {
-    event.preventDefault();
+  const hasActiveOwnedServer = (serverProcess && !hasChildExitObserved(serverProcess))
+    || (reusedServerPid && reusedServerOwned);
+  const quitAction = resolveBeforeQuitServerAction({
+    state: _beforeQuitServerShutdownState,
+    hasActiveOwnedServer: !!hasActiveOwnedServer,
+  });
+  if (quitAction === "allow") return;
+
+  event.preventDefault();
+  if (quitAction === "wait") return;
+
+  _beforeQuitServerShutdownState = "running";
+  try {
     await shutdownServer();
+  } catch (err) {
+    console.error(`[desktop] before-quit server shutdown failed: ${err?.message || String(err)}`);
+  } finally {
+    // The second app.quit() is deliberately allowed through even if the guardian
+    // did not confirm convergence; parent-exit + KILL_ON_JOB_CLOSE is the final bound.
+    _beforeQuitServerShutdownState = "complete";
     app.quit();
   }
 });

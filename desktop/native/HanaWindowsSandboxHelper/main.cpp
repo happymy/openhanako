@@ -37,6 +37,9 @@ struct Options {
     std::wstring cwd;
     DWORD timeoutMs = 0;
     bool timeoutSpecified = false;
+    bool superviseServer = false;
+    DWORD parentPid = 0;
+    bool parentPidSpecified = false;
     std::vector<WritableRoot> writableRoots;
     std::vector<std::wstring> denyWritePaths;
     std::vector<std::wstring> hanaWriteAclCleanupPaths;
@@ -78,6 +81,13 @@ struct TokenDefaultDaclSnapshot {
 
 struct StartupAttributeList {
     LPPROC_THREAD_ATTRIBUTE_LIST list = nullptr;
+};
+
+struct GuardianControlWatch {
+    HANDLE input = nullptr;
+    HANDLE event = nullptr;
+    HANDLE thread = nullptr;
+    DWORD readError = ERROR_SUCCESS;
 };
 
 static const DWORD WRITE_ALLOW_MASK =
@@ -161,6 +171,21 @@ static DWORD parseTimeoutMs(const std::wstring& value) {
         }
         parsed = parsed * 10 + digit;
     }
+    return static_cast<DWORD>(parsed);
+}
+
+static DWORD parsePositiveDword(const std::wstring& value, const char* argumentName) {
+    if (value.empty()) throw std::runtime_error(std::string("empty ") + argumentName);
+    unsigned long long parsed = 0;
+    for (wchar_t ch : value) {
+        if (ch < L'0' || ch > L'9') throw std::runtime_error(std::string("invalid ") + argumentName);
+        const unsigned long long digit = static_cast<unsigned long long>(ch - L'0');
+        if (parsed > (static_cast<unsigned long long>(MAXDWORD) - digit) / 10) {
+            throw std::runtime_error(std::string(argumentName) + " is out of range");
+        }
+        parsed = parsed * 10 + digit;
+    }
+    if (parsed == 0) throw std::runtime_error(std::string(argumentName) + " must be positive");
     return static_cast<DWORD>(parsed);
 }
 
@@ -304,6 +329,17 @@ static Options parseArgs(int argc, wchar_t** argv) {
             opts.cwd = argv[++i];
             continue;
         }
+        if (arg == L"--supervise-server") {
+            if (opts.superviseServer) throw std::runtime_error("duplicate --supervise-server");
+            opts.superviseServer = true;
+            continue;
+        }
+        if (arg == L"--parent-pid" && i + 1 < argc) {
+            if (opts.parentPidSpecified) throw std::runtime_error("duplicate --parent-pid");
+            opts.parentPid = parsePositiveDword(argv[++i], "--parent-pid");
+            opts.parentPidSpecified = true;
+            continue;
+        }
         if (arg == L"--timeout-ms" && i + 1 < argc) {
             if (opts.timeoutSpecified) throw std::runtime_error("duplicate --timeout-ms");
             opts.timeoutMs = parseTimeoutMs(argv[++i]);
@@ -356,11 +392,21 @@ static Options parseArgs(int argc, wchar_t** argv) {
         !opts.legacyProfileCleanupNames.empty() ||
         opts.cleanupLegacyAcl;
     if (maintenanceMode) {
-        if (!opts.cwd.empty() || !opts.executable.empty() || !opts.writableRoots.empty() || !opts.denyWritePaths.empty() || opts.diagnoseToken || opts.timeoutSpecified) {
+        if (!opts.cwd.empty() || !opts.executable.empty() || !opts.writableRoots.empty() || !opts.denyWritePaths.empty() || opts.diagnoseToken || opts.timeoutSpecified || opts.superviseServer || opts.parentPidSpecified) {
             throw std::runtime_error("maintenance arguments cannot be combined with sandbox execution arguments");
         }
         return opts;
     }
+    if (opts.superviseServer) {
+        if (!opts.parentPidSpecified) throw std::runtime_error("missing --parent-pid");
+        if (opts.cwd.empty()) throw std::runtime_error("missing --cwd");
+        if (opts.executable.empty()) throw std::runtime_error("missing executable after --");
+        if (opts.timeoutSpecified || !opts.writableRoots.empty() || !opts.denyWritePaths.empty() || opts.diagnoseToken) {
+            throw std::runtime_error("server guardian arguments cannot be combined with sandbox execution arguments");
+        }
+        return opts;
+    }
+    if (opts.parentPidSpecified) throw std::runtime_error("--parent-pid requires --supervise-server");
     if (opts.cwd.empty()) throw std::runtime_error("missing --cwd");
     if (!opts.timeoutSpecified) throw std::runtime_error("missing --timeout-ms");
     if (opts.executable.empty()) throw std::runtime_error("missing executable after --");
@@ -1005,6 +1051,277 @@ static void freeStartupAttributeList(StartupAttributeList& attributes) {
     attributes.list = nullptr;
 }
 
+static DWORD WINAPI readGuardianControl(LPVOID rawContext) {
+    auto* watch = reinterpret_cast<GuardianControlWatch*>(rawContext);
+    char buffer[64] = {};
+    DWORD bytesRead = 0;
+    if (!ReadFile(watch->input, buffer, sizeof(buffer), &bytesRead, nullptr)) {
+        watch->readError = GetLastError();
+    }
+    // Any command, EOF, or pipe error means the owner no longer wants this Job.
+    SetEvent(watch->event);
+    return 0;
+}
+
+static GuardianControlWatch* startGuardianControlWatch(HANDLE input) {
+    auto* watch = new GuardianControlWatch();
+    watch->input = input;
+    watch->event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (!watch->event) {
+        const DWORD errorCode = GetLastError();
+        delete watch;
+        SetLastError(errorCode);
+        return nullptr;
+    }
+    watch->thread = CreateThread(nullptr, 0, readGuardianControl, watch, 0, nullptr);
+    if (!watch->thread) {
+        const DWORD errorCode = GetLastError();
+        CloseHandle(watch->event);
+        delete watch;
+        SetLastError(errorCode);
+        return nullptr;
+    }
+    return watch;
+}
+
+static bool stopGuardianControlWatch(GuardianControlWatch* watch) {
+    if (!watch) return true;
+    DWORD threadState = WaitForSingleObject(watch->thread, 0);
+    if (threadState == WAIT_TIMEOUT) {
+        if (!CancelSynchronousIo(watch->thread)) {
+            const DWORD errorCode = GetLastError();
+            if (errorCode != ERROR_NOT_FOUND) {
+                debug(L"guardian control ReadFile cancellation failed: " + win32Message(errorCode));
+            }
+        }
+        threadState = WaitForSingleObject(watch->thread, TERMINATION_GRACE_MS);
+    }
+    if (threadState != WAIT_OBJECT_0) {
+        // The helper process is about to exit, but the context/event must remain valid
+        // until then because the reader may still complete asynchronously.
+        fail(L"guardian control reader did not stop before helper exit");
+        return false;
+    }
+    CloseHandle(watch->thread);
+    CloseHandle(watch->event);
+    delete watch;
+    return true;
+}
+
+static void emitGuardianRecord(
+    const std::wstring& status,
+    DWORD parentPid,
+    DWORD serverPid,
+    DWORD win32Error = ERROR_SUCCESS
+) {
+    std::wcerr
+        << L"hana-win-sandbox: guardian-v1"
+        << L" status=\"" << status << L"\""
+        << L" parentPid=\"" << parentPid << L"\""
+        << L" serverPid=\"" << serverPid << L"\""
+        << L" win32Error=\"" << win32Error << L"\""
+        << std::endl;
+}
+
+static int superviseServer(const Options& opts) {
+    // Opening the parent once gives this guardian a stable kernel identity. A reused
+    // numeric PID cannot make a different process satisfy this wait.
+    HANDLE parentProcess = OpenProcess(SYNCHRONIZE, FALSE, opts.parentPid);
+    if (!parentProcess) {
+        const DWORD errorCode = GetLastError();
+        fail(L"guardian cannot open parent process: " + win32Message(errorCode));
+        emitGuardianRecord(L"parent_open_failed", opts.parentPid, 0, errorCode);
+        return HELPER_LAUNCH_FAILED_EXIT_CODE;
+    }
+
+    HANDLE controlInput = GetStdHandle(STD_INPUT_HANDLE);
+    if (!isValidInheritableCandidate(controlInput)) {
+        const DWORD errorCode = GetLastError();
+        fail(L"guardian requires a control stdin pipe");
+        CloseHandle(parentProcess);
+        emitGuardianRecord(L"control_pipe_missing", opts.parentPid, 0, errorCode);
+        return HELPER_LAUNCH_FAILED_EXIT_CODE;
+    }
+
+    SECURITY_ATTRIBUTES nulAttributes = {};
+    nulAttributes.nLength = sizeof(nulAttributes);
+    nulAttributes.bInheritHandle = TRUE;
+    HANDLE serverInput = CreateFileW(
+        L"NUL",
+        GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        &nulAttributes,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr
+    );
+    if (serverInput == INVALID_HANDLE_VALUE) {
+        const DWORD errorCode = GetLastError();
+        fail(L"guardian cannot open NUL for server stdin: " + win32Message(errorCode));
+        CloseHandle(parentProcess);
+        emitGuardianRecord(L"server_stdio_failed", opts.parentPid, 0, errorCode);
+        return HELPER_LAUNCH_FAILED_EXIT_CODE;
+    }
+
+    STARTUPINFOEXW startup = {};
+    startup.StartupInfo.cb = sizeof(STARTUPINFOEXW);
+    startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    startup.StartupInfo.hStdInput = serverInput;
+    startup.StartupInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+    startup.StartupInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+
+    std::vector<HANDLE> inheritedHandles;
+    pushUniqueHandle(inheritedHandles, startup.StartupInfo.hStdInput);
+    pushUniqueHandle(inheritedHandles, startup.StartupInfo.hStdOutput);
+    pushUniqueHandle(inheritedHandles, startup.StartupInfo.hStdError);
+    StartupAttributeList inheritedAttributes;
+    if (!setupInheritedHandleList(inheritedHandles, inheritedAttributes)) {
+        const DWORD errorCode = GetLastError();
+        freeStartupAttributeList(inheritedAttributes);
+        CloseHandle(serverInput);
+        CloseHandle(parentProcess);
+        emitGuardianRecord(L"server_stdio_failed", opts.parentPid, 0, errorCode);
+        return HELPER_LAUNCH_FAILED_EXIT_CODE;
+    }
+    startup.lpAttributeList = inheritedAttributes.list;
+
+    std::wstring commandLine = buildCommandLine(opts);
+    PROCESS_INFORMATION server = {};
+    const DWORD creationFlags = CREATE_SUSPENDED | CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT;
+    BOOL launched = CreateProcessW(
+        opts.executable.c_str(),
+        commandLine.data(),
+        nullptr,
+        nullptr,
+        TRUE,
+        creationFlags,
+        nullptr,
+        opts.cwd.c_str(),
+        &startup.StartupInfo,
+        &server
+    );
+    const DWORD launchError = launched ? ERROR_SUCCESS : GetLastError();
+    freeStartupAttributeList(inheritedAttributes);
+    CloseHandle(serverInput);
+    if (!launched) {
+        fail(L"guardian CreateProcessW failed: " + win32Message(launchError));
+        CloseHandle(parentProcess);
+        emitGuardianRecord(L"server_launch_failed", opts.parentPid, 0, launchError);
+        return HELPER_LAUNCH_FAILED_EXIT_CODE;
+    }
+
+    HANDLE job = createKillOnCloseJob();
+    if (!job) {
+        const DWORD errorCode = GetLastError();
+        fail(L"guardian CreateJobObject failed: " + win32Message(errorCode));
+        TerminateProcess(server.hProcess, 1);
+        CloseHandle(server.hThread);
+        CloseHandle(server.hProcess);
+        CloseHandle(parentProcess);
+        emitGuardianRecord(L"job_create_failed", opts.parentPid, server.dwProcessId, errorCode);
+        return HELPER_LAUNCH_FAILED_EXIT_CODE;
+    }
+    if (!AssignProcessToJobObject(job, server.hProcess)) {
+        const DWORD errorCode = GetLastError();
+        fail(L"guardian AssignProcessToJobObject failed: " + win32Message(errorCode));
+        TerminateProcess(server.hProcess, 1);
+        CloseHandle(job);
+        CloseHandle(server.hThread);
+        CloseHandle(server.hProcess);
+        CloseHandle(parentProcess);
+        emitGuardianRecord(L"job_assign_failed", opts.parentPid, server.dwProcessId, errorCode);
+        return HELPER_LAUNCH_FAILED_EXIT_CODE;
+    }
+
+    GuardianControlWatch* controlWatch = startGuardianControlWatch(controlInput);
+    if (!controlWatch) {
+        const DWORD errorCode = GetLastError();
+        fail(L"guardian cannot start control reader: " + win32Message(errorCode));
+        TerminateJobObject(job, 1);
+        DWORD ignored = ERROR_SUCCESS;
+        waitForJobEmpty(job, TERMINATION_GRACE_MS, &ignored);
+        CloseHandle(server.hThread);
+        CloseHandle(server.hProcess);
+        CloseHandle(parentProcess);
+        CloseHandle(job);
+        emitGuardianRecord(L"control_reader_failed", opts.parentPid, server.dwProcessId, errorCode);
+        return HELPER_LAUNCH_FAILED_EXIT_CODE;
+    }
+    if (ResumeThread(server.hThread) == static_cast<DWORD>(-1)) {
+        const DWORD errorCode = GetLastError();
+        fail(L"guardian ResumeThread failed: " + win32Message(errorCode));
+        TerminateJobObject(job, 1);
+        DWORD ignored = ERROR_SUCCESS;
+        waitForJobEmpty(job, TERMINATION_GRACE_MS, &ignored);
+        CloseHandle(server.hThread);
+        CloseHandle(server.hProcess);
+        CloseHandle(parentProcess);
+        CloseHandle(job);
+        stopGuardianControlWatch(controlWatch);
+        emitGuardianRecord(L"server_resume_failed", opts.parentPid, server.dwProcessId, errorCode);
+        return HELPER_LAUNCH_FAILED_EXIT_CODE;
+    }
+    CloseHandle(server.hThread);
+    emitGuardianRecord(L"supervising", opts.parentPid, server.dwProcessId);
+
+    HANDLE watched[] = { parentProcess, server.hProcess, controlWatch->event };
+    const DWORD waitResult = WaitForMultipleObjects(3, watched, FALSE, INFINITE);
+    if (waitResult == WAIT_OBJECT_0 + 1) {
+        DWORD exitCode = 1;
+        const BOOL gotExitCode = GetExitCodeProcess(server.hProcess, &exitCode);
+        const DWORD errorCode = gotExitCode ? ERROR_SUCCESS : GetLastError();
+        CloseHandle(server.hProcess);
+        CloseHandle(parentProcess);
+        // The direct server has stopped. Closing the last Job handle also converges
+        // descendants that inherited the Job before the guardian exits.
+        CloseHandle(job);
+        const bool controlStopped = stopGuardianControlWatch(controlWatch);
+        if (!gotExitCode) {
+            emitGuardianRecord(L"server_exit_query_failed", opts.parentPid, server.dwProcessId, errorCode);
+            return HELPER_TERMINATION_FAILED_EXIT_CODE;
+        }
+        if (!controlStopped) {
+            emitGuardianRecord(L"control_reader_stop_failed", opts.parentPid, server.dwProcessId);
+            return HELPER_TERMINATION_FAILED_EXIT_CODE;
+        }
+        emitGuardianRecord(L"server_exited", opts.parentPid, server.dwProcessId);
+        return static_cast<int>(exitCode);
+    }
+
+    std::wstring stopReason;
+    DWORD waitError = ERROR_SUCCESS;
+    if (waitResult == WAIT_OBJECT_0) {
+        stopReason = L"parent_exited";
+    } else if (waitResult == WAIT_OBJECT_0 + 2) {
+        stopReason = L"control_requested";
+    } else {
+        stopReason = L"wait_failed";
+        waitError = waitResult == WAIT_FAILED ? GetLastError() : ERROR_INVALID_FUNCTION;
+        fail(L"guardian WaitForMultipleObjects failed: " + win32Message(waitError));
+    }
+
+    DWORD convergenceError = ERROR_SUCCESS;
+    if (!TerminateJobObject(job, 1)) {
+        convergenceError = GetLastError();
+    } else if (!waitForJobEmpty(job, TERMINATION_GRACE_MS, &convergenceError)) {
+        fail(L"guardian Job did not converge: " + win32Message(convergenceError));
+    }
+    CloseHandle(server.hProcess);
+    CloseHandle(parentProcess);
+    CloseHandle(job);
+    const bool controlStopped = stopGuardianControlWatch(controlWatch);
+    if (convergenceError != ERROR_SUCCESS) {
+        emitGuardianRecord(L"termination_failed", opts.parentPid, server.dwProcessId, convergenceError);
+        return HELPER_TERMINATION_FAILED_EXIT_CODE;
+    }
+    if (!controlStopped) {
+        emitGuardianRecord(L"control_reader_stop_failed", opts.parentPid, server.dwProcessId);
+        return HELPER_TERMINATION_FAILED_EXIT_CODE;
+    }
+    emitGuardianRecord(stopReason, opts.parentPid, server.dwProcessId, waitError);
+    return waitError == ERROR_SUCCESS ? 0 : HELPER_TERMINATION_FAILED_EXIT_CODE;
+}
+
 static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
     SandboxDesktop desktop;
     if (!createSandboxDesktop(opts.writableRoots, desktop)) {
@@ -1583,6 +1900,10 @@ int wmain(int argc, wchar_t** argv) {
         std::wstring wide(narrow.begin(), narrow.end());
         std::wcerr << L"hana-win-sandbox: " << wide << std::endl;
         return 2;
+    }
+
+    if (opts.superviseServer) {
+        return superviseServer(opts);
     }
 
     if (!opts.hanaWriteAclCleanupPaths.empty() ||
