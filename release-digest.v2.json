@@ -3,6 +3,269 @@
   "entries": [
     {
       "schemaVersion": 1,
+      "tag": "v0.397.15",
+      "version": "0.397.15",
+      "previousTag": "v0.397.1",
+      "generatedAt": "2026-07-13T12:31:00.000Z",
+      "noUserFacingChanges": false,
+      "summary": {
+        "zh": "本版稳住 Windows 桌面内核生命周期与系统证书信任，并一次性迁移旧 GPU 安全模式；侧栏单行模式冷启动可恢复，编辑器表格与正文同宽；Agent 提及与评审卡片更清晰，插件快照不再误刷新会话，提醒隐私与设置草稿也更可靠。",
+        "en": "This release steadies Windows desktop server lifetime and system-certificate trust, with a one-time legacy GPU safe-mode migration; sidebar single-line mode restores after cold start, and editor tables match the text column. Agent mentions and review cards are clearer, plugin snapshots no longer reload live sessions, and reminder privacy plus settings drafts are more reliable."
+      },
+      "counts": {
+        "feature": 0,
+        "fix": 8,
+        "improvement": 2,
+        "migration": 1
+      },
+      "source": {
+        "owner": "liliMozi",
+        "repo": "openhanako",
+        "commitRange": "v0.397.1..v0.397.15",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.397.15",
+        "releaseNotes": ""
+      },
+      "items": [
+        {
+          "id": "windows-server-lifetime-guardian",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "Windows：监护桌面服务端生命周期",
+            "en": "Windows: supervise desktop server lifetime"
+          },
+          "summary": {
+            "zh": "桌面拉起的服务端受父进程 Job 监护；未确认关机失败即止，更新/退出竞态不会再拉起游离替身。",
+            "en": "Desktop-owned servers run under a parent-watching Job guardian. Unconfirmed shutdowns fail closed, and update/quit races can no longer spawn detached replacements."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "4f81fc123",
+              "title": "fix(windows): supervise desktop server lifetime (#2118)"
+            }
+          ]
+        },
+        {
+          "id": "windows-system-certificate-store",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "Windows：信任系统证书库",
+            "en": "Windows: trust the system certificate store"
+          },
+          "summary": {
+            "zh": "HTTPS、插件与更新下载跟系统证书走，仍保留内置根与额外 CA。",
+            "en": "HTTPS clients, plugin installs, and update downloads extend Node trust with the system certificate store while keeping bundled roots and extra CA configuration."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "013b48a83",
+              "title": "fix(windows): trust the system certificate store (#2115)"
+            }
+          ]
+        },
+        {
+          "id": "windows-legacy-gpu-safe-mode-migration",
+          "kind": "migration",
+          "importance": "high",
+          "title": {
+            "zh": "Windows：迁移旧 GPU 安全模式",
+            "en": "Windows: migrate legacy GPU safe mode"
+          },
+          "summary": {
+            "zh": "有明确旧证据时一次性迁到沙箱兼容档；你的显式选择与证据不全的情况不动。",
+            "en": "Exact legacy gpu-child-process-gone evidence migrates once into staged sandbox compatibility. Explicit user choices and incomplete evidence stay untouched."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "9b78ab2c2",
+              "title": "fix(windows): migrate legacy GPU safe mode (#2108 #2109)"
+            }
+          ]
+        },
+        {
+          "id": "sidebar-row-mode-cold-start",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "侧栏单行模式冷启动可恢复",
+            "en": "Sidebar single-line mode restores after cold start"
+          },
+          "summary": {
+            "zh": "等 Studio 连上再读偏好，短暂失败会有限重试，冷启动不再卡在双行。",
+            "en": "Sidebar preferences wait for the active Studio connection and retry transient startup failures, so persisted single-line mode no longer stays stuck on two lines after cold start."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "6ff2ea3a1",
+              "title": "fix(sidebar): restore row mode after cold start"
+            }
+          ]
+        },
+        {
+          "id": "editor-markdown-table-width",
+          "kind": "fix",
+          "importance": "medium",
+          "title": {
+            "zh": "Markdown 表格与正文同宽",
+            "en": "Markdown tables match the text column width"
+          },
+          "summary": {
+            "zh": "编辑与预览里的表格对齐正文列宽，长词不再把表撑破。",
+            "en": "Editor and Preview tables align to the same content column as body text, and long unbreakable tokens no longer blow past the container."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "6cedcce0b",
+              "title": "fix(editor): 修正 Markdown 表格宽度不跟随正文文字列的问题"
+            }
+          ]
+        },
+        {
+          "id": "agent-mentions-and-review-cards",
+          "kind": "improvement",
+          "importance": "medium",
+          "title": {
+            "zh": "Agent 提及与评审卡片 refinement",
+            "en": "Clearer Agent mentions and review cards"
+          },
+          "summary": {
+            "zh": "提及用 Agent 头像；评审走完整 Markdown，卡片用会话名导航并露出本地化文案。",
+            "en": "Mentions use Agent avatars. Review content renders through full Markdown, and review cards become localized, conversation-named navigation surfaces."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "b9fceb57f",
+              "title": "fix(chat): refine Agent mentions and review cards"
+            },
+            {
+              "type": "commit",
+              "ref": "b4d24efd9",
+              "title": "fix(chat): render Agent reviews through full Markdown preview"
+            }
+          ]
+        },
+        {
+          "id": "plugin-json-configuration-drafts",
+          "kind": "fix",
+          "importance": "medium",
+          "title": {
+            "zh": "插件 JSON 配置草稿可编辑保存",
+            "en": "Plugin JSON configuration drafts stay editable"
+          },
+          "summary": {
+            "zh": "非法草稿仍可见并拦住保存，修正前不再反复序列化冲掉你的编辑。",
+            "en": "Invalid JSON drafts remain visible and block saving until corrected, without being repeatedly re-serialized away while you edit."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "25df28f57",
+              "title": "fix(plugins): preserve JSON configuration drafts (#2107)"
+            }
+          ]
+        },
+        {
+          "id": "provider-api-type-drafts",
+          "kind": "fix",
+          "importance": "medium",
+          "title": {
+            "zh": "提供商 API 类型草稿可持久",
+            "en": "Provider API type drafts persist"
+          },
+          "summary": {
+            "zh": "API 类型选择会留下并参与首次保存；服务端/刷新失败会提示，不再静默回退。",
+            "en": "API type selection stays visible, participates in the initial save, and surfaces server or refresh failures instead of silently reverting."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "41a06ebee",
+              "title": "fix(settings): persist provider API type drafts (#2103)"
+            }
+          ]
+        },
+        {
+          "id": "plugin-snapshots-reminder-privacy",
+          "kind": "fix",
+          "importance": "medium",
+          "title": {
+            "zh": "插件快照保留与提醒隐私",
+            "en": "Preserve plugin snapshots and reminder privacy"
+          },
+          "summary": {
+            "zh": "装插件不再重载已有会话；内部 reminder 块在展示投影里去掉。",
+            "en": "Installing plugins no longer reloads existing sessions, and internal reminder blocks are stripped by the shared display projection."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "c1f8d5dc3",
+              "title": "fix(session): preserve plugin snapshots and reminder privacy (#2105)"
+            }
+          ]
+        },
+        {
+          "id": "workspace-scope-vs-cwd",
+          "kind": "fix",
+          "importance": "medium",
+          "title": {
+            "zh": "工作区 Scope 与执行 CWD 分开",
+            "en": "Separate workspace Scope from execution CWD"
+          },
+          "summary": {
+            "zh": "Scope 描述工作台与外部项目，Pi CWD 仍是执行基点；缓存提示词不再塞进具体路径状态。",
+            "en": "Scope describes the primary workbench and external project folders, while Pi CWD remains the execution base. Cached Agent prompts no longer carry concrete workspace paths."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "71e030afe",
+              "title": "fix(prompt): separate workspace scope from cwd semantics (#2099)"
+            }
+          ]
+        },
+        {
+          "id": "update-progress-and-sidebar-labels",
+          "kind": "improvement",
+          "importance": "low",
+          "title": {
+            "zh": "更新进度条与侧栏文案",
+            "en": "Update progress bar and sidebar labels"
+          },
+          "summary": {
+            "zh": "下载进度收成一条主题进度条加百分比；更新提示图标移到文案前，中文「社交平台」标签缩短。",
+            "en": "Download progress becomes one themed bar with a single percentage. The update notice icon moves before its text, and the Chinese social-platform sidebar label is shortened."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "bdc18e6ca",
+              "title": "fix: refine update progress and sidebar labels"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
       "tag": "v0.397.1",
       "version": "0.397.1",
       "previousTag": "v0.391.2",
