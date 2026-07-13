@@ -52,6 +52,7 @@ const SESSION_DRAG_MIME = 'application/x-hana-session-path';
 const PROJECT_DRAG_MIME = 'application/x-hana-project-id';
 const FOLDER_DRAG_MIME = 'application/x-hana-project-folder-id';
 const PROJECT_SESSION_PREVIEW_LIMIT = 5;
+const SIDEBAR_UI_PREF_RETRY_DELAYS_MS = [300, 600] as const;
 
 type SidebarDragState =
   | { kind: 'session'; sessionPath: string }
@@ -217,6 +218,7 @@ function SessionListInner() {
   const browserBySession = useStore(s => s.browserBySession);
   const projectCatalog = useStore(s => s.sessionProjectCatalog);
   const projectCatalogLoaded = useStore(s => s.sessionProjectCatalogLoaded);
+  const activeServerConnection = useStore(s => s.activeServerConnection);
 
   const [browserSessions, setBrowserSessions] = useState<Record<string, BrowserSessionState>>({});
   const [viewMode, setViewModeState] = useState<SessionViewMode>(readInitialSessionViewMode);
@@ -355,18 +357,39 @@ function SessionListInner() {
   }, [viewMode]);
 
   useEffect(() => {
+    if (!activeServerConnection) return;
+
     let cancelled = false;
-    hanaFetch('/api/preferences/sidebar-ui')
-      .then(res => res.json())
-      .then(data => {
+    let retryTimer: number | null = null;
+    let attempt = 0;
+
+    const loadSidebarUiPrefs = async () => {
+      attempt += 1;
+      try {
+        const res = await hanaFetch('/api/preferences/sidebar-ui');
+        const data = await res.json();
         if (cancelled) return;
         applySidebarUiPrefs(data);
-      })
-      .catch(err => console.warn('[sessions] fetch sidebar UI prefs failed:', err));
+      } catch (err) {
+        if (cancelled) return;
+        const retryDelay = SIDEBAR_UI_PREF_RETRY_DELAYS_MS[attempt - 1];
+        if (retryDelay !== undefined) {
+          retryTimer = window.setTimeout(() => {
+            retryTimer = null;
+            void loadSidebarUiPrefs();
+          }, retryDelay);
+          return;
+        }
+        console.warn('[sessions] fetch sidebar UI prefs failed:', err);
+      }
+    };
+
+    void loadSidebarUiPrefs();
     return () => {
       cancelled = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
     };
-  }, [applySidebarUiPrefs]);
+  }, [activeServerConnection, applySidebarUiPrefs]);
 
   useEffect(() => {
     const handleLocalSettings = (event: Event) => {

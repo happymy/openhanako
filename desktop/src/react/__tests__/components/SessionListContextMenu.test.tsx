@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
@@ -13,6 +13,21 @@ const archiveSessionMock = vi.fn();
 const renameSessionMock = vi.fn();
 const pinSessionMock = vi.fn();
 const createNewSessionMock = vi.fn();
+
+const localServerConnection = {
+  connectionId: 'local',
+  kind: 'local' as const,
+  serverId: 'local',
+  studioId: 'local',
+  label: 'Local Hana',
+  baseUrl: 'http://127.0.0.1:3210',
+  wsUrl: 'ws://127.0.0.1:3210',
+  token: 'test-token',
+  authState: 'paired' as const,
+  trustState: 'local' as const,
+  credentialKind: 'loopback_token' as const,
+  capabilities: ['chat', 'resources', 'files', 'tools'],
+};
 
 vi.mock('../../hooks/use-hana-fetch', () => ({
   hanaFetch: (...args: unknown[]) => hanaFetchMock(...args),
@@ -79,6 +94,8 @@ function seedSessions() {
     unreadOutputSessionPaths: [],
     browserBySession: {},
     locale: 'zh',
+    activeServerConnectionId: localServerConnection.connectionId,
+    activeServerConnection: localServerConnection,
   });
 }
 
@@ -126,6 +143,7 @@ describe('SessionList context menu', () => {
       if (key === 'yuan.types') return {};
       return key;
     }) as typeof globalThis.t;
+    hanaFetchMock.mockReset();
     hanaFetchMock.mockImplementation(async (url: string) => {
       if (url === '/api/browser/session-states') return jsonResponse({});
       if (url === '/api/browser/sessions') return jsonResponse({});
@@ -153,6 +171,7 @@ describe('SessionList context menu', () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   it('keeps summaryless session rows readable and disables only the summary menu item', () => {
@@ -329,6 +348,104 @@ describe('SessionList context menu', () => {
     });
     expect(row.querySelector('[data-session-actions]')).toBeInTheDocument();
     expect(row).toHaveAttribute('title', expect.stringContaining('Hana'));
+  });
+
+  it('waits for an active server connection before loading sidebar UI preferences', () => {
+    useStore.setState({
+      activeServerConnectionId: null,
+      activeServerConnection: null,
+    });
+
+    render(<SessionList />);
+
+    expect(hanaFetchMock).not.toHaveBeenCalledWith('/api/preferences/sidebar-ui');
+  });
+
+  it('loads single-line row mode when the server connection becomes available', async () => {
+    useStore.setState({
+      activeServerConnectionId: null,
+      activeServerConnection: null,
+    });
+    hanaFetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/browser/session-states') return jsonResponse({});
+      if (url === '/api/preferences/sidebar-ui') {
+        return jsonResponse({
+          sidebarUi: {
+            projectView: {
+              collapsedProjectIds: [],
+              collapsedFolderIds: [],
+              showAllProjectIds: [],
+            },
+            sessionList: { rowMode: 'single-line' },
+          },
+        });
+      }
+      return jsonResponse({});
+    });
+
+    render(<SessionList />);
+    expect(hanaFetchMock).not.toHaveBeenCalledWith('/api/preferences/sidebar-ui');
+
+    act(() => {
+      useStore.setState({
+        activeServerConnectionId: localServerConnection.connectionId,
+        activeServerConnection: localServerConnection,
+      });
+    });
+
+    await waitFor(() => {
+      expect(sessionButton('Has summary')).toHaveAttribute('data-row-mode', 'single-line');
+    });
+    expect(hanaFetchMock).toHaveBeenCalledWith('/api/preferences/sidebar-ui');
+  });
+
+  it('retries sidebar UI preferences with bounded backoff after transient failures', async () => {
+    vi.useFakeTimers();
+    let preferenceAttempts = 0;
+    hanaFetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/browser/session-states') return jsonResponse({});
+      if (url === '/api/preferences/sidebar-ui') {
+        preferenceAttempts += 1;
+        if (preferenceAttempts < 3) throw new Error('server is still starting');
+        return jsonResponse({
+          sidebarUi: {
+            projectView: {
+              collapsedProjectIds: [],
+              collapsedFolderIds: [],
+              showAllProjectIds: [],
+            },
+            sessionList: { rowMode: 'single-line' },
+          },
+        });
+      }
+      return jsonResponse({});
+    });
+
+    render(<SessionList />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(preferenceAttempts).toBe(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(299);
+    });
+    expect(preferenceAttempts).toBe(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(preferenceAttempts).toBe(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(599);
+    });
+    expect(preferenceAttempts).toBe(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(preferenceAttempts).toBe(3);
+    expect(sessionButton('Has summary')).toHaveAttribute('data-row-mode', 'single-line');
   });
 
   it('shows title search results first and then content results', async () => {
