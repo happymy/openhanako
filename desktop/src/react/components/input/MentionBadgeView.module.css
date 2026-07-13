@@ -16,4 +16,12 @@
 
 .at { opacity: 0.72; }
 .icon { font-size: 0.82em; opacity: 0.72; }
+.avatar {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  font-size: var(--fs-micro);
+}
 .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

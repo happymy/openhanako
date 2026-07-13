@@ -443,7 +443,7 @@
     "referenceDocument": "[参考ドキュメント] {path}",
     "mention": {
       "title": "メンション",
-      "tab": { "files": "ファイル", "sessions": "Session", "agents": "Agent" },
+      "tab": { "files": "ファイル", "sessions": "会話", "agents": "エージェント" },
       "empty": "一致する項目はありません",
       "singleAgent": "1 回のターンで招待できる Agent レビュアーは 1 人です"
     }
@@ -457,6 +457,8 @@
     "sessionUnavailable": "レビュー Session が見つかりません",
     "requestReceived": "別の Session からレビュー依頼を受け取りました",
     "openReviewedSession": "レビュー対象 Session を開く",
+    "reviewedSessionFallback": "元の会話",
+    "reviewSessionFallback": "{name} のレビュー会話",
     "interjectionUnavailable": "Agent レビューは割り込みとして送信できません。現在の返信が終わるまでお待ちください"
   },
   "slash": {

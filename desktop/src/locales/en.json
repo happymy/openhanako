@@ -443,7 +443,7 @@
     "compact": "Compact",
     "mention": {
       "title": "Mention",
-      "tab": { "files": "Files", "sessions": "Sessions", "agents": "Agents" },
+      "tab": { "files": "Files", "sessions": "Conversations", "agents": "Agents" },
       "empty": "No matches",
       "singleAgent": "Only one Agent reviewer can be invited per turn"
     }
@@ -457,6 +457,8 @@
     "sessionUnavailable": "Review Session not found",
     "requestReceived": "Review request received from another Session",
     "openReviewedSession": "Open reviewed Session",
+    "reviewedSessionFallback": "Source conversation",
+    "reviewSessionFallback": "{name}'s review conversation",
     "interjectionUnavailable": "Agent review cannot be sent as an interjection; wait for the current reply to finish"
   },
   "slash": {

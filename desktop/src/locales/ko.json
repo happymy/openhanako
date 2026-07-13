@@ -443,7 +443,7 @@
     "referenceDocument": "[참고 문서] {path}",
     "mention": {
       "title": "멘션",
-      "tab": { "files": "파일", "sessions": "Session", "agents": "Agent" },
+      "tab": { "files": "파일", "sessions": "대화", "agents": "에이전트" },
       "empty": "일치하는 항목이 없습니다",
       "singleAgent": "한 턴에는 한 명의 Agent 리뷰어만 초대할 수 있습니다"
     }
@@ -457,6 +457,8 @@
     "sessionUnavailable": "검토 Session을 찾을 수 없습니다",
     "requestReceived": "다른 Session에서 검토 요청을 받았습니다",
     "openReviewedSession": "검토 대상 Session 열기",
+    "reviewedSessionFallback": "원본 대화",
+    "reviewSessionFallback": "{name}의 검토 대화",
     "interjectionUnavailable": "Agent 검토는 끼어들기로 보낼 수 없습니다. 현재 답변이 끝날 때까지 기다려 주세요"
   },
   "slash": {

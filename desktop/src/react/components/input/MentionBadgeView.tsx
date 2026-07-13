@@ -1,28 +1,32 @@
 import { NodeViewWrapper } from '@tiptap/react';
 import type { NodeViewProps } from '@tiptap/react';
+import { useMemo } from 'react';
+import { useStore } from '../../stores';
+import { AgentAvatar, resolveAgentDisplayInfo } from '../../utils/agent-display';
 import styles from './MentionBadgeView.module.css';
 
 export function MentionBadgeView({ node }: NodeViewProps) {
   const label = String(node.attrs.label || node.attrs.sessionId || node.attrs.agentId || '');
   const kind = node.type.name === 'agentBadge' ? 'agent' : 'session';
+  const agents = useStore(state => state.agents);
+  const agentInfo = useMemo(() => kind === 'agent'
+    ? resolveAgentDisplayInfo({
+      id: String(node.attrs.agentId || ''),
+      agents,
+      fallbackAgentName: label,
+    })
+    : null, [agents, kind, label, node.attrs.agentId]);
 
   return (
     <NodeViewWrapper as="span" className={styles.badge} data-mention-kind={kind}>
       <span className={styles.at} aria-hidden="true">@</span>
-      <span className={styles.icon} aria-hidden="true">
-        {kind === 'agent' ? <AgentMentionIcon /> : <SessionMentionIcon />}
-      </span>
+      {kind === 'agent' && agentInfo ? (
+        <AgentAvatar info={agentInfo} className={styles.avatar} alt="" />
+      ) : (
+        <span className={styles.icon} aria-hidden="true"><SessionMentionIcon /></span>
+      )}
       <span className={styles.name}>{label}</span>
     </NodeViewWrapper>
-  );
-}
-
-function AgentMentionIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M5 21a7 7 0 0 1 14 0" />
-    </svg>
   );
 }
 

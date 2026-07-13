@@ -443,21 +443,23 @@
     "referenceDocument": "[参考文档] {path}",
     "mention": {
       "title": "引用内容",
-      "tab": { "files": "文件", "sessions": "Session", "agents": "Agent" },
+      "tab": { "files": "文件", "sessions": "对话", "agents": "助手" },
       "empty": "没有匹配项",
-      "singleAgent": "每个回合暂时只能邀请一位 Agent 审阅"
+      "singleAgent": "每个回合暂时只能邀请一位助手审阅"
     }
   },
   "agentReview": {
-    "running": "正在审阅当前 Session",
-    "completed": "另一位 Agent 的审阅结果",
-    "failed": "审阅失败，主 Agent 尚未回答",
+    "running": "正在审阅当前对话",
+    "completed": "另一位助手的审阅结果",
+    "failed": "审阅失败，主助手尚未回答",
     "cancelled": "审阅已取消",
-    "openSession": "打开审阅 Session",
-    "sessionUnavailable": "找不到这个审阅 Session",
-    "requestReceived": "已收到来自另一个 Session 的审阅请求",
-    "openReviewedSession": "打开被审阅 Session",
-    "interjectionUnavailable": "Agent 审阅不能作为插话发送，请等待当前回复结束"
+    "openSession": "打开审阅对话",
+    "sessionUnavailable": "找不到这个审阅对话",
+    "requestReceived": "已收到来自另一个对话的审阅请求",
+    "openReviewedSession": "打开被审阅对话",
+    "reviewedSessionFallback": "来源对话",
+    "reviewSessionFallback": "{name} 的审阅对话",
+    "interjectionUnavailable": "助手审阅不能作为插话发送，请等待当前回复结束"
   },
   "slash": {
     "diary": "写今日日记",

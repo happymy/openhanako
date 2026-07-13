@@ -888,9 +888,9 @@
 .mention-thumbnail,
 .mention-agent-avatar { width: 24px; height: 24px; object-fit: cover; border-radius: 4px; }
 .mention-agent-avatar { border-radius: 50%; font-size: 11px; }
-.mention-main { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; gap: var(--space-2); }
-.mention-name { overflow: hidden; color: var(--text); font-size: var(--fs-caption); text-overflow: ellipsis; white-space: nowrap; }
-.mention-detail { overflow: hidden; color: var(--text-muted); font-size: var(--fs-hint); text-overflow: ellipsis; white-space: nowrap; }
+.mention-main { display: flex; align-items: baseline; flex: 1 1 auto; min-width: 0; gap: var(--space-12); }
+.mention-name { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--text); font-size: var(--fs-caption); text-overflow: ellipsis; white-space: nowrap; }
+.mention-detail { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--text-muted); font-size: var(--fs-hint); text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 .mention-empty { padding: var(--space-12); color: var(--text-muted); font-size: var(--fs-caption); text-align: center; }
 
 .slash-busy-bar {

@@ -11,6 +11,7 @@ import { useI18n } from '../../hooks/use-i18n';
 
 export const AgentReviewCard = memo(function AgentReviewCard({ review }: { review: AgentReviewContext }) {
   const agents = useStore(state => state.agents);
+  const reviewerSession = useStore(state => state.sessions.find(session => session.sessionId === review.reviewerSessionId));
   const [opening, setOpening] = useState(false);
   const { t } = useI18n();
   const info = useMemo(() => resolveAgentDisplayInfo({
@@ -46,37 +47,33 @@ export const AgentReviewCard = memo(function AgentReviewCard({ review }: { revie
       : review.status === 'cancelled'
         ? t('agentReview.cancelled')
         : t('agentReview.failed');
+  const sessionName = reviewerSession?.title?.trim()
+    || reviewerSession?.firstMessage?.trim()
+    || t('agentReview.reviewSessionFallback', { name: review.reviewerAgentName });
 
   return (
     <ConversationEventCard
-      align="end"
-      size="expanded"
-      cardClassName={styles.agentReviewCard}
+      cardClassName={`${styles.agentOriginCard} ${styles.agentReviewMessageCard}`}
       status={review.status}
+      onActivate={review.reviewerSessionId && !opening ? () => { void openReviewerSession(); } : undefined}
+      ariaLabel={t('agentReview.openSession')}
     >
-      <header className={styles.agentReviewHeader}>
-        <AgentAvatar info={info} className={styles.agentReviewAvatar} alt="" />
-        <div className={styles.agentReviewHeading}>
-          <span className={styles.agentReviewName}>{review.reviewerAgentName}</span>
-          <span className={styles.agentReviewStatus}>{statusLabel}</span>
-        </div>
+      <header className={styles.agentOriginHeader}>
+        <AgentAvatar info={info} className={styles.agentOriginAvatar} alt="" />
+        <span className={styles.agentOriginName}>
+          {t('sessionCollab.fromAgent', { name: review.reviewerAgentName })}
+        </span>
+        <span className={styles.agentReviewSessionName}>{sessionName}</span>
         {review.status === 'running' && <span className={styles.agentReviewPulse} aria-hidden="true" />}
       </header>
       {review.status === 'completed' && review.text && (
-        <div className={styles.agentReviewBody}>
+        <div className={`${styles.agentOriginBody} ${styles.agentReviewBody}`}>
           <MarkdownContent html={renderMarkdown(review.text)} />
         </div>
       )}
+      {review.status === 'running' && <div className={styles.agentOriginBody}>{statusLabel}</div>}
       {(review.status === 'failed' || review.status === 'cancelled') && (
         <div className={styles.agentReviewError}>{review.error || statusLabel}</div>
-      )}
-      {review.reviewerSessionId && (
-        <footer className={styles.agentReviewFooter}>
-          <button type="button" onClick={() => { void openReviewerSession(); }} disabled={opening}>
-            {opening ? t('common.loading') : t('agentReview.openSession')}
-          </button>
-          <span>{review.reviewerSessionId}</span>
-        </footer>
       )}
     </ConversationEventCard>
   );

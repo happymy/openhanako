@@ -443,21 +443,23 @@
     "referenceDocument": "[参考文档] {path}",
     "mention": {
       "title": "引用內容",
-      "tab": { "files": "檔案", "sessions": "Session", "agents": "Agent" },
+      "tab": { "files": "檔案", "sessions": "對話", "agents": "助手" },
       "empty": "沒有符合項目",
-      "singleAgent": "每個回合暫時只能邀請一位 Agent 審閱"
+      "singleAgent": "每個回合暫時只能邀請一位助手審閱"
     }
   },
   "agentReview": {
-    "running": "正在審閱目前 Session",
-    "completed": "另一位 Agent 的審閱結果",
-    "failed": "審閱失敗，主 Agent 尚未回答",
+    "running": "正在審閱目前對話",
+    "completed": "另一位助手的審閱結果",
+    "failed": "審閱失敗，主助手尚未回答",
     "cancelled": "審閱已取消",
-    "openSession": "開啟審閱 Session",
-    "sessionUnavailable": "找不到這個審閱 Session",
-    "requestReceived": "已收到來自另一個 Session 的審閱請求",
-    "openReviewedSession": "開啟被審閱 Session",
-    "interjectionUnavailable": "Agent 審閱不能作為插話傳送，請等待目前回覆結束"
+    "openSession": "開啟審閱對話",
+    "sessionUnavailable": "找不到這個審閱對話",
+    "requestReceived": "已收到來自另一個對話的審閱請求",
+    "openReviewedSession": "開啟被審閱對話",
+    "reviewedSessionFallback": "來源對話",
+    "reviewSessionFallback": "{name} 的審閱對話",
+    "interjectionUnavailable": "助手審閱不能作為插話傳送，請等待目前回覆結束"
   },
   "slash": {
     "diary": "寫今日日記",
