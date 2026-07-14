@@ -1,4 +1,4 @@
-import { Transaction } from '@codemirror/state';
+import { EditorSelection, Transaction } from '@codemirror/state';
 import {
   EditorView,
   ViewPlugin,
@@ -91,10 +91,14 @@ function renderedLineCoordinates(
   const line = view.state.doc.line(lineNumber);
   const lineBlock = view.lineBlockAt(line.from);
   const top = view.documentTop + (lineBlock.top * view.scaleY);
+  const firstVisualBoundary = view.moveToLineBoundary(EditorSelection.cursor(line.from), true, true);
+  const height = firstVisualBoundary.head < line.to
+    ? horizontal.bottom - horizontal.top
+    : lineBlock.height * view.scaleY;
   return {
     ...horizontal,
     top,
-    bottom: top + (lineBlock.height * view.scaleY),
+    bottom: top + height,
   };
 }
 

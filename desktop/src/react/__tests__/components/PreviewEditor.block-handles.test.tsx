@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { EditorState } from '@codemirror/state';
+import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { history, undo } from '@codemirror/commands';
 import { fireEvent } from '@testing-library/react';
@@ -41,6 +41,7 @@ describe('markdown block handle rail', () => {
   let rectSpy: ReturnType<typeof vi.spyOn>;
   let coordsSpy: ReturnType<typeof vi.spyOn>;
   let lineBlockSpy: ReturnType<typeof vi.spyOn>;
+  let lineBoundarySpy: ReturnType<typeof vi.spyOn>;
   let documentTopSpy: ReturnType<typeof vi.spyOn>;
   let scaleYSpy: ReturnType<typeof vi.spyOn>;
   let rafSpy: ReturnType<typeof vi.spyOn>;
@@ -67,6 +68,12 @@ describe('markdown block handle rail', () => {
       const top = line.number * 32;
       return { top, height: 24 } as ReturnType<EditorView['lineBlockAt']>;
     });
+    lineBoundarySpy = vi.spyOn(EditorView.prototype, 'moveToLineBoundary').mockImplementation(function boundary(
+      this: EditorView,
+      start,
+    ) {
+      return EditorSelection.cursor(this.state.doc.lineAt(start.head).to);
+    });
     documentTopSpy = vi.spyOn(EditorView.prototype, 'documentTop', 'get').mockReturnValue(0);
     scaleYSpy = vi.spyOn(EditorView.prototype, 'scaleY', 'get').mockReturnValue(1);
     rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => (
@@ -82,6 +89,7 @@ describe('markdown block handle rail', () => {
     rectSpy.mockRestore();
     coordsSpy.mockRestore();
     lineBlockSpy.mockRestore();
+    lineBoundarySpy.mockRestore();
     documentTopSpy.mockRestore();
     scaleYSpy.mockRestore();
     rafSpy.mockRestore();
@@ -169,6 +177,26 @@ describe('markdown block handle rail', () => {
     const firstHandle = view.dom.querySelector<HTMLButtonElement>('.cm-markdown-block-handle');
 
     expect(firstHandle?.style.top).toBe('8px');
+    view.destroy();
+  });
+
+  it('centers the handle on the first visual row when the first logical line wraps', () => {
+    coordsSpy.mockImplementation(() => ({ left: 200, right: 400, top: 32, bottom: 56 }));
+    lineBlockSpy.mockImplementation(() => ({ top: 32, height: 72 }) as ReturnType<EditorView['lineBlockAt']>);
+    lineBoundarySpy.mockImplementation(function boundary(
+      this: EditorView,
+      start: Parameters<EditorView['moveToLineBoundary']>[0],
+    ) {
+      const line = this.state.doc.lineAt(start.head);
+      return EditorSelection.cursor(Math.min(line.from + 3, line.to - 1));
+    });
+    const { view } = createView(
+      vi.fn<(request: MarkdownBlockMenuRequest) => void>(),
+      'A long first logical line that wraps visually\n\nAfter',
+    );
+    const firstHandle = view.dom.querySelector<HTMLButtonElement>('.cm-markdown-block-handle');
+
+    expect(firstHandle?.style.top).toBe('0px');
     view.destroy();
   });
 
