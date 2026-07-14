@@ -294,6 +294,19 @@ function legacyGpuChildMigrationCandidate(prefs, state) {
   return evidence;
 }
 
+function legacyEnabledGpuChildMigrationCandidate(prefs, state) {
+  if (prefs?.hardware_acceleration !== true) return null;
+  if (state?.legacySafeModeMigration) return null;
+  const evidence = legacyGpuChildMigrationEvidence(state);
+  if (!evidence) return null;
+  const crash = state.lastGpuCrash;
+  if (crash.platform !== "win32") return null;
+  const sourceDate = new Date(evidence.sourceUpdatedAt);
+  if (Number.isNaN(sourceDate.getTime()) || sourceDate.toISOString() !== evidence.sourceUpdatedAt) return null;
+
+  return { ...evidence, sourceCrashReason: crash.reason };
+}
+
 function runLegacyGpuMigrationWrite(stage, filePath, write) {
   try {
     write();
@@ -306,6 +319,37 @@ function runLegacyGpuMigrationWrite(stage, filePath, write) {
 }
 
 function migrateLegacyGpuChildSafeMode(hanakoHome, prefs, state, now) {
+  const enabledCandidate = legacyEnabledGpuChildMigrationCandidate(prefs, state);
+  if (enabledCandidate) {
+    const timestamp = nowIso(now);
+    const nextState = {
+      ...state,
+      autoGpuMode: {
+        mode: GPU_MODE_GPU_SANDBOX_COMPAT,
+        reason: "legacy-auto-safe-mode-migration",
+        previousMode: GPU_MODE_SOFTWARE_SAFE,
+        previousStartup: enabledCandidate.safeMode.previousStartup || null,
+        updatedAt: timestamp,
+      },
+      legacySafeModeMigration: {
+        version: LEGACY_SAFE_MODE_MIGRATION_VERSION,
+        sourceReason: enabledCandidate.sourceReason,
+        sourceUpdatedAt: enabledCandidate.sourceUpdatedAt,
+        sourceCrashReason: enabledCandidate.sourceCrashReason,
+        preferenceStatus: "preserved-enabled",
+        status: "completed",
+        completedAt: timestamp,
+      },
+    };
+    delete nextState.safeMode;
+    runLegacyGpuMigrationWrite("completed GPU state", getGpuStartupStatePath(hanakoHome), () => {
+      writeState(hanakoHome, nextState);
+    });
+    return policyForMode(GPU_MODE_GPU_SANDBOX_COMPAT, "legacy-auto-safe-mode-migration", {
+      autoGpuMode: nextState.autoGpuMode,
+    });
+  }
+
   const candidate = legacyGpuChildMigrationCandidate(prefs, state);
   if (!candidate) return null;
 
