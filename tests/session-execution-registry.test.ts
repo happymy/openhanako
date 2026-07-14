@@ -1,3 +1,4 @@
+import path from "path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -68,12 +69,13 @@ describe("SessionExecutionRegistry", () => {
   it("preserves the legacy third-argument runtime context as the fifth argument", async () => {
     const registry = new SessionExecutionRegistry();
     const execute = vi.fn(async () => "done");
+    const sessionPath = path.resolve("/tmp/session.jsonl");
     const [wrapped] = wrapWithSessionExecutionCancellation([{ name: "legacy_tool", execute }], {
       registry,
       getSessionIdForPath: () => "session-1",
     });
     const runtimeCtx = {
-      sessionManager: { getSessionFile: () => "/tmp/session.jsonl" },
+      sessionManager: { getSessionFile: () => sessionPath },
     };
 
     await wrapped.execute("call-1", {}, runtimeCtx);
@@ -86,10 +88,10 @@ describe("SessionExecutionRegistry", () => {
       expect.objectContaining({
         sessionManager: runtimeCtx.sessionManager,
         sessionId: "session-1",
-        sessionPath: "/tmp/session.jsonl",
+        sessionPath,
         sessionRef: {
           sessionId: "session-1",
-          sessionPath: "/tmp/session.jsonl",
+          sessionPath,
         },
       }),
     );
@@ -99,18 +101,19 @@ describe("SessionExecutionRegistry", () => {
     const registry = new SessionExecutionRegistry();
     const execute = vi.fn(async () => "done");
     const getSessionIdForPath = vi.fn();
+    const sessionPath = path.resolve("/tmp/explicit.jsonl");
     const [wrapped] = wrapWithSessionExecutionCancellation([{ name: "explicit_tool", execute }], {
       registry,
       getSessionRef: () => ({
         sessionId: "session-explicit",
-        sessionPath: "/tmp/explicit.jsonl",
+        sessionPath,
       }),
       getSessionIdForPath,
     });
 
     await wrapped.execute("call-1", {}, undefined, undefined, {});
 
-    expect(getSessionIdForPath).toHaveBeenCalledWith("/tmp/explicit.jsonl");
+    expect(getSessionIdForPath).toHaveBeenCalledWith(sessionPath);
     expect(execute).toHaveBeenCalledWith(
       "call-1",
       {},
@@ -120,7 +123,7 @@ describe("SessionExecutionRegistry", () => {
         sessionId: "session-explicit",
         sessionRef: {
           sessionId: "session-explicit",
-          sessionPath: "/tmp/explicit.jsonl",
+          sessionPath,
         },
       }),
     );
@@ -175,6 +178,7 @@ describe("SessionExecutionRegistry", () => {
   it("treats normalized forms of the same locator as one identity", async () => {
     const registry = new SessionExecutionRegistry();
     const execute = vi.fn(async () => "done");
+    const sessionPath = path.resolve("/tmp/same.jsonl");
     const [wrapped] = wrapWithSessionExecutionCancellation([{ name: "normalized_locator", execute }], {
       registry,
       getSessionRef: () => ({
@@ -198,10 +202,10 @@ describe("SessionExecutionRegistry", () => {
       expect.objectContaining({ aborted: false }),
       undefined,
       expect.objectContaining({
-        sessionPath: "/tmp/same.jsonl",
+        sessionPath,
         sessionRef: {
           sessionId: "session-one",
-          sessionPath: "/tmp/same.jsonl",
+          sessionPath,
         },
       }),
     );

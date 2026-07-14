@@ -1,3 +1,4 @@
+import path from "path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const spawnAndStream = vi.fn<(...args: any[]) => Promise<{ exitCode: number }>>(async (cmd, _args, opts) => {
@@ -1157,6 +1158,7 @@ describe("createWin32Exec", () => {
   it("keeps sandbox helper cwd separate from policy write roots", async () => {
     classifyWin32Command.mockReturnValue({ runner: "cmd", reason: "windows-native-utility" });
     const helper = "C:\\Hanako\\resources\\sandbox\\windows\\hana-win-sandbox.exe";
+    const workspaceRoot = path.resolve("/workspace");
     existsSync.mockImplementation((p) => p === helper);
     const createWin32Exec = await loadExecFactory();
     const exec = createWin32Exec({
@@ -1183,7 +1185,7 @@ describe("createWin32Exec", () => {
       "--cwd",
       "C:\\read-only-reference",
       "--writable-root",
-      "/workspace",
+      workspaceRoot,
     ]));
     const writableRootIndexes = helperArgs
       .map((arg, index) => arg === "--writable-root" || arg === "--writable-root-optional" ? index + 1 : -1)

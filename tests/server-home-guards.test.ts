@@ -34,13 +34,17 @@ async function waitForExit(child: ReturnType<typeof spawn>, timeoutMs = 15000) {
   child.stdout?.on("data", (chunk) => { stdout += chunk; });
   child.stderr?.on("data", (chunk) => { stderr += chunk; });
 
-  const result: any = await Promise.race([
-    new Promise((resolve) => child.once("exit", (code, signal) => resolve({ code, signal }))),
-    new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), timeoutMs)),
-  ]);
-  if (result.timeout) {
-    child.kill("SIGKILL");
-  }
+  const result: any = await new Promise((resolve) => {
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, timeoutMs);
+    child.once("close", (code, signal) => {
+      clearTimeout(timeout);
+      resolve(timedOut ? { timeout: true, code, signal } : { code, signal });
+    });
+  });
   return { ...result, stdout, stderr };
 }
 
@@ -281,29 +285,41 @@ describe("server home guards — real spawn behavior (fast failure paths, before
       // the process continue in the background and killing it once we've
       // observed enough stdout to know it moved past the gate, or timeout.
       const child = spawnServerBootstrap(hanaHome, { HANA_ALLOW_DATA_DOWNGRADE: "1" });
+      const childClosed = new Promise<void>((resolve) => child.once("close", () => resolve()));
       let stdout = "";
       let stderr = "";
       child.stdout?.on("data", (chunk) => { stdout += chunk; });
       child.stderr?.on("data", (chunk) => { stderr += chunk; });
 
-      await Promise.race([
-        new Promise<void>((resolve) => {
-          const check = setInterval(() => {
-            if (stdout.includes("ensureFirstRun")) {
-              clearInterval(check);
-              resolve();
-            }
-          }, 50);
-        }),
+      await new Promise<void>((resolve) => {
+        let check: ReturnType<typeof setInterval>;
+        let timeout: ReturnType<typeof setTimeout>;
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          clearInterval(check);
+          clearTimeout(timeout);
+          resolve();
+        };
+        check = setInterval(() => {
+          if (stdout.includes("ensureFirstRun")) {
+            finish();
+          }
+        }, 50);
         // Generous window: under full-suite parallel load (hundreds of
         // vitest workers contending for CPU), a real child process reaching
         // ensureFirstRun can take noticeably longer than in an isolated
         // run. This only affects how long the test waits before asserting
         // — it does not affect gate latency in production.
-        new Promise<void>((resolve) => setTimeout(resolve, 25000)),
-      ]);
+        timeout = setTimeout(finish, 25000);
+        void childClosed.then(finish);
+      });
 
-      child.kill("SIGKILL");
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill("SIGKILL");
+      }
+      await childClosed;
       // The gate must not have blocked: no rejection instructions, and a
       // loud (but non-blocking) warning is expected instead.
       expect(stderr).not.toContain("HANA_ALLOW_DATA_DOWNGRADE=1"); // that's the *rejection* message's remedy text

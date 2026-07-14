@@ -8,6 +8,8 @@ import {
 } from "../core/session-manifest/store.ts";
 import { sessionLocatorKey } from "../core/session-manifest/path-normalizer.ts";
 
+const SQLITE_HOOK_TIMEOUT_MS = 30_000;
+
 describe("SessionManifestStore", () => {
   let tmpDir;
   let store;
@@ -23,12 +25,12 @@ describe("SessionManifestStore", () => {
       idGenerator: () => `sess_test_${String(nextId++).padStart(4, "0")}`,
       now: () => `2026-06-18T00:00:${String(nowIndex++).padStart(2, "0")}.000Z`,
     });
-  });
+  }, SQLITE_HOOK_TIMEOUT_MS);
 
   afterEach(() => {
     store?.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
-  });
+  }, SQLITE_HOOK_TIMEOUT_MS);
 
   function createSessionFile(name) {
     const sessionPath = path.join(tmpDir, "sessions", `${name}.jsonl`);

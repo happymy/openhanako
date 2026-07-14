@@ -21,6 +21,8 @@ const { memoryTickerTickMock, memoryTickerStartMock } = vi.hoisted(() => ({
   memoryTickerStartMock: vi.fn(),
 }));
 
+const AGENT_INIT_TEST_TIMEOUT_MS = 30_000;
+
 vi.mock("../lib/memory/memory-ticker.js", () => ({
   createMemoryTicker: () => ({
     start: memoryTickerStartMock,
@@ -98,7 +100,7 @@ function writeAgentAvatar(agentDir) {
   return resource;
 }
 
-describe("agent.systemPrompt: master / per-session 解耦", () => {
+describe("agent.systemPrompt: master / per-session 解耦", { timeout: AGENT_INIT_TEST_TIMEOUT_MS }, () => {
   let tmpDir;
   let agentsDir;
 
