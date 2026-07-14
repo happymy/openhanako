@@ -193,13 +193,17 @@ class MarkdownBlockSelectionView {
   private readonly ownerWindow: Window;
   private readonly layer: HTMLDivElement;
   private readonly surface: HTMLDivElement;
+  private readonly marquee: HTMLDivElement;
   private pending: {
     readonly pointerId: number;
     readonly startX: number;
     readonly startY: number;
+    readonly startScrollLeft: number;
+    readonly startScrollTop: number;
   } | null = null;
   private active = false;
   private anchorIndex: number | null = null;
+  private lastPointerX = 0;
   private lastPointerY = 0;
   private frameId: number | null = null;
 
@@ -211,7 +215,11 @@ class MarkdownBlockSelectionView {
     this.layer.setAttribute('aria-hidden', 'true');
     this.surface = this.ownerDocument.createElement('div');
     this.surface.className = 'cm-markdown-block-selection-surface';
+    this.marquee = this.ownerDocument.createElement('div');
+    this.marquee.className = 'cm-markdown-block-marquee';
+    this.marquee.hidden = true;
     this.layer.appendChild(this.surface);
+    this.layer.appendChild(this.marquee);
     view.dom.appendChild(this.layer);
 
     this.ownerDocument.addEventListener('pointerdown', this.onPointerDown, true);
@@ -267,7 +275,10 @@ class MarkdownBlockSelectionView {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      startScrollLeft: this.view.scrollDOM.scrollLeft,
+      startScrollTop: this.view.scrollDOM.scrollTop,
     };
+    this.lastPointerX = event.clientX;
     this.lastPointerY = event.clientY;
     this.view.dom.setPointerCapture?.(event.pointerId);
   };
@@ -286,6 +297,7 @@ class MarkdownBlockSelectionView {
       return;
     }
 
+    this.lastPointerX = event.clientX;
     this.lastPointerY = event.clientY;
     const deltaX = event.clientX - pending.startX;
     const deltaY = event.clientY - pending.startY;
@@ -309,6 +321,7 @@ class MarkdownBlockSelectionView {
     event.preventDefault();
     event.stopPropagation();
     this.updateSelectionAtPointer();
+    this.scheduleRender();
   };
 
   private readonly onPointerUp = (event: PointerEvent): void => {
@@ -372,6 +385,7 @@ class MarkdownBlockSelectionView {
     this.pending = null;
     this.active = false;
     this.anchorIndex = null;
+    this.scheduleRender();
   }
 
   private readonly scheduleRender = (): void => {
@@ -383,6 +397,7 @@ class MarkdownBlockSelectionView {
   };
 
   private renderSelection(): void {
+    this.renderMarquee();
     const blocks = selectedMarkdownBlocks(this.view.state);
     this.view.dom.classList.toggle('cm-markdown-block-selection-active', blocks.length > 0);
     if (blocks.length === 0) {
@@ -409,6 +424,35 @@ class MarkdownBlockSelectionView {
     this.surface.style.top = `${top - editorRect.top}px`;
     this.surface.style.width = `${Math.max(0, column.right - column.left)}px`;
     this.surface.style.height = `${bottom - top}px`;
+  }
+
+  private renderMarquee(): void {
+    const pending = this.pending;
+    if (!this.active || !pending) {
+      this.marquee.hidden = true;
+      return;
+    }
+
+    const editorRect = this.view.dom.getBoundingClientRect();
+    const scrollRect = this.view.scrollDOM.getBoundingClientRect();
+    const anchorX = pending.startX
+      - ((this.view.scrollDOM.scrollLeft - pending.startScrollLeft) * this.view.scaleX);
+    const anchorY = pending.startY
+      - ((this.view.scrollDOM.scrollTop - pending.startScrollTop) * this.view.scaleY);
+    const left = Math.max(scrollRect.left, Math.min(anchorX, this.lastPointerX));
+    const right = Math.min(scrollRect.right, Math.max(anchorX, this.lastPointerX));
+    const top = Math.max(scrollRect.top, Math.min(anchorY, this.lastPointerY));
+    const bottom = Math.min(scrollRect.bottom, Math.max(anchorY, this.lastPointerY));
+    if (right <= left || bottom <= top) {
+      this.marquee.hidden = true;
+      return;
+    }
+
+    this.marquee.hidden = false;
+    this.marquee.style.left = `${left - editorRect.left}px`;
+    this.marquee.style.top = `${top - editorRect.top}px`;
+    this.marquee.style.width = `${right - left}px`;
+    this.marquee.style.height = `${bottom - top}px`;
   }
 }
 

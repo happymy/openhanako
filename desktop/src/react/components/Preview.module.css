@@ -630,6 +630,15 @@
     pointer-events: none;
 }
 
+:global(.preview-editor.mode-markdown .cm-markdown-block-marquee) {
+    position: absolute;
+    box-sizing: border-box;
+    border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--text) 3%, transparent);
+    pointer-events: none;
+}
+
 :global(.preview-editor.mode-markdown .cm-markdown-block-selection-surface.is-clipped-top) {
     border-top-left-radius: 0;
     border-top-right-radius: 0;

@@ -193,6 +193,57 @@ describe('markdown block handle rail', () => {
     expect(editorDom.classList.contains('cm-markdown-block-selection-active')).toBe(false);
   });
 
+  it('draws a clipped rubber-band rectangle from the pointer origin until release', () => {
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    const { view } = createView();
+
+    fireEvent(view.dom, pointerEvent('pointerdown', 31, 32, 100));
+    fireEvent(view.dom, pointerEvent('pointermove', 31, 132, 500));
+    vi.runOnlyPendingTimers();
+
+    const marquee = view.dom.querySelector<HTMLElement>('.cm-markdown-block-marquee');
+    expect(marquee?.hidden).toBe(false);
+    expect(marquee?.style.left).toBe('100px');
+    expect(marquee?.style.top).toBe('32px');
+    expect(marquee?.style.width).toBe('400px');
+    expect(marquee?.style.height).toBe('100px');
+
+    fireEvent(view.dom, pointerEvent('pointerup', 31, 132, 500));
+    vi.runOnlyPendingTimers();
+    expect(marquee?.hidden).toBe(true);
+    view.destroy();
+  });
+
+  it('keeps the rubber-band origin attached to document content while scrolling', () => {
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    const { view } = createView();
+
+    fireEvent(view.dom, pointerEvent('pointerdown', 32, 96, 100));
+    fireEvent(view.dom, pointerEvent('pointermove', 32, 200, 500));
+    vi.runOnlyPendingTimers();
+    const marquee = view.dom.querySelector<HTMLElement>('.cm-markdown-block-marquee');
+    expect(marquee?.style.top).toBe('96px');
+    expect(marquee?.style.height).toBe('104px');
+
+    view.scrollDOM.scrollTop = 80;
+    fireEvent.scroll(view.scrollDOM);
+    vi.runOnlyPendingTimers();
+
+    expect(marquee?.style.top).toBe('16px');
+    expect(marquee?.style.height).toBe('184px');
+    view.destroy();
+  });
+
   it('keeps text editing native and clears block selection on block-body pointerdown', () => {
     rectSpy.mockImplementation(function rect(this: HTMLElement) {
       if (this.classList.contains('cm-line')) {
