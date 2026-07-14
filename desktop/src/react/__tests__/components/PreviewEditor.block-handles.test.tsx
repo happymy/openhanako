@@ -149,7 +149,53 @@ describe('markdown block handle rail', () => {
     fireEvent.click(handles[1]);
 
     expect(onOpenMenu).toHaveBeenCalledWith(expect.objectContaining({
-      target: expect.objectContaining({ type: 'Paragraph', source: 'Beta' }),
+      target: expect.objectContaining({
+        type: 'Paragraph',
+        source: 'Beta',
+        blocks: [expect.objectContaining({ source: 'Beta' })],
+      }),
+    }));
+    view.destroy();
+  });
+
+  it('opens one menu target for the whole highlighted block range', () => {
+    const { view, onOpenMenu } = createView();
+    const [alpha, beta] = collectMarkdownBlocks(view.state);
+    view.dispatch({ effects: setMarkdownBlockSelection.of({ anchor: alpha.from, head: beta.from }) });
+    const handles = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle');
+
+    fireEvent.click(handles[1]);
+
+    expect(onOpenMenu).toHaveBeenCalledWith(expect.objectContaining({
+      target: expect.objectContaining({
+        type: 'BlockRange',
+        from: alpha.from,
+        to: beta.to,
+        source: 'Alpha\n\nBeta',
+        blocks: [
+          expect.objectContaining({ source: 'Alpha' }),
+          expect.objectContaining({ source: 'Beta' }),
+        ],
+      }),
+    }));
+    view.destroy();
+  });
+
+  it('clears an old block range before opening a handle outside that range', () => {
+    const { view, onOpenMenu } = createView();
+    const [alpha, beta] = collectMarkdownBlocks(view.state);
+    view.dispatch({ effects: setMarkdownBlockSelection.of({ anchor: alpha.from, head: beta.from }) });
+    const handles = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle');
+
+    fireEvent.click(handles[2]);
+
+    expect(selectedMarkdownBlocks(view.state)).toEqual([]);
+    expect(onOpenMenu).toHaveBeenCalledWith(expect.objectContaining({
+      target: expect.objectContaining({
+        type: 'Paragraph',
+        source: 'Gamma',
+        blocks: [expect.objectContaining({ source: 'Gamma' })],
+      }),
     }));
     view.destroy();
   });
@@ -306,7 +352,7 @@ describe('markdown block handle rail', () => {
     expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(false);
 
     fireEvent(lines[1], pointerEvent('pointermove', 23, 64, 300));
-    expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(true);
+    expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(false);
 
     fireEvent(view.dom, pointerEvent('pointermove', 23, 32, 100));
     expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(true);

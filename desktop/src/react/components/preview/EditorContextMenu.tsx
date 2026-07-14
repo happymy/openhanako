@@ -57,6 +57,7 @@ interface Props {
   readOnly?: boolean;
   blockMenuRequest?: MarkdownBlockMenuRequest | null;
   onBlockMenuClose?: () => void;
+  onQuoteRange?: (view: EditorView, range: { from: number; to: number }) => void;
 }
 
 export function EditorContextMenu({
@@ -66,6 +67,7 @@ export function EditorContextMenu({
   readOnly = false,
   blockMenuRequest,
   onBlockMenuClose,
+  onQuoteRange,
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -110,7 +112,10 @@ export function EditorContextMenu({
   }, [getView, containerRef, onBlockMenuClose, readOnly]);
 
   useEffect(() => {
-    if (!blockMenuRequest) return;
+    if (!blockMenuRequest) {
+      setMenu(current => current?.blockTarget ? null : current);
+      return;
+    }
     const view = getView();
     if (!view) return;
     const { target } = blockMenuRequest;
@@ -226,6 +231,19 @@ export function EditorContextMenu({
     command(view);
   }, [getView, menu?.blockTarget, selectBlockTarget]);
 
+  const runQuoteCommand = useCallback(() => {
+    const view = getView();
+    if (!view || !onQuoteRange) return;
+    const target = menu?.blockTarget;
+    if (target) {
+      if (view.state.sliceDoc(target.from, target.to) !== target.source) return;
+      onQuoteRange(view, { from: target.from, to: target.to });
+      return;
+    }
+    const { from, to } = view.state.selection.main;
+    if (from !== to) onQuoteRange(view, { from, to });
+  }, [getView, menu?.blockTarget, onQuoteRange]);
+
   const handleUndo = useCallback(() => {
     const view = getView();
     if (view) { undo(view); view.focus(); }
@@ -248,6 +266,16 @@ export function EditorContextMenu({
       ref={menuRef}
       style={{ left: menu.position.x, top: menu.position.y }}
     >
+      {onQuoteRange && (
+        <>
+          <MenuItem
+            label={label('selection.quoteToChat', '引用到对话')}
+            disabled={!menu.hasSelection}
+            onClick={() => { close(); runQuoteCommand(); }}
+          />
+          <div className="context-menu-divider" />
+        </>
+      )}
       {!readOnly && (
         <MenuItem
           label={label('ctx.cut', '剪切')}
@@ -297,7 +325,6 @@ export function EditorContextMenu({
         <EditorFormatMenu
           blockTarget={Boolean(menu.blockTarget)}
           close={close}
-          getView={getView}
           runBlockCommand={runBlockCommand}
         />
       )}

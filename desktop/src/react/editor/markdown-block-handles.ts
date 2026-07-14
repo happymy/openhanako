@@ -24,7 +24,14 @@ import {
   setMarkdownBlockSelection,
 } from './markdown-block-selection';
 
-export type MarkdownBlockMenuTarget = MarkdownBlock;
+export interface MarkdownBlockMenuTarget extends MarkdownBlock {
+  /**
+   * The contiguous parser-owned blocks represented by this menu target.
+   * A handle inside the current block selection targets the whole selection;
+   * an unselected handle targets only its own block.
+   */
+  readonly blocks: readonly MarkdownBlock[];
+}
 
 export interface MarkdownBlockMenuRequest {
   readonly id: number;
@@ -230,6 +237,25 @@ function blockAtCurrentPosition(view: EditorView, candidate: MarkdownBlock): Mar
   return collectMarkdownBlocks(view.state).find(block => blockMatches(block, candidate)) ?? null;
 }
 
+function menuTargetForBlocks(
+  view: EditorView,
+  blocks: readonly MarkdownBlock[],
+): MarkdownBlockMenuTarget | null {
+  const first = blocks[0];
+  const last = blocks[blocks.length - 1];
+  if (!first || !last) return null;
+  const source = view.state.sliceDoc(first.from, last.to);
+  return {
+    from: first.from,
+    to: last.to,
+    type: blocks.length === 1 ? first.type : 'BlockRange',
+    startLine: first.startLine,
+    endLine: last.endLine,
+    source,
+    blocks: [...blocks],
+  };
+}
+
 function translation(ownerWindow: Window, key: string, fallback: string): string {
   const translated = ownerWindow.t?.(key);
   return translated && translated !== key ? translated : fallback;
@@ -388,11 +414,21 @@ class MarkdownBlockHandleView {
         if (this.suppressClick) return;
         const current = blockAtCurrentPosition(this.view, block);
         if (!current) return;
+        const selected = selectedMarkdownBlocks(this.view.state);
+        const currentIsSelected = selected.some(candidate => blockMatches(candidate, current));
+        if (selected.length > 0 && !currentIsSelected) {
+          this.view.dispatch({ effects: setMarkdownBlockSelection.of(null) });
+        }
+        const targetBlocks = currentIsSelected
+          ? selected
+          : [current];
+        const target = menuTargetForBlocks(this.view, targetBlocks);
+        if (!target) return;
         const rect = button.getBoundingClientRect();
         this.options.onOpenMenu({
           id: ++this.requestId,
           position: { x: rect.right, y: rect.top },
-          target: current,
+          target,
         });
       });
       button.addEventListener('pointerdown', event => {

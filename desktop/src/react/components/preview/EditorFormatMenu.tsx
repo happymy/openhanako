@@ -9,12 +9,12 @@ import {
   toggleItalic,
   toggleList,
   toggleStrikethrough,
+  type MarkdownInlineCommandOptions,
 } from '../../editor/markdown-commands';
 
 interface EditorFormatMenuProps {
   blockTarget: boolean;
   close: () => void;
-  getView: () => EditorView | null;
   runBlockCommand: (
     selection: 'block' | 'start',
     command: (view: EditorView) => void,
@@ -29,42 +29,38 @@ function label(key: string, fallback: string): string {
 export function EditorFormatMenu({
   blockTarget,
   close,
-  getView,
   runBlockCommand,
 }: EditorFormatMenuProps) {
-  const runInlineCommand = (command: (view: EditorView) => void) => {
+  const runInlineCommand = (
+    command: (view: EditorView, options?: MarkdownInlineCommandOptions) => void,
+  ) => {
     close();
-    const view = getView();
-    if (view) command(view);
+    runBlockCommand('block', view => command(view, { blockRange: blockTarget }));
   };
 
   return (
     <>
       <div className="context-menu-divider" />
       <div className="context-menu-fmt-row">
-        {!blockTarget && (
-          <>
-            <FmtButton title={label('ctx.bold', '粗体')} onClick={() => runInlineCommand(toggleBold)}>
-              <span className="context-menu-fmt-text" style={{ fontWeight: 700 }}>B</span>
-            </FmtButton>
-            <FmtButton title={label('ctx.italic', '斜体')} onClick={() => runInlineCommand(toggleItalic)}>
-              <span className="context-menu-fmt-text" style={{ fontStyle: 'italic' }}>I</span>
-            </FmtButton>
-            <FmtButton title={label('ctx.strikethrough', '删除线')} onClick={() => runInlineCommand(toggleStrikethrough)}>
-              <span className="context-menu-fmt-text" style={{ textDecoration: 'line-through' }}>S</span>
-            </FmtButton>
-            <FmtButton title={label('ctx.inlineCode', '行内代码')} onClick={() => runInlineCommand(toggleInlineCode)}>
-              <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>
-            </FmtButton>
-          </>
-        )}
-        <FmtButton title={label('ctx.heading1', '标题 1')} onClick={() => { close(); runBlockCommand('start', v => setHeading(v, 1)); }}>
+        <FmtButton title={label('ctx.bold', '粗体')} onClick={() => runInlineCommand(toggleBold)}>
+          <span className="context-menu-fmt-text" style={{ fontWeight: 700 }}>B</span>
+        </FmtButton>
+        <FmtButton title={label('ctx.italic', '斜体')} onClick={() => runInlineCommand(toggleItalic)}>
+          <span className="context-menu-fmt-text" style={{ fontStyle: 'italic' }}>I</span>
+        </FmtButton>
+        <FmtButton title={label('ctx.strikethrough', '删除线')} onClick={() => runInlineCommand(toggleStrikethrough)}>
+          <span className="context-menu-fmt-text" style={{ textDecoration: 'line-through' }}>S</span>
+        </FmtButton>
+        <FmtButton title={label('ctx.inlineCode', '行内代码')} onClick={() => runInlineCommand(toggleInlineCode)}>
+          <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>
+        </FmtButton>
+        <FmtButton title={label('ctx.heading1', '标题 1')} onClick={() => { close(); runBlockCommand('block', v => setHeading(v, 1)); }}>
           <span className="context-menu-fmt-text" style={{ fontSize: '0.8em', fontWeight: 600 }}>H<sub>1</sub></span>
         </FmtButton>
-        <FmtButton title={label('ctx.heading2', '标题 2')} onClick={() => { close(); runBlockCommand('start', v => setHeading(v, 2)); }}>
+        <FmtButton title={label('ctx.heading2', '标题 2')} onClick={() => { close(); runBlockCommand('block', v => setHeading(v, 2)); }}>
           <span className="context-menu-fmt-text" style={{ fontSize: '0.75em', fontWeight: 500 }}>H<sub>2</sub></span>
         </FmtButton>
-        <FmtButton title={label('ctx.heading3', '标题 3')} onClick={() => { close(); runBlockCommand('start', v => setHeading(v, 3)); }}>
+        <FmtButton title={label('ctx.heading3', '标题 3')} onClick={() => { close(); runBlockCommand('block', v => setHeading(v, 3)); }}>
           <span className="context-menu-fmt-text" style={{ fontSize: '0.7em', fontWeight: 500 }}>H<sub>3</sub></span>
         </FmtButton>
       </div>

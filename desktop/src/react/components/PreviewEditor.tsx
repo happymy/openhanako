@@ -83,6 +83,11 @@ export interface PreviewEditorStats {
   totalChars: number;
 }
 
+export interface PreviewEditorQuoteRange {
+  from: number;
+  to: number;
+}
+
 export type PreviewEditorSaveDocument = (
   content: string,
   expectedVersion?: FileVersion | null,
@@ -98,6 +103,7 @@ export interface PreviewEditorProps {
   language?: string | null;
   onSelectionChange?: (view: EditorView) => void;
   onSelectionCommit?: (view: EditorView) => void;
+  onQuoteRange?: (view: EditorView, range: PreviewEditorQuoteRange) => void;
   onStatsChange?: (stats: PreviewEditorStats) => void;
   onContentChange?: (content: string, fileVersion?: FileVersion | null) => void;
   initialScrollSnapshot?: PreviewScrollSnapshot | null;
@@ -383,11 +389,21 @@ function isEditorCoverRailDrop(view: EditorView, event: DragEvent): boolean {
 /* ── Editor Component ── */
 
 export const PreviewEditor = forwardRef<PreviewEditorHandle, PreviewEditorProps>(
-  function PreviewEditor({ content, filePath, remoteContentRef, fileVersion, saveDocument, mode, language, onSelectionChange, onSelectionCommit, onStatsChange, onContentChange, initialScrollSnapshot, contentHash, onScrollSnapshotChange, readOnly = false }, ref) {
+  function PreviewEditor({ content, filePath, remoteContentRef, fileVersion, saveDocument, mode, language, onSelectionChange, onSelectionCommit, onQuoteRange, onStatsChange, onContentChange, initialScrollSnapshot, contentHash, onScrollSnapshotChange, readOnly = false }, ref) {
     const incomingFileVersionKey = fileVersionIdentity(fileVersion ?? null);
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
     const [blockMenuRequest, setBlockMenuRequest] = useState<MarkdownBlockMenuRequest | null>(null);
+    const toggleBlockMenu = useCallback((request: MarkdownBlockMenuRequest) => {
+      setBlockMenuRequest(current => (
+        current
+        && current.target.from === request.target.from
+        && current.target.to === request.target.to
+        && current.target.source === request.target.source
+          ? null
+          : request
+      ));
+    }, []);
     const [editorHostReadySignal, setEditorHostReadySignal] = useState(0);
     const lastEditorHostReadyRef = useRef(false);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -834,7 +850,7 @@ export const PreviewEditor = forwardRef<PreviewEditorHandle, PreviewEditorProps>
         ...(isMd && !readOnly ? [
           markdownBlockSelectionPlugin(),
           markdownBlockHandlePlugin({
-            onOpenMenu: setBlockMenuRequest,
+            onOpenMenu: toggleBlockMenu,
           }),
         ] : []),
         ...(isMd ? [tableDecoField] : []),
@@ -995,6 +1011,7 @@ export const PreviewEditor = forwardRef<PreviewEditorHandle, PreviewEditorProps>
           readOnly={readOnly}
           blockMenuRequest={blockMenuRequest}
           onBlockMenuClose={closeBlockMenu}
+          onQuoteRange={onQuoteRange}
         />
       </Fragment>
     );

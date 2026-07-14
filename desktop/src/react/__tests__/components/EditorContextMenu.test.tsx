@@ -14,7 +14,10 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-function renderBlockMenu(doc: string) {
+function renderBlockMenu(doc: string, options: {
+  allBlocks?: boolean;
+  onQuoteRange?: (view: EditorView, range: { from: number; to: number }) => void;
+} = {}) {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const view = new EditorView({
@@ -24,7 +27,18 @@ function renderBlockMenu(doc: string) {
       extensions: [markdown({ base: markdownLanguage })],
     }),
   });
-  const target = collectMarkdownBlocks(view.state)[0];
+  const blocks = collectMarkdownBlocks(view.state);
+  const targetBlocks = options.allBlocks ? blocks : blocks.slice(0, 1);
+  const first = targetBlocks[0];
+  const last = targetBlocks[targetBlocks.length - 1];
+  const target = {
+    ...first,
+    to: last.to,
+    type: targetBlocks.length === 1 ? first.type : 'BlockRange',
+    endLine: last.endLine,
+    source: view.state.sliceDoc(first.from, last.to),
+    blocks: targetBlocks,
+  };
   const onBlockMenuClose = vi.fn();
 
   render(
@@ -34,20 +48,20 @@ function renderBlockMenu(doc: string) {
       mode="markdown"
       blockMenuRequest={{ id: 1, position: { x: 20, y: 20 }, target }}
       onBlockMenuClose={onBlockMenuClose}
+      onQuoteRange={options.onQuoteRange}
     />,
   );
   return { view, onBlockMenuClose };
 }
 
 describe('EditorContextMenu block target', () => {
-  it('reuses the format menu while hiding selection-only inline actions', async () => {
+  it('reuses the complete format menu for block targets', async () => {
     const { view, onBlockMenuClose } = renderBlockMenu('Paragraph');
 
     expect(await screen.findByTitle('标题 1')).toBeTruthy();
-    expect(screen.queryByTitle('粗体')).toBeNull();
-    fireEvent.click(screen.getByTitle('标题 1'));
+    fireEvent.click(screen.getByTitle('粗体'));
 
-    expect(view.state.doc.toString()).toBe('# Paragraph');
+    expect(view.state.doc.toString()).toBe('**Paragraph**');
     expect(onBlockMenuClose).toHaveBeenCalled();
     view.destroy();
   });
@@ -58,6 +72,17 @@ describe('EditorContextMenu block target', () => {
     fireEvent.click(await screen.findByTitle('引用'));
 
     expect(view.state.doc.toString()).toBe('> line one\n> line two');
+    view.destroy();
+  });
+
+  it('quotes the complete highlighted block range from the first menu item', async () => {
+    const onQuoteRange = vi.fn();
+    const doc = 'Alpha\n\nBeta';
+    const { view } = renderBlockMenu(doc, { allBlocks: true, onQuoteRange });
+
+    fireEvent.click(await screen.findByText('引用到对话'));
+
+    expect(onQuoteRange).toHaveBeenCalledWith(view, { from: 0, to: doc.length });
     view.destroy();
   });
 });

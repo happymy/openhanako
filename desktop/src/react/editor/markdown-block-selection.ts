@@ -122,10 +122,6 @@ function contentColumnBounds(view: EditorView): ContentColumnBounds {
   return { left: contentRect.left, right: contentRect.right };
 }
 
-function blockContainsLine(block: MarkdownBlock, lineNumber: number): boolean {
-  return lineNumber >= block.startLine && lineNumber <= block.endLine;
-}
-
 function isTopLevelBlockGap(view: EditorView, x: number, y: number): boolean {
   const bounds = contentColumnBounds(view);
   if (x < bounds.left || x > bounds.right) return false;
@@ -136,6 +132,10 @@ function isTopLevelBlockGap(view: EditorView, x: number, y: number): boolean {
   const nextIndex = firstBlockAfter(blocks, position);
   const neighborhoodStart = Math.max(0, nextIndex - 2);
   const neighborhoodEnd = Math.min(blocks.length - 1, neighborhoodStart + 3);
+  // A source-owned blank line remains an editable CodeMirror line. Only the
+  // measured CSS space between two rendered top-level blocks is a marquee
+  // origin; treating blank source as that gap steals its native I-beam.
+  if (view.state.doc.lineAt(position).text.trim() === '') return false;
   for (let index = neighborhoodStart; index < neighborhoodEnd; index += 1) {
     const current = blockVerticalBounds(view, blocks[index]);
     const next = blockVerticalBounds(view, blocks[index + 1]);
@@ -145,13 +145,7 @@ function isTopLevelBlockGap(view: EditorView, x: number, y: number): boolean {
     const blockBounds = blockVerticalBounds(view, block);
     return y >= blockBounds.top && y <= blockBounds.bottom;
   })) return false;
-
-  // Keep parser-owned blank lines selectable when a browser cannot expose a
-  // measurable CSS gap (for example while the viewport is still settling).
-  const line = view.state.doc.lineAt(position);
-  return line.text.trim() === ''
-    && !blocks.slice(neighborhoodStart, neighborhoodEnd + 1)
-      .some(block => blockContainsLine(block, line.number));
+  return false;
 }
 
 function isMarqueeOrigin(view: EditorView, x: number, y: number): boolean {

@@ -307,7 +307,10 @@ describe('editor typography settings', () => {
     expect(theme).toMatch(/'\.cm-line\.cm-markdown-cover-line':\s*\{[\s\S]*maxWidth:\s*'none'/);
     expect(theme).toMatch(/'\.cm-markdown-cover':\s*\{[\s\S]*width:\s*'100%'/);
     expect(theme).toMatch(/'\.cm-markdown-cover':\s*\{[\s\S]*maxWidth:\s*'none'/);
-    expect(theme).toMatch(/padding:\s*'0 max\(var\(--editor-markdown-content-padding-x\), var\(--editor-markdown-block-rail-space, 0px\)\)'/);
+    expect(theme).toMatch(/'--editor-markdown-content-inset-x':\s*'max\(var\(--editor-markdown-content-padding-x\), var\(--editor-markdown-block-rail-space, 0px\)\)'/);
+    expect(theme).toMatch(/padding:\s*'0 var\(--editor-markdown-content-inset-x\)'/);
+    expect(theme).toMatch(/'\.cm-markdown-cover\.cm-markdown-cover-bleed-x':\s*\{[\s\S]*marginLeft:\s*'calc\(0px - var\(--editor-markdown-content-inset-x\)\)'/);
+    expect(theme).toMatch(/width:\s*'calc\(100% \+ var\(--editor-markdown-content-inset-x\) \+ var\(--editor-markdown-content-inset-x\)\)'/);
     expect(previewCss).toMatch(/--editor-markdown-block-rail-space:\s*36px/);
     expect(highlight).toMatch(/tags\.heading1,\s*fontSize:\s*'var\(--editor-markdown-h1-font-size\)'/);
     expect(highlight).toMatch(/tags\.heading6,\s*fontSize:\s*'var\(--editor-markdown-h6-font-size\)'/);
