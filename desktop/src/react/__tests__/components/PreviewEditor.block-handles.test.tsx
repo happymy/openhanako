@@ -18,6 +18,7 @@ import {
 } from '../../editor/markdown-block-selection';
 import { collectMarkdownBlocks } from '../../editor/markdown-blocks';
 import { markdownCoverField } from '../../editor/cover-field';
+import { markdownDecoPlugin } from '../../editor/md-decorations';
 import { tableDecoField } from '../../editor/table-field';
 
 function elementRect(): DOMRect {
@@ -699,6 +700,44 @@ describe('markdown block handle rail', () => {
     const firstHandle = view.dom.querySelector<HTMLButtonElement>('.cm-markdown-block-handle');
 
     expect(firstHandle?.style.top).toBe('8px');
+    view.destroy();
+  });
+
+  it('aligns a blockquote handle with the shared block rail instead of its indented text', () => {
+    const doc = 'Alpha\n\n> quoted';
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    coordsSpy.mockImplementation(function coords(this: EditorView, pos: number) {
+      const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
+      const top = line.number * 32;
+      const left = line.number === 3 ? 224 : 200;
+      return { left, right: 400, top, bottom: top + 24 };
+    });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          markdownDecoPlugin,
+          markdownBlockSelectionPlugin(),
+          markdownBlockHandlePlugin({ onOpenMenu: vi.fn() }),
+        ],
+      }),
+    });
+    vi.runOnlyPendingTimers();
+
+    expect(view.dom.querySelector('.cm-blockquote-line')).toBeInstanceOf(HTMLElement);
+    const items = view.dom.querySelectorAll<HTMLElement>('.cm-markdown-block-rail-item');
+    expect(items).toHaveLength(2);
+    expect(items[0].style.left).toBe('172px');
+    expect(items[1].style.left).toBe(items[0].style.left);
     view.destroy();
   });
 

@@ -213,6 +213,19 @@ function renderedLineElement(view: EditorView, lineNumber: number): HTMLElement 
   return null;
 }
 
+function renderedBlockLineLeft(
+  view: EditorView,
+  block: MarkdownBlock,
+  lineNumber: number,
+): number | null {
+  if (block.type === 'Blockquote') {
+    const element = renderedLineElement(view, lineNumber);
+    const left = element?.getBoundingClientRect().left;
+    if (left !== undefined && Number.isFinite(left)) return left;
+  }
+  return renderedLineCoordinates(view, lineNumber, 'start')?.left ?? null;
+}
+
 function measureMarkdownBlock(view: EditorView, block: MarkdownBlock): MeasuredMarkdownBlock | null {
   let start: EditorCoordinates | null = null;
   let end: EditorCoordinates | null = null;
@@ -226,9 +239,9 @@ function measureMarkdownBlock(view: EditorView, block: MarkdownBlock): MeasuredM
     start ??= coordinates;
   }
   for (const lineNumber of horizontalLineNumbers) {
-    const coordinates = renderedLineCoordinates(view, lineNumber, 'start');
-    if (!coordinates) continue;
-    left = Math.min(left, coordinates.left);
+    const lineLeft = renderedBlockLineLeft(view, block, lineNumber);
+    if (lineLeft === null) continue;
+    left = Math.min(left, lineLeft);
   }
   for (let index = verticalLineNumbers.length - 1; index >= 0; index -= 1) {
     end = renderedLineCoordinates(view, verticalLineNumbers[index], 'end');
