@@ -3,6 +3,7 @@ import {
 } from '@codemirror/view';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import {
+  EditorSelection,
   EditorState,
   Facet,
   RangeSetBuilder,
@@ -56,6 +57,143 @@ const HEX_COLOR_RE = /^#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?(?:[0-9a-fA-F]{2})?$/;
 const RGB_COLOR_RE = /^rgba?\(\s*(?:\d{1,3}\s*,\s*){2}\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i;
 const BG_SPAN_RE = /<span\s+style=(["'])\s*background(?:-color)?\s*:\s*([^;"']+)\s*;?\s*\1>([\s\S]*?)<\/span>/ig;
 const FENCE_RE = /^(?: {0,3})(`{3,}|~{3,})/;
+
+interface CodeFenceBoundary {
+  readonly from: number;
+  readonly to: number;
+  readonly before: number | null;
+  readonly after: number | null;
+}
+
+const codeFenceBoundaryCache = new WeakMap<object, {
+  readonly tree: ReturnType<typeof syntaxTree>;
+  readonly boundaries: CodeFenceBoundary[];
+}>();
+
+function isClosingFenceLine(opening: string, candidate: string): boolean {
+  const openingMatch = opening.match(FENCE_RE);
+  const closingMatch = candidate.match(/^(?: {0,3})(`{3,}|~{3,})[ \t]*$/);
+  return Boolean(
+    openingMatch
+      && closingMatch
+      && openingMatch[1][0] === closingMatch[1][0]
+      && closingMatch[1].length >= openingMatch[1].length,
+  );
+}
+
+function codeFenceBoundaries(state: EditorState): CodeFenceBoundary[] {
+  const tree = syntaxTree(state);
+  const cached = codeFenceBoundaryCache.get(state.doc);
+  if (cached?.tree === tree) return cached.boundaries;
+  const boundaries: CodeFenceBoundary[] = [];
+  tree.iterate({
+    enter(node) {
+      if (node.name !== 'FencedCode') return;
+      const opening = state.doc.lineAt(node.from);
+      const end = state.doc.lineAt(node.to);
+      if (!FENCE_RE.test(opening.text)) return false;
+      const hasClosing = end.number > opening.number
+        && isClosingFenceLine(opening.text, end.text);
+      const firstBodyNumber = opening.number + 1;
+      const lastBodyNumber = hasClosing ? end.number - 1 : end.number;
+      const hasBody = firstBodyNumber <= lastBodyNumber;
+      const firstBody = hasBody ? state.doc.line(firstBodyNumber) : null;
+      const lastBody = hasBody ? state.doc.line(lastBodyNumber) : null;
+      const previousExternal = opening.number > 1
+        ? state.doc.line(opening.number - 1)
+        : null;
+      const nextExternal = hasClosing && end.number < state.doc.lines
+        ? state.doc.line(end.number + 1)
+        : null;
+
+      boundaries.push({
+        from: opening.from,
+        to: opening.to,
+        before: previousExternal?.to ?? firstBody?.from ?? nextExternal?.from ?? null,
+        after: firstBody?.from ?? nextExternal?.from ?? previousExternal?.to ?? null,
+      });
+      if (hasClosing) {
+        boundaries.push({
+          from: end.from,
+          to: end.to,
+          before: lastBody?.to ?? previousExternal?.to ?? nextExternal?.from ?? null,
+          after: nextExternal?.from ?? lastBody?.to ?? previousExternal?.to ?? null,
+        });
+      }
+      return false;
+    },
+  });
+  codeFenceBoundaryCache.set(state.doc, { tree, boundaries });
+  return boundaries;
+}
+
+function normalizeCodeFenceSelection(
+  state: EditorState,
+  selection: EditorSelection,
+  previous: EditorSelection,
+): EditorSelection {
+  const boundaries = codeFenceBoundaries(state);
+  if (boundaries.length === 0) return selection;
+  let changed = false;
+  const ranges = selection.ranges.map((range, index) => {
+    if (!range.empty) return range;
+    const boundary = boundaries.find(candidate => (
+      range.from >= candidate.from && range.from <= candidate.to
+    ));
+    if (!boundary) return range;
+    const previousHead = previous.ranges[index]?.head ?? previous.main.head;
+    const position = previousHead > boundary.to
+      ? boundary.before
+      : previousHead < boundary.from
+        ? boundary.after
+        : boundary.after ?? boundary.before;
+    if (position === null || position === range.from) return range;
+    changed = true;
+    return EditorSelection.cursor(position, position < range.from ? 1 : -1);
+  });
+  return changed ? EditorSelection.create(ranges, selection.mainIndex) : selection;
+}
+
+function eventTargetElement(target: EventTarget | null): Element | null {
+  if (!target || typeof target !== 'object' || !('nodeType' in target)) return null;
+  const node = target as Node;
+  return node.nodeType === 1 ? node as Element : node.parentElement;
+}
+
+function isCodeFenceBoundaryTarget(target: EventTarget | null): boolean {
+  return Boolean(eventTargetElement(target)?.closest(
+    '.cm-codeblock-line-first, .cm-codeblock-line-last',
+  ));
+}
+
+const codeFenceBoundarySelectionFilter = EditorState.transactionFilter.of((transaction) => {
+  if (transaction.docChanged || !transaction.selection) return transaction;
+  const selection = normalizeCodeFenceSelection(
+    transaction.startState,
+    transaction.newSelection,
+    transaction.startState.selection,
+  );
+  if (selection.eq(transaction.newSelection)) return transaction;
+  return [transaction, { selection, sequential: true }];
+});
+
+const codeFenceBoundaryEventHandlers = EditorView.domEventHandlers({
+  mousedown(event) {
+    if (!isCodeFenceBoundaryTarget(event.target)) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  },
+  focus(_event, view) {
+    const selection = normalizeCodeFenceSelection(
+      view.state,
+      view.state.selection,
+      view.state.selection,
+    );
+    if (!selection.eq(view.state.selection)) view.dispatch({ selection });
+    return false;
+  },
+});
 
 export const CONCEAL_MARKS = new Set([
   'HeaderMark', 'EmphasisMark', 'CodeMark', 'StrikethroughMark',
@@ -524,5 +662,8 @@ export const markdownDecoPlugin = ViewPlugin.fromClass(
       }
     }
   },
-  { decorations: (v) => v.decorations },
+  {
+    decorations: (v) => v.decorations,
+    provide: () => [codeFenceBoundarySelectionFilter, codeFenceBoundaryEventHandlers],
+  },
 );

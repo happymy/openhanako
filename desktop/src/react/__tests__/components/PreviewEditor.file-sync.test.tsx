@@ -187,6 +187,7 @@ describe('PreviewEditor file sync', () => {
     expect(document.body.querySelector('.context-menu')).toBeTruthy();
     expect(document.body.querySelector('[title="粗体"]')).toBeTruthy();
     expect(document.body.querySelector('[title="删除线"]')).toBeTruthy();
+    act(() => vi.runOnlyPendingTimers());
 
     fireEvent.click(handle!);
     expect(document.body.querySelector('.context-menu')).toBeNull();

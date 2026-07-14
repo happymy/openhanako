@@ -50,6 +50,13 @@ function editorCanRedo(view: EditorView): boolean {
   return redo({ state: view.state, dispatch: () => {} });
 }
 
+function eventTargetClosest(target: EventTarget | null, selector: string): Element | null {
+  if (!target || typeof target !== 'object' || !('nodeType' in target)) return null;
+  const node = target as Node;
+  const element = node.nodeType === 1 ? node as Element : node.parentElement;
+  return element?.closest(selector) ?? null;
+}
+
 interface Props {
   getView: () => EditorView | null;
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -158,6 +165,10 @@ export function EditorContextMenu({
     };
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current?.contains(e.target as Node)) return;
+      // The Grabber owns its toggle. Closing here during capture would clear
+      // the request before the button's click handler runs, making that same
+      // click open a fresh menu instead of closing the current one.
+      if (menu.blockTarget && eventTargetClosest(e.target, '.cm-markdown-block-handle')) return;
       close();
     };
     const handleCtx = (e: MouseEvent) => {

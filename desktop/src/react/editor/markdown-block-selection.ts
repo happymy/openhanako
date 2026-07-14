@@ -122,35 +122,9 @@ function contentColumnBounds(view: EditorView): ContentColumnBounds {
   return { left: contentRect.left, right: contentRect.right };
 }
 
-function isTopLevelBlockGap(view: EditorView, x: number, y: number): boolean {
+function isMarqueeOrigin(view: EditorView, x: number, _y: number): boolean {
   const bounds = contentColumnBounds(view);
-  if (x < bounds.left || x > bounds.right) return false;
-  const blocks = blocksForState(view.state);
-  if (blocks.length < 2) return false;
-  const position = view.posAtCoords({ x: (bounds.left + bounds.right) / 2, y }, false);
-  if (position === null) return false;
-  const nextIndex = firstBlockAfter(blocks, position);
-  const neighborhoodStart = Math.max(0, nextIndex - 2);
-  const neighborhoodEnd = Math.min(blocks.length - 1, neighborhoodStart + 3);
-  // A source-owned blank line remains an editable CodeMirror line. Only the
-  // measured CSS space between two rendered top-level blocks is a marquee
-  // origin; treating blank source as that gap steals its native I-beam.
-  if (view.state.doc.lineAt(position).text.trim() === '') return false;
-  for (let index = neighborhoodStart; index < neighborhoodEnd; index += 1) {
-    const current = blockVerticalBounds(view, blocks[index]);
-    const next = blockVerticalBounds(view, blocks[index + 1]);
-    if (next.top > current.bottom && y >= current.bottom && y <= next.top) return true;
-  }
-  if (blocks.slice(neighborhoodStart, neighborhoodEnd + 1).some(block => {
-    const blockBounds = blockVerticalBounds(view, block);
-    return y >= blockBounds.top && y <= blockBounds.bottom;
-  })) return false;
-  return false;
-}
-
-function isMarqueeOrigin(view: EditorView, x: number, y: number): boolean {
-  const bounds = contentColumnBounds(view);
-  return x < bounds.left || x > bounds.right || isTopLevelBlockGap(view, x, y);
+  return x < bounds.left || x > bounds.right;
 }
 
 function blockIndexAtCoords(

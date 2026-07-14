@@ -288,6 +288,88 @@ describe('collectLivePreviewRanges', () => {
     view.destroy();
   });
 
+  it('keeps a collapsed caret out of hidden fenced-code boundary lines', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = [
+      'before',
+      '```ts',
+      'const x = 1;',
+      '```',
+      'after',
+    ].join('\n');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        selection: { anchor: doc.indexOf('const') },
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          markdownDecoPlugin,
+        ],
+      }),
+    });
+    const opening = view.state.doc.line(2);
+    const closing = view.state.doc.line(4);
+
+    view.dispatch({ selection: { anchor: opening.from } });
+    expect(view.state.selection.main.anchor).toBe(view.state.doc.line(1).to);
+
+    view.dispatch({ selection: { anchor: view.state.doc.line(3).to } });
+    view.dispatch({ selection: { anchor: closing.from } });
+    expect(view.state.selection.main.anchor).toBe(view.state.doc.line(5).from);
+
+    view.destroy();
+  });
+
+  it('prevents a pointer press on hidden fenced-code boundary lines from moving the caret', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = ['```ts', 'const x = 1;', '```'].join('\n');
+    const bodyPosition = doc.indexOf('const');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        selection: { anchor: bodyPosition },
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          markdownDecoPlugin,
+        ],
+      }),
+    });
+    const openingLine = parent.querySelector<HTMLElement>('.cm-codeblock-line-first');
+    const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+
+    openingLine?.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.selection.main.anchor).toBe(bodyPosition);
+    view.destroy();
+  });
+
+  it('moves the initial caret off an opening fence when the editor receives focus', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = ['```ts', 'const x = 1;', '```'].join('\n');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        selection: { anchor: 0 },
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          markdownDecoPlugin,
+        ],
+      }),
+    });
+
+    view.focus();
+
+    expect(view.state.selection.main.anchor).toBe(view.state.doc.line(2).from);
+    view.destroy();
+  });
+
   it('shows a copy button on inactive fenced code blocks in the markdown editor', async () => {
     window.t = ((key: string) => {
       if (key === 'attach.copy') return '复制';

@@ -855,14 +855,22 @@
 
 :global(.cm-codeblock-line-first) {
     border-radius: 2px 2px 0 0;
+    min-height: 24px;
+    line-height: 24px;
+    cursor: default;
 }
 
 :global(.cm-codeblock-line-last) {
     border-radius: 0 0 2px 2px;
+    min-height: var(--space-4);
+    line-height: var(--space-4);
+    cursor: default;
 }
 
 :global(.cm-codeblock-line-first.cm-codeblock-line-last) {
     border-radius: 2px;
+    min-height: 24px;
+    line-height: 24px;
 }
 
 :global(.cm-codeblock-toolbar) {

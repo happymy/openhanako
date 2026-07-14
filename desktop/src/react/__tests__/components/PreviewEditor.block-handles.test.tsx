@@ -338,7 +338,7 @@ describe('markdown block handle rail', () => {
     view.destroy();
   });
 
-  it('uses the default-cursor marquee zone only for gutters and true top-level gaps', () => {
+  it('uses the default-cursor marquee zone only for gutters outside the text column', () => {
     rectSpy.mockImplementation(function rect(this: HTMLElement) {
       if (this.classList.contains('cm-line')) {
         return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
@@ -361,7 +361,7 @@ describe('markdown block handle rail', () => {
     view.destroy();
   });
 
-  it('recognizes a measured visual gap even when coordinate lookup lands on nonblank text', () => {
+  it('keeps measured gaps inside the text column in the native text-cursor zone', () => {
     rectSpy.mockImplementation(function rect(this: HTMLElement) {
       if (this.classList.contains('cm-line')) {
         return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
@@ -379,7 +379,7 @@ describe('markdown block handle rail', () => {
 
     fireEvent(line!, pointerEvent('pointermove', 26, 60, 300));
 
-    expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(true);
+    expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(false);
     view.destroy();
   });
 
