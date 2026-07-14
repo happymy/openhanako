@@ -29,7 +29,7 @@ export const markdownTheme = EditorView.theme({
   },
   '.cm-content': {
     width: '100%',
-    padding: '0 var(--editor-markdown-content-padding-x)',
+    padding: '0 max(var(--editor-markdown-content-padding-x), var(--editor-markdown-block-rail-space, 0px))',
   },
   '.cm-line': {
     maxWidth: 'var(--editor-markdown-content-width)',

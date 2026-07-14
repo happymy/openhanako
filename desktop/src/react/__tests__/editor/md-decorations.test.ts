@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { EditorState } from '@codemirror/state';
+import { EditorState, Transaction } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -148,7 +148,7 @@ describe('collectLivePreviewRanges', () => {
     view.destroy();
   });
 
-  it('keeps standard markdown image previews visible below the source on active lines', () => {
+  it('keeps standard markdown image previews visible while concealing focused source syntax', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const doc = 'intro\n![Cover](./assets/cover.png)';
@@ -178,11 +178,9 @@ describe('collectLivePreviewRanges', () => {
       }
     });
 
-    expect(parent.textContent).toContain('![Cover](./assets/cover.png)');
+    expect(parent.textContent).not.toContain('![Cover](./assets/cover.png)');
     expect(img?.getAttribute('src')).toBe('file:///vault/notes/assets/cover.png');
-    expect(blockSpecs).toEqual(expect.arrayContaining([
-      expect.objectContaining({ block: true }),
-    ]));
+    expect(blockSpecs).toEqual([]);
 
     view.destroy();
   });
@@ -213,7 +211,7 @@ describe('collectLivePreviewRanges', () => {
     view.destroy();
   });
 
-  it('keeps Obsidian image previews visible below the source on active lines', () => {
+  it('keeps Obsidian image previews visible while concealing focused source syntax', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const doc = 'intro\n![[attachments/diagram.png|120]]';
@@ -243,11 +241,9 @@ describe('collectLivePreviewRanges', () => {
       }
     });
 
-    expect(parent.textContent).toContain('![[attachments/diagram.png|120]]');
+    expect(parent.textContent).not.toContain('![[attachments/diagram.png|120]]');
     expect(img?.getAttribute('src')).toBe('file:///vault/notes/attachments/diagram.png');
-    expect(blockSpecs).toEqual(expect.arrayContaining([
-      expect.objectContaining({ block: true }),
-    ]));
+    expect(blockSpecs).toEqual([]);
 
     view.destroy();
   });
@@ -295,6 +291,94 @@ describe('collectLivePreviewRanges', () => {
     expect(button?.dataset.copied).toBe('true');
     expect(button?.querySelector('.cm-codeblock-copy-label')?.textContent).toBe('已复制');
     expect(button?.getAttribute('aria-label')).toBe('已复制');
+
+    view.destroy();
+  });
+  it('keeps the code block copy button visible while editing inside the block', async () => {
+    window.t = ((key: string) => {
+      if (key === 'attach.copy') return '复制';
+      if (key === 'attach.copied') return '已复制';
+      return key;
+    }) as typeof window.t;
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = [
+      'intro',
+      '```ts',
+      'const x = 1;',
+      '```',
+    ].join('\n');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        selection: { anchor: doc.indexOf('x = 1') },
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          markdownDecoPlugin,
+        ],
+      }),
+    });
+
+    const button = parent.querySelector<HTMLButtonElement>('.cm-codeblock-copy-btn');
+
+    expect(button).toBeInstanceOf(HTMLButtonElement);
+    expect(parent.textContent).not.toContain('```ts');
+    button?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+
+    expect(writeText).toHaveBeenCalledWith('const x = 1;');
+    expect(button?.dataset.copied).toBe('true');
+    expect(button?.querySelector('.cm-codeblock-copy-label')?.textContent).toBe('已复制');
+
+    view.destroy();
+  });
+});
+
+describe('markdown syntax reveal lifetime', () => {
+  it('keeps completed marks concealed while leaving an unfinished typed prefix visible', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: 'Heading',
+        selection: { anchor: 0 },
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          markdownDecoPlugin,
+        ],
+      }),
+    });
+
+    view.dispatch({
+      changes: { from: 0, to: 0, insert: '#' },
+      selection: { anchor: 1 },
+      annotations: Transaction.userEvent.of('input.type'),
+    });
+    expect(parent.textContent).toBe('#Heading');
+
+    view.dispatch({
+      changes: { from: 1, to: 1, insert: '#' },
+      selection: { anchor: 2 },
+      annotations: Transaction.userEvent.of('input.type'),
+    });
+    expect(parent.textContent).toBe('##Heading');
+
+    view.dispatch({
+      changes: { from: 2, to: 2, insert: ' ' },
+      selection: { anchor: 3 },
+      annotations: Transaction.userEvent.of('input.type'),
+    });
+    expect(parent.textContent).toBe('Heading');
+
+    view.dispatch({ selection: { anchor: 5 } });
+    expect(parent.textContent).toBe('Heading');
 
     view.destroy();
   });

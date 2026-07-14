@@ -532,6 +532,7 @@
 
 :global(.preview-editor.mode-markdown) {
     --preview-markdown-editor-bottom-space: var(--preview-markdown-bottom-space, calc(var(--space-40) + var(--space-40) + var(--space-24) + var(--space-24)));
+    --editor-markdown-block-rail-space: 36px;
 }
 
 :global(.preview-editor .cm-editor) {
@@ -559,6 +560,8 @@
 }
 
 :global(.preview-editor.mode-markdown .cm-markdown-block-handle) {
+    position: absolute;
+    left: 0;
     width: 24px;
     height: 24px;
     display: flex;
@@ -573,6 +576,29 @@
     opacity: 0.55;
     touch-action: none;
     transition: opacity var(--duration-instant), background var(--duration-instant), color var(--duration-instant);
+}
+
+:global(.preview-editor.mode-markdown .cm-line.cm-markdown-block-drag-source) {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+:global(.preview-editor.mode-markdown .cm-line.cm-markdown-block-drop-target) {
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+:global(.preview-editor.mode-markdown .cm-line.cm-markdown-block-drag-source-first),
+:global(.preview-editor.mode-markdown .cm-line.cm-markdown-block-drop-target-first) {
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+:global(.preview-editor.mode-markdown .cm-line.cm-markdown-block-drag-source-last),
+:global(.preview-editor.mode-markdown .cm-line.cm-markdown-block-drop-target-last) {
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+:global(.preview-editor.mode-markdown .cm-line.cm-markdown-block-drag-source-first.cm-markdown-block-drag-source-last),
+:global(.preview-editor.mode-markdown .cm-line.cm-markdown-block-drop-target-first.cm-markdown-block-drop-target-last) {
+    border-radius: var(--radius-sm);
 }
 
 :global(.preview-editor.mode-markdown .cm-markdown-block-handle:hover),

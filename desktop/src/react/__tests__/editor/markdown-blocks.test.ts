@@ -81,6 +81,33 @@ describe('collectMarkdownBlocks', () => {
     });
     expect(blocks[1]).toMatchObject({ type: 'Paragraph', source: 'after' });
   });
+
+  it('protects leading frontmatter from handles and block moves', () => {
+    const doc = [
+      '---',
+      'title: Demo',
+      'cover:',
+      '  image: attachments/cover.png',
+      '---',
+      '# Heading',
+      '',
+      'Body',
+    ].join('\n');
+    const state = createState(doc);
+    const blocks = collectMarkdownBlocks(state);
+
+    expect(blocks.map(block => block.source)).toEqual(['# Heading', 'Body']);
+    expect(applyMove(state, blocks[1], blocks[0], 'before')?.doc).toBe([
+      '---',
+      'title: Demo',
+      'cover:',
+      '  image: attachments/cover.png',
+      '---',
+      'Body',
+      '',
+      '# Heading',
+    ].join('\n'));
+  });
 });
 
 describe('buildMarkdownBlockMove', () => {

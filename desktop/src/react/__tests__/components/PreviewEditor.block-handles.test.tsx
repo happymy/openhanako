@@ -8,6 +8,7 @@ import { history, undo } from '@codemirror/commands';
 import { fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  markdownBlockDragHighlightField,
   markdownBlockHandlePlugin,
   type MarkdownBlockMenuRequest,
 } from '../../editor/markdown-block-handles';
@@ -72,7 +73,10 @@ describe('markdown block handle rail', () => {
     vi.useRealTimers();
   });
 
-  function createView(onOpenMenu = vi.fn<(request: MarkdownBlockMenuRequest) => void>()): {
+  function createView(
+    onOpenMenu = vi.fn<(request: MarkdownBlockMenuRequest) => void>(),
+    doc = 'Alpha\n\nBeta\n\nGamma',
+  ): {
     view: EditorView;
     onOpenMenu: typeof onOpenMenu;
   } {
@@ -81,7 +85,7 @@ describe('markdown block handle rail', () => {
     const view = new EditorView({
       parent,
       state: EditorState.create({
-        doc: 'Alpha\n\nBeta\n\nGamma',
+        doc,
         extensions: [
           markdown({ base: markdownLanguage }),
           history(),
@@ -117,6 +121,93 @@ describe('markdown block handle rail', () => {
     expect(view.state.doc.toString()).toBe('Beta\n\nGamma\n\nAlpha');
     expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('Alpha\n\nBeta\n\nGamma');
+    view.destroy();
+  });
+
+  it('highlights the full source and target blocks while dragging', () => {
+    const { view } = createView();
+    const firstHandle = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle')[0];
+
+    fireEvent(firstHandle, pointerEvent('pointerdown', 11, 32));
+    fireEvent(firstHandle, pointerEvent('pointermove', 11, 110));
+
+    expect(view.dom.querySelectorAll('.cm-markdown-block-drag-source')).toHaveLength(1);
+    const highlightClasses: string[] = [];
+    view.state.field(markdownBlockDragHighlightField).between(
+      0,
+      view.state.doc.length,
+      (_from, _to, decoration) => {
+        highlightClasses.push(String(decoration.spec.class ?? ''));
+      },
+    );
+    expect(highlightClasses.some(className => (
+      className.includes('cm-markdown-block-drop-target')
+    ))).toBe(true);
+
+    fireEvent(firstHandle, pointerEvent('pointercancel', 11, 110));
+    expect(view.dom.querySelector('.cm-markdown-block-drag-source')).toBeNull();
+    expect(view.dom.querySelector('.cm-markdown-block-drop-target')).toBeNull();
+    view.destroy();
+  });
+
+  it('centers the handle against the first visible text line', () => {
+    coordsSpy.mockImplementation(() => ({ left: 200, right: 400, top: 32, bottom: 72 }));
+    const { view } = createView();
+    const firstHandle = view.dom.querySelector<HTMLButtonElement>('.cm-markdown-block-handle');
+
+    expect(firstHandle?.style.top).toBe('8px');
+    view.destroy();
+  });
+
+  it('keeps a fenced code block handle when its hidden fence lines have no coordinates', () => {
+    coordsSpy.mockImplementation(function coords(this: EditorView, pos: number) {
+      const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
+      if (line.text.startsWith('```')) return null;
+      const top = line.number * 32;
+      return { left: 200, right: 400, top, bottom: top + 24 };
+    });
+    const { view } = createView(
+      vi.fn<(request: MarkdownBlockMenuRequest) => void>(),
+      '```ts\nconst value = 1;\n```\n\nAfter',
+    );
+    const handles = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle');
+
+    expect(handles).toHaveLength(2);
+    expect(handles[0].closest<HTMLElement>('.cm-markdown-block-rail-item')?.dataset.blockFrom).toBe('0');
+
+    fireEvent(handles[1], pointerEvent('pointerdown', 12, 160));
+    fireEvent(handles[1], pointerEvent('pointermove', 12, 50));
+    const highlightClasses: string[] = [];
+    view.state.field(markdownBlockDragHighlightField).between(
+      0,
+      view.state.doc.length,
+      (_from, _to, decoration) => {
+        highlightClasses.push(String(decoration.spec.class ?? ''));
+      },
+    );
+    expect(highlightClasses.some(className => (
+      className.includes('cm-markdown-block-drop-target')
+    ))).toBe(true);
+    fireEvent(handles[1], pointerEvent('pointercancel', 12, 50));
+    view.destroy();
+  });
+
+  it('aligns a fenced code handle to the code text instead of a replacement widget edge', () => {
+    coordsSpy.mockImplementation(function coords(this: EditorView, pos: number) {
+      const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
+      const left = line.text.startsWith('```') ? 800 : 200;
+      const top = line.number * 32;
+      return { left, right: left + 200, top, bottom: top + 24 };
+    });
+    const { view } = createView(
+      vi.fn<(request: MarkdownBlockMenuRequest) => void>(),
+      '```ts\nconst value = 1;\n```\n\nAfter',
+    );
+    const items = view.dom.querySelectorAll<HTMLElement>('.cm-markdown-block-rail-item');
+
+    expect(items).toHaveLength(2);
+    expect(items[0].style.left).toBe('172px');
+    expect(items[1].style.left).toBe('172px');
     view.destroy();
   });
 

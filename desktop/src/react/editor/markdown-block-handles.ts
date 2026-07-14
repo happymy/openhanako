@@ -1,5 +1,11 @@
-import { Transaction } from '@codemirror/state';
-import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { RangeSetBuilder, StateEffect, StateField, Transaction, type EditorState } from '@codemirror/state';
+import {
+  Decoration,
+  EditorView,
+  ViewPlugin,
+  type DecorationSet,
+  type ViewUpdate,
+} from '@codemirror/view';
 import {
   buildMarkdownBlockMove,
   collectMarkdownBlocks,
@@ -24,6 +30,123 @@ const HANDLE_SIZE = 24;
 const HANDLE_GAP = 4;
 const HANDLE_RAIL_WIDTH = HANDLE_SIZE + HANDLE_GAP;
 const DRAG_THRESHOLD = 4;
+
+interface DragHighlightRange {
+  readonly from: number;
+  readonly to: number;
+}
+
+interface DragHighlightState {
+  readonly source: DragHighlightRange | null;
+  readonly target: DragHighlightRange | null;
+}
+
+const setDragHighlightEffect = StateEffect.define<DragHighlightState>();
+
+function buildDragHighlightDecorations(
+  state: EditorState,
+  highlight: DragHighlightState,
+): DecorationSet {
+  const entries: Array<{ position: number; decoration: Decoration }> = [];
+  const addRange = (range: DragHighlightRange | null, className: string) => {
+    if (!range || range.from < 0 || range.to <= range.from || range.from > state.doc.length) return;
+    const startLine = state.doc.lineAt(Math.min(range.from, state.doc.length));
+    const endLine = state.doc.lineAt(Math.min(range.to - 1, state.doc.length));
+    for (let lineNumber = startLine.number; lineNumber <= endLine.number; lineNumber += 1) {
+      const line = state.doc.line(lineNumber);
+      const classes = [className];
+      if (lineNumber === startLine.number) classes.push(`${className}-first`);
+      if (lineNumber === endLine.number) classes.push(`${className}-last`);
+      entries.push({
+        position: line.from,
+        decoration: Decoration.line({ class: classes.join(' ') }),
+      });
+    }
+  };
+
+  addRange(highlight.source, 'cm-markdown-block-drag-source');
+  addRange(highlight.target, 'cm-markdown-block-drop-target');
+  entries.sort((left, right) => left.position - right.position);
+
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const entry of entries) {
+    builder.add(entry.position, entry.position, entry.decoration);
+  }
+  return builder.finish();
+}
+
+export const markdownBlockDragHighlightField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(value, transaction) {
+    const effect = transaction.effects.find(candidate => candidate.is(setDragHighlightEffect));
+    if (effect?.is(setDragHighlightEffect)) {
+      return buildDragHighlightDecorations(transaction.state, effect.value);
+    }
+    return transaction.docChanged ? Decoration.none : value;
+  },
+  provide: field => EditorView.decorations.from(field),
+});
+
+type EditorCoordinates = NonNullable<ReturnType<EditorView['coordsAtPos']>>;
+
+interface MeasuredMarkdownBlock {
+  readonly start: EditorCoordinates;
+  readonly end: EditorCoordinates;
+  readonly left: number;
+}
+
+interface MarkdownBlockRailItemLayout {
+  readonly block: MarkdownBlock;
+  readonly measurement: MeasuredMarkdownBlock;
+  readonly left: number;
+  readonly top: number;
+  readonly height: number;
+  readonly handleTop: number;
+}
+
+interface MarkdownBlockRailLayout {
+  readonly items: MarkdownBlockRailItemLayout[];
+}
+
+function lineCoordinates(
+  view: EditorView,
+  lineNumber: number,
+  edge: 'start' | 'end',
+): EditorCoordinates | null {
+  const line = view.state.doc.line(lineNumber);
+  const positions = edge === 'start'
+    ? [line.from, line.to]
+    : [line.to, line.from];
+  const visited = new Set<number>();
+  for (const position of positions) {
+    if (visited.has(position)) continue;
+    visited.add(position);
+    const coordinates = view.coordsAtPos(position, edge === 'start' ? 1 : -1);
+    if (coordinates) return coordinates;
+  }
+  return null;
+}
+
+function measureMarkdownBlock(view: EditorView, block: MarkdownBlock): MeasuredMarkdownBlock | null {
+  let start: EditorCoordinates | null = null;
+  let end: EditorCoordinates | null = null;
+  let left = Number.POSITIVE_INFINITY;
+
+  for (let lineNumber = block.startLine; lineNumber <= block.endLine; lineNumber += 1) {
+    const coordinates = lineCoordinates(view, lineNumber, 'start');
+    if (!coordinates) continue;
+    start ??= coordinates;
+    left = Math.min(left, coordinates.left);
+  }
+  for (let lineNumber = block.endLine; lineNumber >= block.startLine; lineNumber -= 1) {
+    end = lineCoordinates(view, lineNumber, 'end');
+    if (end) break;
+  }
+
+  return start && end && Number.isFinite(left) ? { start, end, left } : null;
+}
 
 function blockMatches(left: MarkdownBlock, right: MarkdownBlock): boolean {
   return left.from === right.from
@@ -67,7 +190,10 @@ class MarkdownBlockHandleView {
   private readonly rail: HTMLDivElement;
   private readonly dropIndicator: HTMLDivElement;
   private readonly ownerWindow: Window;
-  private blocks: MarkdownBlock[] = [];
+  private measuredBlocks: Array<{
+    block: MarkdownBlock;
+    measurement: MeasuredMarkdownBlock;
+  }> = [];
   private draggedBlock: MarkdownBlock | null = null;
   private dropTarget: { block: MarkdownBlock; placement: MarkdownBlockPlacement } | null = null;
   private pendingDrag: {
@@ -118,34 +244,47 @@ class MarkdownBlockHandleView {
     if (this.frameId !== null) return;
     this.frameId = this.ownerWindow.requestAnimationFrame(() => {
       this.frameId = null;
-      this.render();
+      const layout = this.readLayout();
+      if (layout) this.render(layout);
     });
   };
 
-  private render(): void {
-    if (this.pendingDrag) return;
-    this.blocks = collectMarkdownBlocks(this.view.state);
-    this.rail.replaceChildren();
-    if (this.options.readOnly || this.blocks.length === 0) return;
-
+  private readLayout(): MarkdownBlockRailLayout | null {
+    if (this.pendingDrag) return null;
+    const blocks = collectMarkdownBlocks(this.view.state);
+    if (this.options.readOnly || blocks.length === 0) return { items: [] };
     const editorRect = this.view.dom.getBoundingClientRect();
-    const visibleBlocks = this.blocks.filter(block => (
+    const visibleBlocks = blocks.filter(block => (
       block.to >= this.view.viewport.from && block.from <= this.view.viewport.to
     ));
+    const items: MarkdownBlockRailItemLayout[] = [];
 
     for (const block of visibleBlocks) {
-      const start = this.view.coordsAtPos(block.from, 1);
-      if (!start) continue;
-      const nextBlock = this.blocks[this.blocks.indexOf(block) + 1];
-      const nextStart = nextBlock ? this.view.coordsAtPos(nextBlock.from, 1) : null;
-      const end = this.view.coordsAtPos(block.to, -1);
-      const top = start.top - editorRect.top;
-      const naturalBottom = nextStart?.top ?? end?.bottom ?? (start.bottom + HANDLE_SIZE);
-      const height = Math.max(HANDLE_SIZE, naturalBottom - start.top);
+      const measurement = measureMarkdownBlock(this.view, block);
+      if (!measurement) continue;
+      const { start, end, left } = measurement;
+      items.push({
+        block,
+        measurement,
+        left: Math.max(HANDLE_GAP, left - editorRect.left - HANDLE_RAIL_WIDTH),
+        top: start.top - editorRect.top,
+        height: Math.max(HANDLE_SIZE, end.bottom - start.top),
+        handleTop: Math.max(0, (start.bottom - start.top - HANDLE_SIZE) / 2),
+      });
+    }
+    return { items };
+  }
 
+  private render(layout: MarkdownBlockRailLayout): void {
+    if (this.pendingDrag) return;
+    this.measuredBlocks = layout.items.map(({ block, measurement }) => ({ block, measurement }));
+    this.rail.replaceChildren();
+    if (this.options.readOnly || layout.items.length === 0) return;
+
+    for (const { block, left, top, height, handleTop } of layout.items) {
       const item = this.view.dom.ownerDocument.createElement('div');
       item.className = 'cm-markdown-block-rail-item';
-      item.style.left = `${start.left - editorRect.left - HANDLE_RAIL_WIDTH}px`;
+      item.style.left = `${left}px`;
       item.style.top = `${top}px`;
       item.style.height = `${height}px`;
       item.dataset.blockFrom = String(block.from);
@@ -154,6 +293,7 @@ class MarkdownBlockHandleView {
       const blockActionsLabel = translation(this.ownerWindow, 'ctx.blockActions', 'Block actions');
       button.type = 'button';
       button.className = 'cm-markdown-block-handle';
+      button.style.top = `${handleTop}px`;
       button.title = blockActionsLabel;
       button.setAttribute('aria-label', blockActionsLabel);
       button.appendChild(createGripIcon(this.view.dom.ownerDocument));
@@ -198,6 +338,7 @@ class MarkdownBlockHandleView {
           this.draggedBlock = pending.block;
           pending.button.classList.add('is-dragging');
           this.suppressClick = true;
+          this.publishDragHighlights();
         }
         event.preventDefault();
         event.stopPropagation();
@@ -234,25 +375,14 @@ class MarkdownBlockHandleView {
   private updateDropTarget(clientY: number): void {
     if (!this.draggedBlock) return;
     const draggedBlock = this.draggedBlock;
-    const candidates = this.blocks
-      .filter(block => !blockMatches(block, draggedBlock))
-      .map(block => ({
-        block,
-        start: this.view.coordsAtPos(block.from, 1),
-        end: this.view.coordsAtPos(block.to, -1),
-      }))
-      .filter((candidate): candidate is {
-        block: MarkdownBlock;
-        start: { top: number; bottom: number; left: number; right: number };
-        end: { top: number; bottom: number; left: number; right: number };
-      } => Boolean(candidate.start && candidate.end));
+    const candidates = this.measuredBlocks.filter(({ block }) => !blockMatches(block, draggedBlock));
     if (candidates.length === 0) return;
 
     let nextTarget: { block: MarkdownBlock; placement: MarkdownBlockPlacement } = {
       block: candidates[candidates.length - 1].block,
       placement: 'after',
     };
-    for (const { block, start, end } of candidates) {
+    for (const { block, measurement: { start, end } } of candidates) {
       const midpoint = start.top + ((end.bottom - start.top) / 2);
       if (clientY < midpoint) {
         nextTarget = { block, placement: 'before' };
@@ -260,7 +390,11 @@ class MarkdownBlockHandleView {
       }
       nextTarget = { block, placement: 'after' };
     }
+    const targetChanged = !this.dropTarget
+      || !blockMatches(this.dropTarget.block, nextTarget.block)
+      || this.dropTarget.placement !== nextTarget.placement;
     this.dropTarget = nextTarget;
+    if (targetChanged) this.publishDragHighlights();
     this.showDropIndicator(nextTarget.block, nextTarget.placement);
   }
 
@@ -289,23 +423,44 @@ class MarkdownBlockHandleView {
 
   private showDropIndicator(target: MarkdownBlock, placement: MarkdownBlockPlacement): void {
     const editorRect = this.view.dom.getBoundingClientRect();
-    const start = this.view.coordsAtPos(target.from, 1);
-    const end = this.view.coordsAtPos(target.to, -1);
-    if (!start || !end) return;
+    const measurement = this.measuredBlocks.find(({ block }) => blockMatches(block, target))?.measurement;
+    if (!measurement) return;
+    const { start, end, left } = measurement;
     const top = (placement === 'before' ? start.top : end.bottom) - editorRect.top;
-    this.dropIndicator.style.left = `${Math.max(0, start.left - editorRect.left - HANDLE_RAIL_WIDTH)}px`;
+    this.dropIndicator.style.left = `${Math.max(0, left - editorRect.left - HANDLE_RAIL_WIDTH)}px`;
     this.dropIndicator.style.top = `${top}px`;
     this.dropIndicator.style.width = `${Math.max(HANDLE_SIZE, editorRect.right - start.left)}px`;
     this.dropIndicator.hidden = false;
   }
 
   private clearDragState(): void {
+    const hadHighlight = Boolean(this.draggedBlock || this.dropTarget);
     this.draggedBlock = null;
     this.dropTarget = null;
     this.dropIndicator.hidden = true;
+    if (hadHighlight) {
+      this.view.dispatch({
+        effects: setDragHighlightEffect.of({ source: null, target: null }),
+      });
+    }
+  }
+
+  private publishDragHighlights(): void {
+    const source = this.draggedBlock
+      ? { from: this.draggedBlock.from, to: this.draggedBlock.to }
+      : null;
+    const target = this.dropTarget
+      ? { from: this.dropTarget.block.from, to: this.dropTarget.block.to }
+      : null;
+    this.view.dispatch({
+      effects: setDragHighlightEffect.of({ source, target }),
+    });
   }
 }
 
 export function markdownBlockHandlePlugin(options: MarkdownBlockHandleOptions) {
-  return ViewPlugin.define(view => new MarkdownBlockHandleView(view, options));
+  return [
+    markdownBlockDragHighlightField,
+    ViewPlugin.define(view => new MarkdownBlockHandleView(view, options)),
+  ];
 }

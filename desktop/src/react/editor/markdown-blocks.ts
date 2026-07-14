@@ -1,5 +1,6 @@
 import { syntaxTree } from '@codemirror/language';
 import type { EditorState } from '@codemirror/state';
+import { findMarkdownFrontMatterRange } from '../utils/markdown-document';
 
 export interface MarkdownBlock {
   readonly from: number;
@@ -26,10 +27,14 @@ export interface MarkdownBlockMove {
  */
 export function collectMarkdownBlocks(state: EditorState): MarkdownBlock[] {
   const blocks: MarkdownBlock[] = [];
+  const protectedFrontMatter = findMarkdownFrontMatterRange(state.doc.toString());
   let node = syntaxTree(state).topNode.firstChild;
 
   while (node) {
-    if (node.to > node.from) {
+    const overlapsFrontMatter = protectedFrontMatter
+      ? node.from < protectedFrontMatter.to && node.to > protectedFrontMatter.from
+      : false;
+    if (node.to > node.from && !overlapsFrontMatter) {
       blocks.push({
         from: node.from,
         to: node.to,

@@ -2,14 +2,20 @@ import {
   EditorView, ViewPlugin, Decoration, WidgetType,
 } from '@codemirror/view';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
-import { EditorState, Facet, RangeSetBuilder, StateField, type Transaction } from '@codemirror/state';
+import {
+  EditorState,
+  Facet,
+  RangeSetBuilder,
+  StateField,
+  type Transaction,
+} from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import katex from 'katex';
 import { hrDecoration } from './widgets/hr';
 import { handleCheckbox } from './widgets/checkbox';
 import { handleBlockquote } from './widgets/blockquote';
 import { handleCodeBlock } from './widgets/code-block';
-import { addImageDecoration, addStandardMarkdownImageDecoration, handleImage } from './widgets/image';
+import { addImageDecoration, handleImage } from './widgets/image';
 import { handleLink } from './widgets/link';
 import {
   parseObsidianImageEmbed,
@@ -335,7 +341,6 @@ function buildMarkdownBlockDecorations(state: EditorState): DecorationSet {
     .filter((range): range is Extract<LivePreviewRange, { kind: 'blockMath' }> => range.kind === 'blockMath')
     .map(livePreviewDeco);
 
-  ranges.push(...collectActiveImageBlockDecorations(state, activeLines));
   ranges.sort((a, b) => a.from - b.from || a.to - b.to);
   for (const { from, to, deco } of ranges) builder.add(from, to, deco);
 
@@ -354,7 +359,7 @@ export const markdownBlockDecoField = StateField.define<DecorationSet>({
 });
 
 export function buildMarkdownDecorations(view: EditorView): DecorationSet {
-  const activeLines = collectActiveLines(view);
+  const concealedSourceLines = new Set<number>();
   const ranges: DecoRange[] = [];
   const imageContext = view.state.facet(markdownImageContextFacet);
 
@@ -363,18 +368,14 @@ export function buildMarkdownDecorations(view: EditorView): DecorationSet {
       from, to,
       enter(node) {
         const line = view.state.doc.lineAt(node.from);
-        const isActive = activeLines.has(line.number);
-
-        // ── 始终渲染（不受 isActive 控制）──
+        // ── 始终渲染，不再由焦点行改变文档外观 ──
         switch (node.name) {
           case 'ATXHeading1':
             ranges.push({ from: line.from, to: line.from, deco: centerLineDeco });
             return;
           case 'HorizontalRule':
-            if (!isActive) {
-              ranges.push({ from: node.from, to: node.to, deco: hrDecoration });
-              ranges.push({ from: line.from, to: line.from, deco: centerLineDeco });
-            }
+            ranges.push({ from: node.from, to: node.to, deco: hrDecoration });
+            ranges.push({ from: line.from, to: line.from, deco: centerLineDeco });
             return;
           case 'TaskMarker':
             handleCheckbox({ view, node, ranges });
@@ -383,22 +384,19 @@ export function buildMarkdownDecorations(view: EditorView): DecorationSet {
             handleBlockquote({ view, node, ranges });
             return;
           case 'FencedCode':
-            handleCodeBlock({ view, node, activeLines, ranges });
+            handleCodeBlock({ view, node, ranges });
             return false; // don't traverse children
         }
 
         if (node.name === 'Image') {
-          handleImage({ view, node, activeLines, ranges, imageContext });
+          handleImage({ view, node, activeLines: concealedSourceLines, ranges, imageContext });
           return;
         }
 
-        // ── 活跃行：跳过其他 conceal / replace ──
-        if (isActive) return;
-
-        // ── 非活跃行：按节点类型处理 ──
+        // ── 已成立的语法按节点类型 conceal / replace ──
         switch (node.name) {
           case 'Link':
-            handleLink({ view, node, activeLines, ranges });
+            handleLink({ view, node, ranges });
             break;
           case 'Autolink': {
             // Autolink <url> — hide angle brackets, keep URL text visible with link style
@@ -440,9 +438,9 @@ export function buildMarkdownDecorations(view: EditorView): DecorationSet {
     });
   }
 
-  collectObsidianImageDecorations(view, activeLines, imageContext, ranges);
+  collectObsidianImageDecorations(view, concealedSourceLines, imageContext, ranges);
 
-  for (const range of collectLivePreviewRanges(view.state.doc.toString(), activeLines, { includeBlockMath: false })) {
+  for (const range of collectLivePreviewRanges(view.state.doc.toString(), concealedSourceLines, { includeBlockMath: false })) {
     ranges.push(livePreviewDeco(range));
   }
 
@@ -450,43 +448,6 @@ export function buildMarkdownDecorations(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   for (const r of ranges) builder.add(r.from, r.to, r.deco);
   return builder.finish();
-}
-
-function collectActiveImageBlockDecorations(
-  state: EditorState,
-  activeLines: Set<number>,
-): DecoRange[] {
-  const ranges: DecoRange[] = [];
-  const imageContext = state.facet(markdownImageContextFacet);
-  const fencedLines = collectFenceLineNumbers(state.doc.toString());
-
-  syntaxTree(state).iterate({
-    enter(node) {
-      if (node.name !== 'Image') return;
-      const line = state.doc.lineAt(node.from);
-      if (!activeLines.has(line.number)) return;
-      if (fencedLines.has(line.number)) return;
-      if (state.doc.lineAt(node.to).number !== line.number) return;
-
-      addStandardMarkdownImageDecoration({
-        source: state.doc.sliceString(node.from, node.to),
-        ranges,
-        from: node.from,
-        to: node.to,
-        lineTo: line.to,
-        imageContext,
-        placement: 'below-source-line',
-      });
-    },
-  });
-
-  for (let lineNo = 1; lineNo <= state.doc.lines; lineNo += 1) {
-    if (!activeLines.has(lineNo) || fencedLines.has(lineNo)) continue;
-    const line = state.doc.line(lineNo);
-    collectObsidianImagesInLine(line.text, line.from, imageContext, ranges, true);
-  }
-
-  return ranges.sort((a, b) => a.from - b.from || a.to - b.to);
 }
 
 function collectObsidianImageDecorations(
