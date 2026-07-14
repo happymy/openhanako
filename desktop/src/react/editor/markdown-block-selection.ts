@@ -148,11 +148,17 @@ function blockIndexAtCoords(
 }
 
 function blockVerticalBounds(view: EditorView, block: MarkdownBlock): { top: number; bottom: number } {
-  const start = view.lineBlockAt(block.from);
-  const end = view.lineBlockAt(Math.max(block.from, block.to - 1));
+  const endPosition = Math.max(block.from, block.to - 1);
+  const startCoordinates = view.coordsAtPos(block.from, 1);
+  const endCoordinates = view.coordsAtPos(endPosition, -1);
+  const startBlock = view.lineBlockAt(block.from);
+  const endBlock = view.lineBlockAt(endPosition);
   return {
-    top: view.documentTop + (start.top * view.scaleY),
-    bottom: view.documentTop + (end.bottom * view.scaleY),
+    // A block widget immediately before a line (notably the top cover) can
+    // make lineBlockAt() report a compound block that starts at the widget.
+    // Visible caret coordinates belong to the rendered Markdown line itself.
+    top: startCoordinates?.top ?? view.documentTop + (startBlock.top * view.scaleY),
+    bottom: endCoordinates?.bottom ?? view.documentTop + (endBlock.bottom * view.scaleY),
   };
 }
 

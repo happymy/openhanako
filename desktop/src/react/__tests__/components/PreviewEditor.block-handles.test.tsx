@@ -17,6 +17,7 @@ import {
   setMarkdownBlockSelection,
 } from '../../editor/markdown-block-selection';
 import { collectMarkdownBlocks } from '../../editor/markdown-blocks';
+import { markdownCoverField } from '../../editor/cover-field';
 import { tableDecoField } from '../../editor/table-field';
 
 function elementRect(): DOMRect {
@@ -491,6 +492,58 @@ describe('markdown block handle rail', () => {
     view.destroy();
   });
 
+  it('starts the first block selection at its rendered heading below a top cover', () => {
+    const doc = [
+      '---',
+      'cover:',
+      '  image: cover.png',
+      '---',
+      '# Dream',
+      '',
+      'After',
+    ].join('\n');
+    coordsSpy.mockImplementation(function coords(this: EditorView, pos: number) {
+      const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
+      const top = line.number === 5 ? 520 : line.number * 32;
+      return { left: 200, right: 400, top, bottom: top + 24 };
+    });
+    lineBlockSpy.mockImplementation(function lineBlock(this: EditorView, pos: number) {
+      const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
+      if (line.number === 5) {
+        return { top: 0, bottom: 544, height: 544 } as ReturnType<EditorView['lineBlockAt']>;
+      }
+      const top = line.number * 32;
+      return { top, bottom: top + 24, height: 24 } as ReturnType<EditorView['lineBlockAt']>;
+    });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          markdownCoverField,
+          markdownBlockSelectionPlugin(),
+        ],
+      }),
+    });
+    const heading = collectMarkdownBlocks(view.state)[0];
+
+    view.dispatch({
+      effects: setMarkdownBlockSelection.of({ anchor: heading.from, head: heading.from }),
+    });
+    vi.runOnlyPendingTimers();
+
+    const surface = view.dom.querySelector<HTMLElement>(
+      '.cm-markdown-block-selection-surface:not([hidden])',
+    );
+    expect(heading.source).toBe('# Dream');
+    expect(surface?.style.top).toBe('520px');
+    expect(surface?.style.height).toBe('24px');
+    view.destroy();
+  });
+
   it('extends a held marquee through offscreen blocks when the editor scrolls', () => {
     rectSpy.mockImplementation(function rect(this: HTMLElement) {
       if (this.classList.contains('cm-line')) {
@@ -667,7 +720,7 @@ describe('markdown block handle rail', () => {
     view.destroy();
   });
 
-  it('aligns a fenced code handle to the code text instead of a replacement widget edge', () => {
+  it('aligns a fenced code handle horizontally to code text and vertically to its opening row', () => {
     coordsSpy.mockImplementation(function coords(this: EditorView, pos: number) {
       const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
       const left = line.text.startsWith('```') ? 800 : 200;
@@ -682,6 +735,7 @@ describe('markdown block handle rail', () => {
 
     expect(items).toHaveLength(2);
     expect(items[0].style.left).toBe('172px');
+    expect(items[0].style.top).toBe('32px');
     expect(items[1].style.left).toBe('172px');
     view.destroy();
   });
