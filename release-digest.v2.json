@@ -3,6 +3,54 @@
   "entries": [
     {
       "schemaVersion": 1,
+      "tag": "v0.401.8",
+      "version": "0.401.8",
+      "previousTag": "v0.401.7",
+      "generatedAt": "2026-07-15T05:58:00.000Z",
+      "noUserFacingChanges": false,
+      "summary": {
+        "zh": "本版修复后台会话在缺少持久身份时工具调用失败的问题：计划任务、巡检、子代理、Bridge、Hub 临时会话与手机会话会在执行前先建立并复用稳定会话身份。",
+        "en": "This release fixes tool failures for background sessions that lacked a durable identity. Scheduled activities, patrols, subagents, bridge sessions, Hub temporary sessions, and phone sessions now create and reuse a stable session identity before execution."
+      },
+      "counts": {
+        "feature": 0,
+        "fix": 1,
+        "improvement": 0,
+        "migration": 0
+      },
+      "source": {
+        "owner": "liliMozi",
+        "repo": "openhanako",
+        "commitRange": "v0.401.7..v0.401.8",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.401.8",
+        "releaseNotes": ""
+      },
+      "items": [
+        {
+          "id": "background-session-identity-backfill",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "后台会话先补齐身份再装工具",
+            "en": "Backfill session identity before background tools"
+          },
+          "summary": {
+            "zh": "没有 manifest 的后台会话原先会在装工具时失败；现在会先创建并持久化 SessionRef，再绑定到各运行时。",
+            "en": "Background sessions without a manifest used to fail during tool assembly; they now create and persist a SessionRef first, then bind it across runtimes."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "1eff520c9",
+              "title": "fix(session): backfill identity before background tools"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
       "tag": "v0.401.7",
       "version": "0.401.7",
       "previousTag": "v0.397.15",
