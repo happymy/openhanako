@@ -358,4 +358,14 @@ describe('editor typography settings', () => {
 
     expect(css).toMatch(/:global\(\.preview-editor\.mode-markdown \.cm-markdown-block-handle\)\s*\{[^}]*left:\s*-2px/);
   });
+
+  it('shows only the focused caret block Grabber on coarse touch surfaces', () => {
+    const css = readPreviewStyles();
+
+    expect(css).toContain('@media (hover: none) and (pointer: coarse)');
+    expect(css).toMatch(/\.cm-markdown-block-rail-item\)\s*\{[^}]*pointer-events:\s*none/);
+    expect(css).toMatch(/\.cm-editor\.cm-focused \.cm-markdown-block-rail-item\.is-caret-block\)\s*\{[^}]*pointer-events:\s*auto/);
+    expect(css).toMatch(/\.cm-markdown-block-handle\)\s*\{[^}]*opacity:\s*0[^}]*visibility:\s*hidden/);
+    expect(css).toMatch(/\.cm-markdown-block-rail-item\.is-caret-block \.cm-markdown-block-handle\)\s*\{[^}]*opacity:\s*0\.55[^}]*visibility:\s*visible/);
+  });
 });

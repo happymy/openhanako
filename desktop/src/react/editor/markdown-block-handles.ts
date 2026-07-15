@@ -316,6 +316,11 @@ class MarkdownBlockHandleView {
     block: MarkdownBlock;
     measurement: MeasuredMarkdownBlock;
   }> = [];
+  private renderedItems: Array<{
+    block: MarkdownBlock;
+    item: HTMLDivElement;
+    button: HTMLButtonElement;
+  }> = [];
   private draggedBlocks: MarkdownBlock[] = [];
   private dropTarget: { block: MarkdownBlock; placement: MarkdownBlockPlacement } | null = null;
   private pendingDrag: {
@@ -325,6 +330,7 @@ class MarkdownBlockHandleView {
     pointerId: number;
     startX: number;
     startY: number;
+    renderWasPending: boolean;
   } | null = null;
   private dragPreview: HTMLElement | null = null;
   private displayedDropIndicator: Omit<MarkdownBlockDropIndicator, 'visible'> | null = null;
@@ -353,7 +359,9 @@ class MarkdownBlockHandleView {
   update(update: ViewUpdate): void {
     if (update.docChanged || update.viewportChanged || update.geometryChanged) {
       this.scheduleRender();
+      return;
     }
+    if (update.selectionSet) this.syncCaretBlockMarker();
   }
 
   destroy(): void {
@@ -408,11 +416,53 @@ class MarkdownBlockHandleView {
     return { items };
   }
 
+  private isCaretBlock(block: MarkdownBlock): boolean {
+    const focusLine = this.view.state.doc.lineAt(this.view.state.selection.main.head).number;
+    return focusLine >= block.startLine && focusLine <= block.endLine;
+  }
+
+  private syncCaretBlockMarker(): void {
+    const caretBlockFrom = this.measuredBlocks.find(({ block }) => this.isCaretBlock(block))?.block.from;
+    this.rail.querySelectorAll<HTMLElement>('.cm-markdown-block-rail-item').forEach(item => {
+      item.classList.toggle(
+        'is-caret-block',
+        caretBlockFrom !== undefined && item.dataset.blockFrom === String(caretBlockFrom),
+      );
+    });
+  }
+
   private render(layout: MarkdownBlockRailLayout): void {
     if (this.pendingDrag) return;
     this.measuredBlocks = layout.items.map(({ block, measurement }) => ({ block, measurement }));
+    if (this.options.readOnly || layout.items.length === 0) {
+      if (this.renderedItems.length > 0) this.rail.replaceChildren();
+      this.renderedItems = [];
+      return;
+    }
+
+    const reusableItems = layout.items.map(({ block }) => (
+      this.renderedItems.find(rendered => blockMatches(rendered.block, block)) ?? null
+    ));
+    if (reusableItems.every(rendered => rendered !== null)) {
+      const retainedItems = new Set(reusableItems.map(({ item }) => item));
+      for (const rendered of this.renderedItems) {
+        if (!retainedItems.has(rendered.item)) rendered.item.remove();
+      }
+      this.renderedItems = reusableItems;
+      for (let index = 0; index < layout.items.length; index += 1) {
+        const { block, left, top, height, handleTop } = layout.items[index];
+        const { item, button } = this.renderedItems[index];
+        item.style.left = `${left}px`;
+        item.style.top = `${top}px`;
+        item.style.height = `${height}px`;
+        item.classList.toggle('is-caret-block', this.isCaretBlock(block));
+        button.style.top = `${handleTop}px`;
+      }
+      return;
+    }
+
     this.rail.replaceChildren();
-    if (this.options.readOnly || layout.items.length === 0) return;
+    this.renderedItems = [];
 
     for (const { block, left, top, height, handleTop } of layout.items) {
       const item = this.view.dom.ownerDocument.createElement('div');
@@ -421,6 +471,7 @@ class MarkdownBlockHandleView {
       item.style.top = `${top}px`;
       item.style.height = `${height}px`;
       item.dataset.blockFrom = String(block.from);
+      item.classList.toggle('is-caret-block', this.isCaretBlock(block));
 
       const button = this.view.dom.ownerDocument.createElement('button');
       const blockActionsLabel = translation(this.ownerWindow, 'ctx.blockActions', 'Block actions');
@@ -465,8 +516,10 @@ class MarkdownBlockHandleView {
         const blocks = selected.some(candidate => blockMatches(candidate, current))
           ? selected
           : [current];
-        if (this.frameId !== null) {
-          this.ownerWindow.cancelAnimationFrame(this.frameId);
+        const pendingFrameId = this.frameId;
+        const renderWasPending = pendingFrameId !== null;
+        if (pendingFrameId !== null) {
+          this.ownerWindow.cancelAnimationFrame(pendingFrameId);
           this.frameId = null;
         }
         this.pendingDrag = {
@@ -476,6 +529,7 @@ class MarkdownBlockHandleView {
           pointerId: event.pointerId,
           startX: event.clientX,
           startY: event.clientY,
+          renderWasPending,
         };
         this.lastPointerY = event.clientY;
         button.setPointerCapture?.(event.pointerId);
@@ -504,7 +558,8 @@ class MarkdownBlockHandleView {
       button.addEventListener('pointerup', event => {
         const pending = this.pendingDrag;
         if (!pending || pending.pointerId !== event.pointerId) return;
-        if (this.draggedBlocks.length > 0) {
+        const didDrag = this.draggedBlocks.length > 0;
+        if (didDrag) {
           event.preventDefault();
           event.stopPropagation();
           this.commitDrop();
@@ -513,7 +568,7 @@ class MarkdownBlockHandleView {
         button.releasePointerCapture?.(event.pointerId);
         pending.button.classList.remove('is-dragging');
         this.pendingDrag = null;
-        this.scheduleRender();
+        if (didDrag || pending.renderWasPending) this.scheduleRender();
       });
       button.addEventListener('pointercancel', event => {
         if (this.pendingDrag?.pointerId !== event.pointerId) return;
@@ -526,6 +581,7 @@ class MarkdownBlockHandleView {
 
       item.appendChild(button);
       this.rail.appendChild(item);
+      this.renderedItems.push({ block, item, button });
     }
   }
 

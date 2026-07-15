@@ -720,6 +720,32 @@
     }
 }
 
+/* 触控端没有 hover，不让整条 block rail 退化成常驻按钮列。CodeMirror
+   selection 的 focus 端由插件标记为 is-caret-block；编辑器失焦后即使选区仍
+   保留，也不显示旧位置的 Grabber。隐藏项同时退出命中与可访问树，避免透明
+   按钮拦截正文旁的触控。 */
+@media (hover: none) and (pointer: coarse) {
+    :global(.preview-editor.mode-markdown .cm-markdown-block-rail-item) {
+        pointer-events: none;
+    }
+
+    :global(.preview-editor.mode-markdown .cm-markdown-block-handle) {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    :global(.preview-editor.mode-markdown .cm-editor.cm-focused .cm-markdown-block-rail-item.is-caret-block) {
+        pointer-events: auto;
+    }
+
+    :global(.preview-editor.mode-markdown .cm-editor.cm-focused .cm-markdown-block-rail-item.is-caret-block .cm-markdown-block-handle) {
+        opacity: 0.55;
+        visibility: visible;
+        pointer-events: auto;
+    }
+}
+
 :global(.preview-editor.mode-markdown .cm-editor.cm-markdown-cover-rail-active::before) {
     content: "";
     position: absolute;

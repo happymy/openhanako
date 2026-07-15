@@ -160,6 +160,20 @@ describe('markdown block handle rail', () => {
     view.destroy();
   });
 
+  it('keeps the same Grabber DOM node after a click-only pointer sequence', () => {
+    const { view, onOpenMenu } = createView();
+    const firstHandle = view.dom.querySelector<HTMLButtonElement>('.cm-markdown-block-handle');
+
+    fireEvent(firstHandle!, pointerEvent('pointerdown', 33, 32));
+    fireEvent(firstHandle!, pointerEvent('pointerup', 33, 32));
+    fireEvent.click(firstHandle!);
+    vi.runOnlyPendingTimers();
+
+    expect(onOpenMenu).toHaveBeenCalledTimes(1);
+    expect(view.dom.querySelector('.cm-markdown-block-handle')).toBe(firstHandle);
+    view.destroy();
+  });
+
   it('opens one menu target for the whole highlighted block range', () => {
     const { view, onOpenMenu } = createView();
     const [alpha, beta] = collectMarkdownBlocks(view.state);
@@ -700,6 +714,26 @@ describe('markdown block handle rail', () => {
     const firstHandle = view.dom.querySelector<HTMLButtonElement>('.cm-markdown-block-handle');
 
     expect(firstHandle?.style.top).toBe('8px');
+    view.destroy();
+  });
+
+  it('updates the caret-block marker in place as the selection focus moves', () => {
+    const { view } = createView();
+    const blocks = collectMarkdownBlocks(view.state);
+    const initialItems = view.dom.querySelectorAll<HTMLElement>('.cm-markdown-block-rail-item');
+
+    expect(initialItems[0].classList.contains('is-caret-block')).toBe(true);
+    expect(initialItems[1].classList.contains('is-caret-block')).toBe(false);
+
+    view.dispatch({ selection: EditorSelection.cursor(blocks[1].from) });
+    const movedItems = view.dom.querySelectorAll<HTMLElement>('.cm-markdown-block-rail-item');
+
+    expect(movedItems[0]).toBe(initialItems[0]);
+    expect(movedItems[0].classList.contains('is-caret-block')).toBe(false);
+    expect(movedItems[1].classList.contains('is-caret-block')).toBe(true);
+
+    view.dispatch({ selection: EditorSelection.cursor(view.state.doc.line(4).from) });
+    expect(view.dom.querySelectorAll('.cm-markdown-block-rail-item.is-caret-block')).toHaveLength(0);
     view.destroy();
   });
 
