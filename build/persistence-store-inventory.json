@@ -3012,7 +3012,7 @@
     },
     {
       "sourceFile": "core/media/universal-media-manager.ts",
-      "line": 964,
+      "line": 970,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(path.join(this._generatedDir, filename))",
       "reason": "Writes data within the active pluginId-scoped data directory.",
@@ -3939,7 +3939,7 @@
     },
     {
       "sourceFile": "core/provider-registry.ts",
-      "line": 649,
+      "line": 806,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(cfgPath, yamlStr)",
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
@@ -5010,7 +5010,7 @@
     },
     {
       "sourceFile": "hub/index.ts",
-      "line": 200,
+      "line": 216,
       "kind": "mkdir",
       "excerpt": "fs.promises.mkdir(attachDir, { recursive: true })",
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
@@ -5019,7 +5019,7 @@
     },
     {
       "sourceFile": "hub/index.ts",
-      "line": 207,
+      "line": 223,
       "kind": "write-file",
       "excerpt": "fs.promises.writeFile(filePath, Buffer.from(img.data, \"base64\"))",
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
@@ -5028,7 +5028,7 @@
     },
     {
       "sourceFile": "hub/index.ts",
-      "line": 224,
+      "line": 240,
       "kind": "mkdir",
       "excerpt": "fs.promises.mkdir(attachDir, { recursive: true })",
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
@@ -5037,7 +5037,7 @@
     },
     {
       "sourceFile": "hub/index.ts",
-      "line": 231,
+      "line": 247,
       "kind": "write-file",
       "excerpt": "fs.promises.writeFile(filePath, Buffer.from(video.data, \"base64\"))",
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
@@ -7359,9 +7359,9 @@
     },
     {
       "sourceFile": "plugins/jimeng-cli/adapters/dreamina.ts",
-      "line": 461,
+      "line": 230,
       "kind": "mkdir",
-      "excerpt": "fs.mkdirSync(outputDir, { recursive: true })",
+      "excerpt": "fs.mkdirSync(resolved, { recursive: true })",
       "reason": "Writes data within the active pluginId-scoped data directory.",
       "storeId": "plugin-runtime-data",
       "exemptionId": null

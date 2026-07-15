@@ -690,6 +690,12 @@ export class UniversalMediaManager {
     const delivery = normalizeMediaDelivery(input);
     const responseDelivery = isResponseDelivery(delivery);
     if (!sessionId && !sessionPath && !responseDelivery) throw new Error("sessionId or sessionPath is required");
+    const requestedProviderId = textOrNull(input.provider)
+      || textOrNull(this.getVideoConfig()?.defaultVideoModel?.provider);
+    await this._providers.refreshRuntimeMediaCapabilities?.({
+      ...(requestedProviderId ? { providerId: requestedProviderId } : {}),
+      capability: VIDEO_CAPABILITY,
+    });
     const target = this._resolveVideoTarget(input);
     const adapter = target?.adapter || null;
     if (!adapter) throw new Error(t("toolDef.generateVideo.noProvider"));
@@ -972,6 +978,7 @@ export class UniversalMediaManager {
   }
 
   async listImageProviders() {
+    await this._providers.refreshRuntimeMediaCapabilities?.({ capability: IMAGE_CAPABILITY });
     const providers: any = {};
     for (const provider of this._providers.getMediaProviders(IMAGE_CAPABILITY) || []) {
       const credentialStatus = this._providers.getMediaProviderCredentialStatus?.(provider.providerId, IMAGE_CAPABILITY) || {};
@@ -990,13 +997,14 @@ export class UniversalMediaManager {
           );
           return false;
         });
-      if (!models.length) continue;
+      if (!models.length && !provider.runtimeCapability) continue;
       const modelIds = new Set(models.map((model) => model.id));
       providers[provider.providerId] = {
         ...provider,
         ...credentialStatus,
         hasCredentials: credentialStatus.hasCredentials === true,
         unavailableReason: credentialStatus.unavailableReason || null,
+        unavailableMessage: credentialStatus.unavailableMessage || null,
         credentialLanes: credentialStatus.lanes,
         activeCredentialLaneId: credentialStatus.activeLaneId || null,
         activeCredentialProviderId: credentialStatus.activeProviderId || null,
@@ -1018,6 +1026,7 @@ export class UniversalMediaManager {
   }
 
   async listVideoProviders() {
+    await this._providers.refreshRuntimeMediaCapabilities?.({ capability: VIDEO_CAPABILITY });
     const providers: any = {};
     for (const provider of this._providers.getMediaProviders(VIDEO_CAPABILITY) || []) {
       const credentialStatus = this._providers.getMediaProviderCredentialStatus?.(provider.providerId, VIDEO_CAPABILITY) || {};
@@ -1036,13 +1045,14 @@ export class UniversalMediaManager {
           );
           return false;
         });
-      if (!models.length) continue;
+      if (!models.length && !provider.runtimeCapability) continue;
       const modelIds = new Set(models.map((model) => model.id));
       providers[provider.providerId] = {
         ...provider,
         ...credentialStatus,
         hasCredentials: credentialStatus.hasCredentials === true,
         unavailableReason: credentialStatus.unavailableReason || null,
+        unavailableMessage: credentialStatus.unavailableMessage || null,
         credentialLanes: credentialStatus.lanes,
         activeCredentialLaneId: credentialStatus.activeLaneId || null,
         activeCredentialProviderId: credentialStatus.activeProviderId || null,

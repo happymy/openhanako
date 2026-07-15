@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:14e15fa23777387ae9e2388702808020591a42c668ebb5fc1068d0b4212b4103",
+  "payloadFingerprint": "sha256:035355114c5a618d0cfa912d3f74edd556ab636b5e127f6996041192915e61f5",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2802,8 +2802,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Backfills legacy session identities before runtime tool assembly without changing persisted fields or file formats.",
-    "payloadFingerprint": "sha256:14e15fa23777387ae9e2388702808020591a42c668ebb5fc1068d0b4212b4103"
+    "compatibilityReason": "Refreshes generated write-site mappings after provider media capability changes without changing persisted fields or file formats.",
+    "payloadFingerprint": "sha256:035355114c5a618d0cfa912d3f74edd556ab636b5e127f6996041192915e61f5"
   },
   "schemas": [
     {
@@ -4028,7 +4028,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 964,
+      "line": 970,
       "reason": "Writes data within the active pluginId-scoped data directory.",
       "sourceFile": "core/media/universal-media-manager.ts",
       "storeId": "plugin-runtime-data"
@@ -4852,7 +4852,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 649,
+      "line": 806,
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
       "sourceFile": "core/provider-registry.ts",
       "storeId": "provider-state"
@@ -5804,7 +5804,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 200,
+      "line": 216,
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
       "sourceFile": "hub/index.ts",
       "storeId": "session-files"
@@ -5812,7 +5812,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 207,
+      "line": 223,
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
       "sourceFile": "hub/index.ts",
       "storeId": "session-files"
@@ -5820,7 +5820,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 224,
+      "line": 240,
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
       "sourceFile": "hub/index.ts",
       "storeId": "session-files"
@@ -5828,7 +5828,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 231,
+      "line": 247,
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
       "sourceFile": "hub/index.ts",
       "storeId": "session-files"
@@ -7892,7 +7892,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 461,
+      "line": 230,
       "reason": "Writes data within the active pluginId-scoped data directory.",
       "sourceFile": "plugins/jimeng-cli/adapters/dreamina.ts",
       "storeId": "plugin-runtime-data"

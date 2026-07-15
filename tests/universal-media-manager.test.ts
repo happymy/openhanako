@@ -725,6 +725,7 @@ describe("UniversalMediaManager response delivery", () => {
     const root = makeRoot();
     roots.push(root);
     const providerRegistry = {
+      refreshRuntimeMediaCapabilities: vi.fn(async () => ({})),
       getMediaProviders: () => [],
       resolveMediaModel: vi.fn(() => ({
         providerId: "agnes",
@@ -760,6 +761,12 @@ describe("UniversalMediaManager response delivery", () => {
       modelId: "agnes-video-v2.0",
       capability: "video_generation",
     });
+    expect(providerRegistry.refreshRuntimeMediaCapabilities).toHaveBeenCalledWith({
+      providerId: "agnes",
+      capability: "video_generation",
+    });
+    expect(providerRegistry.refreshRuntimeMediaCapabilities.mock.invocationCallOrder[0])
+      .toBeLessThan(providerRegistry.resolveMediaModel.mock.invocationCallOrder[0]);
     expect(submit).toHaveBeenCalledWith(
       expect.objectContaining({
         providerId: "agnes",
@@ -844,6 +851,7 @@ describe("UniversalMediaManager response delivery", () => {
       },
     };
     const providerRegistry = {
+      refreshRuntimeMediaCapabilities: vi.fn(async () => ({})),
       getMediaProviders: () => [{
         providerId: "jimeng-cli",
         displayName: "即梦 CLI",
@@ -894,6 +902,61 @@ describe("UniversalMediaManager response delivery", () => {
           })],
         },
       },
+    });
+    expect(providerRegistry.refreshRuntimeMediaCapabilities).toHaveBeenCalledWith({
+      capability: "video_generation",
+    });
+  });
+
+  it("keeps a runtime CLI provider visible with its discovery error when no models can be read", async () => {
+    const root = makeRoot();
+    roots.push(root);
+    const providerRegistry = {
+      refreshRuntimeMediaCapabilities: vi.fn(async () => ({
+        "jimeng-cli": { status: "error" },
+      })),
+      getMediaProviders: () => [{
+        providerId: "jimeng-cli",
+        displayName: "即梦 CLI",
+        runtimeCapability: {
+          status: "error",
+          error: { code: "output_unparseable", message: "Dreamina CLI help changed" },
+        },
+        models: [],
+      }],
+      getMediaProviderCredentialStatus: () => ({
+        hasCredentials: false,
+        unavailableReason: "output_unparseable",
+        unavailableMessage: "Dreamina CLI help changed",
+        lanes: [],
+      }),
+      resolveMediaModel: () => {
+        throw new Error("not used");
+      },
+    };
+    const manager = new UniversalMediaManager({
+      hanakoHome: root,
+      preferences: makePreferences(root),
+      providerRegistry,
+      registerSessionFile: () => {},
+    });
+
+    await expect(manager.listImageProviders()).resolves.toMatchObject({
+      providers: {
+        "jimeng-cli": {
+          hasCredentials: false,
+          unavailableReason: "output_unparseable",
+          unavailableMessage: "Dreamina CLI help changed",
+          runtimeCapability: {
+            status: "error",
+            error: { code: "output_unparseable" },
+          },
+          models: [],
+        },
+      },
+    });
+    expect(providerRegistry.refreshRuntimeMediaCapabilities).toHaveBeenCalledWith({
+      capability: "image_generation",
     });
   });
 

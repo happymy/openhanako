@@ -100,11 +100,20 @@ describe("scan", () => {
 });
 
 describe("loadAll", () => {
-  it("loads real bundled media, image-gen, beautify, mcp, and office plugin contributions", async () => {
+  it("loads real bundled media, image-gen, jimeng-cli, beautify, mcp, and office plugin contributions", async () => {
+    const bus = await makeBus();
+    for (const type of [
+      "provider:register-runtime-media-capability-source",
+      "provider:unregister-runtime-media-capability-source",
+      "media-gen:register-adapter",
+      "media-gen:unregister-adapter",
+    ]) {
+      bus.handle(type, async () => ({ ok: true }));
+    }
     const pm = new PluginManager({
       pluginsDirs: [path.resolve("plugins")],
       dataDir,
-      bus: await makeBus(),
+      bus,
       runtimeContext: {
         serverId: "server_builtin_smoke",
         serverNodeId: "node_builtin_smoke",
@@ -120,7 +129,7 @@ describe("loadAll", () => {
       await pm.loadAll();
 
       const diagnosticsById = new Map(pm.getDiagnostics().map((entry) => [entry.id, entry]));
-      for (const id of ["media", "image-gen", "beautify", "mcp", "office"]) {
+      for (const id of ["media", "image-gen", "jimeng-cli", "beautify", "mcp", "office"]) {
         expect(diagnosticsById.get(id)).toMatchObject({
           id,
           source: "builtin",
@@ -162,7 +171,7 @@ describe("loadAll", () => {
         }),
       ]));
     } finally {
-      for (const id of ["media", "image-gen", "beautify", "mcp", "office"]) {
+      for (const id of ["media", "image-gen", "jimeng-cli", "beautify", "mcp", "office"]) {
         await pm.unloadPlugin(id, { source: "builtin" });
       }
     }

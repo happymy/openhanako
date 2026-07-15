@@ -36,6 +36,22 @@ import { findModel } from "../shared/model-ref.ts";
 
 const log = createModuleLogger("hub");
 
+function assertRuntimeMediaCapabilityOwner(providerRegistry, providerId, requestContext) {
+  const caller = requestContext?.caller;
+  if (caller?.kind !== "plugin" || typeof caller.pluginId !== "string") {
+    throw new Error("Runtime media capability sources can only be managed by their provider plugin");
+  }
+  const entryPluginId = providerRegistry.get?.(providerId)?.source?.pluginId;
+  const registeredOwner = providerRegistry.getRuntimeMediaCapabilitySourceOwner?.(providerId)?.pluginId;
+  const expectedPluginId = registeredOwner || entryPluginId || providerId;
+  if (caller.pluginId !== expectedPluginId) {
+    throw new Error(
+      `Plugin "${caller.pluginId}" cannot manage runtime media capabilities for provider "${providerId}"`,
+    );
+  }
+  return { pluginId: caller.pluginId };
+}
+
 export class Hub {
   declare _agentPhoneAbortHandlers: any;
   declare _agentPhoneActivities: any;
@@ -744,6 +760,7 @@ export class Hub {
     }));
 
     this._sessionHandlerCleanups.push(bus.handle("provider:media-providers", async ({ capability = "image_generation" }: any = {}) => {
+      await engine.providerRegistry.refreshRuntimeMediaCapabilities?.({ capability });
       const providers: any = {};
       for (const provider of engine.providerRegistry.getMediaProviders(capability)) {
         const credentialStatus = engine.providerRegistry.getMediaProviderCredentialStatus(provider.providerId, capability);
@@ -754,6 +771,7 @@ export class Hub {
           credentialLanes: credentialStatus.lanes,
           activeCredentialLaneId: credentialStatus.activeLaneId || null,
           activeCredentialProviderId: credentialStatus.activeProviderId || null,
+          unavailableMessage: credentialStatus.unavailableMessage || null,
           models: provider.models.map((model) => {
             const name = model.displayName || model.name || model.id;
             return {
@@ -780,6 +798,10 @@ export class Hub {
       credentialLaneId,
     }: any = {}) => {
       try {
+        await engine.providerRegistry.refreshRuntimeMediaCapabilities?.({
+          providerId: providerId || provider,
+          capability,
+        });
         const resolved = engine.providerRegistry.resolveMediaModel({
           providerId: providerId || provider,
           modelId: modelId || model,
@@ -803,6 +825,31 @@ export class Hub {
         };
       } catch (err) {
         return { error: err.message || String(err) };
+      }
+    }));
+
+    this._sessionHandlerCleanups.push(bus.handle("provider:register-runtime-media-capability-source", async ({
+      providerId,
+      source,
+    }: any = {}, requestContext: any = null) => {
+      try {
+        const owner = assertRuntimeMediaCapabilityOwner(engine.providerRegistry, providerId, requestContext);
+        engine.providerRegistry.registerRuntimeMediaCapabilitySource(providerId, source, owner);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err.message || String(err) };
+      }
+    }));
+
+    this._sessionHandlerCleanups.push(bus.handle("provider:unregister-runtime-media-capability-source", async ({
+      providerId,
+    }: any = {}, requestContext: any = null) => {
+      try {
+        const owner = assertRuntimeMediaCapabilityOwner(engine.providerRegistry, providerId, requestContext);
+        engine.providerRegistry.unregisterRuntimeMediaCapabilitySource(providerId, owner);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err.message || String(err) };
       }
     }));
 
