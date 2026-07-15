@@ -133,7 +133,11 @@ async function makeEngine() {
     getSearchConfig: () => ({ provider: "", api_key: "", api_keys: {} }),
     getUtilityApi: () => ({ provider: "", base_url: "", api_key: "" }),
     getQuickChatPreferences: () => ({ shortcut: "CommandOrControl+Shift+K", reuseTimeoutMinutes: 12 }),
-    getNotificationPreferences: () => ({ turnCompletion: "when_session_unfocused" }),
+    getNotificationPreferences: () => ({
+      chatCompletion: "when_session_unfocused",
+      scheduledTaskCompletion: "always",
+      patrolCompletion: "when_unfocused",
+    }),
     getBridgePermissionMode: () => "operate",
     getBridgeReadOnly: () => false,
     getBridgeReceiptEnabled: () => false,

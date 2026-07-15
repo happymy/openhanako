@@ -1306,10 +1306,13 @@
       },
       "notifications": {
         "title": "通知",
-        "turnCompletion": "轮次完成通知",
-        "turnCompletionNever": "从不",
-        "turnCompletionWhenUnfocused": "焦点不在 HanaAgent 时",
-        "turnCompletionWhenSessionUnfocused": "焦点不在完成任务的 Session 时"
+        "chatCompletion": "聊天回复完成",
+        "scheduledTaskCompletion": "计划任务完成",
+        "patrolCompletion": "巡检完成",
+        "never": "从不",
+        "whenUnfocused": "焦点不在 HanaAgent 时",
+        "whenSessionUnfocused": "焦点不在该聊天时",
+        "always": "总是"
       }
     },
     "about": {
@@ -2651,7 +2654,11 @@
     }
   },
   "notification": {
-    "turnCompletionBody": "这一轮已经完成"
+    "chatCompletionBody": "这一轮聊天已经完成",
+    "scheduledTaskCompletionBody": "计划任务已完成：{label}",
+    "scheduledTaskCompletionFailedBody": "计划任务执行失败：{label}",
+    "patrolCompletionBody": "巡检已完成：{label}",
+    "patrolCompletionFailedBody": "巡检执行失败：{label}"
   },
   "error": {
     "pathsRequired": "需要 paths 数组",

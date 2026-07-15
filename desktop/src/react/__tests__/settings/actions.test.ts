@@ -247,7 +247,11 @@ describe('settings actions', () => {
           globalModels: { models: { utility: { id: 'u' }, utility_large: { id: 'ul' } } },
           preferences: {
             quickChat: { shortcut: 'CommandOrControl+Shift+K', reuseTimeoutMinutes: 12 },
-            notifications: { turnCompletion: 'when_session_unfocused' },
+            notifications: {
+              chatCompletion: 'when_session_unfocused',
+              scheduledTaskCompletion: 'always',
+              patrolCompletion: 'when_unfocused',
+            },
             bridge: { permissionMode: 'operate', readOnly: false, receiptEnabled: true },
             speechRecognition: { enabled: true, defaultModel: { provider: 'dashscope', id: 'qwen3-asr' } },
             experiments: [{ id: 'provider.deepseek_roleplay_reasoning_patch', owner: 'provider', value: true }],

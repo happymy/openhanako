@@ -13,7 +13,7 @@ import path from "path";
 import { createHeartbeat } from "../lib/desk/heartbeat.ts";
 import { createCronScheduler } from "../lib/desk/cron-scheduler.ts";
 import { getAutomationExecutor } from "../lib/desk/automation-executors.ts";
-import { getLocale } from "../lib/i18n.ts";
+import { getLocale, t } from "../lib/i18n.ts";
 import { createFreshCompactDailyScheduler } from "../lib/fresh-compact/daily-scheduler.ts";
 import { FreshCompactMaintainer } from "./fresh-compact-maintainer.ts";
 import { createModuleLogger } from "../lib/debug-log.ts";
@@ -325,6 +325,40 @@ export class Scheduler {
     return opts;
   }
 
+  async _deliverActivityCompletionNotification({ entry, sessionPath }) {
+    if (entry.type !== "cron" && entry.type !== "heartbeat") return;
+    const engine = this._engine;
+    const preferenceKey = entry.type === "cron" ? "scheduledTaskCompletion" : "patrolCompletion";
+    const mode = engine.getNotificationPreferences?.()?.[preferenceKey];
+    if (mode !== "when_unfocused" && mode !== "always") return;
+    if (typeof engine.deliverNotification !== "function") return;
+
+    const bodyKey = entry.type === "cron"
+      ? (entry.status === "error"
+          ? "notification.scheduledTaskCompletionFailedBody"
+          : "notification.scheduledTaskCompletionBody")
+      : (entry.status === "error"
+          ? "notification.patrolCompletionFailedBody"
+          : "notification.patrolCompletionBody");
+    const completionIdentity = typeof sessionPath === "string" && sessionPath
+      ? sessionPath
+      : entry.id;
+    try {
+      await engine.deliverNotification({
+        title: entry.agentName || "HanaAgent",
+        body: t(bodyKey, { label: entry.label || entry.summary }),
+        channels: ["desktop"],
+        desktopFocusPolicy: mode,
+        ...(typeof sessionPath === "string" && sessionPath ? { sessionPath } : {}),
+        idempotencyKey: `activity-completion:${entry.type}:${entry.agentId}:${completionIdentity}`,
+      }, {
+        agentId: entry.agentId,
+      });
+    } catch (error) {
+      log.warn(`${entry.type} completion notification failed: ${error?.message || error}`);
+    }
+  }
+
   /**
    * 执行活动（任意 agent，统一走 executeIsolated）
    */
@@ -341,13 +375,31 @@ export class Scheduler {
 
     // 所有 agent 统一走 executeIsolated（支持 agentId + signal 参数）
     const { signal, ...restOpts } = opts;
-    const result = await engine.executeIsolated(prompt, {
-      agentId,
-      persist: activityDir,
-      signal,
-      activityType: type,
-      ...restOpts,
-    });
+    let result;
+    try {
+      result = await engine.executeIsolated(prompt, {
+        agentId,
+        persist: activityDir,
+        signal,
+        activityType: type,
+        ...restOpts,
+      });
+    } catch (error) {
+      const ag = engine.getAgent(agentId);
+      await this._deliverActivityCompletionNotification({
+        entry: {
+          id,
+          type,
+          label: label || null,
+          agentId,
+          agentName: ag?.agentName || agentId,
+          summary: label || (type === "heartbeat" ? "patrol" : "scheduled task"),
+          status: "error",
+        },
+        sessionPath: null,
+      });
+      throw error;
+    }
     const { sessionPath, error } = result;
 
     const finishedAt = Date.now();
@@ -391,6 +443,8 @@ export class Scheduler {
 
     // WS 广播
     this._hub.eventBus.emit({ type: "activity_update", activity: entry }, null);
+
+    await this._deliverActivityCompletionNotification({ entry, sessionPath });
 
     if (failed) {
       const isZhR = getLocale().startsWith("zh");

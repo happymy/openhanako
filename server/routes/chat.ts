@@ -861,14 +861,26 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
     });
   }
 
-  function resolveSessionNotificationIdentity(sessionPath) {
+  function resolveChatNotificationIdentity(sessionPath) {
+    const sessionId = engine.getSessionIdForPath?.(sessionPath) || null;
+    const manifest = sessionId ? engine.getSessionManifest?.(sessionId) || null : null;
+    if (!manifest) {
+      log.warn(`chat completion notification skipped: session manifest missing for ${path.basename(sessionPath || "")}`);
+      return null;
+    }
+    if (manifest.domain !== "desktop" || manifest.kind !== "chat") {
+      log.log(`chat completion notification skipped: ${manifest.domain || "unknown"}/${manifest.kind || "unknown"} session`);
+      return null;
+    }
     const session = engine.getSessionByPath?.(sessionPath) || null;
     const agent = session?.agent || null;
-    const agentId = typeof session?.agentId === "string" && session.agentId
-      ? session.agentId
-      : typeof agent?.id === "string" && agent.id
-        ? agent.id
-        : null;
+    const agentId = typeof manifest.ownerAgentId === "string" && manifest.ownerAgentId
+      ? manifest.ownerAgentId
+      : typeof session?.agentId === "string" && session.agentId
+        ? session.agentId
+        : typeof agent?.id === "string" && agent.id
+          ? agent.id
+          : null;
     const agentName = typeof session?.agentName === "string" && session.agentName
       ? session.agentName
       : typeof agent?.agentName === "string" && agent.agentName
@@ -876,23 +888,25 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
         : typeof agent?.name === "string" && agent.name
           ? agent.name
           : null;
-    return { agentId, agentName };
+    return { agentId, agentName, sessionId };
   }
 
   function maybeDeliverTurnCompletionNotification(sessionPath, { wasAborted, wasSuccessful, streamId }) {
     if (!sessionPath || wasAborted || !wasSuccessful) return;
     try {
       const prefs = engine.getNotificationPreferences?.();
-      if (prefs?.turnCompletion !== "when_unfocused" && prefs?.turnCompletion !== "when_session_unfocused") return;
+      if (prefs?.chatCompletion !== "when_unfocused" && prefs?.chatCompletion !== "when_session_unfocused") return;
       if (typeof engine.deliverNotification !== "function") return;
 
-      const { agentId, agentName } = resolveSessionNotificationIdentity(sessionPath);
-      const idempotencyKey = streamId ? `turn-completion:${sessionPath}:${streamId}` : null;
+      const identity = resolveChatNotificationIdentity(sessionPath);
+      if (!identity) return;
+      const { agentId, agentName, sessionId } = identity;
+      const idempotencyKey = streamId ? `chat-completion:${sessionId}:${streamId}` : null;
       const delivery = engine.deliverNotification({
         title: agentName || "HanaAgent",
-        body: t("notification.turnCompletionBody"),
+        body: t("notification.chatCompletionBody"),
         channels: ["desktop"],
-        desktopFocusPolicy: prefs.turnCompletion === "when_session_unfocused"
+        desktopFocusPolicy: prefs.chatCompletion === "when_session_unfocused"
           ? "when_session_unfocused"
           : "when_unfocused",
         sessionPath,
@@ -901,10 +915,10 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
         agentId,
       });
       delivery?.catch?.((err) => {
-        log.warn(`turn completion notification failed: ${err.message}`);
+        log.warn(`chat completion notification failed: ${err.message}`);
       });
     } catch (err) {
-      log.warn(`turn completion notification skipped: ${err.message}`);
+      log.warn(`chat completion notification skipped: ${err.message}`);
     }
   }
 

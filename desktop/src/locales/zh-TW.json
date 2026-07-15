@@ -1019,10 +1019,13 @@
       },
       "notifications": {
         "title": "通知",
-        "turnCompletion": "輪次完成通知",
-        "turnCompletionNever": "從不",
-        "turnCompletionWhenUnfocused": "焦點不在 HanaAgent 時",
-        "turnCompletionWhenSessionUnfocused": "焦點不在完成任務的 Session 時"
+        "chatCompletion": "聊天回覆完成",
+        "scheduledTaskCompletion": "排程任務完成",
+        "patrolCompletion": "巡檢完成",
+        "never": "從不",
+        "whenUnfocused": "焦點不在 HanaAgent 時",
+        "whenSessionUnfocused": "焦點不在該聊天時",
+        "always": "總是"
       }
     },
     "computerUse": {
@@ -2651,7 +2654,11 @@
     }
   },
   "notification": {
-    "turnCompletionBody": "這一輪已經完成"
+    "chatCompletionBody": "這一輪聊天已經完成",
+    "scheduledTaskCompletionBody": "排程任務已完成：{label}",
+    "scheduledTaskCompletionFailedBody": "排程任務執行失敗：{label}",
+    "patrolCompletionBody": "巡檢已完成：{label}",
+    "patrolCompletionFailedBody": "巡檢執行失敗：{label}"
   },
   "error": {
     "pathsRequired": "需要 paths 陣列",

@@ -1019,10 +1019,13 @@
       },
       "notifications": {
         "title": "通知",
-        "turnCompletion": "ターン完了通知",
-        "turnCompletionNever": "通知しない",
-        "turnCompletionWhenUnfocused": "HanaAgent にフォーカスがないとき",
-        "turnCompletionWhenSessionUnfocused": "完了した Session にフォーカスしていないとき"
+        "chatCompletion": "チャット返信の完了",
+        "scheduledTaskCompletion": "スケジュールタスクの完了",
+        "patrolCompletion": "巡回の完了",
+        "never": "通知しない",
+        "whenUnfocused": "HanaAgent にフォーカスがないとき",
+        "whenSessionUnfocused": "完了したチャットにフォーカスしていないとき",
+        "always": "常に"
       }
     },
     "computerUse": {
@@ -2651,7 +2654,11 @@
     }
   },
   "notification": {
-    "turnCompletionBody": "このターンは完了しました"
+    "chatCompletionBody": "このチャットターンは完了しました",
+    "scheduledTaskCompletionBody": "スケジュールタスクが完了しました：{label}",
+    "scheduledTaskCompletionFailedBody": "スケジュールタスクに失敗しました：{label}",
+    "patrolCompletionBody": "巡回が完了しました：{label}",
+    "patrolCompletionFailedBody": "巡回に失敗しました：{label}"
   },
   "error": {
     "pathsRequired": "paths 配列は必須です",

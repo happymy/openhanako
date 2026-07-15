@@ -1518,7 +1518,14 @@ describe("chat route model switch guard", () => {
     const engine = {
       agentName: "Hana",
       abortAllStreaming: vi.fn(async () => {}),
-      getNotificationPreferences: vi.fn(() => ({ turnCompletion: "when_unfocused" })),
+      getNotificationPreferences: vi.fn(() => ({ chatCompletion: "when_unfocused" })),
+      getSessionIdForPath: vi.fn(() => "session-notified"),
+      getSessionManifest: vi.fn(() => ({
+        sessionId: "session-notified",
+        ownerAgentId: "agent-2",
+        domain: "desktop",
+        kind: "chat",
+      })),
       deliverNotification,
       getSessionByPath: vi.fn(() => ({
         entries: [],
@@ -1550,12 +1557,67 @@ describe("chat route model switch guard", () => {
         body: expect.any(String),
         channels: ["desktop"],
         desktopFocusPolicy: "when_unfocused",
-        idempotencyKey: expect.stringContaining("turn-completion:/tmp/notified-session.jsonl:"),
+        idempotencyKey: expect.stringContaining("chat-completion:session-notified:"),
       }),
       { agentId: "agent-2" },
     );
 
     handlers.onClose({}, ws);
+  });
+
+  it("fails closed for internal and missing session manifests", async () => {
+    for (const manifest of [
+      { sessionId: "activity-session", ownerAgentId: "agent-2", domain: "activity", kind: "activity" },
+      { sessionId: "subagent-session", ownerAgentId: "agent-2", domain: "subagent", kind: "subagent_child" },
+      { sessionId: "bridge-session", ownerAgentId: "agent-2", domain: "bridge", kind: "bridge_owner" },
+      { sessionId: "plugin-session", ownerAgentId: "agent-2", domain: "desktop", kind: "plugin_private" },
+      null,
+    ]) {
+      let createHandlers;
+      let subscriber;
+      const upgradeWebSocket = vi.fn((factory) => {
+        createHandlers = factory;
+        return () => new Response(null);
+      });
+      const hub = {
+        subscribe: vi.fn((fn) => {
+          subscriber = fn;
+        }),
+        send: vi.fn(async () => {}),
+        abort: vi.fn(async () => true),
+      };
+      const deliverNotification = vi.fn(async () => ({ ok: true }));
+      const engine = {
+        agentName: "Hana",
+        abortAllStreaming: vi.fn(async () => {}),
+        getNotificationPreferences: vi.fn(() => ({ chatCompletion: "when_unfocused" })),
+        getSessionIdForPath: vi.fn(() => "activity-session"),
+        getSessionManifest: vi.fn(() => manifest),
+        deliverNotification,
+        getSessionByPath: vi.fn(() => ({ entries: [], agentId: "agent-2", agentName: "小蓝" })),
+        isSessionStreaming: vi.fn(() => false),
+        isSessionSwitching: vi.fn(() => false),
+        steerSession: vi.fn(() => false),
+        slashDispatcher: null,
+      };
+
+      createChatRoute(engine, hub, { upgradeWebSocket });
+      const handlers = createHandlers({});
+      const ws = { readyState: 1, send: vi.fn() };
+      handlers.onOpen({}, ws);
+
+      const sessionPath = manifest ? `/tmp/${manifest.sessionId}.jsonl` : "/tmp/missing-manifest.jsonl";
+      subscriber?.({ type: "session_status", isStreaming: true }, sessionPath);
+      subscriber?.({
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", delta: "done" },
+      }, sessionPath);
+      subscriber?.({ type: "turn_end" }, sessionPath);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(deliverNotification).not.toHaveBeenCalled();
+      handlers.onClose({}, ws);
+    }
   });
 
   it("delivers a session-aware turn completion notification with the completed sessionPath", async () => {
@@ -1576,7 +1638,14 @@ describe("chat route model switch guard", () => {
     const engine = {
       agentName: "Hana",
       abortAllStreaming: vi.fn(async () => {}),
-      getNotificationPreferences: vi.fn(() => ({ turnCompletion: "when_session_unfocused" })),
+      getNotificationPreferences: vi.fn(() => ({ chatCompletion: "when_session_unfocused" })),
+      getSessionIdForPath: vi.fn(() => "session-aware"),
+      getSessionManifest: vi.fn(() => ({
+        sessionId: "session-aware",
+        ownerAgentId: "agent-2",
+        domain: "desktop",
+        kind: "chat",
+      })),
       deliverNotification,
       getSessionByPath: vi.fn(() => ({
         entries: [],
@@ -1633,7 +1702,14 @@ describe("chat route model switch guard", () => {
     const engine = {
       agentName: "Hana",
       abortAllStreaming: vi.fn(async () => {}),
-      getNotificationPreferences: vi.fn(() => ({ turnCompletion: "when_unfocused" })),
+      getNotificationPreferences: vi.fn(() => ({ chatCompletion: "when_unfocused" })),
+      getSessionIdForPath: vi.fn(() => "session-deferred"),
+      getSessionManifest: vi.fn(() => ({
+        sessionId: "session-deferred",
+        ownerAgentId: "agent-2",
+        domain: "desktop",
+        kind: "chat",
+      })),
       deliverNotification,
       getSessionByPath: vi.fn(() => ({
         entries: [],
@@ -1695,7 +1771,7 @@ describe("chat route model switch guard", () => {
     const engine = {
       agentName: "Hana",
       abortAllStreaming: vi.fn(async () => {}),
-      getNotificationPreferences: vi.fn(() => ({ turnCompletion: "when_unfocused" })),
+      getNotificationPreferences: vi.fn(() => ({ chatCompletion: "when_unfocused" })),
       deliverNotification,
       getSessionByPath: vi.fn(() => ({ entries: [], agentId: "agent-2", agentName: "小蓝" })),
       isSessionStreaming: vi.fn(() => false),
@@ -1750,7 +1826,7 @@ describe("chat route model switch guard", () => {
       const engine = {
         agentName: "Hana",
         abortAllStreaming: vi.fn(async () => {}),
-        getNotificationPreferences: vi.fn(() => ({ turnCompletion: "never" })),
+        getNotificationPreferences: vi.fn(() => ({ chatCompletion: "never" })),
         getSessionByPath: vi.fn(() => ({ entries: [] })),
         isSessionStreaming: vi.fn(() => true),
         isSessionSwitching: vi.fn(() => false),

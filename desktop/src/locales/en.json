@@ -1306,10 +1306,13 @@
       },
       "notifications": {
         "title": "Notifications",
-        "turnCompletion": "Turn completion notification",
-        "turnCompletionNever": "Never",
-        "turnCompletionWhenUnfocused": "When HanaAgent is unfocused",
-        "turnCompletionWhenSessionUnfocused": "When not focused on the completed Session"
+        "chatCompletion": "Chat reply completion",
+        "scheduledTaskCompletion": "Scheduled task completion",
+        "patrolCompletion": "Patrol completion",
+        "never": "Never",
+        "whenUnfocused": "When HanaAgent is unfocused",
+        "whenSessionUnfocused": "When the completed chat is unfocused",
+        "always": "Always"
       }
     },
     "about": {
@@ -2656,7 +2659,11 @@
     "openInSystemBrowser": "Open in system browser"
   },
   "notification": {
-    "turnCompletionBody": "This turn is complete"
+    "chatCompletionBody": "This chat turn is complete",
+    "scheduledTaskCompletionBody": "Scheduled task completed: {label}",
+    "scheduledTaskCompletionFailedBody": "Scheduled task failed: {label}",
+    "patrolCompletionBody": "Patrol completed: {label}",
+    "patrolCompletionFailedBody": "Patrol failed: {label}"
   },
   "error": {
     "pathsRequired": "paths array is required",

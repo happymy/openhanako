@@ -291,4 +291,77 @@ describe("Scheduler studio cron", () => {
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("notifies once for cron and heartbeat completions but never for other activity types", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "hana-scheduler-notification-"));
+    try {
+      const agentsDir = path.join(root, "agents");
+      fs.mkdirSync(path.join(agentsDir, "agent-a"), { recursive: true });
+      const deliverNotification = vi.fn(async () => ({ ok: true }));
+      const executeIsolated = vi.fn()
+        .mockResolvedValueOnce({ sessionPath: "/sessions/cron.jsonl", error: null })
+        .mockResolvedValueOnce({ sessionPath: "/sessions/heartbeat.jsonl", error: "patrol failed" });
+      const engine = {
+        agentsDir,
+        ensureAgentRuntime: vi.fn(async () => undefined),
+        getAgent: vi.fn(() => ({ id: "agent-a", agentName: "Hana" })),
+        executeIsolated,
+        summarizeActivity: vi.fn(async (sessionPath) => path.basename(sessionPath)),
+        getActivityStore: vi.fn(() => ({ add: vi.fn() })),
+        emitDevLog: vi.fn(),
+        getNotificationPreferences: vi.fn(() => ({
+          chatCompletion: "never",
+          scheduledTaskCompletion: "always",
+          patrolCompletion: "always",
+        })),
+        deliverNotification,
+      };
+      const scheduler = new Scheduler({ hub: { engine, eventBus: { emit: vi.fn() } } });
+
+      await scheduler._executeActivityForAgent("agent-a", "cron prompt", "cron", "Daily report");
+      expect(deliverNotification).toHaveBeenCalledTimes(1);
+      expect(deliverNotification).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          desktopFocusPolicy: "always",
+          sessionPath: "/sessions/cron.jsonl",
+          idempotencyKey: "activity-completion:cron:agent-a:/sessions/cron.jsonl",
+        }),
+        { agentId: "agent-a" },
+      );
+
+      await expect(scheduler._executeActivityForAgent(
+        "agent-a",
+        "heartbeat prompt",
+        "heartbeat",
+        "Routine patrol",
+      )).rejects.toThrow("patrol failed");
+      expect(deliverNotification).toHaveBeenCalledTimes(2);
+      expect(deliverNotification).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          desktopFocusPolicy: "always",
+          sessionPath: "/sessions/heartbeat.jsonl",
+          idempotencyKey: "activity-completion:heartbeat:agent-a:/sessions/heartbeat.jsonl",
+        }),
+        { agentId: "agent-a" },
+      );
+
+      for (const type of ["workflow", "subagent"]) {
+        await scheduler._deliverActivityCompletionNotification({
+          entry: {
+            id: `${type}-1`,
+            type,
+            label: type,
+            agentId: "agent-a",
+            agentName: "Hana",
+            summary: type,
+            status: "done",
+          },
+          sessionPath: `/sessions/${type}.jsonl`,
+        });
+      }
+      expect(deliverNotification).toHaveBeenCalledTimes(2);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

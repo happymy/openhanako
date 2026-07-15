@@ -92,7 +92,7 @@ const BUILT_IN_SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
     tabId: 'general',
     titleKey: 'settings.general.notifications.title',
     pathKeys: ['settings.tabs.general'],
-    aliases: ['notification', 'turn completion', '通知', '轮次完成', '完成提醒'],
+    aliases: ['notification', 'chat completion', 'scheduled task', 'patrol', '通知', '聊天完成', '计划任务', '巡检', '完成提醒'],
   },
   {
     id: 'browser-cookies',
