@@ -663,7 +663,7 @@ describe("callText provider-compat routing", () => {
     expect(fetchMock.mock.calls[1][1].headers["User-Agent"]).toBe("ExistingClient/2.0");
   });
 
-  it("lets provider request headers override protocol auth headers on utility requests", async () => {
+  it("lets provider request headers override protocol auth headers case-insensitively", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       status: 200,
@@ -679,14 +679,41 @@ describe("callText provider-compat routing", () => {
       model: {
         id: "gateway-model",
         provider: "gateway-provider",
-        headers: { Authorization: "Gateway gateway-token" },
+        headers: { authorization: "Gateway gateway-token" },
       },
       messages: [{ role: "user", content: "hi" }],
       timeoutMs: 5_000,
     } as any);
 
     const [, init] = fetchMock.mock.calls[0];
-    expect((init.headers as any).Authorization).toBe("Gateway gateway-token");
+    const authHeaders = Object.entries(init.headers as Record<string, string>)
+      .filter(([name]) => name.toLowerCase() === "authorization");
+    expect(authHeaders).toEqual([["authorization", "Gateway gateway-token"]]);
+  });
+
+  it("keeps only the explicit Anthropic API key when header casing differs", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        content: [{ type: "text", text: "ok" }],
+      }),
+    } as any);
+
+    await callText({
+      api: "anthropic-messages",
+      apiKey: "stale-default-key",
+      baseUrl: "https://gateway.example",
+      model: { id: "gateway-model", provider: "gateway-provider" },
+      headers: { "X-API-Key": "explicit-gateway-key" },
+      messages: [{ role: "user", content: "hi" }],
+      timeoutMs: 5_000,
+    } as any);
+
+    const [, init] = fetchMock.mock.calls[0];
+    const apiKeyHeaders = Object.entries(init.headers as Record<string, string>)
+      .filter(([name]) => name.toLowerCase() === "x-api-key");
+    expect(apiKeyHeaders).toEqual([["X-API-Key", "explicit-gateway-key"]]);
   });
 
   it("does not append a duplicate v1 segment for Anthropic-compatible base URLs", async () => {

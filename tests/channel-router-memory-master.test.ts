@@ -96,6 +96,7 @@ function makeRouter(paths, options: any = {}) {
           api_key: "test-key",
           base_url: "https://test.api",
           api: "openai-completions",
+          headers: { "X-Provider-Protocol": "channel" },
           large_api_key: "test-key",
           large_base_url: "https://test.api",
           large_api: "openai-completions",
@@ -172,6 +173,7 @@ describe("ChannelRouter memory master fallback", () => {
       source: { subsystem: "memory", operation: "channel_memory_summary", surface: "channel" },
       attribution: { kind: "memory", agentId: "hana" },
     });
+    expect(request.headers).toEqual({ "X-Provider-Protocol": "channel" });
     expect(request.systemPrompt).toContain("NO_MEMORY");
     expect(request.messages[0].content).toContain("黎: 请把摘要洗干净。");
     expect(request.messages[0].content).toContain("Butter: 先把摘要洗干净。");

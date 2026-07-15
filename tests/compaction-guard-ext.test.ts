@@ -171,7 +171,11 @@ describe("CompactionGuardExtension", () => {
     const ctx = {
       model,
       modelRegistry: {
-        getApiKeyAndHeaders: vi.fn(async () => ({ ok: true, apiKey: "key", headers: { "x-test": "1" } })),
+        getApiKeyAndHeaders: vi.fn(async () => ({
+          ok: true,
+          apiKey: "key",
+          headers: { "x-test": "1" } as Record<string, string>,
+        })),
       },
       getSystemPrompt: vi.fn(() => "system prompt"),
       sessionManager: {
@@ -225,6 +229,29 @@ describe("CompactionGuardExtension", () => {
         messages: preparation.messagesToSummarize,
       }));
       expect(computeHardTruncation).not.toHaveBeenCalled();
+    });
+
+    it("accepts resolver-approved header-only credentials", async () => {
+      ctx.modelRegistry.getApiKeyAndHeaders.mockResolvedValueOnce({
+        ok: true,
+        apiKey: undefined,
+        headers: { Authorization: "Bearer header-owned-token" },
+      });
+      (estimatePreparationTokens as any).mockReturnValue(50_000);
+
+      const res = await pi.trigger(
+        "session_before_compact",
+        { preparation, signal: { aborted: false } },
+        ctx,
+      );
+
+      expect(res?.compaction?.summary).toBe("cache summary");
+      expect(cacheCompactor).toHaveBeenCalledWith(expect.objectContaining({
+        streamOptions: expect.objectContaining({
+          apiKey: undefined,
+          headers: { Authorization: "Bearer header-owned-token" },
+        }),
+      }));
     });
 
     it("lets Pi SDK native compaction run when pi-compatible mode is selected", async () => {

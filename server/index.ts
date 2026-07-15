@@ -120,6 +120,7 @@ import { Hub } from "../hub/index.ts";
 import { startCLI } from "./cli.ts";
 import { fromRoot } from "../shared/hana-root.ts";
 import { callText } from "../core/llm-client.ts";
+import { callTextConfigFromUtilityConfig } from "../core/model-execution-config.ts";
 
 const productDir = fromRoot("lib");
 
@@ -714,10 +715,7 @@ hub.eventBus.handle("utility:call-text", async (payload: any = {}) => {
     : (sessionPath ? engine.resolveSessionOwnership?.(sessionPath)?.agentId || null : null);
   const utility = await engine.resolveUtilityConfigFresh({ agentId, sessionPath });
   const text = await callText({
-    api: utility.api,
-    apiKey: utility.api_key,
-    baseUrl: utility.base_url,
-    model: utility.utility,
+    ...callTextConfigFromUtilityConfig(utility),
     systemPrompt: payload.systemPrompt || "",
     messages: Array.isArray(payload.messages) ? payload.messages : [],
     temperature: payload.temperature,
@@ -752,10 +750,7 @@ hub.eventBus.handle("model:sample-text", async (payload: any = {}) => {
     : null;
   const utility = await engine.resolveUtilityConfigFresh({ agentId, sessionPath });
   const text = await callText({
-    api: utility.api,
-    apiKey: utility.api_key,
-    baseUrl: utility.base_url,
-    model: utility.utility,
+    ...callTextConfigFromUtilityConfig(utility),
     systemPrompt: payload.systemPrompt || "",
     messages: payload.messages,
     temperature: payload.temperature,

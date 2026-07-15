@@ -13,6 +13,7 @@ import path from "path";
 import { scrubPII } from "../pii-guard.ts";
 import { getLogicalDay, getLogicalDayForDate } from "../time-utils.ts";
 import { callText } from "../../core/llm-client.ts";
+import { callTextConfigFromResolvedModel } from "../../core/model-execution-config.ts";
 import { getLocale } from "../i18n.ts";
 import { generateSummary } from "../pi-sdk/index.ts";
 import { listSessionFiles, readSessionMessages } from "../session-jsonl.ts";
@@ -304,11 +305,9 @@ async function defaultGenerateTemporarySummary({
   if (typeof getCompactionAuth === "function") {
     auth = await getCompactionAuth(resolvedModel.model);
   }
-  const apiKey = auth?.apiKey ?? resolvedModel.api_key;
-  const headers = auth?.headers;
-  if (!apiKey) {
-    throw new Error("No API key available for diary compaction summary");
-  }
+  const execution = callTextConfigFromResolvedModel(resolvedModel);
+  const apiKey = auth?.apiKey ?? execution.apiKey;
+  const headers = auth?.headers ?? execution.headers;
 
   return generateDiaryCompactionSummary({
     messages,
@@ -663,12 +662,8 @@ export async function writeDiary(opts) {
   // 5. 调 LLM
   let diaryContent = "";
   try {
-    const { model, api, api_key, base_url } = resolvedModel;
     diaryContent = await callText({
-      api, model,
-      apiKey: api_key,
-      baseUrl: base_url,
-      headers: undefined,
+      ...callTextConfigFromResolvedModel(resolvedModel),
       systemPrompt,
       messages: [{ role: "user", content: userPrompt.join("\n") }],
       temperature: 0.7,

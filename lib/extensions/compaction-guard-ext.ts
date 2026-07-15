@@ -282,7 +282,7 @@ export function createCompactionGuardExtension(opts: Record<string, any> = {}) {
         }
 
         const auth = await ctx.modelRegistry?.getApiKeyAndHeaders?.(model);
-        if (!auth?.ok || !auth.apiKey) {
+        if (!auth?.ok) {
           log.warn(`[L3] model auth unavailable for cache-preserving compaction: ${auth?.error || model.id}`);
           if (allowNativeFallback) {
             return fallBackToPiNative(`model auth unavailable for cache-preserving compaction: ${auth?.error || model.id}`);

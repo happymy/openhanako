@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:035355114c5a618d0cfa912d3f74edd556ab636b5e127f6996041192915e61f5",
+  "payloadFingerprint": "sha256:53a85344285573b8ff6ab9f016d12d287fc2039015c37312d34c6c9a9877b322",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2802,8 +2802,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Refreshes generated write-site mappings after provider media capability changes without changing persisted fields or file formats.",
-    "payloadFingerprint": "sha256:035355114c5a618d0cfa912d3f74edd556ab636b5e127f6996041192915e61f5"
+    "compatibilityReason": "Refreshes generated write-site mappings after model execution call paths changed without changing persisted fields or file formats.",
+    "payloadFingerprint": "sha256:53a85344285573b8ff6ab9f016d12d287fc2039015c37312d34c6c9a9877b322"
   },
   "schemas": [
     {
@@ -3118,7 +3118,7 @@
       "contract": "server-info writer and desktop bootstrap reader",
       "kind": "runtime-contract",
       "module": "server/index.ts",
-      "sourceHash": "sha256:c9c7ad87cc21f439f1e74e261e7692c4c5a23d5e175843958efadde599d22444",
+      "sourceHash": "sha256:6c98e4f6d56245745142b7deb0c1715ba3fbf8557293db0521af6db93ea87554",
       "storeId": "server-runtime-info"
     },
     {
@@ -4628,7 +4628,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 467,
+      "line": 485,
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
       "sourceFile": "core/model-sync.ts",
       "storeId": "provider-state"
@@ -4852,7 +4852,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 806,
+      "line": 809,
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
       "sourceFile": "core/provider-registry.ts",
       "storeId": "provider-state"
@@ -5300,7 +5300,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 123,
+      "line": 124,
       "reason": "Writes a session-owned sidecar or bridge index.",
       "sourceFile": "core/vision-bridge.ts",
       "storeId": "session-sidecars"
@@ -5308,7 +5308,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 125,
+      "line": 126,
       "reason": "Writes a session-owned sidecar or bridge index.",
       "sourceFile": "core/vision-bridge.ts",
       "storeId": "session-sidecars"
@@ -5316,7 +5316,7 @@
     {
       "exemptionId": null,
       "kind": "rename",
-      "line": 126,
+      "line": 127,
       "reason": "Writes a session-owned sidecar or bridge index.",
       "sourceFile": "core/vision-bridge.ts",
       "storeId": "session-sidecars"
@@ -5796,7 +5796,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 1037,
+      "line": 1038,
       "reason": "Opens or repairs the canonical per-agent facts database.",
       "sourceFile": "hub/channel-router.ts",
       "storeId": "agent-facts-sqlite"
@@ -6444,7 +6444,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 718,
+      "line": 713,
       "reason": "Writes a user- or agent-authored Markdown record.",
       "sourceFile": "lib/diary/diary-writer.ts",
       "storeId": "agent-authored-records"
@@ -6452,7 +6452,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 720,
+      "line": 715,
       "reason": "Writes a user- or agent-authored Markdown record.",
       "sourceFile": "lib/diary/diary-writer.ts",
       "storeId": "agent-authored-records"
@@ -6532,7 +6532,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 107,
+      "line": 108,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6540,7 +6540,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 312,
+      "line": 313,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6548,7 +6548,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 405,
+      "line": 406,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6556,7 +6556,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 432,
+      "line": 433,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6564,7 +6564,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 458,
+      "line": 459,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6572,7 +6572,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 554,
+      "line": 555,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6580,7 +6580,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 650,
+      "line": 651,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6588,7 +6588,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 682,
+      "line": 683,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6596,7 +6596,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 846,
+      "line": 847,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6604,7 +6604,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 940,
+      "line": 941,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6612,7 +6612,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 947,
+      "line": 948,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6620,7 +6620,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 1113,
+      "line": 1110,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/compile.ts",
       "storeId": "agent-memory"
@@ -6772,7 +6772,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 53,
+      "line": 54,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/session-summary.ts",
       "storeId": "agent-memory"
@@ -6780,14 +6780,6 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 86,
-      "reason": "Writes a named per-agent memory protocol file.",
-      "sourceFile": "lib/memory/session-summary.ts",
-      "storeId": "agent-memory"
-    },
-    {
-      "exemptionId": null,
-      "kind": "atomic-write",
       "line": 87,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/session-summary.ts",
@@ -6795,8 +6787,16 @@
     },
     {
       "exemptionId": null,
+      "kind": "atomic-write",
+      "line": 88,
+      "reason": "Writes a named per-agent memory protocol file.",
+      "sourceFile": "lib/memory/session-summary.ts",
+      "storeId": "agent-memory"
+    },
+    {
+      "exemptionId": null,
       "kind": "mkdir",
-      "line": 182,
+      "line": 183,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/session-summary.ts",
       "storeId": "agent-memory"
@@ -6804,7 +6804,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 184,
+      "line": 185,
       "reason": "Writes a named per-agent memory protocol file.",
       "sourceFile": "lib/memory/session-summary.ts",
       "storeId": "agent-memory"
@@ -7940,7 +7940,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 296,
+      "line": 297,
       "reason": "Writes or deletes live server discovery state.",
       "sourceFile": "server/index.ts",
       "storeId": "server-runtime-info"
@@ -7948,7 +7948,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 444,
+      "line": 445,
       "reason": "Constructs the deferred result store.",
       "sourceFile": "server/index.ts",
       "storeId": "deferred-result-state"
@@ -7956,7 +7956,7 @@
     {
       "exemptionId": "in-memory-confirm-registry",
       "kind": "persistent-store-constructor",
-      "line": 644,
+      "line": 645,
       "reason": "ConfirmStore is deliberately process-memory-only: pending approvals time out or abort with their session and have no restart replay contract.",
       "sourceFile": "server/index.ts",
       "storeId": null
@@ -7964,7 +7964,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 649,
+      "line": 650,
       "reason": "Constructs subagent stores.",
       "sourceFile": "server/index.ts",
       "storeId": "subagent-state"
@@ -7972,7 +7972,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 655,
+      "line": 656,
       "reason": "Constructs subagent stores.",
       "sourceFile": "server/index.ts",
       "storeId": "subagent-state"
@@ -7980,7 +7980,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 666,
+      "line": 667,
       "reason": "Constructs the workflow activity store.",
       "sourceFile": "server/index.ts",
       "storeId": "workflow-state"
@@ -7988,7 +7988,7 @@
     {
       "exemptionId": null,
       "kind": "append-file",
-      "line": 1144,
+      "line": 1139,
       "reason": "Appends the browser worker log.",
       "sourceFile": "server/index.ts",
       "storeId": "runtime-diagnostics"
@@ -7996,7 +7996,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 1203,
+      "line": 1198,
       "reason": "Writes or deletes live server discovery state.",
       "sourceFile": "server/index.ts",
       "storeId": "server-runtime-info"
@@ -8004,7 +8004,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 1301,
+      "line": 1296,
       "reason": "Writes or deletes live server discovery state.",
       "sourceFile": "server/index.ts",
       "storeId": "server-runtime-info"

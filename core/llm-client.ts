@@ -4,7 +4,7 @@ import { normalizeProviderPayload } from './provider-compat.ts';
 import { buildProviderCompatOptions } from './llm-request-policy.ts';
 import { logLlmUsage, normalizeLlmUsage } from '../lib/llm/usage-observer.ts';
 import { appendProviderApiPath, withDefaultProviderHeaders } from '../lib/llm/provider-client.ts';
-import { normalizeProviderHeaders } from '../shared/provider-auth.ts';
+import { mergeProviderHeaders } from '../shared/provider-auth.ts';
 import {
   serializeOpenAICompatibleContentBlock,
   serializeResponsesContentBlock,
@@ -532,11 +532,7 @@ export async function callText({
     };
   }
 
-  const modelHeaders = normalizeProviderHeaders(modelObj?.headers);
-  const optionHeaders = normalizeProviderHeaders(requestHeaders);
-  if (Object.keys(modelHeaders).length > 0 || Object.keys(optionHeaders).length > 0) {
-    headers = { ...headers, ...modelHeaders, ...optionHeaders };
-  }
+  headers = mergeProviderHeaders(headers, modelObj?.headers, requestHeaders);
   headers = withDefaultProviderHeaders(headers);
 
   // Provider 兼容化（与 chat 路径共享 provider-compat）。

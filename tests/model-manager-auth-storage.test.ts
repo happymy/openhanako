@@ -98,7 +98,6 @@ describe("ModelManager AuthStorage ownership", () => {
       input: ["text", "image"],
       reasoning: true,
     });
-
     const projectionRaw = fs.readFileSync(path.join(tmpDir, "models.json"), "utf-8");
     const projection = JSON.parse(projectionRaw);
     expect(projection.providers["xai-oauth"]).not.toHaveProperty("apiKey");
@@ -108,6 +107,17 @@ describe("ModelManager AuthStorage ownership", () => {
     });
     expect(projectionRaw).not.toContain("grok-access-secret");
     expect(projectionRaw).not.toContain("grok-refresh-secret");
+
+    const execution = await manager.resolveModelWithCredentialsFresh({
+      id: "grok-4.5",
+      provider: "xai-oauth",
+    });
+    expect(execution.headers).toEqual({
+      "x-xai-token-auth": "xai-grok-cli",
+      "x-grok-client-version": "0.2.95",
+      "x-grok-client-identifier": "hana",
+      "x-grok-model-override": "grok-4.5",
+    });
 
     manager.authStorage.logout("xai-oauth");
     await manager.reloadAndSync();
@@ -783,6 +793,62 @@ describe("ModelManager AuthStorage ownership", () => {
     expect(requestHeaders["chatgpt-account-id"]).toBe("acct_fresh");
     expect(requestHeaders.Cookie).toBeUndefined();
     expect(JSON.stringify(requestHeaders)).not.toContain("stale");
+  });
+
+  it("keeps Grok provider protocol and model override headers in the fresh execution config", async () => {
+    const manager = new ModelManager({ hanakoHome: tmpDir });
+    manager.providerRegistry = {
+      resolveChatProvider: vi.fn(() => ({
+        credentialSource: "auth-storage",
+        entry: {
+          id: "xai-oauth",
+          api: "openai-responses",
+          baseUrl: "https://cli-chat-proxy.grok.com/v1",
+          headers: {
+            Authorization: "Bearer stale-provider",
+            Cookie: "provider=stale",
+            "x-xai-token-auth": "xai-grok-cli",
+            "x-grok-client-version": "0.2.95",
+            "x-grok-client-identifier": "hana",
+          },
+        },
+      })),
+      getAllProvidersRaw: vi.fn(() => ({})),
+      getAuthJsonKey: vi.fn(() => "xai-oauth"),
+      getCredentials: vi.fn(() => ({ accountId: "acct_stale" })),
+      clearAuthCache: vi.fn(),
+      allowsMissingApiKey: vi.fn(() => false),
+    } as any;
+    manager._availableModels = [{
+      id: "grok-4.5",
+      provider: "xai-oauth",
+      api: "openai-responses",
+      baseUrl: "https://cli-chat-proxy.grok.com/v1",
+      headers: {
+        Authorization: "Bearer stale-model",
+        "x-api-key": "stale-model-key",
+        "x-grok-model-override": "grok-4.5",
+      },
+    }];
+    manager._authStorage = {
+      getApiKey: vi.fn(async () => "fresh-grok-token"),
+      reload: vi.fn(),
+      get: vi.fn(() => ({ access: "fresh-grok-token", accountId: "acct_fresh" })),
+    };
+
+    const resolved = await manager.resolveModelWithCredentialsFresh({
+      id: "grok-4.5",
+      provider: "xai-oauth",
+    });
+
+    expect(resolved.headers).toEqual({
+      "x-xai-token-auth": "xai-grok-cli",
+      "x-grok-client-version": "0.2.95",
+      "x-grok-client-identifier": "hana",
+      "x-grok-model-override": "grok-4.5",
+    });
+    expect(resolved.model.headers).toEqual(resolved.headers);
+    expect(JSON.stringify(resolved)).not.toContain("stale");
   });
 
   it("fails closed for auth-storage providers when AuthStorage is unavailable", async () => {

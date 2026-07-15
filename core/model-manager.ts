@@ -18,8 +18,10 @@ import {
 import { t } from "../lib/i18n.ts";
 import { ProviderRegistry } from "./provider-registry.ts";
 import { ExecutionRouter } from "./execution-router.ts";
+import { composeResolvedModelExecution } from "./model-execution-config.ts";
 import { findModel, parseModelRef } from "../shared/model-ref.ts";
 import { isLocalBaseUrl } from "../shared/net-utils.ts";
+import { normalizeProviderHeaders, stripCredentialHeaders } from "../shared/provider-auth.ts";
 import { syncModels } from "./model-sync.ts";
 import { enrichModelFromKnownMetadata } from "./model-known-enrichment.ts";
 import { lookupKnownProvider } from "../shared/known-models.ts";
@@ -76,6 +78,8 @@ function buildProviderModelMetadataMap(projectionPlans: unknown) {
         if (modelEntry.toolUse !== undefined) meta.toolUse = structuredClone(modelEntry.toolUse);
         if (modelEntry.visionCapabilities !== undefined) meta.visionCapabilities = structuredClone(modelEntry.visionCapabilities);
       }
+      const executionHeaders = normalizeProviderHeaders(plan?.modelExecutionHeaders?.[modelId]);
+      if (Object.keys(executionHeaders).length > 0) meta.headers = executionHeaders;
       if (meta.defaultThinkingLevel === undefined && typeof known?.defaultThinkingLevel === "string") {
         meta.defaultThinkingLevel = known.defaultThinkingLevel;
       }
@@ -316,6 +320,7 @@ export class ModelManager {
         credentialSource: plan.credentialSource,
         selectionMode: plan.selectionMode,
         hasExplicitModels: plan.hasExplicitModels,
+        modelExecutionHeaders: plan.modelExecutionHeaders,
       };
     }
     return { plans, providers, planMap };
@@ -531,7 +536,7 @@ export class ModelManager {
           || entry.baseUrl
           || "",
         api: rawProvider.api || entry.api || cred?.api || "",
-        headers: {},
+        headers: stripCredentialHeaders(entry.headers || {}),
         credential_source: "auth-storage",
         ...(accountId ? { accountId } : {}),
       };
@@ -577,32 +582,14 @@ export class ModelManager {
     if (!creds.base_url || (!creds.api_key && !hasHeaders && !allowsMissingApiKey)) {
       throw new Error(t("error.providerMissingCreds", { provider }));
     }
-    const authStorageOwned = creds.credential_source === "auth-storage";
-    const cleanEntry = authStorageOwned
-      ? (() => {
-          const {
-            headers: _headers,
-            accountId: _accountId,
-            account_id: _accountIdSnake,
-            accountID: _accountIdLegacy,
-            ...rest
-          } = entry as any;
-          return rest;
-        })()
-      : entry;
-    let modelWithCredentials = Object.keys(headers).length > 0
-      ? { ...cleanEntry, headers: { ...((cleanEntry as any).headers || {}), ...headers } }
-      : cleanEntry;
-    if (creds.accountId) {
-      modelWithCredentials = { ...modelWithCredentials, accountId: creds.accountId };
-    }
+    const execution = composeResolvedModelExecution({ model: entry, credential: creds });
     return {
-      model: modelWithCredentials,
+      model: execution.model,
       provider,
       api: effectiveApi,
       api_key: creds.api_key,
       base_url: creds.base_url,
-      headers,
+      headers: execution.headers,
       ...(creds.credential_source ? { credential_source: creds.credential_source } : {}),
       ...(creds.accountId ? { accountId: creds.accountId } : {}),
     };

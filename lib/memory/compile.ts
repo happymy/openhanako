@@ -19,6 +19,7 @@ import path from "path";
 import crypto from "crypto";
 import { DAY_BOUNDARY_HOUR, getLogicalDay, getLogicalDayForDate, shiftLogicalDate } from "../time-utils.ts";
 import { callText } from "../../core/llm-client.ts";
+import { callTextConfigFromResolvedModel } from "../../core/model-execution-config.ts";
 import { getLocale } from "../i18n.ts";
 import { atomicWriteSync, safeReadFile } from "../../shared/safe-fs.ts";
 import {
@@ -1051,7 +1052,6 @@ export function buildCompiledMemoryMarkdown({ facts = "", today = "", week = "",
  * @param {number} maxTokens
  */
 async function _compactLLM(input, systemPrompt, resolvedModel, maxTokens, operation) {
-  const { model, api, api_key, base_url } = resolvedModel;
   const fallbackPromptSpec = {
     systemPrompt,
     templateVersion: `${operation || "compile"}.v1`,
@@ -1079,10 +1079,7 @@ async function _compactLLM(input, systemPrompt, resolvedModel, maxTokens, operat
     },
   }, layout.usageMetadata);
   return callText({
-    api, model,
-    apiKey: api_key,
-    baseUrl: base_url,
-    headers: undefined,
+    ...callTextConfigFromResolvedModel(resolvedModel),
     messages: layout.messages,
     systemPrompt: layout.systemPrompt,
     temperature: 0.3,

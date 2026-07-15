@@ -113,6 +113,37 @@ describe("VisionBridge", () => {
     expect(injected.messages[0].content[0].text).toContain(VISION_CONTEXT_END);
   });
 
+  it("forwards resolved Grok OAuth provider and model headers to auxiliary vision callText", async () => {
+    const callText = vi.fn(async () => "image_overview: A screenshot.");
+    const { bridge } = makeBridge(callText, () => ({
+      model: { id: "grok-4.1", provider: "xai", input: ["text", "image"] },
+      api: "openai-completions",
+      api_key: "oauth-token",
+      base_url: "https://api.x.ai/v1",
+      headers: {
+        "x-grok-client-version": "0.1.202",
+        "x-grok-model-override": "grok-4.1",
+      },
+    }));
+
+    await bridge.prepare({
+      sessionPath: "/tmp/session.jsonl",
+      targetModel: { id: "text-only", provider: "test", input: ["text"] },
+      text: "what is this?",
+      images: [image],
+    });
+
+    expect(callText).toHaveBeenCalledWith(expect.objectContaining({
+      api: "openai-completions",
+      apiKey: "oauth-token",
+      baseUrl: "https://api.x.ai/v1",
+      headers: {
+        "x-grok-client-version": "0.1.202",
+        "x-grok-model-override": "grok-4.1",
+      },
+    }));
+  });
+
   it("records auxiliary vision usage against sessionId while keeping the path locator", async () => {
     const sessionPath = "/tmp/session.jsonl";
     const sessionId = "sess_vision_usage";

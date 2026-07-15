@@ -23,7 +23,6 @@ import { buildRuntimeApiKeyRef } from "../shared/runtime-api-key-ref.ts";
 import { inferOllamaModelMetadata } from "../shared/ollama-model-metadata.ts";
 import { normalizeProviderBaseUrlForApi } from "../lib/llm/provider-client.ts";
 import { normalizeThinkingLevelForModel } from "./session-thinking-level.ts";
-import { buildXaiOauthCliModelHeaders } from "../lib/providers/xai-oauth-cli-headers.ts";
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
 const PI_BUILTIN_PROVIDER_REUSE = new Set(["kimi-coding", "opencode-go"]);
@@ -171,12 +170,14 @@ function isZhipuOpenAICompat(provider, baseUrl, api) {
   );
 }
 
-function buildModelOverride(modelEntry, modelDefaults = {}) {
+function buildModelOverride(modelEntry, modelDefaults = {}, executionHeaders = {}) {
   const modelDefaultThinkingLevel = getProviderModelDefaultThinkingLevel(modelDefaults, getModelId(modelEntry));
   if (typeof modelEntry !== "object" || modelEntry === null) {
-    return modelDefaultThinkingLevel !== undefined
-      ? { defaultThinkingLevel: modelDefaultThinkingLevel }
-      : null;
+    const override: Record<string, any> = {};
+    if (modelDefaultThinkingLevel !== undefined) override.defaultThinkingLevel = modelDefaultThinkingLevel;
+    const headers = normalizeProviderHeaders(executionHeaders);
+    if (Object.keys(headers).length > 0) override.headers = headers;
+    return Object.keys(override).length > 0 ? override : null;
   }
 
   const override: Record<string, any> = {};
@@ -205,6 +206,8 @@ function buildModelOverride(modelEntry, modelDefaults = {}) {
   if (thinkingLevelMap) override.thinkingLevelMap = thinkingLevelMap;
   const compat = normalizeModelProtocolCompat(modelEntry.compat);
   if (compat) override.compat = compat;
+  const headers = normalizeProviderHeaders(executionHeaders);
+  if (Object.keys(headers).length > 0) override.headers = headers;
   const toolUse = normalizeToolUseContract(modelEntry.toolUse);
   if (modelEntry.toolUse !== undefined && !toolUse) {
     throw new Error(`invalid toolUse contract for model "${getModelId(modelEntry) || "unknown"}"`);
@@ -225,7 +228,14 @@ function buildModelOverride(modelEntry, modelDefaults = {}) {
  * @param {string|{id:string, name?:string, context?:number, maxOutput?:number}} modelEntry
  * @param {string} provider - provider 名称（查词典用）
  */
-function buildModelEntry(modelEntry, provider, baseUrl = "", api = "openai-completions", modelDefaults = {}) {
+function buildModelEntry(
+  modelEntry,
+  provider,
+  baseUrl = "",
+  api = "openai-completions",
+  modelDefaults = {},
+  executionHeaders = {},
+) {
   const isObj = typeof modelEntry === "object" && modelEntry !== null;
   const id = getModelId(modelEntry);
   const known = lookupKnown(provider, id);
@@ -297,7 +307,7 @@ function buildModelEntry(modelEntry, provider, baseUrl = "", api = "openai-compl
   const modelHeaders = normalizeProviderHeaders({
     ...(piBuiltin?.headers || {}),
     ...(isObj ? (modelEntry.headers || {}) : {}),
-    ...(provider === "xai-oauth" ? buildXaiOauthCliModelHeaders(id) : {}),
+    ...executionHeaders,
   });
   if (Object.keys(modelHeaders).length > 0) entry.headers = modelHeaders;
 
@@ -420,16 +430,24 @@ export function syncModels(providers, opts: Record<string, any> = {}) {
     );
     const customModels = [];
     const modelOverrides = {};
+    const modelExecutionHeaders = plan.modelExecutionHeaders || {};
 
     for (const modelEntry of chatModels) {
       const id = getModelId(modelEntry);
       const modelApi = resolveModelApi(modelEntry, provider, effectiveApi);
       if (shouldReusePiBuiltinModel(provider, id, modelApi)) {
-        const override = buildModelOverride(modelEntry, modelDefaults);
+        const override = buildModelOverride(modelEntry, modelDefaults, modelExecutionHeaders[id]);
         if (override) modelOverrides[id] = override;
         continue;
       }
-      customModels.push(buildModelEntry(modelEntry, provider, effectiveBaseUrl, effectiveApi, modelDefaults));
+      customModels.push(buildModelEntry(
+        modelEntry,
+        provider,
+        effectiveBaseUrl,
+        effectiveApi,
+        modelDefaults,
+        modelExecutionHeaders[id],
+      ));
     }
 
     const providerConfig: Record<string, any> = {

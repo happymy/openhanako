@@ -322,6 +322,9 @@ describe("syncModels", () => {
           runtimeProviderId: "xai-oauth",
           projection: "models-json",
           credentialSource: "auth-storage",
+          modelExecutionHeaders: {
+            "grok-4.5": { "x-grok-model-override": "grok-4.5" },
+          },
         },
       },
     });

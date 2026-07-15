@@ -2732,16 +2732,6 @@ export class HanaEngine {
       isSessionMemoryEnabledForPath: (sessionPath) => {
         return agent.isSessionMemoryEnabledFor(sessionPath);
       },
-      getCompactionAuth: async (model) => {
-        const auth = await this._models.modelRegistry.getApiKeyAndHeaders(model);
-        if (!auth.ok) {
-          throw new Error(`Auth failed for model ${model.id}: ${auth.error}`);
-        }
-        if (!auth.apiKey) {
-          throw new Error(`No API key for provider ${model.provider}`);
-        }
-        return { apiKey: auth.apiKey, headers: auth.headers };
-      },
     });
   }
 

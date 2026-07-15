@@ -16,7 +16,12 @@ vi.mock("../lib/pii-guard.js", () => ({
   scrubPII: (text) => ({ cleaned: text, detected: [] }),
 }));
 
+vi.mock("../lib/pi-sdk/index.js", () => ({
+  generateSummary: vi.fn(async () => "临时摘要"),
+}));
+
 import { callText } from "../core/llm-client.ts";
+import { generateSummary } from "../lib/pi-sdk/index.ts";
 import { writeDiary } from "../lib/diary/diary-writer.ts";
 
 let tempRoot;
@@ -58,6 +63,7 @@ function baseOpts( overrides: any = {}) {
       api: "openai-completions",
       api_key: "test-key",
       base_url: "http://localhost:1234",
+      headers: { "x-provider-contract": "diary" },
     },
     agentPersonality: "你是 Hana。",
     memory: "",
@@ -88,6 +94,38 @@ describe("writeDiary hybrid material collection", () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
+  it("uses the resolved execution headers for header-only temporary compaction", async () => {
+    const opts = baseOpts({
+      resolvedModel: {
+        model: { id: "header-model", provider: "header-provider" },
+        api: "openai-completions",
+        api_key: "",
+        base_url: "https://header-provider.test/v1",
+        headers: { Authorization: "Bearer header-owned-token" },
+      },
+      isSessionMemoryEnabledForPath: vi.fn().mockReturnValue(false),
+      generateTemporarySummary: undefined,
+    });
+    makeSession(opts.sessionDir, "header-only-session", [{
+      role: "user",
+      content: "今天完成了统一模型配置。",
+      timestamp: "2026-05-07T04:00:00.000Z",
+    }]);
+
+    await writeDiary(opts);
+
+    expect(generateSummary).toHaveBeenCalledWith(
+      expect.any(Array),
+      opts.resolvedModel.model,
+      expect.any(Number),
+      "",
+      opts.resolvedModel.headers,
+      undefined,
+      expect.any(String),
+      undefined,
+    );
+  });
+
   it("persists a rolling summary for today's missing memory-enabled session before writing diary", async () => {
     const opts = baseOpts();
     makeSession(opts.sessionDir, "enabled-session", [
@@ -109,6 +147,7 @@ describe("writeDiary hybrid material collection", () => {
     expect(opts.generateTemporarySummary).not.toHaveBeenCalled();
     expect(diaryPrompt()).toContain("## 事情经过");
     expect(diaryPrompt()).toContain("补齐缺失摘要");
+    expect((callText as any).mock.calls[0][0].headers).toEqual(opts.resolvedModel.headers);
     expect((callText as any).mock.calls[0][0]).not.toHaveProperty("maxTokens");
   });
 

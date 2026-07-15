@@ -24,6 +24,7 @@ import crypto from "crypto";
 import { Type } from "../pi-sdk/index.ts";
 import { t } from "../i18n.ts";
 import { callText } from "../../core/llm-client.ts";
+import { callTextConfigFromUtilityConfig } from "../../core/model-execution-config.ts";
 import { getLocale } from "../i18n.ts";
 import { getToolSessionPath } from "./tool-session.ts";
 import { serializeSessionFile } from "../session-files/session-file-response.ts";
@@ -97,8 +98,8 @@ export async function safetyReview(skillContent: any, resolveUtilityConfig: any)
     return { safe: false, reason: t("error.installSkillNoUtility") };
   }
 
-  const { utility, api_key, base_url, api } = utilCfg;
-  if (!api_key || !base_url || !api) {
+  const execution = callTextConfigFromUtilityConfig(utilCfg);
+  if (!execution.model || !execution.baseUrl || !execution.api) {
     return { safe: false, reason: t("error.installSkillUtilityIncomplete") };
   }
 
@@ -132,10 +133,7 @@ ${skillContent}`;
 
   try {
     const reply = await callText({
-      api, model: utility,
-      apiKey: api_key,
-      baseUrl: base_url,
-      headers: undefined,
+      ...execution,
       signal: undefined,
       messages: [{ role: "user", content: prompt }],
       temperature: 0,

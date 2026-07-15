@@ -17,6 +17,7 @@ import {
   resolveModelVideoInputTransport,
 } from "../../shared/model-capabilities.ts";
 import { callText } from "../../core/llm-client.ts";
+import { callTextConfigFromResolvedModel } from "../../core/model-execution-config.ts";
 import { getModelThinkingLevels, modelSupportsXhigh, resolveModelDefaultThinkingLevel } from "../../core/session-thinking-level.ts";
 
 const HEALTH_CHECK_PROMPT = "Reply exactly OK.";
@@ -227,11 +228,7 @@ export function createModelsRoute(engine) {
       }
 
       await callText({
-        api: resolved.api,
-        apiKey: resolved.api_key,
-        baseUrl: resolved.base_url,
-        model: resolved.model,
-        headers: undefined as any,
+        ...callTextConfigFromResolvedModel(resolved),
         temperature: undefined as any,
         signal: undefined as any,
         messages: [{ role: "user", content: HEALTH_CHECK_PROMPT }],

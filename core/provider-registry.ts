@@ -20,6 +20,7 @@ import {
   normalizeProviderHeaders,
   normalizeProviderAuthType,
   providerCredentialAllowsMissingApiKey,
+  stripCredentialHeaders,
 } from "../shared/provider-auth.ts";
 import { validateProviderModels } from "../shared/provider-model-validation.ts";
 import {
@@ -460,6 +461,8 @@ const BUILTIN_PLUGINS = [
  * @property {string} defaultApi
  * @property {string} [authJsonKey] - OAuth provider 在 auth.json 中的 key（不同于 id 时）
  * @property {Array<string|object>} [models] - 固定 chat 模型列表（本地 Provider Plugin 可直接声明）
+ * @property {Record<string, Record<string, string>>|((modelId: string) => Record<string, string>)} [modelExecutionHeaders]
+ *   Provider-owned per-model protocol/routing headers. Credential-bearing names are filtered from this lane.
  * @property {object} [capabilities]
  * @property {object} [runtime]
  * @property {{providerId: string, config: import('../lib/pi-sdk/index.ts').SdkProviderRegistrationConfig}} [sdkProvider]
@@ -1127,6 +1130,13 @@ export class ProviderRegistry {
       }
       runtimeOwners.set(runtimeProviderId, sourceProviderId);
       const selection = this.getChatModelSelection(configuredAs);
+      const modelExecutionHeaders = {};
+      for (const model of selection?.models || []) {
+        const modelId = getModelId(model);
+        if (!modelId) continue;
+        const headers = this.getChatModelExecutionHeaders(sourceProviderId, modelId);
+        if (Object.keys(headers).length > 0) modelExecutionHeaders[modelId] = headers;
+      }
       plans.push({
         sourceProviderId,
         configuredAs,
@@ -1141,6 +1151,7 @@ export class ProviderRegistry {
           : resolved.projection === "sdk-auth-alias" && selection?.hasExplicitModels !== true
           ? "runtime-catalog"
           : (selection?.selectionMode || "disabled"),
+        modelExecutionHeaders,
         config: this.getEffectiveChatProviderConfig(configuredAs),
       });
     }
@@ -1344,6 +1355,22 @@ export class ProviderRegistry {
    */
   getDefaultModels(providerId) {
     return this.getDefaultModelEntries(providerId).map(getModelId).filter(Boolean);
+  }
+
+  /**
+   * Resolve provider-owned, non-credential request metadata for one chat model.
+   * Function contributions are process-local plugin behavior; object maps also
+   * support serializable provider declarations.
+   */
+  getChatModelExecutionHeaders(providerId, modelId) {
+    const resolved = this.resolveChatProvider(providerId);
+    if (!resolved || typeof modelId !== "string" || !modelId.trim()) return {};
+    const plugin = this._plugins.get(resolved.sourceProviderId);
+    const contribution = plugin?.modelExecutionHeaders;
+    const headers = typeof contribution === "function"
+      ? contribution(modelId.trim())
+      : contribution?.[modelId.trim()];
+    return stripCredentialHeaders(headers);
   }
 
   /**

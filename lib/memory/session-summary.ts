@@ -17,6 +17,7 @@ import path from "path";
 import { atomicWriteSync } from "../../shared/safe-fs.ts";
 import { scrubPII } from "../pii-guard.ts";
 import { callText } from "../../core/llm-client.ts";
+import { callTextConfigFromResolvedModel } from "../../core/model-execution-config.ts";
 import { getToolArgs, isToolCallBlock } from "../../core/llm-utils.ts";
 import { getLocale } from "../i18n.ts";
 import { readCompiledResetAt } from "./compiled-memory-state.ts";
@@ -528,7 +529,6 @@ export class SessionSummaryManager {
    * @returns {Promise<string | { text: string, usage: object|null }>}
    */
   async _callRollingRepairLLM(summaryText, issues, resolvedModel, turnCount = 10, opts: Record<string, any> = {}) {
-    const { model: utilityModel, api, api_key, base_url } = resolvedModel;
     const locale = getLocale();
     const { visibleMaxTokens } = this._rollingSummaryBudget(turnCount);
     const layout = buildUtilityPromptLayout({
@@ -552,10 +552,7 @@ export class SessionSummaryManager {
     }, layout.usageMetadata);
 
     return callText({
-      api, model: utilityModel,
-      apiKey: api_key,
-      baseUrl: base_url,
-      headers: undefined,
+      ...callTextConfigFromResolvedModel(resolvedModel),
       systemPrompt: layout.systemPrompt,
       messages: layout.messages,
       temperature: 0.3,
@@ -576,8 +573,6 @@ export class SessionSummaryManager {
    * @returns {Promise<string>}
    */
   async _callRollingLLM(convText, prevSummary, resolvedModel, turnCount = 10, opts: Record<string, any> = {}) {
-    const { model: utilityModel, api, api_key, base_url } = resolvedModel;
-
     const locale = getLocale();
     const isZh = locale.startsWith("zh");
     const hasPrev = !!prevSummary;
@@ -762,10 +757,7 @@ Word limit: follow the per-run summary budget. If three sentences suffice, don't
     const maxTokens = withMemoryReasoningBuffer(visibleMaxTokens, resolvedModel);
 
     return callText({
-      api, model: utilityModel,
-      apiKey: api_key,
-      baseUrl: base_url,
-      headers: undefined,
+      ...callTextConfigFromResolvedModel(resolvedModel),
       systemPrompt: layout.systemPrompt,
       messages: layout.messages,
       temperature: 0.3,

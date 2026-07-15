@@ -244,6 +244,7 @@ describe("ApprovalGateway", () => {
       api: "openai-completions",
       api_key: "test-key",
       base_url: "https://example.test",
+      headers: { "x-provider-contract": "approval" },
     }));
     const callText = vi.fn(async () => JSON.stringify({
       action: "allow",
@@ -271,6 +272,7 @@ describe("ApprovalGateway", () => {
       apiKey: "test-key",
       baseUrl: "https://example.test",
       model: { id: "small-reviewer", provider: "test" },
+      headers: { "x-provider-contract": "approval" },
       maxTokens: 220,
       temperature: 0,
     }));

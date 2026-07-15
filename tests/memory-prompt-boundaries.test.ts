@@ -21,6 +21,7 @@ const RESOLVED_MODEL = {
   api: "openai-completions",
   api_key: "k",
   base_url: "http://x",
+  headers: { "x-provider-contract": "memory" },
 };
 
 function makeFakeSummaryManager(summaries) {
@@ -56,7 +57,9 @@ describe("memory prompt boundaries", () => {
       },
     });
 
-    const prompt = (callText as any).mock.calls[0][0].systemPrompt;
+    const request = (callText as any).mock.calls[0][0];
+    const prompt = request.systemPrompt;
+    expect(request.headers).toEqual(RESOLVED_MODEL.headers);
     expect(prompt).toContain("你是 Hana");
     expect(prompt).toContain("从自己的视角审视本次对话");
     expect(prompt).toContain("这是你在本次对话开始前已经拥有的记忆");
@@ -96,6 +99,8 @@ describe("memory prompt boundaries", () => {
 
     const todayPrompt = (callText as any).mock.calls[0][0].systemPrompt;
     const dailyPrompt = (callText as any).mock.calls[1][0].systemPrompt;
+    expect((callText as any).mock.calls[0][0].headers).toEqual(RESOLVED_MODEL.headers);
+    expect((callText as any).mock.calls[1][0].headers).toEqual(RESOLVED_MODEL.headers);
     for (const prompt of [todayPrompt, dailyPrompt]) {
       expect(prompt).toContain("工作相关内容只允许保留到大主题层级");
       expect(prompt).toContain("领域/项目/主题");
@@ -130,7 +135,9 @@ describe("memory prompt boundaries", () => {
 
     await compileLongterm("用户最近在关注记忆系统。", longtermPath, RESOLVED_MODEL);
 
-    const prompt = (callText as any).mock.calls[0][0].systemPrompt;
+    const request = (callText as any).mock.calls[0][0];
+    const prompt = request.systemPrompt;
+    expect(request.headers).toEqual(RESOLVED_MODEL.headers);
     expect(prompt).toContain("记忆不是工作日志");
     expect(prompt).toContain("用户画像");
     expect(prompt).toContain("长期关注方向");
@@ -154,7 +161,9 @@ describe("memory prompt boundaries", () => {
 
     await processDirtySessions(summaryManager, factStore, RESOLVED_MODEL);
 
-    const prompt = (callText as any).mock.calls[0][0].systemPrompt;
+    const request = (callText as any).mock.calls[0][0];
+    const prompt = request.systemPrompt;
+    expect(request.headers).toEqual(RESOLVED_MODEL.headers);
     expect(prompt).toContain("只提取用户画像和粗颗粒近况");
     expect(prompt).toContain("禁止提取工作方式偏好");
     expect(prompt).toContain("如果一条事实描述的是“以后遇到类似任务应该怎么做”");

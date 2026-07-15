@@ -654,6 +654,52 @@ describe("model sync related routes", () => {
     }));
   });
 
+  it("model health forwards resolved Grok OAuth provider and model headers to callText", async () => {
+    const { createModelsRoute } = await import("../server/routes/models.ts");
+    const app = new Hono();
+    const resolved = {
+      model: {
+        id: "grok-4.1",
+        provider: "xai",
+        reasoning: true,
+      },
+      provider: "xai",
+      api: "openai-completions",
+      api_key: "oauth-token",
+      base_url: "https://api.x.ai/v1",
+      headers: {
+        "x-grok-client-version": "0.1.202",
+        "x-grok-model-override": "grok-4.1",
+      },
+    };
+    const engine = {
+      availableModels: [],
+      currentModel: null,
+      config: {},
+      resolveModelWithCredentialsFresh: vi.fn(async () => resolved),
+    };
+    callText.mockResolvedValue("OK");
+
+    app.route("/api", createModelsRoute(engine));
+
+    const healthRes = await app.request("/api/models/health", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modelId: "grok-4.1", provider: "xai" }),
+    });
+
+    expect(healthRes.status).toBe(200);
+    expect(callText).toHaveBeenCalledWith(expect.objectContaining({
+      api: "openai-completions",
+      apiKey: "oauth-token",
+      baseUrl: "https://api.x.ai/v1",
+      headers: {
+        "x-grok-client-version": "0.1.202",
+        "x-grok-model-override": "grok-4.1",
+      },
+    }));
+  });
+
   it("model health reports empty-after-thinking as a diagnostic failure", async () => {
     const { AppError } = await import("../shared/errors.ts");
     const { createModelsRoute } = await import("../server/routes/models.ts");

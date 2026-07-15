@@ -9,6 +9,7 @@
  */
 
 import { callText } from "../../core/llm-client.ts";
+import { callTextConfigFromResolvedModel } from "../../core/model-execution-config.ts";
 import { getLocale } from "../i18n.ts";
 import { attachPromptLayoutMetadata, buildUtilityPromptLayout } from "../llm/prompt-layout.ts";
 import { buildFactExtractionPrompt as buildFactExtractionPromptSpec } from "./prompts/fact-extraction.ts";
@@ -182,8 +183,6 @@ export async function processDirtySessions(summaryManager, factStore, resolvedMo
  * @returns {Promise<Array<{ fact: string, tags: string[], time: string }>>}
  */
 async function extractFactsFromDiff(currentSummary, previousSnapshot, resolvedModel, timeContext = null) {
-  const { model: utilityModel, api, api_key, base_url } = resolvedModel;
-
   const hasPrevious = !!previousSnapshot;
 
   const isZh = getLocale().startsWith("zh");
@@ -220,10 +219,7 @@ async function extractFactsFromDiff(currentSummary, previousSnapshot, resolvedMo
   }, layout.usageMetadata);
 
   const raw = await callText({
-    api, model: utilityModel,
-    apiKey: api_key,
-    baseUrl: base_url,
-    headers: null,
+    ...callTextConfigFromResolvedModel(resolvedModel),
     signal: null,
     systemPrompt: layout.systemPrompt,
     messages: layout.messages,

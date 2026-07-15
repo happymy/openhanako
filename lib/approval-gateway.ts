@@ -1,3 +1,5 @@
+import { callTextConfigFromUtilityConfig } from "../core/model-execution-config.ts";
+
 const ALLOWED_ACTIONS = new Set(["allow", "deny_and_continue", "ask_user", "hard_deny"]);
 const REVIEWER_ACTIONS = new Set([...ALLOWED_ACTIONS, "escalate"]);
 const REVIEWER_SYSTEM_PROMPT = `You are Hana's automatic tool approval reviewer.
@@ -131,20 +133,7 @@ function compactReviewerInput(value, depth = 0) {
 }
 
 function configForReviewerRole(config, role) {
-  if (role === "utility_large") {
-    return {
-      model: config?.utility_large,
-      api: config?.large_api,
-      apiKey: config?.large_api_key,
-      baseUrl: config?.large_base_url,
-    };
-  }
-  return {
-    model: config?.utility,
-    api: config?.api,
-    apiKey: config?.api_key,
-    baseUrl: config?.base_url,
-  };
+  return callTextConfigFromUtilityConfig(config, role);
 }
 
 export function createModelApprovalReviewer({
@@ -172,11 +161,7 @@ export function createModelApprovalReviewer({
       throw new Error(`approval reviewer ${role} model config is incomplete`);
     }
     const text = await callText({
-      api: selected.api,
-      apiKey: selected.apiKey,
-      baseUrl: selected.baseUrl,
-      model: selected.model,
-      headers: selected.model?.headers || {},
+      ...selected,
       systemPrompt: REVIEWER_SYSTEM_PROMPT,
       messages: [{
         role: "user",

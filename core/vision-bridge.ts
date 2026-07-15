@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { callText as defaultCallText } from "./llm-client.ts";
+import { callTextConfigFromResolvedModel } from "./model-execution-config.ts";
 import {
   prepareSingleModelImageInputForPrompt,
 } from "./model-image-preprocess.ts";
@@ -782,10 +783,7 @@ export class VisionBridge {
 
   async _analyzeImageAsNote(config, img, userRequest, signal, sessionPath = null) {
     return truncate(await this._callText({
-      api: config.api,
-      apiKey: config.api_key,
-      baseUrl: config.base_url,
-      model: config.model,
+      ...callTextConfigFromResolvedModel(config),
       systemPrompt: AUXILIARY_VISION_SYSTEM_PROMPT,
       messages: [{
         role: "user",
@@ -822,10 +820,7 @@ export class VisionBridge {
   async _analyzeImageWithPrimitives(config, img, userRequest, visionCapabilities, signal, sessionPath = null) {
     const primitiveShape = primitivePromptShape(visionCapabilities);
     const responseText = await this._callText({
-      api: config.api,
-      apiKey: config.api_key,
-      baseUrl: config.base_url,
-      model: config.model,
+      ...callTextConfigFromResolvedModel(config),
       systemPrompt: AUXILIARY_VISION_SYSTEM_PROMPT,
       messages: [{
         role: "user",
