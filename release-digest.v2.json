@@ -3,6 +3,96 @@
   "entries": [
     {
       "schemaVersion": 1,
+      "tag": "v0.407.8",
+      "version": "0.407.8",
+      "previousTag": "v0.407.3",
+      "generatedAt": "2026-07-16T19:47:00.000Z",
+      "noUserFacingChanges": false,
+      "summary": {
+        "zh": "本版为 Kimi Coding 接入 Kimi K3；修好 Windows 上首次启动或更新激活时因杀软/索引短暂锁文件导致切换失败的问题；并保留你配置的模型 ID（尤其是 Kimi Coding），让需要推理回放的模型在工具调用与压缩后仍按统一协议续上。",
+        "en": "This release adds Kimi K3 for Kimi Coding; on Windows, artifact activation now retries directory swaps when antivirus or the indexer briefly locks freshly extracted files; configured model IDs (especially Kimi Coding) stay canonical, and reasoning-content replay follows centralized protocol contracts across tool loops and compaction."
+      },
+      "counts": {
+        "feature": 1,
+        "fix": 2,
+        "improvement": 0,
+        "migration": 0
+      },
+      "source": {
+        "owner": "liliMozi",
+        "repo": "openhanako",
+        "commitRange": "v0.407.3..v0.407.8",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.407.8",
+        "releaseNotes": ""
+      },
+      "items": [
+        {
+          "id": "kimi-k3-model",
+          "kind": "feature",
+          "importance": "high",
+          "title": {
+            "zh": "新增 Kimi K3",
+            "en": "Add Kimi K3"
+          },
+          "summary": {
+            "zh": "Kimi Coding 提供方可选 Kimi K3（约 1M 上下文，支持推理）。",
+            "en": "Kimi Coding can select Kimi K3 (~1M context, reasoning-capable)."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "36c72e2b4",
+              "title": "fix(models): preserve selected ids and reasoning replay"
+            }
+          ]
+        },
+        {
+          "id": "windows-artifact-swap-retry",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "Windows 产物切换遇锁自动重试",
+            "en": "Retry locked artifact directory swaps on Windows"
+          },
+          "summary": {
+            "zh": "杀软或索引短暂占用刚解压文件时，切换会退避重试约 16 秒，不再一碰 EPERM 就启动失败。",
+            "en": "Transient EPERM/EACCES/EBUSY during the activation rename now backs off up to ~16s on Windows only."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "cd9e71b6e",
+              "title": "fix(desktop): retry artifact directory swap when Windows locks freshly extracted files"
+            }
+          ]
+        },
+        {
+          "id": "model-id-and-reasoning-replay",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "保留模型 ID 并统一推理回放",
+            "en": "Keep model IDs and centralize reasoning replay"
+          },
+          "summary": {
+            "zh": "Kimi Coding 等配置 ID 不再被改写成别名；推理回放改走集中协议，工具轮与保留缓存的压缩更稳。",
+            "en": "Configured IDs stay canonical; reasoning replay uses shared protocol contracts across tool loops and cache-preserving compaction."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "36c72e2b4",
+              "title": "fix(models): preserve selected ids and reasoning replay"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
       "tag": "v0.407.3",
       "version": "0.407.3",
       "previousTag": "v0.403.0",
