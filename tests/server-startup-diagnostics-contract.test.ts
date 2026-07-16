@@ -596,7 +596,8 @@ describe("desktop launch failure dialog: data-epoch dedicated branches (C7 E4)",
       expect(detail).toContain(`本安装能理解的数据纪元：${DATA_EPOCH}`);
       expect(detail).toContain("数据当前纪元：5");
       expect(detail).toContain("最后写入数据的版本：9.9.9");
-      expect(detail).toContain("无 / None found");
+      expect(detail).toContain("可用恢复点：无");
+      expect(detail).toContain("Recovery point available: None found");
       expect(detail).toContain("安装更新版本");
       expect(detail).toContain("恢复工具");
       // Full stderr tail is still appended for diagnosability, same pattern
@@ -636,7 +637,8 @@ describe("desktop launch failure dialog: data-epoch dedicated branches (C7 E4)",
       const context = buildDataEpochDialogContext(homeDir);
       const detail = context.buildLaunchFailureDialogDetail({}, "HANA_DATA_EPOCH_BLOCKED reason=epoch-downgrade-blocked\n");
 
-      expect(detail).toContain("有，共 1 个 / Available, 1 found");
+      expect(detail).toContain("可用恢复点：有，共 1 个");
+      expect(detail).toContain("Recovery point available: Available, 1 found");
     } finally {
       fs.rmSync(homeDir, { recursive: true, force: true });
     }

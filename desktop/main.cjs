@@ -2118,9 +2118,8 @@ function buildDataEpochBlockedDetail(homeDir) {
   const stampEpoch = stampRead.status === "ok" ? String(stampRead.stamp.minimumReaderEpoch) : "未知/unknown";
   const lastVersion = stampRead.status === "ok" && stampRead.stamp.lastVersion ? stampRead.stamp.lastVersion : "未知/unknown";
   const checkpointCount = countAvailableDataEpochCheckpoints(homeDir);
-  const checkpointText = checkpointCount > 0
-    ? `有，共 ${checkpointCount} 个 / Available, ${checkpointCount} found`
-    : "无 / None found";
+  const checkpointTextZh = checkpointCount > 0 ? `有，共 ${checkpointCount} 个` : "无";
+  const checkpointTextEn = checkpointCount > 0 ? `Available, ${checkpointCount} found` : "None found";
 
   return [
     "数据已被更新的版本使用 / Your data was upgraded by a newer version",
@@ -2128,7 +2127,7 @@ function buildDataEpochBlockedDetail(homeDir) {
     `本安装能理解的数据纪元：${DATA_EPOCH}`,
     `数据当前纪元：${stampEpoch}`,
     `最后写入数据的版本：${lastVersion}`,
-    `可用恢复点：${checkpointText}`,
+    `可用恢复点：${checkpointTextZh}`,
     "",
     "继续使用这份数据前，你有两条路：",
     "① 安装更新版本（保留全部数据，推荐）",
@@ -2137,7 +2136,7 @@ function buildDataEpochBlockedDetail(homeDir) {
     `This installation understands data revision: ${DATA_EPOCH}`,
     `Your data is currently at revision: ${stampEpoch}`,
     `Last written by version: ${lastVersion}`,
-    `Recovery point available: ${checkpointText}`,
+    `Recovery point available: ${checkpointTextEn}`,
     "",
     "You have two ways forward:",
     "① Install the newer version (keeps all your data, recommended)",
