@@ -414,6 +414,7 @@ describe("SessionCoordinator", () => {
       getActiveAgentId: () => "hana",
       getModels: () => ({
         currentModel: model,
+        availableModels: [model],
         authStorage: {},
         modelRegistry: {},
         resolveThinkingLevel: (level) => level,
@@ -1353,15 +1354,68 @@ describe("SessionCoordinator", () => {
       getAgentById: () => null,
       listAgents: () => [],
     });
-    coordinator._sessions.set(sessionPath, {
+    const entry = {
       session,
       agentId: "hana",
       lastTouchedAt: 0,
       visibleInSessionList: true,
-    });
+    };
+    coordinator._sessions.set(sessionPath, entry);
+    coordinator._renewCachePrefixContract(sessionPath, entry, "test_setup");
 
     expect(coordinator.steerSession(sessionPath, "先别展开，直接给结论")).toBe(true);
     expect(session.steer).toHaveBeenCalledWith("先别展开，直接给结论");
+  });
+
+  it("fails legacy focus prompt and steer explicitly when their cache contract is missing", async () => {
+    const sessionPath = path.join(tempDir, "focus-preflight.jsonl");
+    const model = { id: "test-model", provider: "test", name: "test-model" };
+    const session = {
+      isStreaming: true,
+      model,
+      prompt: vi.fn(),
+      steer: vi.fn(),
+      sessionManager: { getSessionFile: () => sessionPath },
+      agent: { state: { model, systemPrompt: "BASE", tools: [] } },
+    };
+    const coordinator = new SessionCoordinator({
+      agentsDir: tempDir,
+      getAgent: () => null,
+      getActiveAgentId: () => "hana",
+      getModels: () => ({
+        currentModel: model,
+        availableModels: [model],
+        authStorage: {},
+        modelRegistry: {},
+        resolveThinkingLevel: () => "medium",
+      }),
+      getResourceLoader: () => null,
+      getSkills: () => null,
+      buildTools: () => ({ tools: [], customTools: [] }),
+      emitEvent: () => {},
+      getHomeCwd: () => tempDir,
+      agentIdFromSessionPath: () => "hana",
+      switchAgentOnly: async () => {},
+      getConfig: () => ({}),
+      getPrefs: () => ({ getThinkingLevel: () => "medium" }),
+      getAgents: () => new Map(),
+      getActivityStore: () => null,
+      getAgentById: () => null,
+      listAgents: () => [],
+    });
+    coordinator._sessions.set(sessionPath, {
+      session,
+      agentId: "hana",
+      lastTouchedAt: 0,
+      modelAvailability: { available: true },
+    });
+    coordinator._session = session;
+    coordinator._currentSessionPath = sessionPath;
+
+    await expect(coordinator.prompt("hello", undefined)).rejects.toThrow(/contract unavailable/i);
+    expect(session.prompt).not.toHaveBeenCalled();
+    expect(() => coordinator.steer("interrupt")).toThrow(/contract unavailable/i);
+    expect(session.steer).not.toHaveBeenCalled();
   });
 
   it("lists sessions from a lightweight projection without delegating to the Pi SDK full scan", async () => {
@@ -3040,8 +3094,11 @@ describe("SessionCoordinator", () => {
       sessionManager: { getSessionFile: () => sessionFile },
       subscribe: vi.fn(() => vi.fn()),
       isCompacting: false,
+      isStreaming: false,
+      steer: vi.fn(),
       model,
       getContextUsage: () => ({ tokens: 0 }),
+      prompt: vi.fn(async () => "ok"),
       setActiveToolsByName: vi.fn((names) => {
         session.agent.state.tools = names.map((name) => activeTools.get(name)).filter(Boolean);
       }),
@@ -3074,6 +3131,7 @@ describe("SessionCoordinator", () => {
       getActiveAgentId: () => "hana",
       getModels: () => ({
         currentModel: model,
+        availableModels: [model],
         authStorage: {},
         modelRegistry: {},
         resolveThinkingLevel: () => "medium",
@@ -3098,6 +3156,43 @@ describe("SessionCoordinator", () => {
     });
 
     await coordinator.createSession(null, "/tmp/workspace", true);
+
+    const entry = coordinator._getSessionEntryByPath(sessionFile);
+    const renewSpy = vi.spyOn(coordinator as any, "_renewCachePrefixContract");
+    const requestCountBeforePreflight = entry.cachePrefixContractRequestCount;
+    const promptOrder: string[] = [];
+    session.prompt.mockImplementationOnce(async () => {
+      promptOrder.push("pi-prompt");
+      return "ok";
+    });
+    await coordinator.promptSession(sessionFile, "hello", undefined, {
+      afterCachePreflight: () => {
+        promptOrder.push("post-preflight-hook");
+      },
+    });
+    expect(promptOrder).toEqual(["post-preflight-hook", "pi-prompt"]);
+    expect(entry.cachePrefixContractRequestCount).toBe(requestCountBeforePreflight);
+    expect(renewSpy).not.toHaveBeenCalled();
+
+    session.agent.state.systemPrompt = "MUTATED BEFORE INPUT";
+    const rejectedHook = vi.fn();
+    await expect(coordinator.promptSession(sessionFile, "blocked", undefined, {
+      afterCachePreflight: rejectedHook,
+    })).rejects.toThrow(/Cache prefix contract violated/);
+    expect(rejectedHook).not.toHaveBeenCalled();
+    expect(session.prompt).toHaveBeenCalledTimes(1);
+    session.isStreaming = true;
+    session.steer.mockClear();
+    expect(() => coordinator.steerSession(sessionFile, "blocked steer"))
+      .toThrow(/Cache prefix contract violated/);
+    expect(session.steer).not.toHaveBeenCalled();
+    session.isStreaming = false;
+    session.agent.state.systemPrompt = "FINAL CACHE PREFIX";
+
+    await expect(coordinator.promptSession(sessionFile, "async hook", undefined, {
+      afterCachePreflight: () => Promise.resolve(),
+    })).rejects.toThrow(/must be synchronous/);
+    expect(session.prompt).toHaveBeenCalledTimes(1);
 
     await expect((session.agent.streamFn as any)(model, {
       systemPrompt: "FINAL CACHE PREFIX",
@@ -3130,6 +3225,12 @@ describe("SessionCoordinator", () => {
       messages: [{ role: "user", content: "hello again" }],
     }, {})).rejects.toThrow(/Cache prefix contract violated/);
     expect(originalStreamFn).toHaveBeenCalledTimes(2);
+
+    entry.cachePrefixContract = null;
+    await expect(coordinator.promptSession(sessionFile, "missing contract", undefined, {
+      afterCachePreflight: vi.fn(),
+    })).rejects.toThrow(/contract unavailable/i);
+    expect(renewSpy).not.toHaveBeenCalled();
   });
 
   it("renews the cache prefix contract for an explicit model switch", async () => {
@@ -5320,9 +5421,9 @@ describe("SessionCoordinator session reminders", () => {
   it("initializes fresh reminder state at the current ledger baseline and prompt-build time", async () => {
     const ledger = new EnvChangeLedger();
     ledger.append({
-      type: "toolset_changed",
-      scope: { kind: "global" },
-      payload: { pluginId: "before", action: "loaded" },
+      type: "memory_facts",
+      scope: { kind: "agent", agentId: "hana" },
+      payload: { addedLines: ["before"] },
     });
     const agent = makeAgent();
     const sessionPath = path.join(agent.sessionDir, "fresh.jsonl");
@@ -5338,6 +5439,8 @@ describe("SessionCoordinator session reminders", () => {
       reminderEnvStartSeq: 1,
       reminderCompactionRevision: 0,
       reminderConsumedCompactionRevision: 0,
+      reminderAcceptedUnavailableToolNames: [],
+      reminderUnavailableRevision: 0,
     });
     expect(entry.lastTimeObservedAt).toBeGreaterThanOrEqual(before);
     expect(entry.lastTimeObservedAt).toBeLessThanOrEqual(Date.now());
@@ -5361,18 +5464,12 @@ describe("SessionCoordinator session reminders", () => {
       scope: { kind: "agent", agentId: "other-agent" },
       payload: { addedLines: ["active-agent fact"] },
     });
-    ledger.append({
-      type: "toolset_changed",
-      scope: { kind: "global" },
-      payload: { pluginId: "shared-plugin", action: "loaded" },
-    });
 
     const rendered = coordinator.renderSessionReminderBlock(sessionPath);
 
     expect(coordinator._getSessionEntryByPath(sessionPath).agentId).toBe("hana");
     expect(rendered?.block).toContain("hana-owned fact");
     expect(rendered?.block).not.toContain("active-agent fact");
-    expect(rendered?.block).toContain("shared-plugin");
   });
 
   it("uses a receipt without advancing state until explicit consumption", async () => {
@@ -5383,9 +5480,9 @@ describe("SessionCoordinator session reminders", () => {
     const coordinator = makeCoordinator(agent, ledger);
     await coordinator.createSession(null, "/tmp/workspace", false);
     ledger.append({
-      type: "toolset_changed",
-      scope: { kind: "global" },
-      payload: { pluginId: "demo", action: "loaded" },
+      type: "memory_facts",
+      scope: { kind: "agent", agentId: "hana" },
+      payload: { addedLines: ["demo"] },
     });
 
     const rendered = coordinator.renderSessionReminderBlock(sessionPath);
@@ -5467,6 +5564,8 @@ describe("SessionCoordinator session reminders", () => {
       lastTimeObservedAt: 1234,
       reminderCompactionRevision: 5,
       reminderConsumedCompactionRevision: 3,
+      reminderAcceptedUnavailableToolNames: ["mcp_calendar"],
+      reminderUnavailableRevision: 2,
     };
 
     await coordinator.createSession(sessionManager, "/tmp/workspace", false, null, {

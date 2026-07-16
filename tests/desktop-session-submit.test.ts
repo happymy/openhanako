@@ -1207,7 +1207,7 @@ describe("session reminder block injection", () => {
     expect(engine.consumeSessionReminderBlock).not.toHaveBeenCalled();
   });
 
-  it("preserves legacy consume-only and legacy numeric-render integrations", async () => {
+  it("ignores destructive consume-only reminders while preserving numeric rendered receipts", async () => {
     const legacySession = makeFakeSession();
     const consumeOnlyEngine = {
       ensureSessionLoaded: vi.fn(async () => legacySession),
@@ -1221,11 +1221,8 @@ describe("session reminder block injection", () => {
       text: "hello",
       displayMessage: { text: "hello" },
     });
-    expect(consumeOnlyEngine.promptSession).toHaveBeenCalledWith(
-      "/tmp/legacy.jsonl",
-      `${reminderBlock}\n\nhello`,
-      undefined,
-    );
+    expect(consumeOnlyEngine.promptSession).toHaveBeenCalledWith("/tmp/legacy.jsonl", "hello", undefined);
+    expect(consumeOnlyEngine.consumeSessionReminderBlock).not.toHaveBeenCalled();
 
     const numericSession = makeFakeSession();
     const numericEngine = {
@@ -1290,6 +1287,155 @@ describe("session reminder block injection", () => {
       displayMessage: { text: "interject now" },
     })).rejects.toThrow("session_busy");
 
+    expect(engine.consumeRenderedSessionReminderBlock).not.toHaveBeenCalled();
+    expect(engine.emitEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "session_user_message" }),
+      expect.anything(),
+    );
+  });
+
+  it("publishes prompt side effects only inside the synchronous post-preflight hook", async () => {
+    const session = makeFakeSession();
+    (session as any).sessionManager = { appendCustomEntry: vi.fn() };
+    const order: string[] = [];
+    const engine = {
+      preflightSessionInput: vi.fn(),
+      ensureSessionLoaded: vi.fn(async () => session),
+      promptSession: vi.fn(async (_sessionPath, text, opts, submitOptions) => {
+        order.push("cache-preflight");
+        expect((session as any).sessionManager.appendCustomEntry).not.toHaveBeenCalled();
+        expect(engine.emitEvent).not.toHaveBeenCalled();
+        const hookResult = submitOptions.afterCachePreflight();
+        expect(hookResult).toBeUndefined();
+        order.push("pi-prompt");
+        await session.prompt(text, opts);
+      }),
+      emitEvent: vi.fn((event) => order.push(event.type)),
+      setUiContext: vi.fn(),
+    };
+
+    await submitDesktopSessionMessage(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "hello",
+      displayMessage: { text: "visible", source: "bridge_rc" },
+    });
+
+    expect(order.slice(0, 4)).toEqual([
+      "cache-preflight",
+      "session_status",
+      "session_user_message",
+      "pi-prompt",
+    ]);
+    expect((session as any).sessionManager.appendCustomEntry).toHaveBeenCalled();
+  });
+
+  it("leaves no prompt events, custom entries, or consumed receipt when preflight rejects", async () => {
+    const session = makeFakeSession();
+    const appendCustomEntry = vi.fn();
+    (session as any).sessionManager = { appendCustomEntry };
+    const engine = {
+      preflightSessionInput: vi.fn(),
+      ensureSessionLoaded: vi.fn(async () => session),
+      promptSession: vi.fn(async () => { throw new Error("Cache prefix contract violated: tools"); }),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      renderSessionReminderBlock: vi.fn(() => ({ block: reminderBlock, receipt })),
+      consumeRenderedSessionReminderBlock: vi.fn(),
+    };
+
+    await expect(submitDesktopSessionMessage(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "hello",
+      displayMessage: { text: "hello", source: "bridge_rc" },
+    })).rejects.toThrow("Cache prefix contract violated");
+
+    expect(engine.emitEvent).not.toHaveBeenCalled();
+    expect(appendCustomEntry).not.toHaveBeenCalled();
+    expect(engine.consumeRenderedSessionReminderBlock).not.toHaveBeenCalled();
+  });
+
+  it("closes streaming status but retains the receipt when Pi prompt fails after the hook", async () => {
+    const session = makeFakeSession();
+    const engine = {
+      preflightSessionInput: vi.fn(),
+      ensureSessionLoaded: vi.fn(async () => session),
+      promptSession: vi.fn(async (_sessionPath, _text, _opts, submitOptions) => {
+        submitOptions.afterCachePreflight();
+        throw new Error("provider rejected prompt");
+      }),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      renderSessionReminderBlock: vi.fn(() => ({ block: reminderBlock, receipt })),
+      consumeRenderedSessionReminderBlock: vi.fn(),
+    };
+
+    await expect(submitDesktopSessionMessage(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "hello",
+      displayMessage: { text: "hello" },
+    })).rejects.toThrow("provider rejected prompt");
+
+    expect(engine.emitEvent.mock.calls
+      .filter(([event]) => event.type === "session_status")
+      .map(([event]) => event.isStreaming)).toEqual([true, false]);
+    expect(engine.consumeRenderedSessionReminderBlock).not.toHaveBeenCalled();
+  });
+
+  it("consumes a silent recovery receipt without changing prompt or presentation", async () => {
+    const session = makeFakeSession();
+    const appendCustomEntry = vi.fn();
+    (session as any).sessionManager = { appendCustomEntry };
+    const recoveryReceipt = { ...receipt, unavailableToolNames: [] };
+    const engine = {
+      preflightSessionInput: vi.fn(),
+      ensureSessionLoaded: vi.fn(async () => session),
+      promptSession: vi.fn(async (_sessionPath, text, opts, submitOptions) => {
+        submitOptions.afterCachePreflight();
+        await session.prompt(text, opts);
+      }),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      renderSessionReminderBlock: vi.fn(() => ({ block: "", receipt: recoveryReceipt })),
+      consumeRenderedSessionReminderBlock: vi.fn(),
+    };
+
+    await submitDesktopSessionMessage(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "hello",
+      displayMessage: { text: "hello" },
+    });
+
+    expect(engine.promptSession.mock.calls[0][1]).toBe("hello");
+    expect(appendCustomEntry).not.toHaveBeenCalledWith(
+      MESSAGE_PRESENTATION_RECORD_TYPE,
+      expect.anything(),
+    );
+    expect(engine.consumeRenderedSessionReminderBlock)
+      .toHaveBeenCalledWith("/tmp/desk.jsonl", recoveryReceipt);
+  });
+
+  it("keeps steer failures completely side-effect free when cache preflight throws", async () => {
+    const session = makeFakeSession();
+    const appendCustomEntry = vi.fn();
+    (session as any).sessionManager = { appendCustomEntry };
+    const engine = {
+      ensureSessionLoaded: vi.fn(async () => session),
+      isSessionStreaming: vi.fn(() => true),
+      steerSession: vi.fn(() => { throw new Error("Cache prefix contract violated: tools"); }),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      renderSessionReminderBlock: vi.fn(() => ({ block: reminderBlock, receipt })),
+      consumeRenderedSessionReminderBlock: vi.fn(),
+    };
+
+    await expect(submitDesktopSessionInterjection(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "interject",
+      displayMessage: { text: "interject", source: "bridge_rc" },
+    })).rejects.toThrow("Cache prefix contract violated");
+
+    expect(engine.emitEvent).not.toHaveBeenCalled();
+    expect(appendCustomEntry).not.toHaveBeenCalled();
     expect(engine.consumeRenderedSessionReminderBlock).not.toHaveBeenCalled();
   });
 });

@@ -17,6 +17,8 @@ function freshSessionEntry(overrides: Record<string, unknown> = {}) {
     lastTimeObservedAt: Date.now(),
     reminderCompactionRevision: 0,
     reminderConsumedCompactionRevision: 0,
+    reminderAcceptedUnavailableToolNames: [],
+    reminderUnavailableRevision: 0,
     ...overrides,
   };
 }
@@ -27,6 +29,7 @@ function render(
   now = Date.now(),
   isZh = true,
   recipientAgentId = "agent-a",
+  unavailableToolNames: string[] = [],
 ) {
   return collectReminderBlock({
     sessionEntry: entry,
@@ -35,6 +38,7 @@ function render(
     isZh,
     timeZone: "UTC",
     recipientAgentId,
+    unavailableToolNames,
   });
 }
 
@@ -42,14 +46,14 @@ describe("EnvChangeLedger", () => {
   it("keeps immutable append order and bounded reads", () => {
     const ledger = new EnvChangeLedger();
     const first = ledger.append({
-      type: "toolset_changed",
-      scope: { kind: "global" },
-      payload: { pluginId: "a", action: "loaded" },
+      type: "memory_facts",
+      scope: { kind: "agent", agentId: "agent-a" },
+      payload: { addedLines: ["first"] },
     });
     const second = ledger.append({
       type: "memory_facts",
       scope: { kind: "agent", agentId: "agent-a" },
-      payload: { addedLines: ["fact"] },
+      payload: { addedLines: ["second"] },
     });
 
     expect([first.seq, second.seq, ledger.maxSeq()]).toEqual([1, 2, 2]);
@@ -65,11 +69,6 @@ describe("EnvChangeLedger", () => {
     const ledger = new EnvChangeLedger();
 
     expect(() => ledger.append({
-      type: "toolset_changed",
-      scope: { kind: "agent", agentId: "agent-a" },
-      payload: { pluginId: "demo", action: "loaded" },
-    } as any)).toThrow(/scope/i);
-    expect(() => ledger.append({
       type: "memory_facts",
       scope: { kind: "global" },
       payload: { addedLines: ["private"] },
@@ -84,16 +83,19 @@ describe("EnvChangeLedger", () => {
 });
 
 describe("collectReminderBlock", () => {
-  it("deduplicates plugin transitions by pluginId and renders the final state", () => {
+  it("renders exact unavailable frozen names in canonical order and ignores live additions", () => {
     const ledger = new EnvChangeLedger();
-    ledger.append({ type: "toolset_changed", scope: { kind: "global" }, payload: { pluginId: "demo", action: "unloaded" } });
-    ledger.append({ type: "toolset_changed", scope: { kind: "global" }, payload: { pluginId: "other", action: "loaded" } });
-    ledger.append({ type: "toolset_changed", scope: { kind: "global" }, payload: { pluginId: "demo", action: "reloaded" } });
+    const result = render(
+      freshSessionEntry(),
+      ledger,
+      Date.now(),
+      true,
+      "agent-a",
+      ["mcp_zeta", "mcp_alpha", "mcp_alpha"],
+    );
 
-    const result = render(freshSessionEntry(), ledger);
-    expect(result?.block.match(/demo/g)).toHaveLength(1);
-    expect(result?.block).toContain("已重新加载");
-    expect(result?.block).toContain("other");
+    expect(result?.block).toContain("以下会话工具当前不可用：mcp_alpha、mcp_zeta");
+    expect(result?.receipt.unavailableToolNames).toEqual(["mcp_alpha", "mcp_zeta"]);
   });
 
   it("renders memory facts, English copy, and a 24-hour timezone timestamp", () => {
@@ -116,26 +118,19 @@ describe("collectReminderBlock", () => {
     );
   });
 
-  it("delivers agent memory only to its owner while global toolset changes reach every agent", () => {
+  it("delivers memory facts only to their owning agent", () => {
     const ledger = new EnvChangeLedger();
     ledger.append({
       type: "memory_facts",
       scope: { kind: "agent", agentId: "agent-a" },
       payload: { addedLines: ["agent-a private fact"] },
     });
-    ledger.append({
-      type: "toolset_changed",
-      scope: { kind: "global" },
-      payload: { pluginId: "shared-plugin", action: "loaded" },
-    });
 
     const agentA = render(freshSessionEntry(), ledger, Date.now(), true, "agent-a");
     const agentB = render(freshSessionEntry(), ledger, Date.now(), true, "agent-b");
 
     expect(agentA?.block).toContain("agent-a private fact");
-    expect(agentB?.block).not.toContain("agent-a private fact");
-    expect(agentA?.block).toContain("shared-plugin");
-    expect(agentB?.block).toContain("shared-plugin");
+    expect(agentB).toBeNull();
   });
 
   it("does not render an empty block when only another agent has pending changes", () => {
@@ -160,7 +155,11 @@ describe("collectReminderBlock", () => {
 
   it("replays environment changes from the session baseline after compaction", () => {
     const ledger = new EnvChangeLedger();
-    ledger.append({ type: "toolset_changed", scope: { kind: "global" }, payload: { pluginId: "before", action: "loaded" } });
+    ledger.append({
+      type: "memory_facts",
+      scope: { kind: "agent", agentId: "agent-a" },
+      payload: { addedLines: ["before"] },
+    });
     const entry = freshSessionEntry({
       reminderEnvCursor: 1,
       reminderEnvStartSeq: 0,
@@ -185,13 +184,8 @@ describe("collectReminderBlock", () => {
       scope: { kind: "agent", agentId: "agent-b" },
       payload: { addedLines: ["agent-b replay"] },
     });
-    ledger.append({
-      type: "toolset_changed",
-      scope: { kind: "global" },
-      payload: { pluginId: "global-replay", action: "loaded" },
-    });
     const entry = freshSessionEntry({
-      reminderEnvCursor: 3,
+      reminderEnvCursor: 2,
       reminderEnvStartSeq: 0,
       reminderCompactionRevision: 1,
       lastTimeObservedAt: Date.now(),
@@ -202,19 +196,16 @@ describe("collectReminderBlock", () => {
     expect(result?.block).toContain("上下文已压缩");
     expect(result?.block).toContain("agent-a replay");
     expect(result?.block).not.toContain("agent-b replay");
-    expect(result?.block).toContain("global-replay");
-    expect(result?.receipt.throughSeq).toBe(3);
+    expect(result?.receipt.throughSeq).toBe(2);
   });
 
   it("caps the rendered body and returns a frozen receipt", () => {
     const ledger = new EnvChangeLedger();
-    for (let index = 0; index < 20; index += 1) {
-      ledger.append({
-        type: "toolset_changed",
-        scope: { kind: "global" },
-        payload: { pluginId: `plugin-with-a-long-name-${index}`, action: "loaded" },
-      });
-    }
+    ledger.append({
+      type: "memory_facts",
+      scope: { kind: "agent", agentId: "agent-a" },
+      payload: { addedLines: ["x".repeat(500)] },
+    });
     const result = render(freshSessionEntry(), ledger, new Date("2026-07-05T14:05:00Z").getTime());
     const header = `${REMINDER_BLOCK_PREFIX} at 2026-07-05 14:05]\n`;
     const body = result!.block.slice(header.length, -(`\n${REMINDER_BLOCK_END}`.length));
@@ -254,12 +245,20 @@ describe("stripSessionReminderBlocks", () => {
 describe("reminder receipt consumption", () => {
   it("does not consume a ledger event appended after render", () => {
     const ledger = new EnvChangeLedger();
-    ledger.append({ type: "toolset_changed", scope: { kind: "global" }, payload: { pluginId: "rendered", action: "loaded" } });
+    ledger.append({
+      type: "memory_facts",
+      scope: { kind: "agent", agentId: "agent-a" },
+      payload: { addedLines: ["rendered"] },
+    });
     const now = Date.now();
     const entry = freshSessionEntry({ lastTimeObservedAt: now });
     const rendered = render(entry, ledger, now)!;
 
-    ledger.append({ type: "toolset_changed", scope: { kind: "global" }, payload: { pluginId: "later", action: "loaded" } });
+    ledger.append({
+      type: "memory_facts",
+      scope: { kind: "agent", agentId: "agent-a" },
+      payload: { addedLines: ["later"] },
+    });
     applyReminderConsumption({ sessionEntry: entry, receipt: rendered.receipt });
 
     const next = render(entry, ledger, now + 1);
@@ -279,20 +278,15 @@ describe("reminder receipt consumption", () => {
       scope: { kind: "agent", agentId: "agent-b" },
       payload: { addedLines: ["b-hidden"] },
     });
-    ledger.append({
-      type: "toolset_changed",
-      scope: { kind: "global" },
-      payload: { pluginId: "shared", action: "loaded" },
-    });
     const now = Date.now();
     const entry = freshSessionEntry({ lastTimeObservedAt: now });
 
     const first = render(entry, ledger, now, true, "agent-a")!;
     expect(first.block).toContain("a-first");
     expect(first.block).not.toContain("b-hidden");
-    expect(first.receipt.throughSeq).toBe(3);
+    expect(first.receipt.throughSeq).toBe(2);
     applyReminderConsumption({ sessionEntry: entry, receipt: first.receipt });
-    expect(entry.reminderEnvCursor).toBe(3);
+    expect(entry.reminderEnvCursor).toBe(2);
 
     ledger.append({
       type: "memory_facts",
@@ -308,9 +302,9 @@ describe("reminder receipt consumption", () => {
     expect(second.block).toContain("a-later");
     expect(second.block).not.toContain("b-later-hidden");
     expect(second.block).not.toContain("a-first");
-    expect(second.receipt.throughSeq).toBe(5);
+    expect(second.receipt.throughSeq).toBe(4);
     applyReminderConsumption({ sessionEntry: entry, receipt: second.receipt });
-    expect(entry.reminderEnvCursor).toBe(5);
+    expect(entry.reminderEnvCursor).toBe(4);
     expect(render(entry, ledger, now + 2, true, "agent-a")).toBeNull();
   });
 
@@ -345,7 +339,11 @@ describe("reminder receipt consumption", () => {
 
   it("advances all represented state monotonically", () => {
     const ledger = new EnvChangeLedger();
-    ledger.append({ type: "toolset_changed", scope: { kind: "global" }, payload: { pluginId: "demo", action: "loaded" } });
+    ledger.append({
+      type: "memory_facts",
+      scope: { kind: "agent", agentId: "agent-a" },
+      payload: { addedLines: ["demo"] },
+    });
     const now = Date.now();
     const entry = freshSessionEntry({
       lastTimeObservedAt: null,
@@ -362,5 +360,119 @@ describe("reminder receipt consumption", () => {
       reminderConsumedCompactionRevision: 2,
     });
     expect(render(entry, ledger, now + 1)).toBeNull();
+  });
+
+  it("repeats a failed outage, accepts it once, and does not repeat the same outage", () => {
+    const ledger = new EnvChangeLedger();
+    const now = Date.now();
+    const entry = freshSessionEntry({ lastTimeObservedAt: now });
+
+    const failed = render(entry, ledger, now, true, "agent-a", ["mcp_calendar"]);
+    expect(failed?.block).toContain("mcp_calendar");
+    expect(render(entry, ledger, now + 1, true, "agent-a", ["mcp_calendar"])?.block)
+      .toContain("mcp_calendar");
+
+    applyReminderConsumption({ sessionEntry: entry, receipt: failed!.receipt });
+    expect(entry.reminderAcceptedUnavailableToolNames).toEqual(["mcp_calendar"]);
+    expect(entry.reminderUnavailableRevision).toBe(1);
+    expect(render(entry, ledger, now + 2, true, "agent-a", ["mcp_calendar"]))
+      .toBeNull();
+  });
+
+  it("silently accepts recovery without consuming time, memory, or compaction state", () => {
+    const ledger = new EnvChangeLedger();
+    const now = Date.now();
+    const entry = freshSessionEntry({
+      reminderEnvCursor: 7,
+      reminderEnvStartSeq: 7,
+      lastTimeObservedAt: now,
+      reminderCompactionRevision: 2,
+      reminderConsumedCompactionRevision: 2,
+      reminderAcceptedUnavailableToolNames: ["mcp_calendar"],
+      reminderUnavailableRevision: 1,
+    });
+
+    const recovered = render(entry, ledger, now + 1, true, "agent-a", []);
+    expect(recovered?.block).toBe("");
+    expect(recovered?.receipt.consumeBlockState).toBe(false);
+    applyReminderConsumption({ sessionEntry: entry, receipt: recovered!.receipt });
+
+    expect(entry).toMatchObject({
+      reminderEnvCursor: 7,
+      lastTimeObservedAt: now,
+      reminderConsumedCompactionRevision: 2,
+      reminderAcceptedUnavailableToolNames: [],
+      reminderUnavailableRevision: 2,
+    });
+    expect(render(entry, ledger, now + 2, true, "agent-a", ["mcp_calendar"])?.block)
+      .toContain("mcp_calendar");
+  });
+
+  it("removes recovered names and accepts only newly rendered outage names", () => {
+    const ledger = new EnvChangeLedger();
+    const now = Date.now();
+    const entry = freshSessionEntry({
+      lastTimeObservedAt: now,
+      reminderAcceptedUnavailableToolNames: ["tool_a", "tool_b"],
+      reminderUnavailableRevision: 4,
+    });
+
+    const rendered = render(entry, ledger, now, true, "agent-a", ["tool_b", "tool_c"]);
+    expect(rendered?.block).toContain("tool_c");
+    expect(rendered?.block).not.toContain("tool_a");
+    expect(rendered?.receipt.unavailableToolNames).toEqual(["tool_b", "tool_c"]);
+  });
+
+  it("batches long outage lists without truncating a name or consuming unseen names", () => {
+    const ledger = new EnvChangeLedger();
+    ledger.append({
+      type: "memory_facts",
+      scope: { kind: "agent", agentId: "agent-a" },
+      payload: { addedLines: ["context".repeat(80)] },
+    });
+    const now = Date.now();
+    const entry = freshSessionEntry({ lastTimeObservedAt: now });
+    const unavailable = Array.from(
+      { length: 24 },
+      (_, index) => `mcp_connector_${String(index).padStart(2, "0")}_${"x".repeat(18)}`,
+    );
+    const seen = new Set<string>();
+
+    for (let turn = 0; turn < 10 && seen.size < unavailable.length; turn += 1) {
+      const before = new Set(entry.reminderAcceptedUnavailableToolNames);
+      const rendered = render(entry, ledger, now + turn, true, "agent-a", unavailable)!;
+      const body = rendered.block.slice(
+        rendered.block.indexOf("\n") + 1,
+        -(`\n${REMINDER_BLOCK_END}`.length),
+      );
+      expect(body.length).toBeLessThanOrEqual(300);
+      const newlyAccepted = rendered.receipt.unavailableToolNames.filter((name) => !before.has(name));
+      expect(newlyAccepted.length).toBeGreaterThan(0);
+      for (const name of newlyAccepted) {
+        expect(rendered.block).toContain(name);
+        seen.add(name);
+      }
+      for (const name of unavailable.filter((name) => !seen.has(name))) {
+        expect(rendered.receipt.unavailableToolNames).not.toContain(name);
+      }
+      applyReminderConsumption({ sessionEntry: entry, receipt: rendered.receipt });
+    }
+
+    expect([...seen].sort()).toEqual([...unavailable].sort());
+    expect(render(entry, ledger, now + 20, true, "agent-a", unavailable)).toBeNull();
+  });
+
+  it("does not let an older accepted receipt roll availability state backwards", () => {
+    const ledger = new EnvChangeLedger();
+    const now = Date.now();
+    const entry = freshSessionEntry({ lastTimeObservedAt: now });
+    const staleOutage = render(entry, ledger, now, true, "agent-a", ["tool_old"])!;
+    const newerOutage = render(entry, ledger, now + 1, true, "agent-a", ["tool_new"])!;
+
+    applyReminderConsumption({ sessionEntry: entry, receipt: newerOutage.receipt });
+    applyReminderConsumption({ sessionEntry: entry, receipt: staleOutage.receipt });
+
+    expect(entry.reminderAcceptedUnavailableToolNames).toEqual(["tool_new"]);
+    expect(entry.reminderUnavailableRevision).toBe(1);
   });
 });

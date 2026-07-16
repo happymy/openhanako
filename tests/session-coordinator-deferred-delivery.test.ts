@@ -6,7 +6,7 @@ const MODEL = { id: "gpt-5.6-sol", provider: "openai-codex" };
 
 function makeCoordinator( overrides: any = {}) {
   const models = overrides.models || { availableModels: [MODEL] };
-  return new SessionCoordinator({
+  const coordinator = new SessionCoordinator({
     agentsDir: "/tmp/fake/agents",
     getAgent: () => ({ id: "test-agent" }),
     getActiveAgentId: () => "test-agent",
@@ -26,6 +26,8 @@ function makeCoordinator( overrides: any = {}) {
     getPrefs: () => ({ getThinkingLevel: () => "medium" }),
     ...overrides,
   });
+  coordinator.preflightSessionInput = vi.fn();
+  return coordinator;
 }
 
 function makeSession({ isStreaming }) {
@@ -64,6 +66,7 @@ describe("SessionCoordinator deferred custom delivery", () => {
     });
 
     expect(result).toMatchObject({ ok: true, mode: "triggerTurn" });
+    expect(coord.preflightSessionInput).toHaveBeenCalledWith(sessionPath);
     expect(order).toEqual(["emit", "send"]);
     expect(session.sendCustomMessage).toHaveBeenCalledWith(
       expect.objectContaining({ customType: "hana-background-result", display: false }),
@@ -104,6 +107,7 @@ describe("SessionCoordinator deferred custom delivery", () => {
     });
 
     expect(result).toMatchObject({ ok: true, mode: "followUp" });
+    expect(coord.preflightSessionInput).toHaveBeenCalledWith(sessionPath);
     expect(session.sendCustomMessage).toHaveBeenCalledWith(
       expect.objectContaining({ customType: "hana-background-result", display: false }),
       { deliverAs: "followUp" },
@@ -188,6 +192,7 @@ describe("SessionCoordinator deferred custom delivery", () => {
     );
 
     expect(result).toMatchObject({ ok: true, mode: "notifyOnly" });
+    expect(coord.preflightSessionInput).not.toHaveBeenCalled();
     expect(session.sendCustomMessage).toHaveBeenCalledWith(
       expect.objectContaining({ customType: "hana-background-result", display: false }),
       { triggerTurn: false },
@@ -217,6 +222,30 @@ describe("SessionCoordinator deferred custom delivery", () => {
       code: "MODEL_NOT_AVAILABLE",
       modelRef: "openai-codex/gpt-5.6-sol",
     });
+    expect(session.sendCustomMessage).not.toHaveBeenCalled();
+    expect(emitEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects a triggered deferred turn before presentation or persistence when cache preflight fails", async () => {
+    const emitEvent = vi.fn();
+    const coord = makeCoordinator({ emitEvent });
+    const session = makeSession({ isStreaming: false });
+    const sessionPath = "/tmp/fake/agents/test-agent/sessions/cache-drift.jsonl";
+    coord.sessions.set(sessionPath, {
+      session,
+      agentId: "test-agent",
+      lastTouchedAt: 0,
+    });
+    vi.spyOn(coord, "preflightSessionInput").mockImplementation(() => {
+      throw new Error("Cache prefix contract violated: tools");
+    });
+
+    await expect(coord.deliverCustomMessage(sessionPath, {
+      customType: "hana-background-result",
+      content: "<hana-background-result />",
+      display: false,
+    })).rejects.toThrow(/Cache prefix contract violated/);
+
     expect(session.sendCustomMessage).not.toHaveBeenCalled();
     expect(emitEvent).not.toHaveBeenCalled();
   });

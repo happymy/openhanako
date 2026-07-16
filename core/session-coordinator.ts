@@ -40,6 +40,7 @@ import {
 import { findModel } from "../shared/model-ref.ts";
 import { computeToolSnapshot, DEFAULT_DISABLED_TOOL_NAMES, uniqueToolNames } from "../shared/tool-categories.ts";
 import {
+  computeReminderLiveToolAvailability,
   computeRuntimeDisabledToolNames,
   getStableFeatureDisabledToolNames,
   toolNamesFromObjects,
@@ -1888,6 +1889,13 @@ export class SessionCoordinator {
       reminderConsumedCompactionRevision: hasPreviousReminderState
         ? (reminderState.reminderConsumedCompactionRevision ?? 0)
         : 0,
+      reminderAcceptedUnavailableToolNames: hasPreviousReminderState
+        ? uniqueToolNames(reminderState.reminderAcceptedUnavailableToolNames || [])
+          .sort((left, right) => left.localeCompare(right))
+        : [],
+      reminderUnavailableRevision: hasPreviousReminderState
+        ? (reminderState.reminderUnavailableRevision ?? 0)
+        : 0,
     };
 
     Object.assign(sessionEntry, {
@@ -2800,6 +2808,7 @@ export class SessionCoordinator {
     const nativeMediaTurn = engine?.beginCurrentTurnNativeMedia?.(sp, opts);
     if (sp && turnContext) this._setRuntimeValueForPath(this._turnContextBySession, sp, turnContext);
     try {
+      if (sp) this.preflightSessionInput(sp);
       await this._session.prompt(text, promptOpts);
     } finally {
       if (sp && turnContext) this._deleteRuntimeValueForPath(this._turnContextBySession, sp);
@@ -2842,6 +2851,7 @@ export class SessionCoordinator {
   steer(text: any) {
     if (!this._session?.isStreaming) return false;
     const sp = this._session.sessionManager?.getSessionFile?.();
+    if (sp) this.preflightSessionInput(sp);
     if (sp) {
       const entry = this._getSessionEntryByPath(sp);
       if (entry) entry.lastTouchedAt = Date.now();
@@ -2852,7 +2862,7 @@ export class SessionCoordinator {
 
   // ── Path 感知 API（Phase 2） ──
 
-  async promptSession(sessionPath: any, text: any, opts: any) {
+  async promptSession(sessionPath: any, text: any, opts: any, submitOptions: any = {}) {
     const turnContext = normalizeSessionTurnContext(opts?.context);
     this._assertActiveDesktopSessionPath(sessionPath, "promptSession");
     let entry = this._getSessionEntryByPath(sessionPath);
@@ -2901,6 +2911,13 @@ export class SessionCoordinator {
     const nativeMediaTurn = engine?.beginCurrentTurnNativeMedia?.(sessionPath, opts);
     if (turnContext) this._setRuntimeValueForPath(this._turnContextBySession, sessionPath, turnContext);
     try {
+      this.preflightSessionInput(sessionPath);
+      if (typeof submitOptions?.afterCachePreflight === "function") {
+        const hookResult = submitOptions.afterCachePreflight();
+        if (hookResult && typeof hookResult.then === "function") {
+          throw new TypeError("promptSession afterCachePreflight must be synchronous");
+        }
+      }
       await entry.session.prompt(text, promptOpts);
     } finally {
       if (turnContext) this._deleteRuntimeValueForPath(this._turnContextBySession, sessionPath);
@@ -2916,6 +2933,7 @@ export class SessionCoordinator {
   steerSession(sessionPath: any, text: any) {
     const entry = this._getSessionEntryByPath(sessionPath);
     if (!entry?.session.isStreaming) return false;
+    this.preflightSessionInput(sessionPath);
     entry.lastTouchedAt = Date.now();
     entry.session.steer(text);
     return true;
@@ -2942,9 +2960,10 @@ export class SessionCoordinator {
       throw new Error("deliverCustomMessage: session does not support custom messages");
     }
 
-    entry.lastTouchedAt = Date.now();
     if (entry.session.isStreaming) {
       this._assertSessionModelAvailable(entry.session);
+      this.preflightSessionInput(sessionPath);
+      entry.lastTouchedAt = Date.now();
       await entry.session.sendCustomMessage(message, { deliverAs: "followUp" });
       this._emitTurnInputPresentation(sessionPath, message, "followUp");
       return { ok: true, mode: "followUp" };
@@ -2953,7 +2972,11 @@ export class SessionCoordinator {
     const triggerTurn = options?.triggerTurn !== false;
     if (triggerTurn) {
       this._assertSessionModelAvailable(entry.session);
+      this.preflightSessionInput(sessionPath);
+      entry.lastTouchedAt = Date.now();
       this._emitTurnInputPresentation(sessionPath, message, "triggerTurn");
+    } else {
+      entry.lastTouchedAt = Date.now();
     }
     await entry.session.sendCustomMessage(message, { triggerTurn });
     return { ok: true, mode: triggerTurn ? "triggerTurn" : "notifyOnly" };
@@ -3636,6 +3659,10 @@ export class SessionCoordinator {
       lastTimeObservedAt: entry.lastTimeObservedAt,
       reminderCompactionRevision: entry.reminderCompactionRevision,
       reminderConsumedCompactionRevision: entry.reminderConsumedCompactionRevision,
+      reminderAcceptedUnavailableToolNames: Array.isArray(entry.reminderAcceptedUnavailableToolNames)
+        ? [...entry.reminderAcceptedUnavailableToolNames]
+        : [],
+      reminderUnavailableRevision: entry.reminderUnavailableRevision,
       contextUsage: entry.session?.getContextUsage?.() || null,
       hibernatedAt: Date.now(),
     });
@@ -3878,6 +3905,7 @@ export class SessionCoordinator {
       now: Date.now(),
       isZh: getLocale().startsWith("zh"),
       timeZone: this._d.getPrefs?.()?.getTimezone?.(),
+      unavailableToolNames: this._computeReminderUnavailableToolNamesForEntry(entry, sessionPath),
     });
   }
 
@@ -3902,6 +3930,18 @@ export class SessionCoordinator {
     if (!entry) return false;
     noteTimeObservedForSession(entry, observedAt);
     return true;
+  }
+
+  preflightSessionInput(sessionPath: any) {
+    if (!sessionPath) throw new Error("preflightSessionInput: sessionPath is required");
+    const entry = this._getSessionEntryByPath(sessionPath);
+    if (!entry?.session) {
+      throw new Error(`preflightSessionInput: session not loaded for ${sessionPath}`);
+    }
+    return this._assertCachePrefixContract(sessionPath, entry, {
+      allowRenew: false,
+      countRequest: false,
+    });
   }
 
   _assertActiveDesktopSessionPath(sessionPath: any, operation: any) {
@@ -3987,8 +4027,17 @@ export class SessionCoordinator {
     };
   }
 
-  _computeLiveToolSnapshotForEntry(entry: any, sessionPath: any) {
-    const agent = this._d.getAgentById?.(entry?.agentId) || this._d.getAgent?.();
+  _buildLiveToolAvailabilityInputForEntry(
+    entry: any,
+    sessionPath: any,
+    { allowGlobalModelFallback = true }: any = {},
+  ) {
+    const entryAgentId = typeof entry?.agentId === "string" ? entry.agentId.trim() : "";
+    const ownerAgentId = entryAgentId || this.resolveSessionOwnership(sessionPath).agentId || "";
+    if (!ownerAgentId) return null;
+    const focusedAgent = this._d.getAgent?.();
+    const agent = this._d.getAgentById?.(ownerAgentId)
+      || (focusedAgent?.id === ownerAgentId ? focusedAgent : null);
     if (!agent) return null;
     const cwd = entry?.cwd || entry?.session?.sessionManager?.getCwd?.() || this._d.getHomeCwd?.(agent.id) || process.cwd();
     const models = this._d.getModels?.() || {};
@@ -3996,7 +4045,7 @@ export class SessionCoordinator {
       || (entry?.modelId && entry?.modelProvider && Array.isArray(models.availableModels)
         ? findModel(models.availableModels, entry.modelId, entry.modelProvider)
         : null)
-      || models.currentModel
+      || (allowGlobalModelFallback ? models.currentModel : null)
       || null;
     const toolSnapshotOptions: any = {
       forceMemoryEnabled: entry?.memoryEnabled !== false,
@@ -4028,14 +4077,25 @@ export class SessionCoordinator {
       ...(built.tools || []),
       ...(built.customTools || []),
     ];
-    const allToolNames = toolNamesFromObjects(allToolObjects);
     const channelsEnabled = this._d.getPrefs?.()?.getChannelsEnabled?.();
+    return {
+      agent,
+      allToolObjects,
+      context: { agentId: ownerAgentId, restore: false, channelsEnabled },
+    };
+  }
+
+  _computeLiveToolSnapshotForEntry(entry: any, sessionPath: any) {
+    const input = this._buildLiveToolAvailabilityInputForEntry(entry, sessionPath);
+    if (!input) return null;
+    const { agent, allToolObjects, context } = input;
+    const allToolNames = toolNamesFromObjects(allToolObjects);
     const extraDisabledToolNames = [
-      ...getStableFeatureDisabledToolNames({ channelsEnabled }),
+      ...getStableFeatureDisabledToolNames(context),
       ...computeRuntimeDisabledToolNames(
         allToolObjects,
         agent.config,
-        { agentId: entry?.agentId, restore: false, channelsEnabled },
+        context,
         { warn: (msg) => log.warn(msg) },
       ),
     ];
@@ -4043,6 +4103,40 @@ export class SessionCoordinator {
     return computeToolSnapshot(allToolNames, disabled, {
       extraDisabled: extraDisabledToolNames,
     });
+  }
+
+  _computeReminderUnavailableToolNamesForEntry(entry: any, sessionPath: any) {
+    const frozenToolNames = uniqueToolNames(Array.isArray(entry?.toolNames) ? entry.toolNames : []);
+    if (frozenToolNames.length === 0) return [];
+    let input;
+    try {
+      input = this._buildLiveToolAvailabilityInputForEntry(entry, sessionPath, {
+        allowGlobalModelFallback: false,
+      });
+    } catch (err) {
+      log.warn(`Reminder live tool inventory failed for ${path.basename(sessionPath || "unknown session")}: ${(err as any)?.message || err}`);
+      return [];
+    }
+    if (!input) {
+      log.warn(`Reminder live tool inventory unavailable for ${path.basename(sessionPath || "unknown session")}`);
+      return [];
+    }
+    let live;
+    try {
+      live = computeReminderLiveToolAvailability(
+        input.allToolObjects,
+        input.agent.config,
+        input.context,
+        { warn: (msg) => log.warn(msg) },
+      );
+    } catch (err) {
+      log.warn(`Reminder live tool availability failed for ${path.basename(sessionPath || "unknown session")}: ${(err as any)?.message || err}`);
+      return [];
+    }
+    const liveToolNames = new Set(live.availableToolNames);
+    return frozenToolNames
+      .filter((name) => !liveToolNames.has(name))
+      .sort((left, right) => left.localeCompare(right));
   }
 
   markCapabilitySnapshotsStale({ agentId = null, reason = "capability_changed" }: any = {}) {
@@ -4687,10 +4781,24 @@ export class SessionCoordinator {
     return contract;
   }
 
-  _assertCachePrefixContract(sessionPath: any, entry: any, { model = null, context = null }: any = {}) {
+  _assertCachePrefixContract(
+    sessionPath: any,
+    entry: any,
+    {
+      model = null,
+      context = null,
+      allowRenew = true,
+      countRequest = true,
+    }: any = {},
+  ) {
     if (!entry?.session) return null;
-    const expected = entry.cachePrefixContract
-      || this._renewCachePrefixContract(sessionPath, entry, "late_init", { model, context });
+    let expected = entry.cachePrefixContract;
+    if (!expected) {
+      if (!allowRenew) {
+        throw new Error("Cache prefix contract unavailable for input preflight");
+      }
+      expected = this._renewCachePrefixContract(sessionPath, entry, "late_init", { model, context });
+    }
     const actual = this._buildCachePrefixContract(entry, { model, context });
     const diffs = diffCachePrefixContracts(expected, actual);
     if (diffs.length > 0) {
@@ -4717,11 +4825,13 @@ export class SessionCoordinator {
       throw new Error(`Cache prefix contract violated: ${diffs.map((d) => d.field).join(", ")}`);
     }
 
-    entry.cachePrefixContractRequestCount = (entry.cachePrefixContractRequestCount || 0) + 1;
+    if (countRequest) {
+      entry.cachePrefixContractRequestCount = (entry.cachePrefixContractRequestCount || 0) + 1;
+    }
     if (cacheContractDebugEnabled()) {
       log.log(`cache_contract_check ${JSON.stringify({
         session: sessionPath ? path.basename(sessionPath) : null,
-        requestCount: entry.cachePrefixContractRequestCount,
+        requestCount: entry.cachePrefixContractRequestCount || 0,
         contract: summarizeCachePrefixContract(actual),
       })}`);
     }

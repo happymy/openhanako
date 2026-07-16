@@ -156,6 +156,78 @@ export function isMcpToolEnabledForAgentConfig(agentConfig, { globalEnabled, ser
   return connector?.tools?.[toolName] === true;
 }
 
+interface McpLiveAvailabilityInput {
+  globalEnabled?: boolean;
+  connectorId?: string;
+  serverId?: string;
+  toolName?: string;
+  connectorPresent?: boolean;
+  toolPresent?: boolean;
+  status?: string;
+  transportAvailable?: boolean;
+  error?: string;
+}
+
+function mcpLiveAvailabilityDiagnostics({ connectorId, toolName, status, error }: McpLiveAvailabilityInput = {}) {
+  return {
+    provider: "mcp",
+    connectorId,
+    toolName,
+    ...(typeof status === "string" && status ? { status } : {}),
+    ...(typeof error === "string" && error ? { error } : {}),
+  };
+}
+
+/** Pure classification for the Reminder-only live availability probe. */
+export function probeMcpToolLiveAvailability(agentConfig, {
+  globalEnabled,
+  connectorId,
+  serverId,
+  toolName,
+  connectorPresent,
+  toolPresent,
+  status,
+  transportAvailable,
+  error = "",
+}: McpLiveAvailabilityInput = {}) {
+  const id = connectorId || serverId;
+  const diagnostics = mcpLiveAvailabilityDiagnostics({
+    connectorId: id,
+    toolName,
+    status,
+    error,
+  });
+  if (globalEnabled !== true) {
+    return { available: false, reason: "mcp_global_disabled", diagnostics };
+  }
+  if (connectorPresent !== true) {
+    return { available: false, reason: "mcp_connector_removed", diagnostics };
+  }
+  if (toolPresent !== true) {
+    return { available: false, reason: "mcp_tool_removed", diagnostics };
+  }
+  if (!isMcpToolEnabledForAgentConfig(agentConfig, {
+    globalEnabled: true,
+    connectorId: id,
+    serverId: id,
+    toolName,
+  })) {
+    return { available: false, reason: "mcp_agent_disabled", diagnostics };
+  }
+  if (status === STATUS_NEEDS_AUTH) {
+    // A revoked/expired bearer or OAuth credential converges to needs-auth in
+    // the runtime. The recorded error is diagnostic only and is never acted on.
+    return { available: false, reason: "mcp_needs_auth", diagnostics };
+  }
+  if (status === "stopped") {
+    return { available: false, reason: "mcp_connector_stopped", diagnostics };
+  }
+  if (status !== "running" || transportAvailable !== true) {
+    return { available: false, reason: "mcp_transport_unavailable", diagnostics };
+  }
+  return { available: true };
+}
+
 export function mcpToolError(text, details: any = {}) {
   return {
     isError: true,
@@ -240,6 +312,7 @@ export function createMcpToolDefinition({
   getGlobalEnabled,
   getAgentConfig,
   callTool,
+  probeLiveAvailability = null,
 }) {
   const name = toMcpToolId(connectorId, toolName);
   return {
@@ -247,7 +320,15 @@ export function createMcpToolDefinition({
     description: description || `MCP connector tool ${connectorId}/${toolName}`,
     parameters: inputSchema || { type: "object", properties: {} },
     invocationStyle: "pi_tool",
-    metadata: { kind: "mcp", connectorId, serverId: connectorId, toolName },
+    metadata: {
+      kind: "mcp",
+      connectorId,
+      serverId: connectorId,
+      toolName,
+      ...(typeof probeLiveAvailability === "function"
+        ? { reminderLiveAvailabilityProbe: probeLiveAvailability }
+        : {}),
+    },
     isEnabledForAgentConfig: (agentConfig) => isMcpToolEnabledForAgentConfig(agentConfig, {
       globalEnabled: getGlobalEnabled(),
       connectorId,
@@ -406,6 +487,28 @@ export class McpRuntime {
     const override = this.connectorStatus.get(id);
     if (override) return override;
     return this.clients.get(id)?.running ? "running" : "stopped";
+  }
+
+  /**
+   * Read-only status probe for Reminder preflight. It performs no reconnect,
+   * token refresh, network request, or state mutation.
+   */
+  probeToolLiveAvailability(connectorId, toolName, agentConfig) {
+    const config = this.getConfig();
+    const connector = config.connectors.find((item) => item.id === connectorId);
+    const connectorPresent = !!connector;
+    const toolPresent = !!connector?.tools?.some((tool) => tool.name === toolName);
+    const status = connectorPresent ? this.connectorStatusFor(connectorId) : "";
+    return probeMcpToolLiveAvailability(agentConfig, {
+      globalEnabled: config.enabled,
+      connectorId,
+      toolName,
+      connectorPresent,
+      toolPresent,
+      status,
+      transportAvailable: this.clients.get(connectorId)?.running === true,
+      error: this.clientErrors.get(connectorId) || "",
+    });
   }
 
   async setEnabled(enabled) {
@@ -772,6 +875,11 @@ export class McpRuntime {
           getGlobalEnabled: () => this.getConfig().enabled,
           getAgentConfig: (agentId) => this.getAgentConfig(agentId),
           callTool: (connectorId, toolName, args) => this.callTool(connectorId, toolName, args),
+          probeLiveAvailability: (agentConfig) => this.probeToolLiveAvailability(
+            connector.id,
+            tool.name,
+            agentConfig,
+          ),
         });
         this.toolDisposers.push(this.ctx.registerTool(definition));
       }

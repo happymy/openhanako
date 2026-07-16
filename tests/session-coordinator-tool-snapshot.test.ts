@@ -37,6 +37,7 @@ vi.mock("../lib/debug-log.js", () => ({
 }));
 
 import { SessionCoordinator } from "../core/session-coordinator.ts";
+import { EnvChangeLedger } from "../core/env-change-ledger.ts";
 import { SessionManifestStore } from "../core/session-manifest/store.ts";
 import { repairRestoredToolSnapshot } from "../core/tool-snapshot-repair.ts";
 import { filterToolObjectsByAvailability } from "../core/tool-availability.ts";
@@ -170,6 +171,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
       getDeferredResultStore: () => null,
       getEngine: () => fakeEngine,
       onBeforeSessionCreate: onBeforeSessionCreateSpy,
+      envChangeLedger: new EnvChangeLedger(),
     });
   });
 
@@ -785,6 +787,86 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     const entry = coord._sessions.get(sessionPath);
     expect(entry.toolNames).toContain("mcp_github_search");
     expect(entry.unavailableToolNames).toEqual(["mcp_github_search"]);
+  });
+
+  it("reminds from the owning session frozen-minus-live inventory without activating new live tools", async () => {
+    let oldToolAvailable = false;
+    const oldMcpTool = {
+      ...makeTool("mcp_old_search"),
+      _pluginId: "mcp",
+      metadata: {
+        reminderLiveAvailabilityProbe: () => ({
+          available: oldToolAvailable,
+          reason: oldToolAvailable ? undefined : "runtime_stopped",
+        }),
+      },
+    };
+    const newlyAddedTool = { ...makeTool("mcp_new_search"), _pluginId: "mcp" };
+    focusAgent.getToolsSnapshot = () => [...HANAKO_CUSTOM_OBJS, oldMcpTool, newlyAddedTool];
+    coord._d.buildTools = (_cwd, customTools) => ({
+      tools: SDK_BUILTIN_OBJS,
+      customTools,
+    });
+    currentAgentConfig = { tools: { disabled: [] } };
+    const replayList = ["read", "mcp_old_search"];
+    await fsp.writeFile(
+      path.join(sessionDir, "session-meta.json"),
+      JSON.stringify({ [path.basename(fakeSessionPath)]: { toolNames: replayList } }, null, 2),
+    );
+
+    const { sessionPath } = await coord.createSession(null, tmpDir, true, null, { restore: true });
+    const ownerAgent = focusAgent;
+    const focusedOtherAgent = {
+      id: "focused-other",
+      config: { tools: { disabled: [] } },
+      tools: [{ ...oldMcpTool, metadata: { reminderLiveAvailabilityProbe: () => true } }],
+      getToolsSnapshot() { return this.tools; },
+    };
+    coord._d.getAgent = () => focusedOtherAgent;
+    coord._d.getAgentById = (id) => (id === "test" ? ownerAgent : focusedOtherAgent);
+    const entry = coord._sessions.get(sessionPath);
+    const frozenBefore = [...entry.toolNames];
+    const activeCallCount = activeToolsSpy.mock.calls.length;
+    const renewSpy = vi.spyOn(coord as any, "_renewCachePrefixContract");
+
+    const rendered = coord.renderSessionReminderBlock(sessionPath)!;
+
+    expect(rendered.block).toContain("mcp_old_search");
+    expect(rendered.block).not.toContain("mcp_new_search");
+    expect(rendered.receipt.unavailableToolNames).toEqual(["mcp_old_search"]);
+    expect(entry.toolNames).toEqual(frozenBefore);
+    expect(activeToolsSpy).toHaveBeenCalledTimes(activeCallCount);
+    expect(renewSpy).not.toHaveBeenCalled();
+
+    coord.consumeRenderedSessionReminderBlock(sessionPath, rendered.receipt);
+    expect(coord.renderSessionReminderBlock(sessionPath)).toBeNull();
+    oldToolAvailable = true;
+    const recovered = coord.renderSessionReminderBlock(sessionPath)!;
+    expect(recovered.block).toBe("");
+    coord.consumeRenderedSessionReminderBlock(sessionPath, recovered.receipt);
+    oldToolAvailable = false;
+    expect(coord.renderSessionReminderBlock(sessionPath)?.block).toContain("mcp_old_search");
+  });
+
+  it("carries accepted unavailable-tool state through real hibernate and restore", async () => {
+    currentAgentConfig = { tools: { disabled: [] } };
+    coord._d.getAgentById = (id) => (id === "test" ? focusAgent : null);
+    const { sessionPath } = await coord.createSession(null, tmpDir, true);
+    const entry = coord._sessions.get(sessionPath);
+    entry.reminderAcceptedUnavailableToolNames = ["mcp_calendar"];
+    entry.reminderUnavailableRevision = 3;
+
+    await expect(coord.hibernateSessionRuntime(sessionPath, "test")).resolves.toBe(true);
+    expect(coord._hibernatedSessionMeta.get(sessionPath)).toMatchObject({
+      reminderAcceptedUnavailableToolNames: ["mcp_calendar"],
+      reminderUnavailableRevision: 3,
+    });
+
+    await coord.reloadSessionRuntime(sessionPath);
+    expect(coord._sessions.get(sessionPath)).toMatchObject({
+      reminderAcceptedUnavailableToolNames: ["mcp_calendar"],
+      reminderUnavailableRevision: 3,
+    });
   });
 
   it("Case A: a production-filtered temporary plugin outage does not rewrite the frozen contract", async () => {

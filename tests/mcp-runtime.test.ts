@@ -70,6 +70,135 @@ describe("MCP runtime policy", () => {
     })).toBe(false);
   });
 
+  it("reports ready MCP tools as live for Reminder preflight", () => {
+    const registeredTools = [];
+    const stored = {
+      enabled: true,
+      connectors: [{
+        id: "github",
+        name: "GitHub",
+        url: "https://mcp.github.com/mcp",
+        tools: [{ name: "search" }],
+      }],
+    };
+    const runtime = new McpRuntime({
+      dataDir: "/tmp/mcp-test",
+      config: { get: vi.fn(() => stored), set: vi.fn() },
+      registerTool: vi.fn((tool) => {
+        registeredTools.push(tool);
+        return () => {};
+      }),
+      bus: { request: vi.fn() },
+      log: console,
+    });
+    runtime.clients.set("github", { running: true });
+    runtime.registerCachedTools();
+    const tool = registeredTools.find((candidate) => candidate.name === "github_search");
+    const probe = tool.metadata.reminderLiveAvailabilityProbe;
+    const agentConfig = {
+      mcp: { connectors: { github: { enabled: true, tools: { search: true } } } },
+    };
+
+    expect(probe(agentConfig)).toEqual({ available: true });
+  });
+
+  it("reports stopped, needs-auth/revoked, removed, and unavailable transports without side effects", () => {
+    const registeredTools = [];
+    let stored = {
+      enabled: true,
+      connectors: [{
+        id: "github",
+        name: "GitHub",
+        url: "https://mcp.github.com/mcp",
+        tools: [{ name: "search" }],
+      }],
+    };
+    const setConfig = vi.fn();
+    const runtime = new McpRuntime({
+      dataDir: "/tmp/mcp-test",
+      config: { get: vi.fn(() => stored), set: setConfig },
+      registerTool: vi.fn((tool) => {
+        registeredTools.push(tool);
+        return () => {};
+      }),
+      bus: { request: vi.fn() },
+      log: console,
+    });
+    runtime.registerCachedTools();
+    const tool = registeredTools.find((candidate) => candidate.name === "github_search");
+    const probe = tool.metadata.reminderLiveAvailabilityProbe;
+    const enabledAgent = {
+      mcp: { connectors: { github: { enabled: true, tools: { search: true } } } },
+    };
+
+    expect(probe(enabledAgent)).toMatchObject({
+      available: false,
+      reason: "mcp_connector_stopped",
+      diagnostics: { connectorId: "github", status: "stopped" },
+    });
+
+    runtime.connectorStatus.set("github", "needs-auth");
+    runtime.clientErrors.set("github", "token revoked");
+    expect(probe(enabledAgent)).toMatchObject({
+      available: false,
+      reason: "mcp_needs_auth",
+      diagnostics: { connectorId: "github", status: "needs-auth", error: "token revoked" },
+    });
+
+    runtime.connectorStatus.set("github", "reconnecting");
+    runtime.clientErrors.set("github", "transport unavailable");
+    expect(probe(enabledAgent)).toMatchObject({
+      available: false,
+      reason: "mcp_transport_unavailable",
+      diagnostics: { connectorId: "github", status: "reconnecting" },
+    });
+
+    runtime.connectorStatus.delete("github");
+    runtime.clientErrors.delete("github");
+    stored = { enabled: true, connectors: [] };
+    expect(probe(enabledAgent)).toMatchObject({
+      available: false,
+      reason: "mcp_connector_removed",
+      diagnostics: { connectorId: "github" },
+    });
+
+    expect(setConfig).not.toHaveBeenCalled();
+  });
+
+  it("reports global and agent MCP disablement through the read-only probe", () => {
+    const registeredTools = [];
+    let stored = {
+      enabled: true,
+      connectors: [{
+        id: "github",
+        name: "GitHub",
+        url: "https://mcp.github.com/mcp",
+        tools: [{ name: "search" }],
+      }],
+    };
+    const runtime = new McpRuntime({
+      dataDir: "/tmp/mcp-test",
+      config: { get: vi.fn(() => stored), set: vi.fn() },
+      registerTool: vi.fn((tool) => {
+        registeredTools.push(tool);
+        return () => {};
+      }),
+      bus: { request: vi.fn() },
+      log: console,
+    });
+    runtime.clients.set("github", { running: true });
+    runtime.registerCachedTools();
+    const probe = registeredTools.find((candidate) => candidate.name === "github_search")
+      .metadata.reminderLiveAvailabilityProbe;
+
+    expect(probe({ mcp: { connectors: { github: { enabled: false, tools: { search: true } } } } }))
+      .toMatchObject({ available: false, reason: "mcp_agent_disabled" });
+
+    stored = { ...stored, enabled: false };
+    expect(probe({ mcp: { connectors: { github: { enabled: true, tools: { search: true } } } } }))
+      .toMatchObject({ available: false, reason: "mcp_global_disabled" });
+  });
+
   it("keeps backward compatibility with the previous mcp.servers agent config shape", () => {
     expect(isMcpToolEnabledForAgentConfig({
       mcp: { servers: { github: { enabled: true, tools: { search: true } } } },

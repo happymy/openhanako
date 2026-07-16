@@ -12,7 +12,6 @@ import type {
   EnvChangeEntry,
   EnvChangeLedger,
   MemoryFactsPayload,
-  ToolsetChangedPayload,
 } from "./env-change-ledger.ts";
 
 export const REMINDER_BLOCK_PREFIX = "[hana_reminder";
@@ -85,12 +84,17 @@ export interface ReminderSessionEntry {
   lastTimeObservedAt: number | null;
   reminderCompactionRevision: number;
   reminderConsumedCompactionRevision: number;
+  reminderAcceptedUnavailableToolNames: string[];
+  reminderUnavailableRevision: number;
 }
 
 export interface SessionReminderReceipt {
   readonly observedAt: number;
   readonly throughSeq: number;
   readonly compactionRevision: number;
+  readonly unavailableToolNames: readonly string[];
+  readonly baseUnavailableRevision: number;
+  readonly consumeBlockState: boolean;
 }
 
 export interface RenderedSessionReminderBlock {
@@ -104,36 +108,12 @@ function nonNegativeInteger(value: unknown): number {
     : 0;
 }
 
-/** Same plugin may transition repeatedly; only its final rendered state matters. */
-function dedupeToolsetEntries(entries: EnvChangeEntry[]): EnvChangeEntry[] {
-  const latestByPlugin = new Map<string, EnvChangeEntry>();
-  const order: string[] = [];
-  for (const entry of entries) {
-    if (entry.type !== "toolset_changed") continue;
-    const pluginId = (entry.payload as Readonly<ToolsetChangedPayload>).pluginId;
-    if (!latestByPlugin.has(pluginId)) order.push(pluginId);
-    latestByPlugin.set(pluginId, entry);
-  }
-  return order.map((pluginId) => latestByPlugin.get(pluginId)!);
-}
-
 function memoryFactsEntries(entries: EnvChangeEntry[]): EnvChangeEntry[] {
   return entries.filter((entry) => entry.type === "memory_facts");
 }
 
 function entriesVisibleToAgent(entries: EnvChangeEntry[], recipientAgentId: string): EnvChangeEntry[] {
-  return entries.filter((entry) => (
-    entry.scope.kind === "global"
-    || (entry.scope.kind === "agent" && entry.scope.agentId === recipientAgentId)
-  ));
-}
-
-function formatToolsetLine(payload: Readonly<ToolsetChangedPayload>, isZh: boolean): string {
-  const actionZh = payload.action === "loaded" ? "已加载" : payload.action === "unloaded" ? "已卸载" : "已重新加载";
-  const actionEn = payload.action === "loaded" ? "loaded" : payload.action === "unloaded" ? "unloaded" : "reloaded";
-  return isZh
-    ? `插件「${payload.pluginId}」${actionZh}（工具清单变更在新会话中生效）`
-    : `Plugin "${payload.pluginId}" ${actionEn} (toolset change takes effect in new sessions)`;
+  return entries.filter((entry) => entry.scope.agentId === recipientAgentId);
 }
 
 function formatMemoryFactsLine(payload: Readonly<MemoryFactsPayload>, isZh: boolean): string {
@@ -150,6 +130,36 @@ function formatCompactionLine(isZh: boolean): string {
 function formatTimeLine(now: number, timeZone: string | undefined, isZh: boolean): string {
   const stamp = formatTimestamp(now, timeZone);
   return isZh ? `当前时间：${stamp}` : `Current time: ${stamp}`;
+}
+
+function normalizeUnavailableToolNames(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .filter((name): name is string => typeof name === "string")
+    .map((name) => name.trim())
+    .filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function sameNames(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((name, index) => name === right[index]);
+}
+
+function formatUnavailableToolsLine(names: readonly string[], isZh: boolean): string {
+  return isZh
+    ? `以下会话工具当前不可用：${names.join("、")}`
+    : `These session tools are currently unavailable: ${names.join(", ")}`;
+}
+
+function selectUnavailableToolBatch(names: readonly string[], isZh: boolean): string[] {
+  const batch: string[] = [];
+  for (const name of names) {
+    const candidate = [...batch, name];
+    const line = `- ${formatUnavailableToolsLine(candidate, isZh)}`;
+    if (line.length > BLOCK_BODY_CHAR_LIMIT) break;
+    batch.push(name);
+  }
+  return batch;
 }
 
 function formatTimestamp(now: number, timeZone: string | undefined): string {
@@ -174,6 +184,7 @@ export function collectReminderBlock({
   now,
   isZh,
   timeZone,
+  unavailableToolNames = [],
 }: {
   sessionEntry: ReminderSessionEntry;
   ledger: EnvChangeLedger;
@@ -181,6 +192,7 @@ export function collectReminderBlock({
   now: number;
   isZh: boolean;
   timeZone?: string;
+  unavailableToolNames?: string[];
 }): RenderedSessionReminderBlock | null {
   const normalizedRecipientAgentId = typeof recipientAgentId === "string" ? recipientAgentId.trim() : "";
   if (!normalizedRecipientAgentId) {
@@ -198,11 +210,34 @@ export function collectReminderBlock({
     normalizedRecipientAgentId,
   );
   const lines: string[] = [];
+  const acceptedUnavailableToolNames = normalizeUnavailableToolNames(
+    sessionEntry.reminderAcceptedUnavailableToolNames,
+  );
+  const unavailableRevision = nonNegativeInteger(sessionEntry.reminderUnavailableRevision);
+  const currentUnavailableToolNames = normalizeUnavailableToolNames(unavailableToolNames);
+  const acceptedUnavailableSet = new Set(acceptedUnavailableToolNames);
+  const currentUnavailableSet = new Set(currentUnavailableToolNames);
+  const newUnavailableToolNames = currentUnavailableToolNames.filter(
+    (name) => !acceptedUnavailableSet.has(name),
+  );
+  const stillAcceptedUnavailableToolNames = acceptedUnavailableToolNames.filter(
+    (name) => currentUnavailableSet.has(name),
+  );
+  const renderedUnavailableToolNames = selectUnavailableToolBatch(newUnavailableToolNames, isZh);
+  const nextAcceptedUnavailableToolNames = normalizeUnavailableToolNames([
+    ...stillAcceptedUnavailableToolNames,
+    ...renderedUnavailableToolNames,
+  ]);
+  const hasNewOutage = renderedUnavailableToolNames.length > 0;
+  const availabilityTransition = !sameNames(
+    acceptedUnavailableToolNames,
+    nextAcceptedUnavailableToolNames,
+  );
 
-  if (hasPendingCompaction) lines.push(`- ${formatCompactionLine(isZh)}`);
-  for (const entry of dedupeToolsetEntries(entries)) {
-    lines.push(`- ${formatToolsetLine(entry.payload as Readonly<ToolsetChangedPayload>, isZh)}`);
+  if (hasNewOutage) {
+    lines.push(`- ${formatUnavailableToolsLine(renderedUnavailableToolNames, isZh)}`);
   }
+  if (hasPendingCompaction) lines.push(`- ${formatCompactionLine(isZh)}`);
   for (const entry of memoryFactsEntries(entries)) {
     lines.push(`- ${formatMemoryFactsLine(entry.payload as Readonly<MemoryFactsPayload>, isZh)}`);
   }
@@ -210,20 +245,34 @@ export function collectReminderBlock({
   const lastTimeObservedAt = sessionEntry.lastTimeObservedAt;
   const isTimeStale = lastTimeObservedAt == null || (now - lastTimeObservedAt) > TIME_STALENESS_MS;
   if (isTimeStale) lines.push(`- ${formatTimeLine(now, timeZone, isZh)}`);
-  if (lines.length === 0) return null;
+  if (lines.length === 0 && !availabilityTransition) return null;
 
   let body = lines.join("\n");
   if (body.length > BLOCK_BODY_CHAR_LIMIT) {
-    body = `${body.slice(0, BLOCK_BODY_CHAR_LIMIT - 1)}…`;
+    if (hasNewOutage) {
+      const outageLine = lines[0];
+      const remainingBody = lines.slice(1).join("\n");
+      const remainingLimit = BLOCK_BODY_CHAR_LIMIT - outageLine.length - 1;
+      body = remainingLimit > 1 && remainingBody
+        ? `${outageLine}\n${remainingBody.slice(0, remainingLimit - 1)}…`
+        : outageLine;
+    } else {
+      body = `${body.slice(0, BLOCK_BODY_CHAR_LIMIT - 1)}…`;
+    }
   }
 
   const receipt = Object.freeze({
     observedAt: now,
     throughSeq,
     compactionRevision,
+    unavailableToolNames: Object.freeze([...nextAcceptedUnavailableToolNames]),
+    baseUnavailableRevision: unavailableRevision,
+    consumeBlockState: lines.length > 0,
   });
   return Object.freeze({
-    block: `${REMINDER_BLOCK_PREFIX} at ${formatTimestamp(now, timeZone)}]\n${body}\n${REMINDER_BLOCK_END}`,
+    block: lines.length > 0
+      ? `${REMINDER_BLOCK_PREFIX} at ${formatTimestamp(now, timeZone)}]\n${body}\n${REMINDER_BLOCK_END}`
+      : "",
     receipt,
   });
 }
@@ -241,20 +290,39 @@ export function applyReminderConsumption({
     || !Number.isFinite(receipt.observedAt)
     || !Number.isFinite(receipt.throughSeq)
     || !Number.isFinite(receipt.compactionRevision)
+    || !Array.isArray(receipt.unavailableToolNames)
+    || !Number.isFinite(receipt.baseUnavailableRevision)
+    || typeof receipt.consumeBlockState !== "boolean"
   ) {
     throw new TypeError("applyReminderConsumption requires a valid reminder receipt");
   }
 
-  sessionEntry.reminderEnvCursor = Math.max(
-    nonNegativeInteger(sessionEntry.reminderEnvCursor),
-    nonNegativeInteger(receipt.throughSeq),
+  if (receipt.consumeBlockState) {
+    sessionEntry.reminderEnvCursor = Math.max(
+      nonNegativeInteger(sessionEntry.reminderEnvCursor),
+      nonNegativeInteger(receipt.throughSeq),
+    );
+    const currentRevision = nonNegativeInteger(sessionEntry.reminderCompactionRevision);
+    sessionEntry.reminderConsumedCompactionRevision = Math.max(
+      nonNegativeInteger(sessionEntry.reminderConsumedCompactionRevision),
+      Math.min(nonNegativeInteger(receipt.compactionRevision), currentRevision),
+    );
+    noteTimeObservedForSession(sessionEntry, receipt.observedAt);
+  }
+
+  const currentUnavailableRevision = nonNegativeInteger(
+    sessionEntry.reminderUnavailableRevision,
   );
-  const currentRevision = nonNegativeInteger(sessionEntry.reminderCompactionRevision);
-  sessionEntry.reminderConsumedCompactionRevision = Math.max(
-    nonNegativeInteger(sessionEntry.reminderConsumedCompactionRevision),
-    Math.min(nonNegativeInteger(receipt.compactionRevision), currentRevision),
-  );
-  noteTimeObservedForSession(sessionEntry, receipt.observedAt);
+  if (currentUnavailableRevision === nonNegativeInteger(receipt.baseUnavailableRevision)) {
+    const accepted = normalizeUnavailableToolNames(
+      sessionEntry.reminderAcceptedUnavailableToolNames,
+    );
+    const next = normalizeUnavailableToolNames(receipt.unavailableToolNames);
+    if (!sameNames(accepted, next)) {
+      sessionEntry.reminderAcceptedUnavailableToolNames = next;
+      sessionEntry.reminderUnavailableRevision = currentUnavailableRevision + 1;
+    }
+  }
 }
 
 /** Pure session-state helper used by reminder consumption and current_status(time). */

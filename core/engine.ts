@@ -1159,11 +1159,14 @@ export class HanaEngine {
   steer(text) { return this._sessionCoord.steer(text); }
 
   // ── Path 感知 API（Phase 2） ──
-  async promptSession(p, text, opts) { return this._sessionCoord.promptSession(p, text, opts); }
+  async promptSession(p, text, opts, submitOptions) {
+    return this._sessionCoord.promptSession(p, text, opts, submitOptions);
+  }
   steerSession(p, text) { return this._sessionCoord.steerSession(p, text); }
   async abortSession(p, options) { return this._sessionCoord.abortSession(p, options); }
   getEnvChangeLedger() { return this._envChangeLedger; }
   renderSessionReminderBlock(p) { return this._sessionCoord.renderSessionReminderBlock(p); }
+  preflightSessionInput(p) { return this._sessionCoord.preflightSessionInput(p); }
   consumeRenderedSessionReminderBlock(p, receipt) {
     return this._sessionCoord.consumeRenderedSessionReminderBlock(p, receipt);
   }
@@ -2236,7 +2239,6 @@ export class HanaEngine {
       lifecycleTimeoutMs: undefined,
       logSink: (entry) => this._pluginDevService?.recordLog(entry),
       runtimeContext: this.getRuntimeContext(),
-      envChangeLedger: this._envChangeLedger,
     });
     const allowedPluginDevSourceRoots = [
       pluginDevSourcesDir,
