@@ -194,6 +194,33 @@ describe("server home guards — real spawn behavior (fast failure paths, before
     }
   }, 20000);
 
+  it("prints a HANA_DATA_EPOCH_BLOCKED machine-readable marker ahead of the human-readable text when a higher stamp blocks startup", async () => {
+    const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-blocked-marker-test-"));
+    try {
+      fs.writeFileSync(
+        path.join(hanaHome, "data-epoch.json"),
+        JSON.stringify({ epoch: 999999, lastVersion: "9.9.9", updatedAt: new Date().toISOString() }),
+        "utf-8",
+      );
+
+      const child = spawnServerBootstrap(hanaHome);
+      const result = await waitForExit(child);
+
+      expect(result).toMatchObject({ code: 1, signal: null });
+      expect(result.stderr).toContain("HANA_DATA_EPOCH_BLOCKED reason=epoch-downgrade-blocked");
+      // Machine-readable marker line must come before the human-readable
+      // bilingual block text (desktop's dialog logic scans the full crash
+      // log, but the ordering itself documents the contract).
+      expect(result.stderr.indexOf("HANA_DATA_EPOCH_BLOCKED")).toBeLessThan(result.stderr.indexOf("此数据目录要求数据"));
+      // Human-readable text (bilingual, existing behavior) is unchanged.
+      expect(result.stderr).toContain("epoch=999999");
+      expect(result.stderr).toContain("HANA_ALLOW_DATA_DOWNGRADE=1");
+      expectNoPiRuntimeTrees(hanaHome);
+    } finally {
+      fs.rmSync(hanaHome, { recursive: true, force: true });
+    }
+  }, 20000);
+
   it("exits 1 with a fail-closed message when the data-epoch stamp file is corrupt", async () => {
     const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-corrupt-test-"));
     try {
@@ -264,6 +291,64 @@ describe("server home guards — real spawn behavior (fast failure paths, before
       expect(result.stderr).toContain("migrating");
       expect(result.stdout + result.stderr).not.toContain("ensureFirstRun");
       expect(result.stdout + result.stderr).not.toContain("HanaEngine");
+      expectNoPiRuntimeTrees(hanaHome);
+    } finally {
+      fs.rmSync(hanaHome, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("prints a HANA_DATA_EPOCH_TRANSITION_INCOMPLETE machine-readable marker ahead of the human-readable text for an incomplete transition", async () => {
+    const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-incomplete-marker-test-"));
+    try {
+      fs.writeFileSync(path.join(hanaHome, "data-epoch.json"), JSON.stringify({
+        schemaVersion: 2,
+        epoch: 2,
+        minimumReaderEpoch: 2,
+        committedDataEpoch: 1,
+        lastVersion: "2.0.0",
+        updatedAt: new Date().toISOString(),
+      }), "utf-8");
+      fs.writeFileSync(path.join(hanaHome, "data-epoch-transition.json"), JSON.stringify({
+        schemaVersion: 1,
+        transitionId: "transition-1-2",
+        fromEpoch: 1,
+        toEpoch: 2,
+        migrationIds: ["preferences-1-to-2"],
+        recoveryModes: { "preferences-1-to-2": "restore-only" },
+        phase: "migrating",
+        lastVersion: "2.0.0",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        affectedStoreIds: ["user-preferences"],
+        checkpointId: "checkpoint-1-2",
+        checkpointReceipt: { id: "checkpoint-1-2" },
+      }), "utf-8");
+
+      const child = spawnServerBootstrap(hanaHome);
+      const result = await waitForExit(child);
+
+      expect(result).toMatchObject({ code: 1, signal: null });
+      expect(result.stderr).toContain("HANA_DATA_EPOCH_TRANSITION_INCOMPLETE reason=incomplete-transition");
+      expect(result.stderr.indexOf("HANA_DATA_EPOCH_TRANSITION_INCOMPLETE")).toBeLessThan(result.stderr.indexOf("[data-epoch]"));
+      expect(result.stderr).toContain("incomplete-transition");
+      expect(result.stderr).toContain("migrating");
+      expectNoPiRuntimeTrees(hanaHome);
+    } finally {
+      fs.rmSync(hanaHome, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("prints a HANA_DATA_EPOCH_TRANSITION_INCOMPLETE marker (not BLOCKED) for a corrupt stamp, keeping the reason value distinct from the epoch-downgrade-blocked case", async () => {
+    const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-corrupt-marker-test-"));
+    try {
+      fs.writeFileSync(path.join(hanaHome, "data-epoch.json"), "{ not valid json", "utf-8");
+
+      const child = spawnServerBootstrap(hanaHome);
+      const result = await waitForExit(child);
+
+      expect(result).toMatchObject({ code: 1, signal: null });
+      expect(result.stderr).toContain("HANA_DATA_EPOCH_TRANSITION_INCOMPLETE reason=corrupt-stamp");
+      expect(result.stderr).not.toContain("HANA_DATA_EPOCH_BLOCKED");
       expectNoPiRuntimeTrees(hanaHome);
     } finally {
       fs.rmSync(hanaHome, { recursive: true, force: true });

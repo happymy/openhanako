@@ -8,6 +8,7 @@ import { HanaCliClient } from "./client.ts";
 import { printSessions, printStatus, startChat } from "./chat.ts";
 import { spawnServerForeground, startLocalServerAndWait } from "./server-runner.ts";
 import { runBundlePull, runBundleStatus } from "./bundle.ts";
+import { runDataDiagnose, runDataCheckpoints, runDataRestore } from "./data.ts";
 import { ansi } from "./terminal-theme.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -46,6 +47,18 @@ export async function main(argv = process.argv.slice(2)) {
       return await runBundlePull({ channel: args.channel });
     }
     return await runBundleStatus({ channel: args.channel });
+  }
+
+  if (args.command === "data") {
+    // Local filesystem maintenance surface for the data-epoch safety chain
+    // — never talks to a running server, so it also skips resolveConnection.
+    if (args.subcommand === "diagnose") {
+      return await runDataDiagnose();
+    }
+    if (args.subcommand === "checkpoints") {
+      return await runDataCheckpoints();
+    }
+    return await runDataRestore({ transitionId: args.target, confirmToken: args.confirmToken });
   }
 
   let connection: any = resolveConnection({ url: args.url, token: args.token });

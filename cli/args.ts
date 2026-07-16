@@ -1,5 +1,6 @@
-const COMMANDS = new Set(["serve", "status", "sessions", "continue", "chat", "bundle", "help"]);
+const COMMANDS = new Set(["serve", "status", "sessions", "continue", "chat", "bundle", "data", "help"]);
 const BUNDLE_SUBCOMMANDS = new Set(["pull", "status"]);
+const DATA_SUBCOMMANDS = new Set(["diagnose", "checkpoints", "restore"]);
 const CHANNELS = new Set(["stable", "beta"]);
 
 export function parseCliArgs(argv = []) {
@@ -19,6 +20,7 @@ export function parseCliArgs(argv = []) {
     session: null,
     target: null,
     allowDataDowngrade: false,
+    confirmToken: null,
     passthrough: [],
   };
 
@@ -34,6 +36,8 @@ export function parseCliArgs(argv = []) {
       result.token = requireValue(args, ++i, "--token");
     } else if (arg === "--session") {
       result.session = requireValue(args, ++i, "--session");
+    } else if (arg === "--confirm-token") {
+      result.confirmToken = requireValue(args, ++i, "--confirm-token");
     } else if (arg === "--channel") {
       const value = requireValue(args, ++i, "--channel");
       if (!CHANNELS.has(value)) {
@@ -47,6 +51,10 @@ export function parseCliArgs(argv = []) {
       result.target = arg;
     } else if (command === "bundle" && !result.subcommand && !arg.startsWith("-")) {
       result.subcommand = arg;
+    } else if (command === "data" && !result.subcommand && !arg.startsWith("-")) {
+      result.subcommand = arg;
+    } else if (command === "data" && result.subcommand === "restore" && !result.target && !arg.startsWith("-")) {
+      result.target = arg;
     } else {
       result.passthrough.push(arg);
     }
@@ -59,6 +67,20 @@ export function parseCliArgs(argv = []) {
         ? `unknown bundle subcommand: ${result.subcommand} (expected pull or status)`
         : "bundle requires a subcommand: pull or status",
     };
+  }
+
+  if (command === "data") {
+    if (!DATA_SUBCOMMANDS.has(result.subcommand)) {
+      return {
+        command: "help",
+        error: result.subcommand
+          ? `unknown data subcommand: ${result.subcommand} (expected diagnose, checkpoints, or restore)`
+          : "data requires a subcommand: diagnose, checkpoints, or restore",
+      };
+    }
+    if (result.subcommand === "restore" && !result.target) {
+      return { command: "help", error: "data restore requires a transitionId: hana data restore <transitionId>" };
+    }
   }
 
   return result;
@@ -83,6 +105,9 @@ Usage:
   hana chat [--plain]               Open chat
   hana bundle pull                  Pull and activate the latest web frontend
   hana bundle status                Show the pulled web frontend status
+  hana data diagnose                Read-only data-epoch diagnostics (stamp, journal, checkpoints)
+  hana data checkpoints             List available data-epoch recovery checkpoints
+  hana data restore <transitionId>  Restore data from a checkpoint (asks for confirmation)
 
 Connection options:
   --url <baseUrl>                   Connect to a specific HanaAgent Server
@@ -95,5 +120,10 @@ Serve options:
 
 Channel options:
   --channel <stable|beta>           Release channel for hana serve and hana bundle (default: stable)
+
+Data recovery options:
+  --confirm-token <token>           Non-interactive confirmation for \`hana data restore\`.
+                                     Must exactly equal "restore <transitionId>". Required
+                                     when stdin is not a TTY; there is no way to skip this.
 `;
 }

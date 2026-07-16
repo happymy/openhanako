@@ -4,6 +4,23 @@ import path from "path";
 import os from "os";
 import { spawnSync } from "child_process";
 import vm from "vm";
+import { readDataEpochStamp, writeDataEpochStamp } from "../shared/data-epoch.cjs";
+import { DATA_EPOCH } from "../shared/contract-versions.cjs";
+import { createDataEpochCheckpointProvider } from "../core/data-epoch-checkpoint-provider.ts";
+import { PERSISTENT_STORES } from "../shared/persistence/store-registry.ts";
+import type { StoreDescriptor } from "../shared/persistence/store-registry-types.ts";
+
+// Mirrors tests/data-epoch-restore.test.ts's own testStore helper (not
+// imported — that file does not export it, and this suite must not modify
+// it to do so).
+function testStore(overrides: Partial<StoreDescriptor> & { id: string; pathPatterns: string[] }): StoreDescriptor {
+  return {
+    ...PERSISTENT_STORES[0],
+    ...overrides,
+    pathPattern: overrides.pathPatterns[0],
+    siteRules: overrides.siteRules ?? [],
+  };
+}
 
 const root = process.cwd();
 
@@ -510,6 +527,142 @@ describe("server startup diagnostics contract", () => {
     expect(agentSource.indexOf("[agent] 4. FactStore...")).toBeLessThan(
       agentSource.indexOf("new FactStore("),
     );
+  });
+});
+
+describe("desktop launch failure dialog: data-epoch dedicated branches (C7 E4)", () => {
+  function buildDataEpochDialogContext(homeDir: string) {
+    const mainSource = fs.readFileSync(path.join(root, "desktop", "main.cjs"), "utf-8");
+    const detectDataEpochLaunchMarker = extractFunctionSource(mainSource, "detectDataEpochLaunchMarker");
+    const countAvailableDataEpochCheckpoints = extractFunctionSource(mainSource, "countAvailableDataEpochCheckpoints");
+    const buildDataEpochBlockedDetail = extractFunctionSource(mainSource, "buildDataEpochBlockedDetail");
+    const buildDataEpochTransitionIncompleteDetail = extractFunctionSource(mainSource, "buildDataEpochTransitionIncompleteDetail");
+    const formatPortInUseStartupError = extractFunctionSource(mainSource, "formatPortInUseStartupError");
+    const buildLaunchFailureDialogDetail = extractFunctionSource(mainSource, "buildLaunchFailureDialogDetail");
+
+    const context = vm.createContext({
+      fs,
+      path,
+      hanakoHome: homeDir,
+      readDataEpochStamp,
+      DATA_EPOCH,
+      _serverLogs: [] as string[],
+      extractRootServerStartupError: (_logs: string[]) => null,
+      console,
+    });
+    vm.runInContext(
+      [
+        detectDataEpochLaunchMarker,
+        countAvailableDataEpochCheckpoints,
+        buildDataEpochBlockedDetail,
+        buildDataEpochTransitionIncompleteDetail,
+        formatPortInUseStartupError,
+        buildLaunchFailureDialogDetail,
+      ].join("\n\n"),
+      context,
+    );
+    return context;
+  }
+
+  function makeHomeDir() {
+    return fs.mkdtempSync(path.join(os.tmpdir(), "hana-desktop-epoch-dialog-"));
+  }
+
+  it("recognizes the HANA_DATA_EPOCH_BLOCKED marker and ignores unrelated crash text", () => {
+    const context = buildDataEpochDialogContext(makeHomeDir());
+    expect(context.detectDataEpochLaunchMarker("[stderr] HANA_DATA_EPOCH_BLOCKED reason=epoch-downgrade-blocked\n")).toMatchObject({
+      kind: "blocked",
+      reason: "epoch-downgrade-blocked",
+    });
+    expect(context.detectDataEpochLaunchMarker("[stderr] HANA_DATA_EPOCH_TRANSITION_INCOMPLETE reason=incomplete-transition\n")).toMatchObject({
+      kind: "incomplete",
+      reason: "incomplete-transition",
+    });
+    expect(context.detectDataEpochLaunchMarker("Error: Cannot find module 'foo'\n")).toBeNull();
+    expect(context.detectDataEpochLaunchMarker("")).toBeNull();
+  });
+
+  it("renders a bilingual BLOCKED detail with own/stamped epoch, last version, and checkpoint availability read only through shared/data-epoch.cjs", async () => {
+    const homeDir = makeHomeDir();
+    try {
+      await writeDataEpochStamp(homeDir, { minimumReaderEpoch: 5, committedDataEpoch: 5, lastVersion: "9.9.9" });
+      const context = buildDataEpochDialogContext(homeDir);
+
+      const crashInfo = `=== HanaAgent Crash Log ===\n--- Server Output ---\n[stderr] HANA_DATA_EPOCH_BLOCKED reason=epoch-downgrade-blocked\n[stderr] [data-epoch] 数据安全闸拒绝启动\n`;
+      const detail = context.buildLaunchFailureDialogDetail({ code: undefined, message: "" }, crashInfo);
+
+      expect(detail).toContain("数据已被更新的版本使用");
+      expect(detail).toContain("Your data was upgraded by a newer version");
+      expect(detail).toContain(`本安装能理解的数据纪元：${DATA_EPOCH}`);
+      expect(detail).toContain("数据当前纪元：5");
+      expect(detail).toContain("最后写入数据的版本：9.9.9");
+      expect(detail).toContain("无 / None found");
+      expect(detail).toContain("安装更新版本");
+      expect(detail).toContain("恢复工具");
+      // Full stderr tail is still appended for diagnosability, same pattern
+      // as the STALE_SERVER_UNCLEANED / FOREIGN_SERVER_RUNNING branches.
+      expect(detail).toContain("HANA_DATA_EPOCH_BLOCKED reason=epoch-downgrade-blocked");
+    } finally {
+      fs.rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("shows 未知/unknown for BLOCKED fields when the stamp cannot be read, instead of guessing", () => {
+    const homeDir = makeHomeDir();
+    try {
+      const context = buildDataEpochDialogContext(homeDir); // no stamp written: status "missing"
+      const crashInfo = "HANA_DATA_EPOCH_BLOCKED reason=epoch-downgrade-blocked\n";
+      const detail = context.buildLaunchFailureDialogDetail({}, crashInfo);
+
+      expect(detail).toContain("数据当前纪元：未知/unknown");
+      expect(detail).toContain("最后写入数据的版本：未知/unknown");
+    } finally {
+      fs.rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("counts an available checkpoint into the BLOCKED detail and never re-verifies its bytes/hashes", async () => {
+    const homeDir = makeHomeDir();
+    try {
+      await writeDataEpochStamp(homeDir, { minimumReaderEpoch: 2, committedDataEpoch: 2, lastVersion: "2.0.0" });
+      const store = testStore({ id: "json-store", format: "json", pathKind: "file", pathPatterns: ["user/preferences.json"] });
+      fs.mkdirSync(path.join(homeDir, "user"), { recursive: true });
+      fs.writeFileSync(path.join(homeDir, "user", "preferences.json"), JSON.stringify({ locale: "zh" }));
+      const provider = createDataEpochCheckpointProvider({ stores: [store] });
+      await provider.create({ homeDir, fromEpoch: 1, toEpoch: 2, transitionId: "t-dialog", affectedStoreIds: [store.id] });
+      // A stray .tmp-* staging sibling must not be counted.
+      fs.mkdirSync(path.join(homeDir, "data-epoch-checkpoints", "t-dialog.tmp-999"), { recursive: true });
+
+      const context = buildDataEpochDialogContext(homeDir);
+      const detail = context.buildLaunchFailureDialogDetail({}, "HANA_DATA_EPOCH_BLOCKED reason=epoch-downgrade-blocked\n");
+
+      expect(detail).toContain("有，共 1 个 / Available, 1 found");
+    } finally {
+      fs.rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("renders a generic bilingual TRANSITION_INCOMPLETE detail without epoch/version fields", () => {
+    const context = buildDataEpochDialogContext(makeHomeDir());
+    const detail = context.buildLaunchFailureDialogDetail({}, "HANA_DATA_EPOCH_TRANSITION_INCOMPLETE reason=incomplete-transition\n");
+
+    expect(detail).toContain("数据迁移未完成");
+    expect(detail).toContain("A data migration did not finish");
+    expect(detail).toContain("打开最新版本以继续或恢复".slice(0, 4)); // 打开最新
+    expect(detail).toMatch(/install the latest version/i);
+  });
+
+  it("leaves STALE_SERVER_UNCLEANED / FOREIGN_SERVER_RUNNING / plain-crash behavior unchanged when no data-epoch marker is present", () => {
+    const context = buildDataEpochDialogContext(makeHomeDir());
+
+    const staleErr = { code: "STALE_SERVER_UNCLEANED", message: "STALE_SERVER_UNCLEANED: residual server still running" };
+    const staleDetail = context.buildLaunchFailureDialogDetail(staleErr, "some crash text\n");
+    expect(staleDetail).toContain("STALE_SERVER_UNCLEANED: residual server still running");
+    expect(staleDetail).not.toContain("数据已被更新的版本使用");
+    expect(staleDetail).not.toContain("数据迁移未完成");
+
+    const plainDetail = context.buildLaunchFailureDialogDetail({}, "plain crash text with no markers\n");
+    expect(plainDetail).toBe("plain crash text with no markers\n");
   });
 });
 

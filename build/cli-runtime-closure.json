@@ -175,6 +175,18 @@
       "reason": "Reached via esbuild source module graph, imported by cli/entry.ts (import-statement)."
     },
     {
+      "path": "cli/data.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "cli-entry",
+          "from": "cli/entry.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by cli/entry.ts (import-statement)."
+    },
+    {
       "path": "cli/entry.ts",
       "inputType": "source-graph",
       "provenance": [
@@ -202,11 +214,16 @@
         },
         {
           "root": "cli-entry",
+          "from": "cli/data.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "cli-entry",
           "from": "cli/entry.ts",
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by cli/server-runner.ts (import-statement); cli/bundle.ts (import-statement); cli/entry.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by cli/server-runner.ts (import-statement); cli/bundle.ts (import-statement); cli/data.ts (import-statement); +1 more importer(s)."
     },
     {
       "path": "cli/server-runner.ts",
@@ -241,11 +258,16 @@
         },
         {
           "root": "cli-entry",
+          "from": "cli/data.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "cli-entry",
           "from": "cli/entry.ts",
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by cli/chat.ts (import-statement); cli/server-runner.ts (import-statement); cli/bundle.ts (import-statement); +1 more importer(s)."
+      "reason": "Reached via esbuild source module graph, imported by cli/chat.ts (import-statement); cli/server-runner.ts (import-statement); cli/bundle.ts (import-statement); +2 more importer(s)."
     },
     {
       "path": "core/agent-manager.ts",
@@ -584,36 +606,68 @@
       "inputType": "source-graph",
       "provenance": [
         {
+          "root": "cli-entry",
+          "from": "core/data-epoch-restore.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "cli-entry",
+          "from": "cli/data.ts",
+          "kind": "import-statement"
+        },
+        {
           "root": "server-bootstrap",
           "from": "server/index.ts",
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by server/index.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-restore.ts (import-statement); cli/data.ts (import-statement); server/index.ts (import-statement)."
     },
     {
       "path": "core/data-epoch-coordinator.ts",
       "inputType": "source-graph",
       "provenance": [
         {
+          "root": "cli-entry",
+          "from": "cli/data.ts",
+          "kind": "import-statement"
+        },
+        {
           "root": "server-bootstrap",
           "from": "server/index.ts",
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by server/index.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by cli/data.ts (import-statement); server/index.ts (import-statement)."
     },
     {
       "path": "core/data-epoch-migrations.ts",
       "inputType": "source-graph",
       "provenance": [
         {
+          "root": "cli-entry",
+          "from": "core/data-epoch-coordinator.ts",
+          "kind": "import-statement"
+        },
+        {
           "root": "server-bootstrap",
           "from": "core/data-epoch-coordinator.ts",
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement); core/data-epoch-coordinator.ts (import-statement)."
+    },
+    {
+      "path": "core/data-epoch-restore.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "cli-entry",
+          "from": "cli/data.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by cli/data.ts (import-statement)."
     },
     {
       "path": "core/desktop-session-submit.ts",
@@ -65198,165 +65252,225 @@
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/database.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/index.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/methods/aggregate.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/methods/backup.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/methods/function.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/methods/inspect.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/methods/pragma.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/methods/serialize.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/methods/table.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/methods/transaction.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/methods/wrappers.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/sqlite-error.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/lib/util.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/better-sqlite3/package.json",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/bidi-js/dist/bidi.js",
@@ -65473,22 +65587,30 @@
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/bindings/package.json",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/bl/bl.js",
@@ -72799,22 +72921,30 @@
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/file-uri-to-path/package.json",
       "inputType": "nft-runtime-trace",
       "provenance": [
         {
+          "root": "nft-cli-bundle",
+          "kind": "nft-trace"
+        },
+        {
           "root": "nft-server-bundle",
           "kind": "nft-trace"
         }
       ],
-      "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
+      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
     },
     {
       "path": "node_modules/follow-redirects/debug.js",
@@ -110251,6 +110381,11 @@
           "kind": "import-statement"
         },
         {
+          "root": "cli-entry",
+          "from": "cli/data.ts",
+          "kind": "import-statement"
+        },
+        {
           "root": "server-bootstrap",
           "from": "server/routes/server-identity.ts",
           "kind": "import-statement"
@@ -110266,7 +110401,7 @@
           "kind": "require-call"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by cli/bundle.ts (import-statement); server/routes/server-identity.ts (import-statement); server/index.ts (import-statement); +1 more importer(s)."
+      "reason": "Reached via esbuild source module graph, imported by cli/bundle.ts (import-statement); cli/data.ts (import-statement); server/routes/server-identity.ts (import-statement); +2 more importer(s)."
     },
     {
       "path": "shared/contract-versions.json",
@@ -110307,6 +110442,26 @@
       "inputType": "source-graph",
       "provenance": [
         {
+          "root": "cli-entry",
+          "from": "core/data-epoch-coordinator.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "cli-entry",
+          "from": "core/data-epoch-checkpoint-provider.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "cli-entry",
+          "from": "core/data-epoch-restore.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "cli-entry",
+          "from": "cli/data.ts",
+          "kind": "import-statement"
+        },
+        {
           "root": "server-bootstrap",
           "from": "core/data-epoch-coordinator.ts",
           "kind": "import-statement"
@@ -110317,7 +110472,7 @@
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement); core/data-epoch-checkpoint-provider.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement); core/data-epoch-checkpoint-provider.ts (import-statement); core/data-epoch-restore.ts (import-statement); +3 more importer(s)."
     },
     {
       "path": "shared/default-workspace-constants.ts",
@@ -110481,6 +110636,11 @@
       "inputType": "source-graph",
       "provenance": [
         {
+          "root": "cli-entry",
+          "from": "core/data-epoch-restore.ts",
+          "kind": "import-statement"
+        },
+        {
           "root": "server-bootstrap",
           "from": "core/migrate-providers.ts",
           "kind": "import-statement"
@@ -110521,7 +110681,7 @@
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/migrate-providers.ts (import-statement); shared/known-models.ts (import-statement); lib/i18n.ts (import-statement); +5 more importer(s)."
+      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-restore.ts (import-statement); core/migrate-providers.ts (import-statement); shared/known-models.ts (import-statement); +6 more importer(s)."
     },
     {
       "path": "shared/hana-runtime-paths.cjs",
@@ -111018,17 +111178,37 @@
       "inputType": "source-graph",
       "provenance": [
         {
+          "root": "cli-entry",
+          "from": "core/data-epoch-coordinator.ts",
+          "kind": "import-statement"
+        },
+        {
           "root": "server-bootstrap",
           "from": "core/data-epoch-coordinator.ts",
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement); core/data-epoch-coordinator.ts (import-statement)."
     },
     {
       "path": "shared/persistence/store-registry.ts",
       "inputType": "source-graph",
       "provenance": [
+        {
+          "root": "cli-entry",
+          "from": "core/data-epoch-coordinator.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "cli-entry",
+          "from": "core/data-epoch-checkpoint-provider.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "cli-entry",
+          "from": "core/data-epoch-restore.ts",
+          "kind": "import-statement"
+        },
         {
           "root": "server-bootstrap",
           "from": "core/data-epoch-coordinator.ts",
@@ -111040,7 +111220,7 @@
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement); core/data-epoch-checkpoint-provider.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement); core/data-epoch-checkpoint-provider.ts (import-statement); core/data-epoch-restore.ts (import-statement); +2 more importer(s)."
     },
     {
       "path": "shared/preview-reading-position.ts",
@@ -111592,12 +111772,17 @@
           "kind": "import-statement"
         },
         {
+          "root": "cli-entry",
+          "from": "core/data-epoch-restore.ts",
+          "kind": "import-statement"
+        },
+        {
           "root": "server-bootstrap",
           "from": "server/index.ts",
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by cli/server-runner.ts (import-statement); server/index.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by cli/server-runner.ts (import-statement); core/data-epoch-restore.ts (import-statement); server/index.ts (import-statement)."
     },
     {
       "path": "shared/session-projects.ts",
@@ -111939,9 +112124,9 @@
     }
   ],
   "stats": {
-    "totalFiles": 9606,
+    "totalFiles": 9608,
     "byInputType": {
-      "source-graph": 627,
+      "source-graph": 629,
       "runtime-asset": 11,
       "nft-runtime-trace": 8968
     }
