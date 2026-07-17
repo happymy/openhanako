@@ -62,6 +62,7 @@ import { registerTaskRegistryBusHandlers } from "./task-bus-handlers.ts";
 import { registerDeferredResultBusHandlers } from "./deferred-result-bus-handlers.ts";
 import { resolveHanakoHome } from "../shared/hana-runtime-paths.ts";
 import { DATA_EPOCH } from "../shared/contract-versions.cjs";
+import { readDataEpochStamp } from "../shared/data-epoch.cjs";
 import { describeForeignServerBlock, isForeignServerBlocking, probeServerInfo } from "../shared/server-info-probe.cjs";
 import { coordinateDataEpochStartup, describeDataEpochStartupBlock } from "../core/data-epoch-coordinator.ts";
 import { createDataEpochCheckpointProvider } from "../core/data-epoch-checkpoint-provider.ts";
@@ -293,16 +294,41 @@ export async function startServer(root: CompositionRoot = {}): Promise<void> {
       checkpointProvider: createDataEpochCheckpointProvider(),
     });
     if (epochResult.allowed === false) {
-      // 机读标记先于人读文案打印：desktop 从缓存的 server stderr 里识别这行,
-      // 渲染专属双语对话框(见 desktop/main.cjs 的 detectDataEpochLaunchMarker)。
-      // blocked = 旧内核撞上更高印章;其余 reason(incomplete-transition /
-      // corrupt-* 等)统一归入 transition-incomplete 分支。人读文案不变。
-      const marker = epochResult.reason === "epoch-downgrade-blocked"
-        ? "HANA_DATA_EPOCH_BLOCKED"
-        : "HANA_DATA_EPOCH_TRANSITION_INCOMPLETE";
-      console.error(`${marker} reason=${epochResult.reason}`);
-      console.error(describeDataEpochStartupBlock(epochResult));
-      process.exit(1);
+      // DATA_EPOCH=1 is still the compatibility baseline: production has
+      // no epoch migration path yet. At this stage, damaged/orphaned epoch
+      // metadata is diagnostic evidence, not proof that the user's stores
+      // have changed format. Refusing the whole application on that weak
+      // signal makes the future safety mechanism itself a present-day
+      // availability hazard.
+      //
+      // Keep blocking when there is concrete evidence of newer-format
+      // data: a readable higher stamp or a readable transition targeting a
+      // higher epoch. Once this build itself advances beyond epoch 1, every
+      // coordinator failure is strict again.
+      const stampRead = readDataEpochStamp(hanakoHome);
+      const hasHigherStamp = stampRead.status === "ok"
+        && stampRead.stamp.minimumReaderEpoch > DATA_EPOCH;
+      const hasHigherTransition = Number.isInteger(epochResult.toEpoch)
+        && epochResult.toEpoch! > DATA_EPOCH;
+      const mustBlock = DATA_EPOCH > 1 || hasHigherStamp || hasHigherTransition;
+      if (!mustBlock) {
+        console.warn(
+          `HANA_DATA_EPOCH_BASELINE_WARNING reason=${epochResult.reason}\n`
+          + `[data-epoch] epoch=1 baseline metadata could not be trusted (${epochResult.detail}); `
+          + "no higher-epoch evidence was found, so ordinary startup will continue.",
+        );
+      } else {
+        // 机读标记先于人读文案打印：desktop 从缓存的 server stderr 里识别这行,
+        // 渲染专属双语对话框(见 desktop/main.cjs 的 detectDataEpochLaunchMarker)。
+        // blocked = 旧内核撞上更高印章;其余 reason(incomplete-transition /
+        // corrupt-* 等)统一归入 transition-incomplete 分支。人读文案不变。
+        const marker = epochResult.reason === "epoch-downgrade-blocked"
+          ? "HANA_DATA_EPOCH_BLOCKED"
+          : "HANA_DATA_EPOCH_TRANSITION_INCOMPLETE";
+        console.error(`${marker} reason=${epochResult.reason}`);
+        console.error(describeDataEpochStartupBlock(epochResult));
+        process.exit(1);
+      }
     }
   }
 

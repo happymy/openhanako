@@ -51,6 +51,36 @@ async function waitForExit(child: ReturnType<typeof spawn>, timeoutMs = 15000) {
   return { ...result, stdout, stderr };
 }
 
+async function waitForStartupProgress(child: ReturnType<typeof spawn>, marker = "ensureFirstRun", timeoutMs = 25000) {
+  const childClosed = new Promise<void>((resolve) => child.once("close", () => resolve()));
+  let stdout = "";
+  let stderr = "";
+  child.stdout?.on("data", (chunk) => { stdout += chunk; });
+  child.stderr?.on("data", (chunk) => { stderr += chunk; });
+
+  await new Promise<void>((resolve) => {
+    let check: ReturnType<typeof setInterval>;
+    let timeout: ReturnType<typeof setTimeout>;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearInterval(check);
+      clearTimeout(timeout);
+      resolve();
+    };
+    check = setInterval(() => {
+      if (stdout.includes(marker)) finish();
+    }, 50);
+    timeout = setTimeout(finish, timeoutMs);
+    void childClosed.then(finish);
+  });
+
+  if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+  await childClosed;
+  return { stdout, stderr };
+}
+
 function listenFakeSameHomeServer(handler: http.RequestListener): Promise<{ server: http.Server; port: number }> {
   return new Promise((resolve, reject) => {
     const server = http.createServer(handler);
@@ -224,35 +254,55 @@ describe("server home guards — real spawn behavior (fast failure paths, before
     }
   }, 20000);
 
-  it("exits 1 with a fail-closed message when the data-epoch stamp file is corrupt", async () => {
+  it("continues ordinary startup when the epoch-1 stamp is corrupt but no higher epoch is evidenced", async () => {
     const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-corrupt-test-"));
     try {
       fs.writeFileSync(path.join(hanaHome, "data-epoch.json"), "{ not valid json", "utf-8");
 
       const child = spawnServerBootstrap(hanaHome);
-      const result = await waitForExit(child);
+      const result = await waitForStartupProgress(child);
 
-      expect(result).toMatchObject({ code: 1, signal: null });
-      expect(result.stderr).toContain("data-epoch");
-      expect(result.stderr.toLowerCase()).toContain("corrupt");
-      expectNoPiRuntimeTrees(hanaHome);
+      expect(result.stderr).toContain("HANA_DATA_EPOCH_BASELINE_WARNING reason=corrupt-stamp");
+      expect(result.stderr).not.toContain("HANA_DATA_EPOCH_TRANSITION_INCOMPLETE");
     } finally {
       fs.rmSync(hanaHome, { recursive: true, force: true });
     }
   }, 20000);
 
-  it("exits 1 on a corrupt transition journal before binding or seeding any store", async () => {
+  it("continues ordinary startup for an orphaned corrupt epoch-1 journal without higher-epoch evidence", async () => {
     const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-journal-corrupt-test-"));
     try {
+      fs.writeFileSync(path.join(hanaHome, "data-epoch-transition.json"), "{ not valid json", "utf-8");
+
+      const child = spawnServerBootstrap(hanaHome);
+      const result = await waitForStartupProgress(child);
+
+      expect(result.stderr).toContain("HANA_DATA_EPOCH_BASELINE_WARNING reason=corrupt-journal");
+      expect(result.stderr).not.toContain("HANA_DATA_EPOCH_TRANSITION_INCOMPLETE");
+    } finally {
+      fs.rmSync(hanaHome, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("still blocks a corrupt journal when a readable stamp proves the data is from a higher epoch", async () => {
+    const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-journal-higher-stamp-test-"));
+    try {
+      fs.writeFileSync(path.join(hanaHome, "data-epoch.json"), JSON.stringify({
+        schemaVersion: 2,
+        epoch: 2,
+        minimumReaderEpoch: 2,
+        committedDataEpoch: 1,
+        lastVersion: "2.0.0",
+        updatedAt: new Date().toISOString(),
+      }), "utf-8");
       fs.writeFileSync(path.join(hanaHome, "data-epoch-transition.json"), "{ not valid json", "utf-8");
 
       const child = spawnServerBootstrap(hanaHome);
       const result = await waitForExit(child);
 
       expect(result).toMatchObject({ code: 1, signal: null });
-      expect(result.stderr).toContain("corrupt-journal");
-      expect(result.stdout + result.stderr).not.toContain("ensureFirstRun");
-      expect(result.stdout + result.stderr).not.toContain("HanaEngine");
+      expect(result.stderr).toContain("HANA_DATA_EPOCH_TRANSITION_INCOMPLETE reason=corrupt-journal");
+      expect(result.stderr).not.toContain("HANA_DATA_EPOCH_BASELINE_WARNING");
       expectNoPiRuntimeTrees(hanaHome);
     } finally {
       fs.rmSync(hanaHome, { recursive: true, force: true });
@@ -341,18 +391,17 @@ describe("server home guards — real spawn behavior (fast failure paths, before
     }
   }, 20000);
 
-  it("prints a HANA_DATA_EPOCH_TRANSITION_INCOMPLETE marker (not BLOCKED) for a corrupt stamp, keeping the reason value distinct from the epoch-downgrade-blocked case", async () => {
+  it("reports a non-blocking baseline warning rather than a migration-incomplete marker for a corrupt epoch-1 stamp", async () => {
     const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-corrupt-marker-test-"));
     try {
       fs.writeFileSync(path.join(hanaHome, "data-epoch.json"), "{ not valid json", "utf-8");
 
       const child = spawnServerBootstrap(hanaHome);
-      const result = await waitForExit(child);
+      const result = await waitForStartupProgress(child);
 
-      expect(result).toMatchObject({ code: 1, signal: null });
-      expect(result.stderr).toContain("HANA_DATA_EPOCH_TRANSITION_INCOMPLETE reason=corrupt-stamp");
+      expect(result.stderr).toContain("HANA_DATA_EPOCH_BASELINE_WARNING reason=corrupt-stamp");
+      expect(result.stderr).not.toContain("HANA_DATA_EPOCH_TRANSITION_INCOMPLETE");
       expect(result.stderr).not.toContain("HANA_DATA_EPOCH_BLOCKED");
-      expectNoPiRuntimeTrees(hanaHome);
     } finally {
       fs.rmSync(hanaHome, { recursive: true, force: true });
     }
