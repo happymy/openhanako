@@ -30,6 +30,19 @@ describe("channel tool membership contract", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it("does not direct the model to the removed dm tool", () => {
+    const tool = createChannelTool({
+      channelsDir,
+      agentsDir,
+      agentId: "alice",
+      listAgents: () => [],
+      isEnabled: () => true,
+    } as any);
+
+    expect(tool.description).not.toMatch(/\bdm tool\b/i);
+    expect(tool.description).toContain("cannot read or send one-on-one Agent Phone conversations");
+  });
+
   it("rejects create when fewer than two unique agent members would be present", async () => {
     const tool = createChannelTool({
       channelsDir,

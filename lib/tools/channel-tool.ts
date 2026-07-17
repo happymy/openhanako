@@ -185,7 +185,7 @@ export function createChannelTool({
   return {
     name: "channel",
     label: "Channel",
-    description: "Manage channel messages for broadcasts and group discussions. For one-on-one messaging, use the dm tool instead.",
+    description: "Manage channel messages for broadcasts and group discussions. This tool cannot read or send one-on-one Agent Phone conversations.",
     parameters: Type.Object({
       action: StringEnum(
         ["read", "post", "create", "list"],
