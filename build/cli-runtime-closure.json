@@ -109988,9 +109988,14 @@
           "root": "server-bootstrap",
           "from": "core/data-epoch-checkpoint-provider.ts",
           "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "server/index.ts",
+          "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement); core/data-epoch-checkpoint-provider.ts (import-statement); core/data-epoch-restore.ts (import-statement); +3 more importer(s)."
+      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement); core/data-epoch-checkpoint-provider.ts (import-statement); core/data-epoch-restore.ts (import-statement); +4 more importer(s)."
     },
     {
       "path": "shared/default-workspace-constants.ts",
