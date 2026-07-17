@@ -79,6 +79,14 @@ export const DEFAULT_EXPORT_DIR_NAME = "dist-open-export";
  */
 export const EXPORT_SKELETON = [
   {
+    path: "tsconfig.json",
+    reason: "packages/plugin-protocol and plugin-sdk (whitelisted) carry tsconfig.json files that `extends \"../../tsconfig.json\"`; vite's esbuild transform resolves that chain while bundling their sources, so the root compiler config (pure build settings, no business logic) must exist in the export tree.",
+  },
+  {
+    path: "tsconfig.base.json",
+    reason: "The root tsconfig.json itself `extends ./tsconfig.base.json`; same chain, same build-settings-only content.",
+  },
+  {
     path: "export-manifest.json",
     reason: "scripts/build-server-open.mjs's own assertOpenBuildInputsWhitelisted() reads export-manifest.json from its build root at build time (self-check that the build didn't read anything unwhitelisted); without a copy in the export tree the open build cannot even run its own gate. This ships the manifest itself, not a rewrite of it.",
   },
