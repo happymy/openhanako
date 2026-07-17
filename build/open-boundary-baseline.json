@@ -25,20 +25,6 @@
       "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
     },
     {
-      "from": "core/engine.ts",
-      "to": "core/current-turn-native-media.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Tracks native audio/media attachments for the closed-source desktop UI's current chat turn -- product surface, not generic host capability."
-    },
-    {
-      "from": "core/message-utils.ts",
-      "to": "core/desktop-session-submit.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability."
-    },
-    {
       "from": "core/migrations.ts",
       "to": "lib/desk/automation-normalizer.ts",
       "provenance": "server-bootstrap:import-statement",
@@ -46,25 +32,11 @@
       "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
     },
     {
-      "from": "core/session-turn-actions.ts",
-      "to": "core/desktop-session-submit.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability."
-    },
-    {
       "from": "core/studio-cron-service.ts",
       "to": "lib/desk/cron-store.ts",
       "provenance": "server-bootstrap:import-statement",
       "classification": "closed-product",
       "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
-      "from": "hub/index.ts",
-      "to": "core/desktop-session-submit.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability."
     },
     {
       "from": "hub/scheduler.ts",
@@ -102,13 +74,6 @@
       "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
     },
     {
-      "from": "lib/session-collab/delivery.ts",
-      "to": "core/desktop-session-submit.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability."
-    },
-    {
       "from": "lib/tools/automation-tool.ts",
       "to": "lib/desk/agent-run-automation.ts",
       "provenance": "server-bootstrap:import-statement",
@@ -121,20 +86,6 @@
       "provenance": "server-bootstrap:import-statement",
       "classification": "evidence-needed",
       "note": "Superseded by the mobile-workspace route in ongoing development; this edge is expected to retire with that replacement rather than be re-cut here, so it stays recorded as evidence rather than acted on."
-    },
-    {
-      "from": "server/routes/chat.ts",
-      "to": "core/desktop-session-submit.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability."
-    },
-    {
-      "from": "server/routes/sessions.ts",
-      "to": "core/desktop-session-submit.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability."
     }
   ],
   "evidenceNeeded": [
@@ -171,11 +122,11 @@
     }
   ],
   "stats": {
-    "totalEdges": 19,
+    "totalEdges": 12,
     "byClassification": {
-      "closed-product": 18,
+      "closed-product": 11,
       "evidence-needed": 1
     },
-    "uniqueCoupledFiles": 11
+    "uniqueCoupledFiles": 9
   }
 }

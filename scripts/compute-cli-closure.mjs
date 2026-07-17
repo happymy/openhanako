@@ -968,14 +968,15 @@ export const CLOSED_PRODUCT_PATTERNS = Object.freeze([
     pattern: /^server\/routes\/(avatar|cards|character-cards|desk|diary)\.ts$/,
     note: "Implements the closed-source avatar/card/desk/diary product surface, not generic redistributable host capability.",
   },
-  {
-    pattern: /^core\/current-turn-native-media\.ts$/,
-    note: "Tracks native audio/media attachments for the closed-source desktop UI's current chat turn -- product surface, not generic host capability.",
-  },
-  {
-    pattern: /^core\/desktop-session-submit\.ts$/,
-    note: "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability.",
-  },
+  // core/desktop-session-submit.ts and core/current-turn-native-media.ts
+  // were reclassified redistributable 2026-07-17 (both listed in
+  // export-manifest.json). The earlier notes here guessed "desktop UI
+  // product surface" from the file names, but the evidence says host
+  // plumbing: the open chat/sessions routes and the open engine import
+  // them unconditionally (an open server could not submit a message
+  // without them), every dependency they pull in is already
+  // redistributable, and "desktop session" names an engine-side session
+  // kind, not the desktop renderer.
   { pattern: /^lib\/character-cards\//, note: "Implements the closed-source character-card content system." },
   { pattern: /^lib\/desk\//, note: "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)." },
   { pattern: /^desktop\/src\/react\//, note: "The renderer's React application bundle -- the closed-source desktop UI implementation." },
