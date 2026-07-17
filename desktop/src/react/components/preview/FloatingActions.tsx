@@ -63,7 +63,7 @@ function getAgentGenerateDisabledText(status: CoverGenerationStatus): string {
       return t('cover.agentGenerate.defaultModelMissing');
     case 'default-image-model-invalid':
       return t('cover.agentGenerate.defaultModelInvalid');
-    case 'image-gen-unavailable':
+    case 'image-generation-unavailable':
       return t('cover.agentGenerate.imageGenUnavailable');
     case 'agent-unavailable':
       return t('cover.agentGenerate.agentUnavailable');

@@ -134,7 +134,7 @@ describe("SessionManifestStore", () => {
       authorizedFolders: [path.join(tmpDir, "allowed")],
     });
     store.setPlugin(manifest.sessionId, {
-      ownerPluginId: "image-gen",
+      ownerPluginId: "sample-plugin",
       kind: "media",
       visibility: "private",
     });
@@ -149,7 +149,7 @@ describe("SessionManifestStore", () => {
         authorizedFolders: [path.join(tmpDir, "allowed")],
       },
       plugin: {
-        ownerPluginId: "image-gen",
+        ownerPluginId: "sample-plugin",
         kind: "media",
         visibility: "private",
       },

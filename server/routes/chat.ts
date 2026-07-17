@@ -6,7 +6,7 @@
  */
 import { Hono } from "hono";
 import { MoodParser, ThinkTagParser, CardParser } from "../../core/events.ts";
-import { extractBlocks } from "../block-extractors.ts";
+import { dropUninstalledPluginCards, extractBlocks, pluginInstalledPredicate } from "../block-extractors.ts";
 import { normalizePluginChatSurfaceBlocks } from "../plugin-chat-surface.ts";
 import { toAppEventWsMessage } from "../app-events.ts";
 import { toResourceEventWsMessage } from "../resource-events-ws.ts";
@@ -1202,10 +1202,13 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
 
       // Unified content_block emission for all tool results
       const blocks = normalizePluginChatSurfaceBlocks(
-        enrichSessionFileBlocks(
-          extractBlocks(event.toolName, event.result?.details, event.result),
-          engine,
-          sessionPath,
+        dropUninstalledPluginCards(
+          enrichSessionFileBlocks(
+            extractBlocks(event.toolName, event.result?.details, event.result),
+            engine,
+            sessionPath,
+          ),
+          pluginInstalledPredicate(engine),
         ),
         engine,
       );
@@ -1455,10 +1458,13 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
       }
       if (event.message?.role === "custom" && event.message.display !== false) {
         const blocks = normalizePluginChatSurfaceBlocks(
-          enrichSessionFileBlocks(
-            extractBlocks(event.message.customType, event.message.details, event.message),
-            engine,
-            sessionPath,
+          dropUninstalledPluginCards(
+            enrichSessionFileBlocks(
+              extractBlocks(event.message.customType, event.message.details, event.message),
+              engine,
+              sessionPath,
+            ),
+            pluginInstalledPredicate(engine),
           ),
           engine,
         );

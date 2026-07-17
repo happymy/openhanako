@@ -2780,7 +2780,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 296,
+      "line": 300,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(this.channelsDir, { recursive: true })",
       "reason": "Creates the channel root.",
@@ -2789,7 +2789,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 342,
+      "line": 346,
       "kind": "persistent-store-constructor",
       "excerpt": "new PreferencesManager({ userDir: this.userDir, agentsDir: this.agentsDir })",
       "reason": "Constructs the preferences owner.",
@@ -2798,7 +2798,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 343,
+      "line": 347,
       "kind": "persistent-store-constructor",
       "excerpt": "new InputDraftsStore({ hanakoHome: this.hanakoHome })",
       "reason": "Constructs draft/project stores.",
@@ -2807,7 +2807,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 360,
+      "line": 365,
       "kind": "persistent-store-constructor",
       "excerpt": "new SessionProjectCatalogStore({ userDir: this.userDir })",
       "reason": "Constructs draft/project stores.",
@@ -2816,7 +2816,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 542,
+      "line": 547,
       "kind": "persistent-store-constructor",
       "excerpt": "new TaskRegistry({ persistencePath: path.join(this.hanakoHome, \".ephemeral\", \"plugin-tasks.json\"), getSessionIdForPath: (sessionPath) => this.getSessionIdForPath(sessionPath), })",
       "reason": "Constructs the plugin task registry.",
@@ -2825,7 +2825,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 1082,
+      "line": 1087,
       "kind": "persistent-store-constructor",
       "excerpt": "new SessionManifestStore({ dbPath })",
       "reason": "Constructs the manifest store during engine construction.",
@@ -2834,7 +2834,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 1103,
+      "line": 1108,
       "kind": "persistent-store-constructor",
       "excerpt": "new SessionManifestStore({ dbPath })",
       "reason": "Constructs the manifest store during engine construction.",
@@ -2843,7 +2843,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 1974,
+      "line": 1979,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(skillsDir, { recursive: true })",
       "reason": "Creates the user skill root.",
@@ -2852,7 +2852,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 2156,
+      "line": 2161,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(filePath)",
       "reason": "Deletes an expired legacy ephemeral session JSONL locator.",
@@ -2861,7 +2861,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 2210,
+      "line": 2215,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(pluginDevSourcesDir, { recursive: true })",
       "reason": "Creates the plugin development source root.",
@@ -3238,8 +3238,80 @@
       "exemptionId": "local-user-account-atomic-helper"
     },
     {
+      "sourceFile": "core/media-adapters/agnes.ts",
+      "line": 117,
+      "kind": "mkdir",
+      "excerpt": "fs.mkdirSync(dir, { recursive: true })",
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "storeId": "plugin-runtime-data",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/media-adapters/agnes.ts",
+      "line": 118,
+      "kind": "write-file",
+      "excerpt": "fs.promises.writeFile(path.join(dir, filename), buffer)",
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "storeId": "plugin-runtime-data",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/media/download.ts",
+      "line": 30,
+      "kind": "mkdir",
+      "excerpt": "fs.mkdirSync(dir, { recursive: true })",
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "storeId": "plugin-runtime-data",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/media/download.ts",
+      "line": 32,
+      "kind": "write-file",
+      "excerpt": "fs.promises.writeFile(filePath, buffer)",
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "storeId": "plugin-runtime-data",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/media/local-cli-wrapper.ts",
+      "line": 45,
+      "kind": "mkdir",
+      "excerpt": "fs.mkdirSync(outputDir, { recursive: true })",
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "storeId": "plugin-runtime-data",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/media/task-store.ts",
+      "line": 311,
+      "kind": "mkdir",
+      "excerpt": "fs.mkdirSync(this._dataDir, { recursive: true })",
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "storeId": "plugin-runtime-data",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/media/task-store.ts",
+      "line": 313,
+      "kind": "write-file",
+      "excerpt": "fs.writeFileSync(tmp, JSON.stringify([...this._tasks.values()]), \"utf8\")",
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "storeId": "plugin-runtime-data",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/media/task-store.ts",
+      "line": 314,
+      "kind": "rename",
+      "excerpt": "fs.renameSync(tmp, this._filePath)",
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "storeId": "plugin-runtime-data",
+      "exemptionId": null
+    },
+    {
       "sourceFile": "core/media/universal-media-manager.ts",
-      "line": 307,
+      "line": 318,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(this._generatedDir, { recursive: true })",
       "reason": "Writes data within the active pluginId-scoped data directory.",
@@ -3248,7 +3320,7 @@
     },
     {
       "sourceFile": "core/media/universal-media-manager.ts",
-      "line": 970,
+      "line": 981,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(path.join(this._generatedDir, filename))",
       "reason": "Writes data within the active pluginId-scoped data directory.",
@@ -7540,105 +7612,6 @@
       "exemptionId": "external-beautify-markdown-output"
     },
     {
-      "sourceFile": "plugins/image-gen/adapters/agnes.ts",
-      "line": 117,
-      "kind": "mkdir",
-      "excerpt": "fs.mkdirSync(dir, { recursive: true })",
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "storeId": "plugin-runtime-data",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "plugins/image-gen/adapters/agnes.ts",
-      "line": 118,
-      "kind": "write-file",
-      "excerpt": "fs.promises.writeFile(path.join(dir, filename), buffer)",
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "storeId": "plugin-runtime-data",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "plugins/image-gen/index.ts",
-      "line": 32,
-      "kind": "mkdir",
-      "excerpt": "fs.mkdirSync(generatedDir, { recursive: true })",
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "storeId": "plugin-runtime-data",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "plugins/image-gen/index.ts",
-      "line": 128,
-      "kind": "remove-path",
-      "excerpt": "fs.unlinkSync(path.join(generatedDir, f))",
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "storeId": "plugin-runtime-data",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "plugins/image-gen/index.ts",
-      "line": 139,
-      "kind": "remove-path",
-      "excerpt": "fs.unlinkSync(path.join(generatedDir, f))",
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "storeId": "plugin-runtime-data",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "plugins/image-gen/lib/download.ts",
-      "line": 30,
-      "kind": "mkdir",
-      "excerpt": "fs.mkdirSync(dir, { recursive: true })",
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "storeId": "plugin-runtime-data",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "plugins/image-gen/lib/download.ts",
-      "line": 32,
-      "kind": "write-file",
-      "excerpt": "fs.promises.writeFile(filePath, buffer)",
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "storeId": "plugin-runtime-data",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "plugins/image-gen/lib/local-cli-wrapper.ts",
-      "line": 45,
-      "kind": "mkdir",
-      "excerpt": "fs.mkdirSync(outputDir, { recursive: true })",
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "storeId": "plugin-runtime-data",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "plugins/image-gen/lib/task-store.ts",
-      "line": 311,
-      "kind": "mkdir",
-      "excerpt": "fs.mkdirSync(this._dataDir, { recursive: true })",
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "storeId": "plugin-runtime-data",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "plugins/image-gen/lib/task-store.ts",
-      "line": 313,
-      "kind": "write-file",
-      "excerpt": "fs.writeFileSync(tmp, JSON.stringify([...this._tasks.values()]), \"utf8\")",
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "storeId": "plugin-runtime-data",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "plugins/image-gen/lib/task-store.ts",
-      "line": 314,
-      "kind": "rename",
-      "excerpt": "fs.renameSync(tmp, this._filePath)",
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "storeId": "plugin-runtime-data",
-      "exemptionId": null
-    },
-    {
       "sourceFile": "plugins/jimeng-cli/adapters/dreamina.ts",
       "line": 230,
       "kind": "mkdir",
@@ -7703,7 +7676,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 433,
+      "line": 438,
       "kind": "persistent-store-constructor",
       "excerpt": "new DeferredResultStore( hub.eventBus, path.join(hanakoHome, \".ephemeral\", \"deferred-tasks.json\"), { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null }, )",
       "reason": "Constructs the deferred result store.",
@@ -7712,7 +7685,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 633,
+      "line": 638,
       "kind": "persistent-store-constructor",
       "excerpt": "new ConfirmStore({ getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null, })",
       "reason": "ConfirmStore is deliberately process-memory-only: pending approvals time out or abort with their session and have no restart replay contract.",
@@ -7721,7 +7694,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 638,
+      "line": 643,
       "kind": "persistent-store-constructor",
       "excerpt": "new SubagentRunStore( path.join(hanakoHome, \"subagent-runs.json\"), { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null }, )",
       "reason": "Constructs subagent stores.",
@@ -7730,7 +7703,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 644,
+      "line": 649,
       "kind": "persistent-store-constructor",
       "excerpt": "new SubagentThreadStore( path.join(hanakoHome, \"subagent-threads.json\"), { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null }, )",
       "reason": "Constructs subagent stores.",
@@ -7739,7 +7712,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 655,
+      "line": 660,
       "kind": "persistent-store-constructor",
       "excerpt": "new WorkflowActivityStore( path.join(hanakoHome, \"workflow-activity.json\"), )",
       "reason": "Constructs the workflow activity store.",
@@ -7748,7 +7721,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1072,
+      "line": 1077,
       "kind": "append-file",
       "excerpt": "fs.promises.appendFile(_bwsLogPath, chunk)",
       "reason": "Appends the browser worker log.",
@@ -7757,7 +7730,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1131,
+      "line": 1136,
       "kind": "write-file",
       "excerpt": "fs.writeFileSync(serverInfoPath, JSON.stringify({ pid: process.pid, port: actualPort, host, configuredHost: serverRuntimeState.listenHost, networkMode: serverRuntimeState.mode, configuredMode: serverRuntimeState.configuredMode, configuredLi",
       "reason": "Writes or deletes live server discovery state.",
@@ -7766,7 +7739,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1229,
+      "line": 1234,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(path.join(hanakoHome, \"server-info.json\"))",
       "reason": "Writes or deletes live server discovery state.",
@@ -7928,7 +7901,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 543,
+      "line": 516,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(uploadRoot, { recursive: true })",
       "reason": "Writes or removes a bounded temporary cover upload.",
@@ -7937,7 +7910,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 546,
+      "line": 519,
       "kind": "write-file",
       "excerpt": "fs.writeFileSync(filePath, buffer)",
       "reason": "Writes or removes a bounded temporary cover upload.",
@@ -7946,7 +7919,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 549,
+      "line": 522,
       "kind": "remove-path",
       "excerpt": "fs.rmSync(tempDir, { recursive: true, force: true })",
       "reason": "Writes or removes a bounded temporary cover upload.",
@@ -7955,7 +7928,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 1105,
+      "line": 1078,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(skillsDir, { recursive: true })",
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",
@@ -7964,7 +7937,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 1155,
+      "line": 1128,
       "kind": "remove-path",
       "excerpt": "fs.rmSync(skillDir, { recursive: true, force: true })",
       "reason": "Deletes a skill directory only after the route proves it belongs to the explicitly mounted workspace skill catalog, outside Hana-owned persistence.",
@@ -7973,7 +7946,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 1171,
+      "line": 1144,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(dir, { recursive: true })",
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",
@@ -7982,7 +7955,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 1276,
+      "line": 1249,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(baseDir, { recursive: true })",
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",
@@ -8054,7 +8027,7 @@
     },
     {
       "sourceFile": "server/routes/plugins.ts",
-      "line": 706,
+      "line": 668,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(downloadsDir, { recursive: true })",
       "reason": "Caches a sha256-verified plugin release package.",
@@ -8063,7 +8036,7 @@
     },
     {
       "sourceFile": "server/routes/plugins.ts",
-      "line": 708,
+      "line": 670,
       "kind": "write-file",
       "excerpt": "fs.writeFileSync(packagePath, body)",
       "reason": "Caches a sha256-verified plugin release package.",
@@ -8072,7 +8045,7 @@
     },
     {
       "sourceFile": "server/routes/plugins.ts",
-      "line": 1186,
+      "line": 1144,
       "kind": "remove-path",
       "excerpt": "fs.rmSync(pluginDir, { recursive: true, force: true })",
       "reason": "Creates, promotes, rolls back, or removes an installed plugin directory.",
@@ -8153,7 +8126,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2118,
+      "line": 2121,
       "kind": "append-file",
       "excerpt": "appendFileSync(path.join(engine.hanakoHome, \"switch-error.log\"), `${new Date().toISOString()}\\n${errDetail}\\n---\\n`)",
       "reason": "Appends switch failure diagnostics.",
@@ -8162,7 +8135,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2302,
+      "line": 2305,
       "kind": "mkdir",
       "excerpt": "fs.mkdir(archiveDir, { recursive: true })",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8171,7 +8144,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2310,
+      "line": 2313,
       "kind": "rename",
       "excerpt": "fs.rename(sessionPath, destPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8180,7 +8153,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2376,
+      "line": 2379,
       "kind": "rename",
       "excerpt": "fs.rename(sessionPath, destPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8189,7 +8162,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2388,
+      "line": 2391,
       "kind": "mkdir",
       "excerpt": "fs.mkdir(archDir, { recursive: true })",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8198,7 +8171,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2389,
+      "line": 2392,
       "kind": "rename",
       "excerpt": "fs.rename(destPath, sessionPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",

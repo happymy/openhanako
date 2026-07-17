@@ -125,6 +125,37 @@ describe("composition boundary behavior lock: sorted mount-call inventory", () =
 });
 
 // ---------------------------------------------------------------------------
+// Part 1b — builtin media adapter injection seam. core/media/universal-media-
+// manager.ts (open) never imports core/media-adapters/ (closed) itself; only
+// the closed composition root supplies adapters, via the same root-argument
+// seam as registerClosedRoutes.
+// ---------------------------------------------------------------------------
+
+describe("composition boundary behavior lock: builtin media adapter injection", () => {
+  it("full composition supplies a non-empty builtinMediaAdapters list", async () => {
+    const fullRoot = await import("../server/composition/full-root.ts");
+
+    expect(Array.isArray(fullRoot.builtinMediaAdapters)).toBe(true);
+    expect(fullRoot.builtinMediaAdapters.length).toBeGreaterThan(0);
+  });
+
+  it("server/index.ts (the open composition) only ever forwards root.builtinMediaAdapters, never constructs or imports a closed adapter list itself", () => {
+    const indexSource = fs.readFileSync(path.join(root, "server", "index.ts"), "utf-8");
+
+    expect(indexSource).toContain("builtinMediaAdapters: root.builtinMediaAdapters");
+    expect(indexSource).not.toContain("core/media-adapters/");
+  });
+
+  it("main-full.ts forwards full-root's builtinMediaAdapters into startServer alongside registerClosedRoutes", () => {
+    const mainFullSource = fs.readFileSync(path.join(root, "server", "main-full.ts"), "utf-8");
+
+    expect(mainFullSource).toContain('from "./composition/full-root.ts"');
+    expect(mainFullSource).toMatch(/registerClosedRoutes,\s*builtinMediaAdapters/);
+    expect(mainFullSource).toMatch(/startServer\(\{\s*registerClosedRoutes,\s*builtinMediaAdapters\s*\}\)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Part 2 — bootstrap contract: importing server/index.ts alone must not
 // start anything; only server/main-full.ts (or an equivalent caller of
 // startServer()) does.

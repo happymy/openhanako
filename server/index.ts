@@ -391,7 +391,12 @@ export async function startServer(root: CompositionRoot = {}): Promise<void> {
 
   // ── 初始化引擎 ──
   log.log("② 创建 HanaEngine...");
-  const engine: any = new HanaEngine({ hanakoHome, productDir, appVersion } as any);
+  const engine: any = new HanaEngine({
+    hanakoHome,
+    productDir,
+    appVersion,
+    builtinMediaAdapters: root.builtinMediaAdapters,
+  } as any);
   log.log("② HanaEngine 构造完成，开始 init...");
   await engine.init((msg: any) => log.log(msg));
   log.log("② engine.init 完成");

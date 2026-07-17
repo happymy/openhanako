@@ -86,7 +86,7 @@ function jsonResponse(body: unknown): Response {
   return { json: async () => body } as Response;
 }
 
-describe('MediaTab image-gen config', () => {
+describe('MediaTab media config', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.hanaFetch.mockImplementation((path: string) => {
@@ -181,7 +181,7 @@ describe('MediaTab image-gen config', () => {
     });
   });
 
-  it('loads global image-gen config without agent scope and saves through the generic config envelope', async () => {
+  it('loads global media config without agent scope and saves through the generic config envelope', async () => {
     render(<MediaTab />);
 
     const select = await screen.findByLabelText('settings.media.defaultModel');

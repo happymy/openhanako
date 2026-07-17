@@ -2833,11 +2833,11 @@ describe("sessions route", () => {
     });
   });
 
-  it("restores completed image generation as a session file block and suppresses the old iframe card", async () => {
+  it("restores completed image generation as a session file block and suppresses the iframe card of a since-retired plugin", async () => {
     const { createSessionsRoute } = await import("../server/routes/sessions.ts");
     const msgUtils = await import("../core/message-utils.ts");
     const app = new Hono();
-    const sessionPath = "/tmp/agents/hana/sessions/image-gen.jsonl";
+    const sessionPath = "/tmp/agents/hana/sessions/media-restore.jsonl";
     const resultBody = JSON.stringify({
       sessionFiles: [{
         fileId: "sf_img",
@@ -2857,13 +2857,13 @@ describe("sessions route", () => {
       { role: "assistant", content: "submitted image" },
       {
         role: "toolResult",
-        toolName: "image-gen_generate-image",
+        toolName: "legacy_generate-image",
         details: {
           card: {
             type: "iframe",
             route: "/card?batch=old",
             title: "图片生成",
-            pluginId: "image-gen",
+            pluginId: "retired-plugin",
           },
         },
       },
@@ -2879,6 +2879,10 @@ describe("sessions route", () => {
       agentsDir: "/tmp/agents",
       currentSessionPath: sessionPath,
       deferredResults: null,
+      // The card above was recorded by a plugin that is no longer
+      // installed -- pluginManager confirms its absence so the guard drops
+      // the stale iframe card instead of trying to render it.
+      pluginManager: { getPlugin: () => null },
     };
 
     app.route("/api", createSessionsRoute(engine));
@@ -3025,7 +3029,7 @@ describe("sessions route", () => {
     const { createSessionsRoute } = await import("../server/routes/sessions.ts");
     const msgUtils = await import("../core/message-utils.ts");
     const app = new Hono();
-    const sessionPath = "/tmp/agents/hana/sessions/image-gen-ledger.jsonl";
+    const sessionPath = "/tmp/agents/hana/sessions/legacy-ledger.jsonl";
 
     vi.mocked(msgUtils.extractTextContent)
       .mockReturnValueOnce({ text: "submitted image", images: [], thinking: "", toolUses: [] });
@@ -3033,7 +3037,7 @@ describe("sessions route", () => {
       { role: "assistant", content: "submitted image" },
       {
         role: "toolResult",
-        toolName: "image-gen_generate-image",
+        toolName: "media_generate-image",
         details: {
           mediaGeneration: {
             kind: "image",

@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:5d77682ec494a0a6b0a15f9593ad2114e16710b85f06348d5a4e0330b3131da3",
+  "payloadFingerprint": "sha256:5faf06be74bdd987909916b71b8fc07e345d29a747794f9a179d80b5c6cd34d6",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2876,8 +2876,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Adds forward-only startup repairs for legacy provider metadata, DingTalk authentication settings, and workspace skill policy without changing store formats or the data epoch.",
-    "payloadFingerprint": "sha256:5d77682ec494a0a6b0a15f9593ad2114e16710b85f06348d5a4e0330b3131da3"
+    "compatibilityReason": "media runtime source relocation, no schema change",
+    "payloadFingerprint": "sha256:5faf06be74bdd987909916b71b8fc07e345d29a747794f9a179d80b5c6cd34d6"
   },
   "schemas": [
     {
@@ -3039,7 +3039,7 @@
       "contract": "bounded base64 cover upload temporary-directory lifecycle",
       "kind": "directory-contract",
       "module": "server/routes/desk.ts",
-      "sourceHash": "sha256:164cad0b1a18ea84cd826a1c41ef6609f20bd164fde131bd2b96194c68324038",
+      "sourceHash": "sha256:aef8628965100b5fb18a4314dc1838ae38351d1508080725345ccb105ccea18c",
       "storeId": "desk-cover-upload-staging"
     },
     {
@@ -3137,7 +3137,7 @@
       "contract": "verified plugin release ZIP naming by pluginId/version and expected sha256",
       "kind": "directory-contract",
       "module": "server/routes/plugins.ts",
-      "sourceHash": "sha256:27bb10cccc968917c7d8a871fdf76a55fba8d19bfd2c10f028cff853dba56810",
+      "sourceHash": "sha256:a5ba3f5d830f1215daaba00b716b9ccd46e4740171d373b1ffea7495a183b1d0",
       "storeId": "plugin-download-cache"
     },
     {
@@ -3206,7 +3206,7 @@
       "contract": "server-info writer and desktop bootstrap reader",
       "kind": "runtime-contract",
       "module": "server/index.ts",
-      "sourceHash": "sha256:b0d13f69449b7cfd88393dadd4da8105e534b8165731cc0c8ea1f5c6a4cd00d0",
+      "sourceHash": "sha256:c075fa6067bba388a166e790799d91cc1193f3ad54d49e20665f9811d1a32a7d",
       "storeId": "server-runtime-info"
     },
     {
@@ -3844,7 +3844,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 296,
+      "line": 300,
       "reason": "Creates the channel root.",
       "sourceFile": "core/engine.ts",
       "storeId": "channels"
@@ -3852,7 +3852,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 342,
+      "line": 346,
       "reason": "Constructs the preferences owner.",
       "sourceFile": "core/engine.ts",
       "storeId": "user-preferences"
@@ -3860,7 +3860,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 343,
+      "line": 347,
       "reason": "Constructs draft/project stores.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-drafts-and-projects"
@@ -3868,7 +3868,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 360,
+      "line": 365,
       "reason": "Constructs draft/project stores.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-drafts-and-projects"
@@ -3876,7 +3876,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 542,
+      "line": 547,
       "reason": "Constructs the plugin task registry.",
       "sourceFile": "core/engine.ts",
       "storeId": "plugin-task-registry"
@@ -3884,7 +3884,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 1082,
+      "line": 1087,
       "reason": "Constructs the manifest store during engine construction.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-manifest-sqlite"
@@ -3892,7 +3892,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 1103,
+      "line": 1108,
       "reason": "Constructs the manifest store during engine construction.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-manifest-sqlite"
@@ -3900,7 +3900,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 1974,
+      "line": 1979,
       "reason": "Creates the user skill root.",
       "sourceFile": "core/engine.ts",
       "storeId": "skill-state"
@@ -3908,7 +3908,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 2156,
+      "line": 2161,
       "reason": "Deletes an expired legacy ephemeral session JSONL locator.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-jsonl"
@@ -3916,7 +3916,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 2210,
+      "line": 2215,
       "reason": "Creates the plugin development source root.",
       "sourceFile": "core/engine.ts",
       "storeId": "plugin-development-state"
@@ -4252,7 +4252,71 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 307,
+      "line": 117,
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "sourceFile": "core/media-adapters/agnes.ts",
+      "storeId": "plugin-runtime-data"
+    },
+    {
+      "exemptionId": null,
+      "kind": "write-file",
+      "line": 118,
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "sourceFile": "core/media-adapters/agnes.ts",
+      "storeId": "plugin-runtime-data"
+    },
+    {
+      "exemptionId": null,
+      "kind": "mkdir",
+      "line": 30,
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "sourceFile": "core/media/download.ts",
+      "storeId": "plugin-runtime-data"
+    },
+    {
+      "exemptionId": null,
+      "kind": "write-file",
+      "line": 32,
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "sourceFile": "core/media/download.ts",
+      "storeId": "plugin-runtime-data"
+    },
+    {
+      "exemptionId": null,
+      "kind": "mkdir",
+      "line": 45,
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "sourceFile": "core/media/local-cli-wrapper.ts",
+      "storeId": "plugin-runtime-data"
+    },
+    {
+      "exemptionId": null,
+      "kind": "mkdir",
+      "line": 311,
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "sourceFile": "core/media/task-store.ts",
+      "storeId": "plugin-runtime-data"
+    },
+    {
+      "exemptionId": null,
+      "kind": "write-file",
+      "line": 313,
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "sourceFile": "core/media/task-store.ts",
+      "storeId": "plugin-runtime-data"
+    },
+    {
+      "exemptionId": null,
+      "kind": "rename",
+      "line": 314,
+      "reason": "Writes data within the active pluginId-scoped data directory.",
+      "sourceFile": "core/media/task-store.ts",
+      "storeId": "plugin-runtime-data"
+    },
+    {
+      "exemptionId": null,
+      "kind": "mkdir",
+      "line": 318,
       "reason": "Writes data within the active pluginId-scoped data directory.",
       "sourceFile": "core/media/universal-media-manager.ts",
       "storeId": "plugin-runtime-data"
@@ -4260,7 +4324,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 970,
+      "line": 981,
       "reason": "Writes data within the active pluginId-scoped data directory.",
       "sourceFile": "core/media/universal-media-manager.ts",
       "storeId": "plugin-runtime-data"
@@ -8076,94 +8140,6 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 117,
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "sourceFile": "plugins/image-gen/adapters/agnes.ts",
-      "storeId": "plugin-runtime-data"
-    },
-    {
-      "exemptionId": null,
-      "kind": "write-file",
-      "line": 118,
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "sourceFile": "plugins/image-gen/adapters/agnes.ts",
-      "storeId": "plugin-runtime-data"
-    },
-    {
-      "exemptionId": null,
-      "kind": "mkdir",
-      "line": 32,
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "sourceFile": "plugins/image-gen/index.ts",
-      "storeId": "plugin-runtime-data"
-    },
-    {
-      "exemptionId": null,
-      "kind": "remove-path",
-      "line": 128,
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "sourceFile": "plugins/image-gen/index.ts",
-      "storeId": "plugin-runtime-data"
-    },
-    {
-      "exemptionId": null,
-      "kind": "remove-path",
-      "line": 139,
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "sourceFile": "plugins/image-gen/index.ts",
-      "storeId": "plugin-runtime-data"
-    },
-    {
-      "exemptionId": null,
-      "kind": "mkdir",
-      "line": 30,
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "sourceFile": "plugins/image-gen/lib/download.ts",
-      "storeId": "plugin-runtime-data"
-    },
-    {
-      "exemptionId": null,
-      "kind": "write-file",
-      "line": 32,
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "sourceFile": "plugins/image-gen/lib/download.ts",
-      "storeId": "plugin-runtime-data"
-    },
-    {
-      "exemptionId": null,
-      "kind": "mkdir",
-      "line": 45,
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "sourceFile": "plugins/image-gen/lib/local-cli-wrapper.ts",
-      "storeId": "plugin-runtime-data"
-    },
-    {
-      "exemptionId": null,
-      "kind": "mkdir",
-      "line": 311,
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "sourceFile": "plugins/image-gen/lib/task-store.ts",
-      "storeId": "plugin-runtime-data"
-    },
-    {
-      "exemptionId": null,
-      "kind": "write-file",
-      "line": 313,
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "sourceFile": "plugins/image-gen/lib/task-store.ts",
-      "storeId": "plugin-runtime-data"
-    },
-    {
-      "exemptionId": null,
-      "kind": "rename",
-      "line": 314,
-      "reason": "Writes data within the active pluginId-scoped data directory.",
-      "sourceFile": "plugins/image-gen/lib/task-store.ts",
-      "storeId": "plugin-runtime-data"
-    },
-    {
-      "exemptionId": null,
-      "kind": "mkdir",
       "line": 230,
       "reason": "Writes data within the active pluginId-scoped data directory.",
       "sourceFile": "plugins/jimeng-cli/adapters/dreamina.ts",
@@ -8220,7 +8196,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 433,
+      "line": 438,
       "reason": "Constructs the deferred result store.",
       "sourceFile": "server/index.ts",
       "storeId": "deferred-result-state"
@@ -8228,7 +8204,7 @@
     {
       "exemptionId": "in-memory-confirm-registry",
       "kind": "persistent-store-constructor",
-      "line": 633,
+      "line": 638,
       "reason": "ConfirmStore is deliberately process-memory-only: pending approvals time out or abort with their session and have no restart replay contract.",
       "sourceFile": "server/index.ts",
       "storeId": null
@@ -8236,7 +8212,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 638,
+      "line": 643,
       "reason": "Constructs subagent stores.",
       "sourceFile": "server/index.ts",
       "storeId": "subagent-state"
@@ -8244,7 +8220,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 644,
+      "line": 649,
       "reason": "Constructs subagent stores.",
       "sourceFile": "server/index.ts",
       "storeId": "subagent-state"
@@ -8252,7 +8228,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 655,
+      "line": 660,
       "reason": "Constructs the workflow activity store.",
       "sourceFile": "server/index.ts",
       "storeId": "workflow-state"
@@ -8260,7 +8236,7 @@
     {
       "exemptionId": null,
       "kind": "append-file",
-      "line": 1072,
+      "line": 1077,
       "reason": "Appends the browser worker log.",
       "sourceFile": "server/index.ts",
       "storeId": "runtime-diagnostics"
@@ -8268,7 +8244,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 1131,
+      "line": 1136,
       "reason": "Writes or deletes live server discovery state.",
       "sourceFile": "server/index.ts",
       "storeId": "server-runtime-info"
@@ -8276,7 +8252,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 1229,
+      "line": 1234,
       "reason": "Writes or deletes live server discovery state.",
       "sourceFile": "server/index.ts",
       "storeId": "server-runtime-info"
@@ -8420,7 +8396,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 543,
+      "line": 516,
       "reason": "Writes or removes a bounded temporary cover upload.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": "desk-cover-upload-staging"
@@ -8428,7 +8404,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 546,
+      "line": 519,
       "reason": "Writes or removes a bounded temporary cover upload.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": "desk-cover-upload-staging"
@@ -8436,7 +8412,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 549,
+      "line": 522,
       "reason": "Writes or removes a bounded temporary cover upload.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": "desk-cover-upload-staging"
@@ -8444,7 +8420,7 @@
     {
       "exemptionId": "external-desk-workspace-roots",
       "kind": "mkdir",
-      "line": 1105,
+      "line": 1078,
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": null
@@ -8452,7 +8428,7 @@
     {
       "exemptionId": "workspace-skill-delete",
       "kind": "remove-path",
-      "line": 1155,
+      "line": 1128,
       "reason": "Deletes a skill directory only after the route proves it belongs to the explicitly mounted workspace skill catalog, outside Hana-owned persistence.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": null
@@ -8460,7 +8436,7 @@
     {
       "exemptionId": "external-desk-workspace-roots",
       "kind": "mkdir",
-      "line": 1171,
+      "line": 1144,
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": null
@@ -8468,7 +8444,7 @@
     {
       "exemptionId": "external-desk-workspace-roots",
       "kind": "mkdir",
-      "line": 1276,
+      "line": 1249,
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": null
@@ -8532,7 +8508,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 706,
+      "line": 668,
       "reason": "Caches a sha256-verified plugin release package.",
       "sourceFile": "server/routes/plugins.ts",
       "storeId": "plugin-download-cache"
@@ -8540,7 +8516,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 708,
+      "line": 670,
       "reason": "Caches a sha256-verified plugin release package.",
       "sourceFile": "server/routes/plugins.ts",
       "storeId": "plugin-download-cache"
@@ -8548,7 +8524,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 1186,
+      "line": 1144,
       "reason": "Creates, promotes, rolls back, or removes an installed plugin directory.",
       "sourceFile": "server/routes/plugins.ts",
       "storeId": "installed-plugins"
@@ -8620,7 +8596,7 @@
     {
       "exemptionId": null,
       "kind": "append-file",
-      "line": 2118,
+      "line": 2121,
       "reason": "Appends switch failure diagnostics.",
       "sourceFile": "server/routes/sessions.ts",
       "storeId": "runtime-diagnostics"
@@ -8628,7 +8604,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 2302,
+      "line": 2305,
       "reason": "Archives, restores, or deletes a session JSONL locator.",
       "sourceFile": "server/routes/sessions.ts",
       "storeId": "session-jsonl"
@@ -8636,7 +8612,7 @@
     {
       "exemptionId": null,
       "kind": "rename",
-      "line": 2310,
+      "line": 2313,
       "reason": "Archives, restores, or deletes a session JSONL locator.",
       "sourceFile": "server/routes/sessions.ts",
       "storeId": "session-jsonl"
@@ -8644,7 +8620,7 @@
     {
       "exemptionId": null,
       "kind": "rename",
-      "line": 2376,
+      "line": 2379,
       "reason": "Archives, restores, or deletes a session JSONL locator.",
       "sourceFile": "server/routes/sessions.ts",
       "storeId": "session-jsonl"
@@ -8652,7 +8628,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 2388,
+      "line": 2391,
       "reason": "Archives, restores, or deletes a session JSONL locator.",
       "sourceFile": "server/routes/sessions.ts",
       "storeId": "session-jsonl"
@@ -8660,7 +8636,7 @@
     {
       "exemptionId": null,
       "kind": "rename",
-      "line": 2389,
+      "line": 2392,
       "reason": "Archives, restores, or deletes a session JSONL locator.",
       "sourceFile": "server/routes/sessions.ts",
       "storeId": "session-jsonl"

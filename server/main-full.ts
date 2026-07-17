@@ -9,11 +9,12 @@
  * `server/bootstrap.ts` imports at runtime).
  *
  * It statically imports the open composition root's `startServer` export
- * plus the closed route registration hook, and calls one with the other —
- * no runtime switch, no env var: which composition boots is decided by
- * which entry file gets spawned, decided once at each boot path above.
+ * plus the closed route registration hook and closed media adapter list,
+ * and calls one with the other — no runtime switch, no env var: which
+ * composition boots is decided by which entry file gets spawned, decided
+ * once at each boot path above.
  */
 import { startServer } from "./index.ts";
-import { registerClosedRoutes } from "./composition/full-root.ts";
+import { registerClosedRoutes, builtinMediaAdapters } from "./composition/full-root.ts";
 
-await startServer({ registerClosedRoutes });
+await startServer({ registerClosedRoutes, builtinMediaAdapters });

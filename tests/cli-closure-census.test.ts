@@ -136,7 +136,7 @@ describe("compute-cli-closure: open/closed classification", () => {
   });
 
   it("classifies closed-content (built-in plugins/skills)", () => {
-    expect(classifyRepoPath("plugins/image-gen/builtin-adapters.ts")).toMatchObject({ classification: "closed-content" });
+    expect(classifyRepoPath("plugins/beautify/index.ts")).toMatchObject({ classification: "closed-content" });
     expect(classifyRepoPath("skills2set/whatever.md")).toMatchObject({ classification: "closed-content" });
   });
 

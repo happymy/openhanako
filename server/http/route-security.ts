@@ -198,7 +198,7 @@ export function classifyHttpRoute({ method = "GET", path = "" } = {}) {
 
 /**
  * 插件 route 代理路径：/api/plugins/:pluginId/<subPath>，排除宿主自有 id。
- * 必须在所有更具体的 /api/plugins/* 匹配器（settings / mcp / image-gen /
+ * 必须在所有更具体的 /api/plugins/* 匹配器（settings / mcp /
  * assets / dev / iframe-ticket 等）之后调用，那些路径保持原有 scope 策略。
  */
 function classifyPluginRouteProxyPath(routePath) {
@@ -329,7 +329,6 @@ function isClientLocalOnlyRoute(verb, routePath) {
   if (routePath === "/api/plugins/install") return true;
   if (routePath.startsWith("/api/plugins/dev/") || routePath === "/api/plugins/dev") return true;
   if (routePath === "/api/preferences/computer-use/request-permissions") return true;
-  if (routePath.startsWith("/api/plugins/image-gen/media/open/")) return true;
   if (routePath.startsWith("/api/media/generated/open/")) return true;
   if (/^\/api\/plugins\/[^/]+\/assets\/.+$/.test(routePath) && verb !== "GET" && verb !== "HEAD") {
     return true;
@@ -516,12 +515,7 @@ function isImageGenerationReadRoute(verb, routePath) {
     || routePath === "/api/media/tasks"
     || /^\/api\/media\/generated\/[^/]+$/.test(routePath)
     || /^\/api\/media\/tasks\/batch\/[^/]+$/.test(routePath)
-    || /^\/api\/media\/tasks\/[^/]+$/.test(routePath)
-    || routePath === "/api/plugins/image-gen/providers"
-    || routePath === "/api/plugins/image-gen/tasks"
-    || /^\/api\/plugins\/image-gen\/media\/[^/]+$/.test(routePath)
-    || /^\/api\/plugins\/image-gen\/tasks\/batch\/[^/]+$/.test(routePath)
-    || /^\/api\/plugins\/image-gen\/tasks\/[^/]+$/.test(routePath);
+    || /^\/api\/media\/tasks\/[^/]+$/.test(routePath);
 }
 
 function isMediaSubmitRoute(verb, routePath) {
@@ -533,19 +527,13 @@ function isMediaSubmitRoute(verb, routePath) {
 }
 
 function isImageGenerationWriteRoute(verb, routePath) {
-  return verb === "PUT" && (
-    routePath === "/api/media/image/config"
-    || routePath === "/api/plugins/image-gen/config"
-  );
+  return verb === "PUT" && routePath === "/api/media/image/config";
 }
 
 function isImageGenerationProviderManagementRoute(verb, routePath) {
   return (verb === "POST" && /^\/api\/media\/image\/providers\/[^/]+\/models$/.test(routePath))
     || (verb === "DELETE" && /^\/api\/media\/image\/providers\/[^/]+\/models\/[^/]+$/.test(routePath))
-    || (verb === "POST" && /^\/api\/media\/tasks\/[^/]+\/retry$/.test(routePath))
-    || (verb === "POST" && /^\/api\/plugins\/image-gen\/providers\/[^/]+\/models$/.test(routePath))
-    || (verb === "DELETE" && /^\/api\/plugins\/image-gen\/providers\/[^/]+\/models\/[^/]+$/.test(routePath))
-    || (verb === "POST" && /^\/api\/plugins\/image-gen\/tasks\/[^/]+\/retry$/.test(routePath));
+    || (verb === "POST" && /^\/api\/media\/tasks\/[^/]+\/retry$/.test(routePath));
 }
 
 function isPluginSettingsReadRoute(verb, routePath) {

@@ -54,4 +54,10 @@ export interface CompositionRoot {
    * the closed-product surface on top of the same `app` and `ctx`.
    */
   registerClosedRoutes?: (app: Hono, ctx: CompositionContext) => void;
+  /**
+   * Closed-content media adapter implementations (core/media-adapters/) to
+   * inject into the media runtime's built-in adapter list. Absent means the
+   * open composition: zero built-in adapters, not an implicit closed import.
+   */
+  builtinMediaAdapters?: readonly any[];
 }

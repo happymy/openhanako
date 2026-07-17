@@ -25,7 +25,6 @@ import { DEFAULT_DISABLED_TOOL_NAMES } from "../../shared/tool-categories.ts";
 import { applyMarkdownCoverFromGeneratedFile } from "../../plugins/beautify/lib/markdown-cover-service.ts";
 import { resolveCoverGalleryPresetImagePath } from "../../plugins/beautify/lib/cover-gallery-assets.ts";
 import { buildCoverStyleGuideForAgent } from "../../plugins/beautify/lib/cover-style-guide.ts";
-import { createSubmitContext, validateImageModelRef } from "../../plugins/image-gen/lib/image-task-runner.ts";
 import { DEFAULT_ACTIVITY_EXECUTION_TIMEOUT_MS, activityTimeoutPatch } from "../../lib/desk/activity-store.ts";
 import { t } from "../../lib/i18n.ts";
 import { realPath, isSensitivePath } from "../utils/path-security.ts";
@@ -250,30 +249,14 @@ export function createDeskRoute(engine, hub) {
     return agent?.agentName || agent?.name || agentId || null;
   }
 
+  // engine.media (core/media/universal-media-manager.ts) is the sole runtime
+  // source: it is constructed unconditionally by HanaEngine, so its absence
+  // here means genuinely unavailable, never "ask the plugin manager instead".
   function getImageGenerationRuntime() {
-    if (engine.media) {
-      return {
-        config: engine.media.config,
-        resolveImageModelRef: (ref) => engine.media.resolveImageModelRef(ref),
-      };
-    }
-    const imageGenCtx = engine.pluginManager?.getPlugin?.("image-gen")?.ctx || null;
-    if (!imageGenCtx) return null;
-    const registry = imageGenCtx._mediaGen?.registry || null;
-    if (!registry) {
-      return {
-        config: imageGenCtx.config,
-        unavailableReason: "image-generation-runtime-unavailable",
-        unavailableMessage: "image generation runtime is unavailable",
-      };
-    }
+    if (!engine.media) return null;
     return {
-      config: imageGenCtx.config,
-      resolveImageModelRef: (ref) => validateImageModelRef(
-        ref,
-        registry,
-        createSubmitContext(imageGenCtx),
-      ),
+      config: engine.media.config,
+      resolveImageModelRef: (ref) => engine.media.resolveImageModelRef(ref),
     };
   }
 
@@ -283,21 +266,11 @@ export function createDeskRoute(engine, hub) {
       return {
         ok: false,
         status: 404,
-        reason: "image-gen-unavailable",
+        reason: "image-generation-unavailable",
         error: "image generation runtime is unavailable",
         settingsTarget: "media",
       };
     }
-    if (imageRuntime.unavailableReason) {
-      return {
-        ok: false,
-        status: 409,
-        reason: imageRuntime.unavailableReason,
-        error: imageRuntime.unavailableMessage || "image generation runtime is unavailable",
-        settingsTarget: "media",
-      };
-    }
-
     const defaultModel = imageRuntime.config?.get?.("defaultImageModel");
     if (!defaultModel?.provider || !defaultModel?.id) {
       return {
@@ -571,7 +544,7 @@ export function createDeskRoute(engine, hub) {
     if (!status.enabled) {
       const httpStatus = status.disabledReason === "beautify-disabled"
         ? 403
-        : status.disabledReason === "beautify-plugin-unavailable" || status.disabledReason === "image-gen-unavailable"
+        : status.disabledReason === "beautify-plugin-unavailable" || status.disabledReason === "image-generation-unavailable"
           ? 404
           : 409;
       return {

@@ -100,7 +100,7 @@ describe("scan", () => {
 });
 
 describe("loadAll", () => {
-  it("loads real bundled media, image-gen, jimeng-cli, beautify, mcp, and office plugin contributions", async () => {
+  it("loads real bundled media, jimeng-cli, beautify, mcp, and office plugin contributions", async () => {
     const bus = await makeBus();
     for (const type of [
       "provider:register-runtime-media-capability-source",
@@ -129,7 +129,7 @@ describe("loadAll", () => {
       await pm.loadAll();
 
       const diagnosticsById = new Map(pm.getDiagnostics().map((entry) => [entry.id, entry]));
-      for (const id of ["media", "image-gen", "jimeng-cli", "beautify", "mcp", "office"]) {
+      for (const id of ["media", "jimeng-cli", "beautify", "mcp", "office"]) {
         expect(diagnosticsById.get(id)).toMatchObject({
           id,
           source: "builtin",
@@ -153,16 +153,10 @@ describe("loadAll", () => {
         "office_read-document",
         "office_html-to-pdf",
       ]));
-      expect(toolNames.filter((name) => name.startsWith("image-gen_"))).toEqual([]);
       expect(pm.getSkillPaths()).toEqual(expect.arrayContaining([
         expect.objectContaining({ pluginId: "media", builtin: true }),
       ]));
-      expect(pm.getSkillPaths()).not.toEqual(expect.arrayContaining([
-        expect.objectContaining({ pluginId: "image-gen", builtin: true }),
-      ]));
-      expect(pm.routeRegistry.has("image-gen")).toBe(true);
       expect(pm.routeRegistry.has("mcp")).toBe(true);
-      expect(pm.getConfigSchema("image-gen")?.properties).toHaveProperty("defaultImageModel");
       expect(pm.getConfigSchema("beautify")?.properties).toHaveProperty("coverResolution");
       expect(pm.getSettingsTabs()).toEqual(expect.arrayContaining([
         expect.objectContaining({
@@ -171,7 +165,7 @@ describe("loadAll", () => {
         }),
       ]));
     } finally {
-      for (const id of ["media", "image-gen", "jimeng-cli", "beautify", "mcp", "office"]) {
+      for (const id of ["media", "jimeng-cli", "beautify", "mcp", "office"]) {
         await pm.unloadPlugin(id, { source: "builtin" });
       }
     }

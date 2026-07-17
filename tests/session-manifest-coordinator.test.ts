@@ -231,13 +231,13 @@ describe("SessionCoordinator session manifest integration", () => {
 
     await coordinator.createSession(null, tempDir, true);
     await coordinator.setSessionPluginMeta(sessionPath, {
-      ownerPluginId: "image-gen",
+      ownerPluginId: "sample-plugin",
       kind: "media",
       visibility: "private",
     });
 
     expect(store.getBySessionId("sess_coord_0001")?.plugin).toEqual({
-      ownerPluginId: "image-gen",
+      ownerPluginId: "sample-plugin",
       kind: "media",
       visibility: "private",
     });
@@ -247,7 +247,7 @@ describe("SessionCoordinator session manifest integration", () => {
     await coordinator.setSessionPluginMeta(movedPath, { visibility: "public" });
 
     expect(store.getBySessionId("sess_coord_0001")?.plugin).toEqual({
-      ownerPluginId: "image-gen",
+      ownerPluginId: "sample-plugin",
       kind: "media",
       visibility: "public",
     });
@@ -260,7 +260,7 @@ describe("SessionCoordinator session manifest integration", () => {
     const pinnedAt = await coordinator.setSessionPinned(sessionPath, true);
     await coordinator.saveSessionTitle(sessionPath, "Moved title");
     await coordinator.setSessionPluginMeta(sessionPath, {
-      ownerPluginId: "image-gen",
+      ownerPluginId: "sample-plugin",
       kind: "media",
       visibility: "private",
     });
@@ -276,7 +276,7 @@ describe("SessionCoordinator session manifest integration", () => {
       sessionId: "sess_coord_0001",
       title: "Moved title",
       pinnedAt,
-      ownerPluginId: "image-gen",
+      ownerPluginId: "sample-plugin",
       sessionKind: "media",
       visibility: "private",
     });

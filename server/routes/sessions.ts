@@ -7,7 +7,7 @@ import path from "path";
 import { Hono } from "hono";
 import { safeJson } from "../hono-helpers.ts";
 import { t } from "../../lib/i18n.ts";
-import { extractBlocks, resolveMediaGenerationBlocks } from "../block-extractors.ts";
+import { dropUninstalledPluginCards, extractBlocks, pluginInstalledPredicate, resolveMediaGenerationBlocks } from "../block-extractors.ts";
 import { normalizePluginChatSurfaceBlocks } from "../plugin-chat-surface.ts";
 import { buildDeferredResultInterludeBlock, resolveDeferredReceiverName } from "../deferred-result-interlude.ts";
 import { BrowserManager } from "../../lib/browser/browser-manager.ts";
@@ -1520,10 +1520,13 @@ export function createSessionsRoute(engine, hub = null) {
         }
       }
       const resolvedBlocks = normalizePluginChatSurfaceBlocks(
-        resolveMediaGenerationBlocks(
-          blocks,
-          mediaGenerationResults,
-          standaloneMediaGenerationResults,
+        dropUninstalledPluginCards(
+          resolveMediaGenerationBlocks(
+            blocks,
+            mediaGenerationResults,
+            standaloneMediaGenerationResults,
+          ),
+          pluginInstalledPredicate(engine),
         ),
         engine,
       );

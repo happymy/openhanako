@@ -32,41 +32,6 @@
       "note": "Tracks native audio/media attachments for the closed-source desktop UI's current chat turn -- product surface, not generic host capability."
     },
     {
-      "from": "core/media/universal-media-manager.ts",
-      "to": "plugins/image-gen/builtin-adapters.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "core/media/universal-media-manager.ts",
-      "to": "plugins/image-gen/lib/image-task-runner.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "core/media/universal-media-manager.ts",
-      "to": "plugins/image-gen/lib/poller.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "core/media/universal-media-manager.ts",
-      "to": "plugins/image-gen/lib/submit-image.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "core/media/universal-media-manager.ts",
-      "to": "plugins/image-gen/lib/task-store.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
       "from": "core/message-utils.ts",
       "to": "core/desktop-session-submit.ts",
       "provenance": "server-bootstrap:import-statement",
@@ -165,160 +130,6 @@
       "note": "Shared desktop-shell code mixing generic startup/update/error/preload plumbing with product-specific behavior; needs a dedicated pass to separate the two before it can be classified."
     },
     {
-      "from": "plugins/image-gen/adapters/agnes.ts",
-      "to": "plugins/image-gen/adapters/common.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/adapters/common.ts",
-      "to": "plugins/image-gen/lib/download.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/adapters/dashscope.ts",
-      "to": "plugins/image-gen/adapters/common.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/adapters/gemini.ts",
-      "to": "plugins/image-gen/adapters/common.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/adapters/minimax.ts",
-      "to": "plugins/image-gen/adapters/common.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/adapters/openai-codex.ts",
-      "to": "plugins/image-gen/lib/download.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/adapters/openai-codex.ts",
-      "to": "plugins/image-gen/lib/resolution-tiers.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/adapters/openai.ts",
-      "to": "plugins/image-gen/lib/download.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/adapters/openai.ts",
-      "to": "plugins/image-gen/lib/model-catalog.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/adapters/openai.ts",
-      "to": "plugins/image-gen/lib/resolution-tiers.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/adapters/volcengine.ts",
-      "to": "plugins/image-gen/lib/download.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/adapters/volcengine.ts",
-      "to": "plugins/image-gen/lib/model-catalog.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/builtin-adapters.ts",
-      "to": "plugins/image-gen/adapters/agnes.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/builtin-adapters.ts",
-      "to": "plugins/image-gen/adapters/dashscope.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/builtin-adapters.ts",
-      "to": "plugins/image-gen/adapters/gemini.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/builtin-adapters.ts",
-      "to": "plugins/image-gen/adapters/minimax.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/builtin-adapters.ts",
-      "to": "plugins/image-gen/adapters/openai-codex.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/builtin-adapters.ts",
-      "to": "plugins/image-gen/adapters/openai.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/builtin-adapters.ts",
-      "to": "plugins/image-gen/adapters/volcengine.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/lib/poller.ts",
-      "to": "plugins/image-gen/lib/image-size.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/lib/poller.ts",
-      "to": "plugins/image-gen/lib/image-task-runner.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
-      "from": "plugins/image-gen/lib/submit-image.ts",
-      "to": "plugins/image-gen/lib/image-task-runner.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-content",
-      "note": "Built-in plugins are closed-source product content shipped with the app, not part of the redistributable core."
-    },
-    {
       "from": "server/block-extractors.ts",
       "to": "server/suggestion-blocks.ts",
       "provenance": "server-bootstrap:import-statement",
@@ -408,13 +219,12 @@
     }
   ],
   "stats": {
-    "totalEdges": 51,
+    "totalEdges": 24,
     "byClassification": {
       "closed-product": 18,
-      "closed-content": 27,
       "provisional": 3,
       "evidence-needed": 3
     },
-    "uniqueCoupledFiles": 31
+    "uniqueCoupledFiles": 14
   }
 }

@@ -280,8 +280,12 @@ export class HanaEngine {
    * @param {string} dirs.productDir
    * @param {string} [dirs.agentId]
    * @param {string} [dirs.appVersion]
+   * @param {any[]} [dirs.builtinMediaAdapters] Closed-content media adapter
+   *   implementations (core/media-adapters/), supplied by the composition
+   *   root. Absent/empty means an open composition: the media runtime
+   *   constructs with zero built-in adapters, never an implicit import.
    */
-  constructor({ hanakoHome, productDir, agentId, appVersion }) {
+  constructor({ hanakoHome, productDir, agentId, appVersion, builtinMediaAdapters }) {
     this.hanakoHome = hanakoHome;
     this.productDir = productDir;
     this.appVersion = appVersion || "0.0.0";
@@ -356,6 +360,7 @@ export class HanaEngine {
       sessionFiles: this._sessionFiles,
       registerSessionFile: (entry) => this.serializeSessionFile(this.registerSessionFile(entry)),
       onProviderChanged: () => this.onProviderChanged(),
+      builtinAdapters: builtinMediaAdapters,
     });
     this._sessionProjects = new SessionProjectCatalogStore({ userDir: this.userDir });
 

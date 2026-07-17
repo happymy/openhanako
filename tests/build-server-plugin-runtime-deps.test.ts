@@ -31,15 +31,15 @@ describe("bundled plugin runtime dependencies", () => {
       "utf-8",
     );
 
-    fs.mkdirSync(path.join(rootDir, "plugins", "image-gen", "lib"), { recursive: true });
+    fs.mkdirSync(path.join(rootDir, "plugins", "sample-plugin", "lib"), { recursive: true });
     fs.writeFileSync(
-      path.join(rootDir, "plugins", "image-gen", "lib", "local-cli-wrapper.js"),
+      path.join(rootDir, "plugins", "sample-plugin", "lib", "local-cli-wrapper.js"),
       'import { buildCliArgs } from "../../../core/media-runtime-contract.ts";\nexport { buildCliArgs };\n',
       "utf-8",
     );
-    fs.mkdirSync(path.join(rootDir, "plugins", "image-gen", "tests"), { recursive: true });
+    fs.mkdirSync(path.join(rootDir, "plugins", "sample-plugin", "tests"), { recursive: true });
     fs.writeFileSync(
-      path.join(rootDir, "plugins", "image-gen", "tests", "fixture.test.js"),
+      path.join(rootDir, "plugins", "sample-plugin", "tests", "fixture.test.js"),
       'import "../../../server/test-only.js";\n',
       "utf-8",
     );

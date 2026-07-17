@@ -89,7 +89,7 @@ describe("session manifest legacy migration", () => {
         thinkingLevel: "high",
         workspaceFolders: ["/workspace/a"],
         plugin: {
-          ownerPluginId: "image-gen",
+          ownerPluginId: "sample-plugin",
           kind: "media",
           visibility: "private",
         },
@@ -132,7 +132,7 @@ describe("session manifest legacy migration", () => {
         workspaceFolders: ["/workspace/a"],
       },
       plugin: {
-        ownerPluginId: "image-gen",
+        ownerPluginId: "sample-plugin",
         kind: "media",
         visibility: "private",
       },

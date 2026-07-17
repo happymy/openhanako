@@ -1072,12 +1072,29 @@
       "reason": "Reached via esbuild source module graph, imported by core/provider-registry.ts (import-statement)."
     },
     {
-      "path": "core/media/media-parameters.ts",
+      "path": "core/media/image-size.ts",
       "inputType": "source-graph",
       "provenance": [
         {
           "root": "server-bootstrap",
-          "from": "plugins/image-gen/lib/submit-image.ts",
+          "from": "core/media/poller.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by core/media/poller.ts (import-statement)."
+    },
+    {
+      "path": "core/media/image-task-runner.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "server-bootstrap",
+          "from": "core/media/poller.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "core/media/submit-image.ts",
           "kind": "import-statement"
         },
         {
@@ -1086,7 +1103,60 @@
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/lib/submit-image.ts (import-statement); core/media/universal-media-manager.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/media/poller.ts (import-statement); core/media/submit-image.ts (import-statement); core/media/universal-media-manager.ts (import-statement)."
+    },
+    {
+      "path": "core/media/media-parameters.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "server-bootstrap",
+          "from": "core/media/submit-image.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "core/media/universal-media-manager.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by core/media/submit-image.ts (import-statement); core/media/universal-media-manager.ts (import-statement)."
+    },
+    {
+      "path": "core/media/poller.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "server-bootstrap",
+          "from": "core/media/universal-media-manager.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by core/media/universal-media-manager.ts (import-statement)."
+    },
+    {
+      "path": "core/media/submit-image.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "server-bootstrap",
+          "from": "core/media/universal-media-manager.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by core/media/universal-media-manager.ts (import-statement)."
+    },
+    {
+      "path": "core/media/task-store.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "server-bootstrap",
+          "from": "core/media/universal-media-manager.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by core/media/universal-media-manager.ts (import-statement)."
     },
     {
       "path": "core/media/universal-media-manager.ts",
@@ -5314,47 +5384,12 @@
         },
         {
           "root": "server-bootstrap",
-          "from": "plugins/image-gen/lib/image-task-runner.ts",
+          "from": "core/media/image-task-runner.ts",
           "kind": "import-statement"
         },
         {
           "root": "server-bootstrap",
-          "from": "plugins/image-gen/lib/submit-image.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/agnes.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/dashscope.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/gemini.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/minimax.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/openai-codex.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/openai.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/volcengine.ts",
+          "from": "core/media/submit-image.ts",
           "kind": "import-statement"
         },
         {
@@ -5473,7 +5508,7 @@
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by lib/llm/provider-client.ts (import-statement); core/execution-router.ts (import-statement); core/model-manager.ts (import-statement); +75 more importer(s)."
+      "reason": "Reached via esbuild source module graph, imported by lib/llm/provider-client.ts (import-statement); core/execution-router.ts (import-statement); core/model-manager.ts (import-statement); +68 more importer(s)."
     },
     {
       "path": "lib/identity-templates",
@@ -108237,260 +108272,6 @@
       "reason": "Reached via esbuild source module graph, imported by server/http/plugin-surface-session.ts (import-statement)."
     },
     {
-      "path": "plugins/image-gen/adapters/agnes.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/builtin-adapters.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/builtin-adapters.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/adapters/common.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/agnes.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/dashscope.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/gemini.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/minimax.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/adapters/agnes.ts (import-statement); plugins/image-gen/adapters/dashscope.ts (import-statement); plugins/image-gen/adapters/gemini.ts (import-statement); +1 more importer(s)."
-    },
-    {
-      "path": "plugins/image-gen/adapters/dashscope.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/builtin-adapters.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/builtin-adapters.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/adapters/gemini.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/builtin-adapters.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/builtin-adapters.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/adapters/minimax.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/builtin-adapters.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/builtin-adapters.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/adapters/openai-codex.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/builtin-adapters.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/builtin-adapters.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/adapters/openai.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/builtin-adapters.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/builtin-adapters.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/adapters/volcengine.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/builtin-adapters.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/builtin-adapters.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/builtin-adapters.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "core/media/universal-media-manager.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by core/media/universal-media-manager.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/lib/download.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/common.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/openai-codex.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/openai.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/volcengine.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/adapters/common.ts (import-statement); plugins/image-gen/adapters/openai-codex.ts (import-statement); plugins/image-gen/adapters/openai.ts (import-statement); +1 more importer(s)."
-    },
-    {
-      "path": "plugins/image-gen/lib/image-size.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/lib/poller.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/lib/poller.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/lib/image-task-runner.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/lib/poller.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/lib/submit-image.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "core/media/universal-media-manager.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/lib/poller.ts (import-statement); plugins/image-gen/lib/submit-image.ts (import-statement); core/media/universal-media-manager.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/lib/model-catalog.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/openai.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/volcengine.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/adapters/openai.ts (import-statement); plugins/image-gen/adapters/volcengine.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/lib/poller.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "core/media/universal-media-manager.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by core/media/universal-media-manager.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/lib/resolution-tiers.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/openai-codex.ts",
-          "kind": "import-statement"
-        },
-        {
-          "root": "server-bootstrap",
-          "from": "plugins/image-gen/adapters/openai.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by plugins/image-gen/adapters/openai-codex.ts (import-statement); plugins/image-gen/adapters/openai.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/lib/submit-image.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "core/media/universal-media-manager.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by core/media/universal-media-manager.ts (import-statement)."
-    },
-    {
-      "path": "plugins/image-gen/lib/task-store.ts",
-      "inputType": "source-graph",
-      "provenance": [
-        {
-          "root": "server-bootstrap",
-          "from": "core/media/universal-media-manager.ts",
-          "kind": "import-statement"
-        }
-      ],
-      "reason": "Reached via esbuild source module graph, imported by core/media/universal-media-manager.ts (import-statement)."
-    },
-    {
       "path": "server/app-events.ts",
       "inputType": "source-graph",
       "provenance": [
@@ -111841,9 +111622,9 @@
     }
   ],
   "stats": {
-    "totalFiles": 9599,
+    "totalFiles": 9587,
     "byInputType": {
-      "source-graph": 620,
+      "source-graph": 608,
       "runtime-asset": 11,
       "nft-runtime-trace": 8968
     }

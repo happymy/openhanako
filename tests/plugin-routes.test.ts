@@ -1489,21 +1489,21 @@ describe("plugin management API", () => {
 
     it("accepts legacy bare config value bodies without silently dropping them", async () => {
       const setConfig = vi.fn(() => ({
-        pluginId: "image-gen",
+        pluginId: "media-board",
         schema: { properties: { defaultImageModel: { type: "object" } } },
         values: { defaultImageModel: { provider: "volcengine", id: "seedream-5" } },
       }));
       const engine = mockEngine({ setConfig });
       const app = createApp(engine);
 
-      const res = await app.request("/api/plugins/image-gen/config", {
+      const res = await app.request("/api/plugins/media-board/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ defaultImageModel: { provider: "volcengine", id: "seedream-5" } }),
       });
 
       expect(res.status).toBe(200);
-      expect(setConfig).toHaveBeenCalledWith("image-gen", {
+      expect(setConfig).toHaveBeenCalledWith("media-board", {
         defaultImageModel: { provider: "volcengine", id: "seedream-5" },
       }, {
         scope: "global",
@@ -1581,92 +1581,6 @@ describe("plugin management API", () => {
       });
     });
 
-    it("rejects image-gen default image models whose protocol has no registered adapter", async () => {
-      const setConfig = vi.fn();
-      const engine = mockEngine({
-        setConfig,
-        providerRegistry: {
-          resolveMediaModel: vi.fn(() => ({
-            providerId: "axis",
-            capability: "image_generation",
-            provider: { authType: "api_key" },
-            model: { id: "gpt-image-2", protocolId: "axis-images" },
-          })),
-        },
-        pm: {
-          getPlugin: () => ({
-            ctx: {
-              _mediaGen: {
-                registry: {
-                  getProtocol: vi.fn(() => null),
-                  get: vi.fn(() => null),
-                },
-              },
-            },
-          }),
-        },
-      });
-      const app = createApp(engine);
-
-      const res = await app.request("/api/plugins/image-gen/config", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ values: { defaultImageModel: { provider: "axis", id: "gpt-image-2" } } }),
-      });
-
-      expect(res.status).toBe(400);
-      expect(await res.json()).toEqual({
-        error: 'No image generation adapter registered for protocol "axis-images"',
-      });
-      expect(setConfig).not.toHaveBeenCalled();
-    });
-
-    it("accepts image-gen default image models bound to a registered protocol adapter", async () => {
-      const setConfig = vi.fn(() => ({
-        pluginId: "image-gen",
-        schema: { properties: { defaultImageModel: { type: "object" } } },
-        values: { defaultImageModel: { provider: "axis", id: "gpt-image-2" } },
-      }));
-      const engine = mockEngine({
-        setConfig,
-        providerRegistry: {
-          resolveMediaModel: vi.fn(() => ({
-            providerId: "axis",
-            capability: "image_generation",
-            provider: { authType: "api_key" },
-            model: { id: "gpt-image-2", protocolId: "openai-images" },
-          })),
-        },
-        pm: {
-          getPlugin: () => ({
-            ctx: {
-              _mediaGen: {
-                registry: {
-                  getProtocol: vi.fn((protocolId) => protocolId === "openai-images" ? { id: "openai" } : null),
-                  get: vi.fn(() => null),
-                },
-              },
-            },
-          }),
-        },
-      });
-      const app = createApp(engine);
-
-      const res = await app.request("/api/plugins/image-gen/config", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ values: { defaultImageModel: { provider: "axis", id: "gpt-image-2" } } }),
-      });
-
-      expect(res.status).toBe(200);
-      expect(setConfig).toHaveBeenCalledWith("image-gen", {
-        defaultImageModel: { provider: "axis", id: "gpt-image-2" },
-      }, {
-        scope: "global",
-        agentId: undefined,
-        sessionPath: undefined,
-      });
-    });
   });
 
   describe("POST /plugins/install", () => {
