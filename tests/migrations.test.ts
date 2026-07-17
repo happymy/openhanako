@@ -13,7 +13,7 @@ import { SEARCH_CAPABILITY_PROVIDERS } from "../shared/search-providers.ts";
 
 // ── 测试工具 ────────────────────────────────────────────────────────────────
 
-const LATEST_DATA_VERSION = 44;
+const LATEST_DATA_VERSION = 45;
 
 function makeTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "hana-migrations-"));
@@ -575,7 +575,7 @@ describe("migration #44: OAuth models converge into Provider Catalog", () => {
       "canonical-custom",
     ]);
     expect(prefs.getPreferences()).not.toHaveProperty("oauth_custom_models");
-    expect(prefs.getPreferences()._dataVersion).toBe(44);
+    expect(prefs.getPreferences()._dataVersion).toBe(LATEST_DATA_VERSION);
   });
 
   it("turns legacy empty Codex models into Hana defaults and preserves additive custom models", () => {
@@ -626,6 +626,262 @@ describe("migration #44: OAuth models converge into Provider Catalog", () => {
     expect(catalog.providers["openai-codex-oauth"]).not.toHaveProperty("models");
     registry.reload();
     expect(registry.getChatModelIds("openai-codex-oauth")).toContain("gpt-5.6-sol");
+  });
+});
+
+describe("migration #45: recover persisted Codex OAuth model references", () => {
+  let tmpDir, agentsDir, userDir;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    agentsDir = path.join(tmpDir, "agents");
+    userDir = path.join(tmpDir, "user");
+    fs.mkdirSync(agentsDir, { recursive: true });
+  });
+
+  afterEach(() => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+  function writeCatalog(providerConfig = {}) {
+    writeJson(path.join(tmpDir, "provider-catalog.json"), {
+      catalogVersion: 2,
+      providers: { "openai-codex-oauth": providerConfig },
+      capabilities: {},
+      meta: {},
+    });
+  }
+
+  function migrationRegistry(defaultModels = [{ id: "gpt-current", name: "Current", context: 400000 }]) {
+    return {
+      getDefaultModelEntries(providerId) {
+        return providerId === "openai-codex-oauth" ? structuredClone(defaultModels) : [];
+      },
+      _entries: new Map(),
+    };
+  }
+
+  function runFrom44(prefs, providerRegistry = migrationRegistry(), log: (line: any) => void = () => {}) {
+    runMigrations({
+      hanakoHome: tmpDir,
+      agentsDir,
+      prefs,
+      providerRegistry,
+      log,
+    });
+  }
+
+  it("adds every official persisted reference while leaving all source files byte-identical", () => {
+    const prefs = makePrefs(userDir);
+    prefs.savePreferences({
+      _dataVersion: 44,
+      utility_model: { provider: "openai-codex", id: "pref-utility" },
+    });
+    writeCatalog({ api: "openai-codex-responses" });
+
+    writeAgentConfig(agentsDir, "hana", {
+      models: {
+        chat: { provider: "openai-codex-oauth", id: "agent-chat" },
+        utility: "openai-codex/agent-utility",
+      },
+    });
+
+    const sessionPaths = [
+      path.join(agentsDir, "hana", "sessions", "main.jsonl"),
+      path.join(agentsDir, "hana", "sessions", "archived", "archived.jsonl"),
+      path.join(agentsDir, "hana", "bridge", "telegram", "bridge.jsonl"),
+      path.join(agentsDir, "hana", "subagents", "run-1", "subagent.jsonl"),
+    ];
+    fs.mkdirSync(path.dirname(sessionPaths[0]), { recursive: true });
+    fs.writeFileSync(sessionPaths[0], [
+      "{ damaged line",
+      JSON.stringify({ type: "model_change", provider: "openai-codex", modelId: "session-main" }),
+      JSON.stringify({ type: "message", message: { role: "assistant", provider: "openai-codex-oauth", model: "session-assistant" } }),
+      "",
+    ].join("\n"), "utf-8");
+    writeSessionJsonl(sessionPaths[1], [{
+      role: "assistant",
+      provider: "openai-codex-oauth",
+      model: "session-archived",
+      content: [{ type: "text", text: "archived" }],
+    }]);
+    writeSessionJsonl(sessionPaths[2], [{
+      role: "assistant",
+      provider: "openai-codex",
+      model: "session-bridge",
+      content: [{ type: "text", text: "bridge" }],
+    }]);
+    writeSessionJsonl(sessionPaths[3], [{
+      role: "assistant",
+      provider: "openai-codex-oauth",
+      model: "session-subagent",
+      content: [{ type: "text", text: "subagent" }],
+    }]);
+
+    const agentCronPath = path.join(agentsDir, "hana", "desk", "cron-jobs.json");
+    writeJson(agentCronPath, {
+      jobs: [{ id: "agent-job", model: { provider: "openai-codex", id: "agent-automation" } }],
+    });
+    const studioCronPath = path.join(tmpDir, "studios", "default", "desk", "cron-jobs.json");
+    writeJson(studioCronPath, {
+      jobs: [{
+        id: "studio-job",
+        executor: { model: { provider: "openai-codex-oauth", id: "studio-automation" } },
+      }],
+    });
+
+    const channelPath = path.join(tmpDir, "channels", "ch_crew.md");
+    fs.mkdirSync(path.dirname(channelPath), { recursive: true });
+    fs.writeFileSync(channelPath, [
+      "---",
+      "id: ch_crew",
+      "agentPhoneModelOverrideEnabled: true",
+      "agentPhoneModelOverrideProvider: openai-codex",
+      "agentPhoneModelOverrideId: channel-override",
+      "---",
+      "# Crew",
+      "",
+    ].join("\n"), "utf-8");
+    const dmPath = path.join(agentsDir, "hana", "dm", "other.md");
+    fs.mkdirSync(path.dirname(dmPath), { recursive: true });
+    fs.writeFileSync(dmPath, [
+      "---",
+      "peer: other",
+      "modelOverrideEnabled: true",
+      "modelOverrideProvider: openai-codex-oauth",
+      "modelOverrideId: dm-override",
+      "---",
+      "",
+    ].join("\n"), "utf-8");
+
+    const brokenConfigPath = path.join(agentsDir, "broken", "config.yaml");
+    fs.mkdirSync(path.dirname(brokenConfigPath), { recursive: true });
+    fs.writeFileSync(brokenConfigPath, "models: [unterminated", "utf-8");
+
+    const sourcePaths = [
+      path.join(agentsDir, "hana", "config.yaml"),
+      ...sessionPaths,
+      agentCronPath,
+      studioCronPath,
+      channelPath,
+      dmPath,
+      brokenConfigPath,
+    ];
+    const originalBytes = new Map(sourcePaths.map((filePath) => [filePath, fs.readFileSync(filePath)]));
+    const logs = [];
+
+    runFrom44(prefs, migrationRegistry(), (line) => { logs.push(line); });
+
+    const catalog = readJson(path.join(tmpDir, "provider-catalog.json"));
+    const models = catalog.providers["openai-codex-oauth"].models;
+    const ids = models.map((model) => typeof model === "object" ? model.id : model);
+    expect(ids).toEqual(expect.arrayContaining([
+      "gpt-current",
+      "pref-utility",
+      "agent-chat",
+      "agent-utility",
+      "session-main",
+      "session-assistant",
+      "session-archived",
+      "session-bridge",
+      "session-subagent",
+      "agent-automation",
+      "studio-automation",
+      "channel-override",
+      "dm-override",
+    ]));
+    expect(models[0]).toEqual({ id: "gpt-current", name: "Current", context: 400000 });
+    expect(logs).toEqual(expect.arrayContaining([
+      expect.stringContaining("skipped invalid session JSONL line"),
+      expect.stringContaining("skipped invalid agent config.yaml"),
+    ]));
+    for (const [filePath, bytes] of originalBytes) {
+      expect(fs.readFileSync(filePath).equals(bytes)).toBe(true);
+    }
+    expect(prefs.getPreferences()._dataVersion).toBe(LATEST_DATA_VERSION);
+
+    const firstCatalogBytes = fs.readFileSync(path.join(tmpDir, "provider-catalog.json"));
+    const rerunPrefs = prefs.getPreferences();
+    rerunPrefs._dataVersion = 44;
+    prefs.savePreferences(rerunPrefs);
+    runFrom44(prefs, migrationRegistry());
+    expect(fs.readFileSync(path.join(tmpDir, "provider-catalog.json")).equals(firstCatalogBytes)).toBe(true);
+  });
+
+  it("preserves an existing non-empty allowlist and its metadata while appending references", () => {
+    const prefs = makePrefs(userDir);
+    prefs.savePreferences({
+      _dataVersion: 44,
+      utility_model: { provider: "openai-codex-oauth", id: "legacy-selected" },
+    });
+    writeCatalog({
+      display_name: "My Codex",
+      models: [{ id: "existing", name: "Existing", context: 123456 }],
+    });
+
+    runFrom44(prefs);
+
+    expect(readJson(path.join(tmpDir, "provider-catalog.json")).providers["openai-codex-oauth"]).toEqual({
+      display_name: "My Codex",
+      models: [
+        { id: "existing", name: "Existing", context: 123456 },
+        "legacy-selected",
+      ],
+    });
+  });
+
+  it("respects an explicit empty allowlist even when persisted references exist", () => {
+    const prefs = makePrefs(userDir);
+    prefs.savePreferences({
+      _dataVersion: 44,
+      utility_model: { provider: "openai-codex", id: "legacy-selected" },
+    });
+    writeCatalog({ models: [] });
+    const before = fs.readFileSync(path.join(tmpDir, "provider-catalog.json"));
+
+    runFrom44(prefs);
+
+    expect(fs.readFileSync(path.join(tmpDir, "provider-catalog.json")).equals(before)).toBe(true);
+    expect(readJson(path.join(tmpDir, "provider-catalog.json")).providers["openai-codex-oauth"].models).toEqual([]);
+  });
+
+  it("does not touch Provider Catalog when no persisted Codex reference exists", () => {
+    const prefs = makePrefs(userDir);
+    prefs.savePreferences({
+      _dataVersion: 44,
+      utility_model: { provider: "deepseek", id: "deepseek-v4-pro" },
+    });
+    writeCatalog({ models: ["existing"] });
+    const before = fs.readFileSync(path.join(tmpDir, "provider-catalog.json"));
+
+    runFrom44(prefs);
+
+    expect(fs.readFileSync(path.join(tmpDir, "provider-catalog.json")).equals(before)).toBe(true);
+  });
+
+  it.skipIf(process.platform === "win32")("does not follow session symlinks outside HANA_HOME", () => {
+    const prefs = makePrefs(userDir);
+    prefs.savePreferences({ _dataVersion: 44 });
+    writeCatalog({ models: ["existing"] });
+    const before = fs.readFileSync(path.join(tmpDir, "provider-catalog.json"));
+
+    const externalDir = makeTmpDir();
+    try {
+      writeSessionJsonl(path.join(externalDir, "outside.jsonl"), [{
+        role: "assistant",
+        provider: "openai-codex",
+        model: "must-not-cross-boundary",
+        content: [{ type: "text", text: "outside" }],
+      }]);
+      const sessionsDir = path.join(agentsDir, "hana", "sessions");
+      fs.mkdirSync(sessionsDir, { recursive: true });
+      fs.symlinkSync(externalDir, path.join(sessionsDir, "external"), "dir");
+
+      runFrom44(prefs);
+
+      expect(fs.readFileSync(path.join(tmpDir, "provider-catalog.json")).equals(before)).toBe(true);
+      expect(fs.readFileSync(path.join(externalDir, "outside.jsonl"), "utf-8")).toContain("must-not-cross-boundary");
+    } finally {
+      fs.rmSync(externalDir, { recursive: true, force: true });
+    }
   });
 });
 

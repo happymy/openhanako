@@ -148,6 +148,8 @@ const migrations = {
   43: migrateCodexImageGenerationDefaultsToResolutionSchema,
   // OAuth 模型管理收回 Provider Catalog：合并旧 runtime alias、自定义模型偏好并清掉双数据源
   44: migrateOAuthModelsToProviderCatalog,
+  // 保留旧版本已持久化的 Codex OAuth 模型引用，避免固定 allowlist 让旧会话失效
+  45: recoverReferencedCodexOAuthModels,
 };
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -1475,6 +1477,307 @@ function migrateOAuthModelsToProviderCatalog(ctx) {
     providerRegistry._entries?.clear?.();
   }
   log?.(`[migrations] #44: OAuth models moved to Provider Catalog (providers=${Object.keys(customByProvider).length})`);
+}
+
+const CODEX_OAUTH_PROVIDER_IDS = new Set([
+  CODEX_OAUTH_PROVIDER_ID,
+  CODEX_OAUTH_RUNTIME_ALIAS,
+]);
+
+const MODEL_ID_KEYS_BY_PROVIDER_KEY = new Map([
+  ["provider", ["id", "modelId", "model"]],
+  ["providerId", ["id", "modelId", "model"]],
+  ["modelProvider", ["id", "modelId", "model"]],
+  ["model_provider", ["id", "modelId", "model"]],
+  ["modelOverrideProvider", ["modelOverrideId", "modelId", "model"]],
+  ["model_override_provider", ["model_override_id", "modelId", "model"]],
+  ["agentPhoneModelOverrideProvider", ["agentPhoneModelOverrideId"]],
+]);
+
+const PROVIDER_SCOPED_MODEL_VALUE_KEYS = new Set([
+  "chat",
+  "utility",
+  "utility_large",
+  "model",
+  "modelId",
+  "defaultModel",
+  "modelOverrideId",
+  "model_override_id",
+  "agentPhoneModelOverrideId",
+]);
+
+function migrationCodexProviderId(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return CODEX_OAUTH_PROVIDER_IDS.has(normalized) ? normalized : null;
+}
+
+function migrationCodexModelId(value) {
+  if (typeof value !== "string") return null;
+  let normalized = value.trim();
+  if (!normalized) return null;
+  for (const providerId of CODEX_OAUTH_PROVIDER_IDS) {
+    const prefix = `${providerId}/`;
+    if (normalized.startsWith(prefix)) {
+      normalized = normalized.slice(prefix.length).trim();
+      break;
+    }
+  }
+  return normalized || null;
+}
+
+function collectCodexModelReference(value, modelIds) {
+  if (typeof value === "string") {
+    const modelId = migrationCodexModelIdFromQualifiedRef(value);
+    if (modelId) modelIds.add(modelId);
+    return;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+
+  for (const [providerKey, modelKeys] of MODEL_ID_KEYS_BY_PROVIDER_KEY) {
+    if (!migrationCodexProviderId(value[providerKey])) continue;
+    for (const modelKey of modelKeys) {
+      const modelId = migrationCodexModelId(value[modelKey]);
+      if (modelId) modelIds.add(modelId);
+    }
+  }
+
+  for (const [key, entry] of Object.entries(value)) {
+    if (PROVIDER_SCOPED_MODEL_VALUE_KEYS.has(key)) {
+      const modelId = typeof entry === "string"
+        ? migrationCodexModelIdFromQualifiedRef(entry)
+        : null;
+      if (modelId) modelIds.add(modelId);
+    }
+  }
+}
+
+function migrationCodexModelIdFromQualifiedRef(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  for (const providerId of CODEX_OAUTH_PROVIDER_IDS) {
+    const prefix = `${providerId}/`;
+    if (normalized.startsWith(prefix)) {
+      return migrationCodexModelId(normalized);
+    }
+  }
+  return null;
+}
+
+function migrationPathIsInsideHome(hanakoHome, candidatePath) {
+  const homeKey = filesystemIdentityKeySync(hanakoHome);
+  const candidateKey = filesystemIdentityKeySync(candidatePath);
+  return candidateKey === homeKey || candidateKey.startsWith(homeKey + path.sep);
+}
+
+function migrationRealDirectory(hanakoHome, directory) {
+  try {
+    return fs.lstatSync(directory).isDirectory()
+      && migrationPathIsInsideHome(hanakoHome, directory);
+  } catch {
+    return false;
+  }
+}
+
+function migrationRealFile(hanakoHome, filePath) {
+  try {
+    return fs.lstatSync(filePath).isFile()
+      && migrationPathIsInsideHome(hanakoHome, filePath);
+  } catch {
+    return false;
+  }
+}
+
+function migrationReadDirectoryEntries(hanakoHome, directory, log) {
+  if (!migrationRealDirectory(hanakoHome, directory)) return [];
+  try {
+    return fs.readdirSync(directory, { withFileTypes: true });
+  } catch (err) {
+    log?.(`[migrations] #45 skipped unreadable directory ${directory} (${err.message})`);
+    return [];
+  }
+}
+
+function migrationWalkRealFiles(hanakoHome, root, accept, log) {
+  const files = [];
+  const walk = (directory) => {
+    for (const entry of migrationReadDirectoryEntries(hanakoHome, directory, log)) {
+      // Never follow directory or file symlinks. A user-managed link may point
+      // outside HANA_HOME, and migration discovery must remain read-only there.
+      if (entry.isSymbolicLink()) continue;
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(entryPath);
+      } else if (entry.isFile() && accept(entryPath)) {
+        files.push(entryPath);
+      }
+    }
+  };
+  if (migrationRealDirectory(hanakoHome, root)) walk(root);
+  return files;
+}
+
+function migrationReadStructuredFile(filePath, parser, modelIds, log, kind) {
+  try {
+    const parsed = parser(fs.readFileSync(filePath, "utf-8"));
+    return parsed;
+  } catch (err) {
+    log?.(`[migrations] #45 skipped invalid ${kind} at ${filePath} (${err.message})`);
+    return null;
+  }
+}
+
+function migrationReadSessionJsonl(filePath, modelIds, log) {
+  let raw;
+  try {
+    raw = fs.readFileSync(filePath, "utf-8");
+  } catch (err) {
+    log?.(`[migrations] #45 skipped unreadable session JSONL at ${filePath} (${err.message})`);
+    return;
+  }
+
+  const lines = raw.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index++) {
+    if (!lines[index].trim()) continue;
+    try {
+      const entry = JSON.parse(lines[index]);
+      if (entry?.type === "model_change") collectCodexModelReference(entry, modelIds);
+      if (entry?.type === "message" && entry.message?.role === "assistant") {
+        collectCodexModelReference(entry.message, modelIds);
+      }
+      // Some older Hana-produced snapshots stored the restored model beside
+      // the entry rather than as a model_change record.
+      collectCodexModelReference(entry?.model, modelIds);
+    } catch (err) {
+      log?.(`[migrations] #45 skipped invalid session JSONL line at ${filePath}:${index + 1} (${err.message})`);
+    }
+  }
+}
+
+function migrationFrontmatter(raw) {
+  const lines = raw.split(/\r?\n/);
+  if (lines[0]?.trim() !== "---") throw new Error("missing frontmatter opener");
+  const end = lines.findIndex((line, index) => index > 0 && line.trim() === "---");
+  if (end < 0) throw new Error("missing frontmatter closer");
+  const parsed = YAML.load(lines.slice(1, end).join("\n"));
+  return parsed && typeof parsed === "object" ? parsed : {};
+}
+
+function collectCodexModelsFromLegacyPersistence(ctx) {
+  const { hanakoHome, agentsDir, prefs, log } = ctx;
+  const modelIds = new Set();
+  const preferences = prefs.getPreferences();
+  collectCodexModelReference(preferences.utility_model, modelIds);
+  collectCodexModelReference(preferences.utility_large_model, modelIds);
+
+  const agentEntries = migrationReadDirectoryEntries(hanakoHome, agentsDir, log)
+    .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink());
+  for (const agentEntry of agentEntries) {
+    const agentDir = path.join(agentsDir, agentEntry.name);
+    const configPath = path.join(agentDir, "config.yaml");
+    if (migrationRealFile(hanakoHome, configPath)) {
+      const config = migrationReadStructuredFile(configPath, YAML.load, modelIds, log, "agent config.yaml");
+      for (const role of ["chat", "utility", "utility_large"]) {
+        collectCodexModelReference(config?.models?.[role], modelIds);
+      }
+    }
+
+    const dmDir = path.join(agentDir, "dm");
+    for (const entry of migrationReadDirectoryEntries(hanakoHome, dmDir, log)) {
+      if (entry.isSymbolicLink() || !entry.isFile() || !entry.name.endsWith(".md")) continue;
+      const dmPath = path.join(dmDir, entry.name);
+      const frontmatter = migrationReadStructuredFile(dmPath, migrationFrontmatter, modelIds, log, "DM frontmatter");
+      collectCodexModelReference(frontmatter, modelIds);
+    }
+
+    const cronPath = path.join(agentDir, "desk", "cron-jobs.json");
+    if (migrationRealFile(hanakoHome, cronPath)) {
+      const cron = migrationReadStructuredFile(cronPath, JSON.parse, modelIds, log, "agent cron-jobs.json");
+      collectCodexModelsFromCronJobs(cron, modelIds);
+    }
+  }
+
+  for (const sessionPath of migrationWalkRealFiles(
+    hanakoHome,
+    agentsDir,
+    (filePath) => filePath.endsWith(".jsonl"),
+    log,
+  )) {
+    migrationReadSessionJsonl(sessionPath, modelIds, log);
+  }
+
+  const studiosDir = path.join(hanakoHome, "studios");
+  for (const studioEntry of migrationReadDirectoryEntries(hanakoHome, studiosDir, log)) {
+    if (studioEntry.isSymbolicLink() || !studioEntry.isDirectory()) continue;
+    const cronPath = path.join(studiosDir, studioEntry.name, "desk", "cron-jobs.json");
+    if (migrationRealFile(hanakoHome, cronPath)) {
+      const cron = migrationReadStructuredFile(cronPath, JSON.parse, modelIds, log, "Studio cron-jobs.json");
+      collectCodexModelsFromCronJobs(cron, modelIds);
+    }
+  }
+
+  const channelsDir = path.join(hanakoHome, "channels");
+  for (const entry of migrationReadDirectoryEntries(hanakoHome, channelsDir, log)) {
+    if (entry.isSymbolicLink() || !entry.isFile() || !entry.name.endsWith(".md")) continue;
+    const channelPath = path.join(channelsDir, entry.name);
+    const frontmatter = migrationReadStructuredFile(channelPath, migrationFrontmatter, modelIds, log, "channel frontmatter");
+    collectCodexModelReference(frontmatter, modelIds);
+  }
+
+  return [...modelIds];
+}
+
+function collectCodexModelsFromCronJobs(cron, modelIds) {
+  if (!Array.isArray(cron?.jobs)) return;
+  for (const job of cron.jobs) {
+    collectCodexModelReference(job?.model, modelIds);
+    collectCodexModelReference(job?.executor?.model, modelIds);
+  }
+}
+
+function recoverReferencedCodexOAuthModels(ctx) {
+  const { hanakoHome, providerRegistry, log } = ctx;
+  const referencedModels = collectCodexModelsFromLegacyPersistence(ctx);
+  if (referencedModels.length === 0) {
+    log?.("[migrations] #45: no persisted Codex OAuth model references found");
+    return;
+  }
+
+  const store = providerRegistry?._catalog || new ProviderCatalogStore(hanakoHome);
+  const catalog = store.load();
+  const providers = structuredClone(catalog.providers || {});
+  const current = providers[CODEX_OAUTH_PROVIDER_ID] || {};
+  const hasExplicitModels = Object.prototype.hasOwnProperty.call(current, "models");
+
+  if (hasExplicitModels && Array.isArray(current.models) && current.models.length === 0) {
+    log?.(`[migrations] #45: preserved explicit empty Codex OAuth model allowlist (references=${referencedModels.length})`);
+    return;
+  }
+  if (hasExplicitModels && !Array.isArray(current.models)) {
+    log?.("[migrations] #45: skipped malformed Codex OAuth model allowlist");
+    return;
+  }
+
+  const defaults = providerRegistry?.getDefaultModelEntries?.(CODEX_OAUTH_PROVIDER_ID)
+    || providerRegistry?.getDefaultModels?.(CODEX_OAUTH_PROVIDER_ID)
+    || [];
+  const nextModels = hasExplicitModels
+    ? mergeMigrationModelLists(current.models, referencedModels)
+    : mergeMigrationModelLists(defaults, referencedModels);
+  const next = { ...current, models: nextModels };
+  if (JSON.stringify(next) === JSON.stringify(current)) {
+    log?.(`[migrations] #45: persisted Codex OAuth references already available (references=${referencedModels.length})`);
+    return;
+  }
+
+  providers[CODEX_OAUTH_PROVIDER_ID] = next;
+  store.saveProviders(providers);
+  if (providerRegistry) {
+    providerRegistry._addedModelsCache = null;
+    providerRegistry._addedModelsMtime = 0;
+    providerRegistry._entries?.clear?.();
+  }
+  log?.(`[migrations] #45: recovered persisted Codex OAuth models (references=${referencedModels.length}, models=${nextModels.length})`);
 }
 
 function removeCodexImageSizeDefault(providerDefaults) {
