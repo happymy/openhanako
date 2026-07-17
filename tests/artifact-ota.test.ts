@@ -1190,14 +1190,22 @@ describe("artifact-ota: downloadAndApplyArtifacts", () => {
       lastError: "stale error from an earlier failed check",
     });
 
-    const progressEvents: Array<{ phase: string; kind: string }> = [];
+    type ProgressEvent = {
+      phase: string;
+      kind: string;
+      receivedBytes: number;
+      totalBytes: number;
+      overallReceivedBytes: number;
+      overallTotalBytes: number;
+    };
+    const progressEvents: ProgressEvent[] = [];
     const result = await runWithDevOverride(manifestPath, () =>
       downloadAndApplyArtifacts({
         homeDir,
         keyset: keys.keyset,
         currentShellVersion: SHELL_VERSION,
         platformArch: PLATFORM_ARCH,
-        onProgress: (e: { phase: string; kind: string }) => progressEvents.push({ phase: e.phase, kind: e.kind }),
+        onProgress: (e: ProgressEvent) => progressEvents.push({ ...e }),
         log: () => {},
       }),
     );
@@ -1227,6 +1235,38 @@ describe("artifact-ota: downloadAndApplyArtifacts", () => {
       "activating:server",
       "activating:renderer",
     ]);
+
+    // Cumulative-progress contract (the whole point of this maintenance
+    // slice): a UI consuming overallReceivedBytes/overallTotalBytes must
+    // see one continuous 0→100 sweep across BOTH artifacts, never resetting
+    // when the renderer archive starts downloading.
+    const serverTotalBytes = progressEvents[0].totalBytes;
+    const rendererTotalBytes = progressEvents.find((e) => e.kind === "renderer")!.totalBytes;
+    const expectedOverallTotal = serverTotalBytes + rendererTotalBytes;
+    // Every event reports the same fixed overall total (known up front,
+    // since both artifact sizes come from the manifest before either
+    // download starts).
+    for (const e of progressEvents) {
+      expect(e.overallTotalBytes).toBe(expectedOverallTotal);
+    }
+    // Monotonic non-decreasing across the whole sequence — this is the bar
+    // never running backward or resetting to 0 at the server/renderer
+    // boundary.
+    for (let i = 1; i < progressEvents.length; i++) {
+      expect(progressEvents[i].overallReceivedBytes).toBeGreaterThanOrEqual(progressEvents[i - 1].overallReceivedBytes);
+    }
+    // Server's own tail (verifying:server) sits at exactly the server's
+    // size — the renderer hasn't contributed anything yet.
+    const verifyingServer = progressEvents.find((e) => e.phase === "verifying" && e.kind === "server")!;
+    expect(verifyingServer.overallReceivedBytes).toBe(serverTotalBytes);
+    // The renderer download starts from the server's full size as its
+    // base, not from 0 — this is the field that actually fixes the
+    // "progress bar runs 0-100 twice" bug.
+    const downloadingRenderer = progressEvents.find((e) => e.phase === "downloading" && e.kind === "renderer")!;
+    expect(downloadingRenderer.overallReceivedBytes).toBe(serverTotalBytes + downloadingRenderer.receivedBytes);
+    // Final event (activating:renderer) reaches the full combined total.
+    const lastEvent = progressEvents[progressEvents.length - 1];
+    expect(lastEvent.overallReceivedBytes).toBe(expectedOverallTotal);
 
     const state = (await readOtaState(homeDir))[SEED_CHANNEL];
     expect(state.available).toBeNull();
@@ -1667,12 +1707,20 @@ describe("artifact-ota core: downloadAndApplyRendererArtifact (renderer-only, se
     const { manifestPath } = await makeOtaFixture(root, keys, { train: 1, version: "2.0.0" });
     const homeDir = path.join(root, "home");
 
-    const progressEvents: Array<{ phase: string; kind: string }> = [];
+    type ProgressEvent = {
+      phase: string;
+      kind: string;
+      receivedBytes: number;
+      totalBytes: number;
+      overallReceivedBytes: number;
+      overallTotalBytes: number;
+    };
+    const progressEvents: ProgressEvent[] = [];
     const result = await otaCoreDirect.downloadAndApplyRendererArtifact({
       homeDir,
       keyset: keys.keyset,
       serverProtocolVersion: 1,
-      onProgress: (e: { phase: string; kind: string }) => progressEvents.push({ phase: e.phase, kind: e.kind }),
+      onProgress: (e: ProgressEvent) => progressEvents.push({ ...e }),
       log: () => {},
       devBypass: bypassFor(manifestPath),
     });
@@ -1700,6 +1748,13 @@ describe("artifact-ota core: downloadAndApplyRendererArtifact (renderer-only, se
       "verifying:renderer",
       "activating:renderer",
     ]);
+
+    // Single-artifact path: overall == per-artifact self (no server base to
+    // stack on top of) — see downloadAndApplyRendererArtifact's doc comment.
+    for (const e of progressEvents) {
+      expect(e.overallTotalBytes).toBe(e.totalBytes);
+      expect(e.overallReceivedBytes).toBe(e.receivedBytes);
+    }
 
     const state = (await readOtaState(homeDir))[SEED_CHANNEL];
     expect(state.lastStagedTrain).toBe(1);

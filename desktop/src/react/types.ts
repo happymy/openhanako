@@ -135,6 +135,15 @@ export interface TrainUpdateProgress {
   kind: 'server' | 'renderer';
   receivedBytes: number;
   totalBytes: number;
+  /**
+   * 跨 server+renderer 两个工件的累计进度（ota-core.cjs 的
+   * downloadAndApplyArtifacts/downloadAndApplyRendererArtifact 新增字段），
+   * 用于合成一条连续 0→100 的进度条，不随第二个工件开始下载而归零。旧壳
+   * 版本（渲染进程被列车热更但主进程还没升级）发出的事件可能没有这两个
+   * 字段，消费侧需要做存在性判断，不能假设它们总是存在。
+   */
+  overallReceivedBytes?: number;
+  overallTotalBytes?: number;
 }
 
 export interface AutoLaunchStatus {

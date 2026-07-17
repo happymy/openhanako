@@ -1261,11 +1261,18 @@ async function checkOnce(opts) {
  * @param {{homeDir: string, keyset: Array<{keyId:string, publicKey:string}>,
  *   currentShellVersion: string, platformArch: string, channel?: string,
  *   onProgress?: (event: {phase: "downloading"|"verifying"|"activating",
- *     kind: "server"|"renderer", receivedBytes: number, totalBytes: number}) => void,
+ *     kind: "server"|"renderer", receivedBytes: number, totalBytes: number,
+ *     overallReceivedBytes: number, overallTotalBytes: number}) => void,
  *   log?: (msg: string) => void, fetchOnce?: Function,
  *   devBypass?: {hasDevOverride: () => boolean, resolveDevManifestOverride: () => string|null}}} opts
  *   `devBypass` defaults to "no override, ever" — see `fetchChannelManifest`'s
- *   doc comment.
+ *   doc comment. `overallReceivedBytes`/`overallTotalBytes` on each event are
+ *   the cumulative position across BOTH artifacts (server entry's size is
+ *   already known before either download starts, so the total is fixed for
+ *   the whole call) — added so a progress bar can run one continuous 0→100
+ *   instead of resetting between the server and renderer archives. The
+ *   per-artifact `receivedBytes`/`totalBytes` fields are unchanged for
+ *   anything that still wants the per-archive view.
  * @returns {Promise<{ok: true, train: number, version: string} | {ok: false, error: string}>}
  */
 async function downloadAndApplyArtifacts(opts) {
@@ -1384,10 +1391,39 @@ async function downloadAndApplyArtifacts(opts) {
     const stagingDir = path.join(pointerStore.artifactsRoot(homeDir), STAGING_DIRNAME);
     const serverStagedPath = path.join(stagingDir, `server-${serverEntry.version}-${platformArch}.tar.gz`);
     const rendererStagedPath = path.join(stagingDir, `renderer-${rendererEntry.version}.tar.gz`);
+
+    // Both sizes are known before either download starts (manifest entries
+    // carry `.size`), so the combined total is fixed for the whole call —
+    // computed once here rather than re-derived per event. Server bytes
+    // count first, then renderer bytes stack on top of the server's full
+    // size, so a UI consuming `overallReceivedBytes/overallTotalBytes`
+    // sees one continuous 0→100 sweep across both artifacts instead of the
+    // per-artifact `receivedBytes/totalBytes` resetting to 0 when the
+    // renderer download starts.
+    //
+    // `overallHighWaterMark` guards against a real ordering wrinkle: both
+    // artifacts are fully downloaded AND verified before either one starts
+    // activating (activation only begins once both `stageArtifact` calls
+    // above have returned, inside the pointer mutex). So the naive
+    // per-kind formula (server's own contribution = its own
+    // receivedBytes) would make `activating:server` report only
+    // `serverEntry.size`, even though the renderer's bytes were already
+    // fully counted moments earlier at `verifying:renderer` — a visible
+    // backward dip right as the bar should be finishing. Clamping to the
+    // running max keeps the field monotonically non-decreasing regardless
+    // of which kind an "already fully downloaded" activation event names.
+    const overallTotalBytes = serverEntry.size + rendererEntry.size;
+    let overallHighWaterMark = 0;
+    const emitProgress = (event) => {
+      const raw = event.kind === "server" ? event.receivedBytes : serverEntry.size + event.receivedBytes;
+      overallHighWaterMark = Math.max(overallHighWaterMark, raw);
+      onProgress({ ...event, overallReceivedBytes: overallHighWaterMark, overallTotalBytes });
+    };
+
     try {
       await fsp.mkdir(stagingDir, { recursive: true });
 
-      onProgress({ phase: "downloading", kind: "server", receivedBytes: 0, totalBytes: serverEntry.size });
+      emitProgress({ phase: "downloading", kind: "server", receivedBytes: 0, totalBytes: serverEntry.size });
       await stageArtifact({
         finalPath: serverStagedPath,
         entry: serverEntry,
@@ -1395,11 +1431,11 @@ async function downloadAndApplyArtifacts(opts) {
         localDir,
         log,
         label: `server-${serverEntry.version}-${platformArch}`,
-        onProgress: (receivedBytes) => onProgress({ phase: "downloading", kind: "server", receivedBytes, totalBytes: serverEntry.size }),
+        onProgress: (receivedBytes) => emitProgress({ phase: "downloading", kind: "server", receivedBytes, totalBytes: serverEntry.size }),
       });
-      onProgress({ phase: "verifying", kind: "server", receivedBytes: serverEntry.size, totalBytes: serverEntry.size });
+      emitProgress({ phase: "verifying", kind: "server", receivedBytes: serverEntry.size, totalBytes: serverEntry.size });
 
-      onProgress({ phase: "downloading", kind: "renderer", receivedBytes: 0, totalBytes: rendererEntry.size });
+      emitProgress({ phase: "downloading", kind: "renderer", receivedBytes: 0, totalBytes: rendererEntry.size });
       await stageArtifact({
         finalPath: rendererStagedPath,
         entry: rendererEntry,
@@ -1407,9 +1443,9 @@ async function downloadAndApplyArtifacts(opts) {
         localDir,
         log,
         label: `renderer-${rendererEntry.version}`,
-        onProgress: (receivedBytes) => onProgress({ phase: "downloading", kind: "renderer", receivedBytes, totalBytes: rendererEntry.size }),
+        onProgress: (receivedBytes) => emitProgress({ phase: "downloading", kind: "renderer", receivedBytes, totalBytes: rendererEntry.size }),
       });
-      onProgress({ phase: "verifying", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
+      emitProgress({ phase: "verifying", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
 
       // Both boxes staged and sha256-verified. Activate server first, then
       // renderer; roll the server `next` pointer back if renderer's
@@ -1422,14 +1458,14 @@ async function downloadAndApplyArtifacts(opts) {
       // segment just wrote. See pointer-store.cjs's `withPointerMutex` doc
       // comment for the full rationale.
       await pointerStore.withPointerMutex(homeDir, async () => {
-        onProgress({ phase: "activating", kind: "server", receivedBytes: serverEntry.size, totalBytes: serverEntry.size });
+        emitProgress({ phase: "activating", kind: "server", receivedBytes: serverEntry.size, totalBytes: serverEntry.size });
         await activation.activateFromArchive(serverStagedPath, manifest, {
           homeDir,
           channel,
           kind: "server",
           platformArch,
         });
-        onProgress({ phase: "activating", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
+        emitProgress({ phase: "activating", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
         try {
           await activation.activateFromArchive(rendererStagedPath, manifest, {
             homeDir,
@@ -1517,11 +1553,18 @@ async function downloadAndApplyArtifacts(opts) {
  * @param {{homeDir: string, keyset: Array<{keyId:string, publicKey:string}>,
  *   channel?: string, serverProtocolVersion: number,
  *   onProgress?: (event: {phase: "downloading"|"verifying"|"activating",
- *     kind: "renderer", receivedBytes: number, totalBytes: number}) => void,
+ *     kind: "renderer", receivedBytes: number, totalBytes: number,
+ *     overallReceivedBytes: number, overallTotalBytes: number}) => void,
  *   log?: (msg: string) => void, fetchOnce?: Function,
  *   devBypass?: {hasDevOverride: () => boolean, resolveDevManifestOverride: () => string|null}}} opts
  *   `devBypass` defaults to "no override, ever" (see `NO_DEV_OVERRIDE`);
  *   the CLI never passes one — only tests inject a local-fixture stub.
+ *   `overallReceivedBytes`/`overallTotalBytes` mirror the fields
+ *   `downloadAndApplyArtifacts` adds for its two-artifact progress bar;
+ *   here there is only ever one artifact, so they always equal the
+ *   per-artifact `receivedBytes`/`totalBytes` — kept for a shared consumer
+ *   (the desktop progress hook) to read one field name regardless of which
+ *   entry point produced the event.
  * @returns {Promise<{ok: true, train: number, version: string} |
  *   {ok: true, alreadyCurrent: true, version: string} |
  *   {ok: false, error: string}>}
@@ -1666,10 +1709,17 @@ async function downloadAndApplyRendererArtifact(opts) {
 
     const stagingDir = path.join(pointerStore.artifactsRoot(homeDir), STAGING_DIRNAME);
     const rendererStagedPath = path.join(stagingDir, `renderer-${rendererEntry.version}.tar.gz`);
+
+    // Single-artifact path: the "overall" view is just the renderer's own
+    // view — see this function's doc comment for why the field still
+    // exists here.
+    const overallTotalBytes = rendererEntry.size;
+    const emitProgress = (event) => onProgress({ ...event, overallReceivedBytes: event.receivedBytes, overallTotalBytes });
+
     try {
       await fsp.mkdir(stagingDir, { recursive: true });
 
-      onProgress({ phase: "downloading", kind: "renderer", receivedBytes: 0, totalBytes: rendererEntry.size });
+      emitProgress({ phase: "downloading", kind: "renderer", receivedBytes: 0, totalBytes: rendererEntry.size });
       await stageArtifact({
         finalPath: rendererStagedPath,
         entry: rendererEntry,
@@ -1677,9 +1727,9 @@ async function downloadAndApplyRendererArtifact(opts) {
         localDir,
         log,
         label: `renderer-${rendererEntry.version}`,
-        onProgress: (receivedBytes) => onProgress({ phase: "downloading", kind: "renderer", receivedBytes, totalBytes: rendererEntry.size }),
+        onProgress: (receivedBytes) => emitProgress({ phase: "downloading", kind: "renderer", receivedBytes, totalBytes: rendererEntry.size }),
       });
-      onProgress({ phase: "verifying", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
+      emitProgress({ phase: "verifying", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
 
       // Activation + immediate promote + state write, all inside the
       // in-process pointer mutex — same "never interleave with a
@@ -1687,7 +1737,7 @@ async function downloadAndApplyRendererArtifact(opts) {
       // downloadAndApplyArtifacts (see its inline comment), narrower here
       // because there's only one kind.
       await pointerStore.withPointerMutex(homeDir, async () => {
-        onProgress({ phase: "activating", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
+        emitProgress({ phase: "activating", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
         await activation.activateFromArchive(rendererStagedPath, manifest, {
           homeDir,
           channel: rendererChannel,
