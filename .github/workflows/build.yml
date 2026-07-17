@@ -280,9 +280,13 @@ jobs:
       # The renderer box here is just this platform's copy of the SAME bytes downloaded from
       # the renderer-box job (packDualKindSeed reuses it via HANA_PREBUILT_RENDERER_BOX rather
       # than packing dist-renderer/ on the spot) — all four uploads are byte-identical now.
-      # seed-train.json(.sig) living next to the server box is NOT uploaded here — the
-      # release job's train manifest is generated later by scripts/publish-train.mjs, not
-      # copied from any one platform's local seed.
+      # dist-server-artifact/*/seed-train-*.json(.sig) IS uploaded here (platform-qualified
+      # filename, see seedManifestFileName in build-server-artifact.mjs — each matrix job's
+      # manifest now names the platform-arch it describes, so four same-named-but-different-
+      # content files are no longer possible). This per-platform seed manifest is still NOT
+      # what the release job publishes as the OTA train manifest — that one is generated
+      # separately by scripts/publish-train.mjs from the merged server-*.tar.gz set, not by
+      # copying any one platform's local seed manifest.
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -296,6 +300,8 @@ jobs:
             dist/*.deb
             dist/latest*.yml
             dist-server-artifact/*/server-*.tar.gz
+            dist-server-artifact/*/seed-train-*.json
+            dist-server-artifact/*/seed-train-*.json.sig
             dist-renderer-artifact/renderer-*.tar.gz
           if-no-files-found: error
 

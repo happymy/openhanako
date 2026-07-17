@@ -14,6 +14,7 @@ import {
   packRendererArtifact,
   packServerArchive,
   resolveBuildKeyset,
+  seedManifestFileName,
 } from "../scripts/build-server-artifact.mjs";
 
 const tempDirs: string[] = [];
@@ -224,7 +225,7 @@ describe("build-server-artifact: packServerArchive (pack-only, no manifest)", ()
     });
     expect(fs.existsSync(result.archivePath)).toBe(true);
     expect(result.archiveName).toBe("server-0.381.0-linux-x64.tar.gz");
-    expect(fs.existsSync(path.join(artifactOutDir, "seed-train.json"))).toBe(false);
+    expect(fs.existsSync(path.join(artifactOutDir, "seed-train-linux-x64.json"))).toBe(false);
   });
 
   it("signs Mach-O binaries BEFORE the startup smoke test, and smoke-tests BEFORE packing on darwin (sign, smoke, pack)", async () => {
@@ -474,10 +475,13 @@ describe("build-server-artifact: packDualKindSeed guards and ordering", () => {
     expect(manifest.artifacts.server["linux-x64"].path).toBe(path.basename(result.serverArchivePath));
     expect(manifest.artifacts.renderer.path).toBe(path.basename(result.rendererArchivePath));
 
-    // Exactly 4 files land in the per-platform seed dir.
+    // Exactly 4 files land in the per-platform seed dir, manifest name
+    // qualified by this build's platform-arch (opts.platform/opts.arch above).
+    const manifestFileName = seedManifestFileName("linux-x64");
+    expect(path.basename(result.manifestPath)).toBe(manifestFileName);
     const files = fs.readdirSync(opts.artifactOutDir).sort();
     expect(files).toEqual(
-      [path.basename(result.serverArchivePath), path.basename(result.rendererArchivePath), "seed-train.json", "seed-train.json.sig"].sort(),
+      [path.basename(result.serverArchivePath), path.basename(result.rendererArchivePath), manifestFileName, `${manifestFileName}.sig`].sort(),
     );
   });
 

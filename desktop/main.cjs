@@ -1314,7 +1314,8 @@ async function startServer() {
  */
 async function resolvePackagedArtifactBoot() {
   const resourcesPath = process.resourcesPath || "";
-  if (!artifactBoot.hasSeed(resourcesPath)) {
+  const platformArch = `${process.platform}-${process.arch}`;
+  if (!artifactBoot.hasSeed(resourcesPath, platformArch)) {
     if (app.isPackaged) {
       throw new Error(
         `Packaged app is missing its artifact seed (expected under ${path.join(resourcesPath, "seed")}). `
@@ -1332,7 +1333,7 @@ async function resolvePackagedArtifactBoot() {
   const boot = await artifactBoot.prepareArtifactBoot({
     homeDir: hanakoHome,
     resourcesPath,
-    platformArch: `${process.platform}-${process.arch}`,
+    platformArch,
     keyset: loadPinnedKeyset(),
     // 通道选择驱动的是"这台设备落在哪条列车线上"：OTA 把
     // 产物暂存进选中通道的指针命名空间，boot 端的 promote/resolve 也必须
@@ -1498,6 +1499,7 @@ async function handleRendererArtifactLoadFailure({ win, pageName, opts, label, r
     resolved = await artifactBoot.prepareArtifactRendererBoot({
       homeDir: hanakoHome,
       resourcesPath: process.resourcesPath || "",
+      platformArch: `${process.platform}-${process.arch}`,
       keyset: loadPinnedKeyset(),
       // 必须显式传入本次启动的通道。若回落到
       // `artifactBoot.SEED_CHANNEL`（"stable"），beta 偏好机器 renderer

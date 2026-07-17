@@ -57,27 +57,41 @@ const manifestModule = require("../../../shared/artifact-core/manifest.cjs");
 const pointerChannels = require("../../../shared/artifact-core/pointer-channels.cjs");
 
 const { SEED_CHANNEL, rendererPointerChannel } = pointerChannels;
-const SEED_MANIFEST_NAME = "seed-train.json";
+/**
+ * Per-platform seed manifest file name — same `seed-train-${platformArch}.json`
+ * convention as scripts/build-server-artifact.mjs's seedManifestFileName
+ * (duplicated here, not imported: that file is an ESM build-time script,
+ * this one ships inside the bundled CJS desktop app; same reasoning as the
+ * pre-existing SEED_MANIFEST_NAME constant this replaces). `platformArch`
+ * is always `${process.platform}-${process.arch}` at boot time.
+ * @param {string} platformArch
+ * @returns {string}
+ */
+function seedManifestFileName(platformArch) {
+  return `seed-train-${platformArch}.json`;
+}
 const HEALTHY_CLEAR_DELAY_MS = 60_000;
 const CRASH_LOOP_THRESHOLD = 3;
 
 /**
  * @param {string} resourcesPath
+ * @param {string} platformArch
  */
-function seedPaths(resourcesPath) {
+function seedPaths(resourcesPath, platformArch) {
   const seedDir = path.join(resourcesPath, "seed");
-  const manifestPath = path.join(seedDir, SEED_MANIFEST_NAME);
+  const manifestPath = path.join(seedDir, seedManifestFileName(platformArch));
   return { seedDir, manifestPath, sigPath: `${manifestPath}.sig` };
 }
 
 /**
- * 打包模式探测：Resources/seed/ 下 manifest 与签名同时在场。
+ * 打包模式探测：Resources/seed/ 下 该平台的 manifest 与签名同时在场。
  * @param {string} resourcesPath
+ * @param {string} platformArch
  * @returns {boolean}
  */
-function hasSeed(resourcesPath) {
-  if (!resourcesPath) return false;
-  const { manifestPath, sigPath } = seedPaths(resourcesPath);
+function hasSeed(resourcesPath, platformArch) {
+  if (!resourcesPath || !platformArch) return false;
+  const { manifestPath, sigPath } = seedPaths(resourcesPath, platformArch);
   return fs.existsSync(manifestPath) && fs.existsSync(sigPath);
 }
 
@@ -201,8 +215,8 @@ async function prepareArtifactServerBoot({
     }
 
     // 读 + 验 seed（无论是否需要激活都要验：新鲜度比对依赖 manifest 内容）。
-    const { manifestPath, sigPath, seedDir } = seedPaths(resourcesPath);
-    if (!hasSeed(resourcesPath)) {
+    const { manifestPath, sigPath, seedDir } = seedPaths(resourcesPath, platformArch);
+    if (!hasSeed(resourcesPath, platformArch)) {
       throw new Error(
         `artifact-boot: packaged resources carry no seed (expected ${manifestPath} + .sig); `
           + "the install is broken — reinstall the app",
@@ -265,9 +279,12 @@ async function prepareArtifactServerBoot({
  * 永不隔离）。调用方（desktop/main.cjs）负责在窗口 `did-fail-load` /
  * `render-process-gone` 事件触发时重新调用本函数——每次调用只做一次决策，
  * 不自己重试或轮询。任何失败都抛出（fail loud）。
+ * `platformArch` 只用于定位这台机器 Resources/seed/ 下平台化命名的 manifest
+ * 文件（renderer 归档本身平台无关，manifest 内容校验不看这个参数）。
  * @param {{
  *   homeDir: string,
  *   resourcesPath: string,
+ *   platformArch: string,
  *   keyset: Array<{keyId: string, publicKey: string}>,
  *   channel?: string,
  *   onProgress?: () => void,
@@ -281,6 +298,7 @@ async function prepareArtifactServerBoot({
 async function prepareArtifactRendererBoot({
   homeDir,
   resourcesPath,
+  platformArch,
   keyset,
   channel = SEED_CHANNEL,
   onProgress,
@@ -330,8 +348,8 @@ async function prepareArtifactRendererBoot({
       await activation.clearSentinel(homeDir, pointerChannel); // 降级目标从零开始计数
     }
 
-    const { manifestPath, sigPath, seedDir } = seedPaths(resourcesPath);
-    if (!hasSeed(resourcesPath)) {
+    const { manifestPath, sigPath, seedDir } = seedPaths(resourcesPath, platformArch);
+    if (!hasSeed(resourcesPath, platformArch)) {
       throw new Error(
         `artifact-boot: packaged resources carry no seed (expected ${manifestPath} + .sig); `
           + "the install is broken — reinstall the app",
@@ -414,13 +432,13 @@ async function prepareArtifactBoot({
   onProgress,
   log = console.log,
 }) {
-  if (!hasSeed(resourcesPath)) {
+  if (!hasSeed(resourcesPath, platformArch)) {
     throw new Error(
       `artifact-boot: packaged resources carry no seed (expected under ${path.join(resourcesPath, "seed")}); `
         + "the install is broken — reinstall the app",
     );
   }
-  const { manifestPath, sigPath } = seedPaths(resourcesPath);
+  const { manifestPath, sigPath } = seedPaths(resourcesPath, platformArch);
   // 两个 kind 都必须在场（consumer 必须保证）——校验
   // 一次即可，下面的 per-kind 函数各自还会再验一次自己需要的那半（廉价：
   // 一次 ed25519 verify + 一次小文件读取），换来的是各函数可以独立调用/
@@ -434,7 +452,7 @@ async function prepareArtifactBoot({
   });
 
   const server = await prepareArtifactServerBoot({ homeDir, resourcesPath, platformArch, keyset, channel, onProgress, log });
-  const renderer = await prepareArtifactRendererBoot({ homeDir, resourcesPath, keyset, channel, onProgress, log });
+  const renderer = await prepareArtifactRendererBoot({ homeDir, resourcesPath, platformArch, keyset, channel, onProgress, log });
 
   return { server, renderer };
 }
@@ -503,7 +521,7 @@ function isRenderProcessGoneCrash({ reason }) {
 
 module.exports = {
   SEED_CHANNEL,
-  SEED_MANIFEST_NAME,
+  seedManifestFileName,
   HEALTHY_CLEAR_DELAY_MS,
   CRASH_LOOP_THRESHOLD,
   seedPaths,

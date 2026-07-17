@@ -155,8 +155,8 @@ describe("Windows NSIS installer contract", () => {
     expect(verify).toContain('$INSTDIR\\${APP_EXECUTABLE_FILENAME}');
     expect(verify).toContain('$INSTDIR\\resources\\app.asar');
     expect(verify).toContain('$INSTDIR\\resources\\app-update.yml');
-    expect(verify).toContain('$INSTDIR\\resources\\seed\\seed-train.json');
-    expect(verify).toContain('$INSTDIR\\resources\\seed\\seed-train.json.sig');
+    expect(verify).toContain('hanakoRequireInstallSurfaceGlob "$INSTDIR\\resources\\seed" "seed-train-*.json"');
+    expect(verify).toContain('hanakoRequireInstallSurfaceGlob "$INSTDIR\\resources\\seed" "seed-train-*.json.sig"');
     expect(verify).toContain('hanakoRequireInstallSurfaceGlob "$INSTDIR\\resources\\seed" "server-*.tar.gz"');
     expect(verify).toContain('hanakoRequireInstallSurfaceGlob "$INSTDIR\\resources\\seed" "renderer-*.tar.gz"');
     expect(verify).toContain('$INSTDIR\\resources\\git\\cmd\\git.exe');

@@ -100,8 +100,11 @@ CRCCheck off
   !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "HanaAgent.exe"
   !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\app.asar" "resources\app.asar"
   !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\app-update.yml" "resources\app-update.yml"
-  !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\seed\seed-train.json" "resources\seed\seed-train.json"
-  !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\seed\seed-train.json.sig" "resources\seed\seed-train.json.sig"
+  ; manifest 文件名带平台限定（seed-train-<platform>-<arch>.json，见
+  ; scripts/build-server-artifact.mjs 的 seedManifestFileName），跟归档文件名
+  ; 一样无法用固定路径校验，走同一条通配存在性检查。
+  !insertmacro hanakoRequireInstallSurfaceGlob "$INSTDIR\resources\seed" "seed-train-*.json" "resources\seed\seed-train-*.json"
+  !insertmacro hanakoRequireInstallSurfaceGlob "$INSTDIR\resources\seed" "seed-train-*.json.sig" "resources\seed\seed-train-*.json.sig"
   !insertmacro hanakoRequireInstallSurfaceGlob "$INSTDIR\resources\seed" "server-*.tar.gz" "resources\seed\server-*.tar.gz"
   !insertmacro hanakoRequireInstallSurfaceGlob "$INSTDIR\resources\seed" "renderer-*.tar.gz" "resources\seed\renderer-*.tar.gz"
   !insertmacro hanakoRequireInstallSurfaceFile "$INSTDIR\resources\git\cmd\git.exe" "MinGit git.exe"

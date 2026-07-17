@@ -87,8 +87,8 @@ async function makeSeedResources(root: string, keys: ReturnType<typeof makeKeys>
     mirrors: [],
   };
   const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2) + "\n", "utf8");
-  await fsp.writeFile(path.join(seedDir, "seed-train.json"), manifestBytes);
-  await fsp.writeFile(path.join(seedDir, "seed-train.json.sig"), cryptoSign(null, manifestBytes, keys.privateKey));
+  await fsp.writeFile(path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json`), manifestBytes);
+  await fsp.writeFile(path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json.sig`), cryptoSign(null, manifestBytes, keys.privateKey));
   return { resourcesPath, seedDir, manifest, sha256 };
 }
 
@@ -147,23 +147,23 @@ async function makeDualKindSeedResources(
     mirrors: [],
   };
   const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2) + "\n", "utf8");
-  await fsp.writeFile(path.join(seedDir, "seed-train.json"), manifestBytes);
-  await fsp.writeFile(path.join(seedDir, "seed-train.json.sig"), cryptoSign(null, manifestBytes, keys.privateKey));
+  await fsp.writeFile(path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json`), manifestBytes);
+  await fsp.writeFile(path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json.sig`), cryptoSign(null, manifestBytes, keys.privateKey));
   return { resourcesPath, seedDir, manifest, serverSha256, rendererSha256 };
 }
 
 describe("artifact-boot: seed presence and verification", () => {
   it("hasSeed is false when no seed dir exists", () => {
     const root = makeTempDir("hana-boot-");
-    expect(hasSeed(path.join(root, "nowhere"))).toBe(false);
+    expect(hasSeed(path.join(root, "nowhere"), PLATFORM_ARCH)).toBe(false);
   });
 
   it("hard-errors when the seed manifest lacks a server entry for the running platform", async () => {
     const root = makeTempDir("hana-boot-");
     const keys = makeKeys();
     const { seedDir } = await makeSeedResources(root, keys);
-    const manifestBytes = fs.readFileSync(path.join(seedDir, "seed-train.json"));
-    const sigBytes = fs.readFileSync(path.join(seedDir, "seed-train.json.sig"));
+    const manifestBytes = fs.readFileSync(path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json`));
+    const sigBytes = fs.readFileSync(path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json.sig`));
     expect(() =>
       verifySeedManifest({ manifestBytes, sigBytes, keyset: keys.keyset, platformArch: "win32-x64" }),
     ).toThrow(/win32-x64/);
@@ -173,7 +173,7 @@ describe("artifact-boot: seed presence and verification", () => {
     const root = makeTempDir("hana-boot-");
     const keys = makeKeys();
     const { resourcesPath, seedDir } = await makeSeedResources(root, keys);
-    const sigPath = path.join(seedDir, "seed-train.json.sig");
+    const sigPath = path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json.sig`);
     const sig = fs.readFileSync(sigPath);
     sig[0] ^= 0xff;
     fs.writeFileSync(sigPath, sig);
@@ -432,8 +432,8 @@ describe("artifact-boot: verifySeedManifest requiredKinds", () => {
     const root = makeTempDir("hana-boot-");
     const keys = makeKeys();
     const { seedDir } = await makeSeedResources(root, keys); // server-only fixture
-    const manifestBytes = fs.readFileSync(path.join(seedDir, "seed-train.json"));
-    const sigBytes = fs.readFileSync(path.join(seedDir, "seed-train.json.sig"));
+    const manifestBytes = fs.readFileSync(path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json`));
+    const sigBytes = fs.readFileSync(path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json.sig`));
     expect(() =>
       verifySeedManifest({ manifestBytes, sigBytes, keyset: keys.keyset, requiredKinds: ["renderer"] }),
     ).toThrow(/renderer/i);
@@ -443,8 +443,8 @@ describe("artifact-boot: verifySeedManifest requiredKinds", () => {
     const root = makeTempDir("hana-boot-");
     const keys = makeKeys();
     const { seedDir } = await makeDualKindSeedResources(root, keys);
-    const manifestBytes = fs.readFileSync(path.join(seedDir, "seed-train.json"));
-    const sigBytes = fs.readFileSync(path.join(seedDir, "seed-train.json.sig"));
+    const manifestBytes = fs.readFileSync(path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json`));
+    const sigBytes = fs.readFileSync(path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json.sig`));
     const result = verifySeedManifest({
       manifestBytes,
       sigBytes,
@@ -468,6 +468,7 @@ describe("artifact-boot: prepareArtifactRendererBoot", () => {
     const result = await prepareArtifactRendererBoot({
       homeDir,
       resourcesPath,
+      platformArch: PLATFORM_ARCH,
       keyset: keys.keyset,
       onProgress: () => {
         progressCalls += 1;
@@ -487,7 +488,8 @@ describe("artifact-boot: prepareArtifactRendererBoot", () => {
     const keys = makeKeys();
     const { resourcesPath } = await makeDualKindSeedResources(root, keys);
     const homeDir = path.join(root, "home");
-    const boot = () => prepareArtifactRendererBoot({ homeDir, resourcesPath, keyset: keys.keyset, log: () => {} });
+    const boot = () =>
+      prepareArtifactRendererBoot({ homeDir, resourcesPath, platformArch: PLATFORM_ARCH, keyset: keys.keyset, log: () => {} });
 
     const first = await boot();
     const second = await boot();
@@ -508,7 +510,7 @@ describe("artifact-boot: prepareArtifactRendererBoot", () => {
       keyset: keys.keyset,
       log: () => {},
     });
-    const renderer = await prepareArtifactRendererBoot({ homeDir, resourcesPath, keyset: keys.keyset, log: () => {} });
+    const renderer = await prepareArtifactRendererBoot({ homeDir, resourcesPath, platformArch: PLATFORM_ARCH, keyset: keys.keyset, log: () => {} });
 
     // Distinct pointer files: server's "stable.current.json" must survive
     // renderer's own promote() untouched.
@@ -526,6 +528,7 @@ describe("artifact-boot: prepareArtifactRendererBoot", () => {
       prepareArtifactRendererBoot({
         homeDir: path.join(root, "home"),
         resourcesPath: path.join(root, "empty-resources"),
+        platformArch: PLATFORM_ARCH,
         keyset: keys.keyset,
         log: () => {},
       }),
@@ -541,7 +544,8 @@ describe("artifact-boot: prepareArtifactRendererBoot", () => {
     const keys = makeKeys();
     const seed = await makeDualKindSeedResources(root, keys, { version: "1.0.0", marker: "seedgen" });
     const homeDir = path.join(root, "home");
-    const boot = () => prepareArtifactRendererBoot({ homeDir, resourcesPath: seed.resourcesPath, keyset: keys.keyset, log: () => {} });
+    const boot = () =>
+      prepareArtifactRendererBoot({ homeDir, resourcesPath: seed.resourcesPath, platformArch: PLATFORM_ARCH, keyset: keys.keyset, log: () => {} });
 
     const seedBoot = await boot();
 
@@ -576,7 +580,8 @@ describe("artifact-boot: prepareArtifactRendererBoot", () => {
     const keys = makeKeys();
     const seed = await makeDualKindSeedResources(root, keys);
     const homeDir = path.join(root, "home");
-    const boot = () => prepareArtifactRendererBoot({ homeDir, resourcesPath: seed.resourcesPath, keyset: keys.keyset, log: () => {} });
+    const boot = () =>
+      prepareArtifactRendererBoot({ homeDir, resourcesPath: seed.resourcesPath, platformArch: PLATFORM_ARCH, keyset: keys.keyset, log: () => {} });
     const rendererChannel = rendererPointerChannel(SEED_CHANNEL);
 
     const first = await boot();
@@ -649,15 +654,48 @@ describe("artifact-boot: prepareArtifactBoot dual-kind orchestrator", () => {
     ).rejects.toThrow(/renderer/i);
   });
 
-  it("hard-errors the whole boot when the manifest is missing the server entry for the running platform", async () => {
+  it("hard-errors when the running platform has no bundled seed manifest at all (wrong-platform install)", async () => {
     const root = makeTempDir("hana-boot-dual-");
     const keys = makeKeys();
+    // Fixture only ever writes the PLATFORM_ARCH ("darwin-arm64")-named
+    // manifest — no seed-train-win32-x64.json exists in this Resources/
+    // tree at all. Before manifests were platform-qualified, every
+    // platform shared the same seed-train.json filename, so "wrong
+    // platform" and "seed exists but its content doesn't cover you" were
+    // indistinguishable at the file-lookup layer; disambiguating the
+    // filename is the whole point of this change, so the two now produce
+    // different errors (this test covers the first; the next test covers
+    // the second).
     const { resourcesPath } = await makeDualKindSeedResources(root, keys);
     const homeDir = path.join(root, "home");
 
     await expect(
       prepareArtifactBoot({ homeDir, resourcesPath, platformArch: "win32-x64", keyset: keys.keyset, log: () => {} }),
-    ).rejects.toThrow(/win32-x64/);
+    ).rejects.toThrow(/carry no seed/i);
+  });
+
+  it("hard-errors when a correctly-named manifest's signed content doesn't cover the platform it claims (build defect: filename/content platform mismatch)", async () => {
+    const root = makeTempDir("hana-boot-dual-");
+    const keys = makeKeys();
+    const { resourcesPath, seedDir } = await makeDualKindSeedResources(root, keys);
+    const homeDir = path.join(root, "home");
+
+    // Doctor the manifest IN PLACE — same file name (seed-train-<PLATFORM_ARCH>.json,
+    // so hasSeed/seedPaths still find it) — but repoint its artifacts.server
+    // key at a DIFFERENT platform-arch and re-sign with the same key.
+    // Reproduces a build defect where the filename and the signed content
+    // disagree about which platform the kit is for (exactly the ambiguity
+    // this change's per-platform naming is meant to make detectable).
+    const manifestPath = path.join(seedDir, `seed-train-${PLATFORM_ARCH}.json`);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    manifest.artifacts.server = { "win32-x64": manifest.artifacts.server[PLATFORM_ARCH] };
+    const bytes = Buffer.from(JSON.stringify(manifest, null, 2) + "\n", "utf8");
+    fs.writeFileSync(manifestPath, bytes);
+    fs.writeFileSync(`${manifestPath}.sig`, cryptoSign(null, bytes, keys.privateKey));
+
+    await expect(
+      prepareArtifactBoot({ homeDir, resourcesPath, platformArch: PLATFORM_ARCH, keyset: keys.keyset, log: () => {} }),
+    ).rejects.toThrow(new RegExp(PLATFORM_ARCH));
   });
 
   it("hard-errors when packaged resources carry no seed at all", async () => {
@@ -771,6 +809,7 @@ describe("artifact-boot: pointer mutex wiring", () => {
     const bootPromise = prepareArtifactRendererBoot({
       homeDir,
       resourcesPath,
+      platformArch: PLATFORM_ARCH,
       keyset: keys.keyset,
       log: () => {},
     }).then((result: unknown) => {
