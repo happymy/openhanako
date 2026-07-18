@@ -79,6 +79,74 @@ describe("SessionCollabDraftStore", () => {
     expect(store.listForSession("a")).toHaveLength(1);
   });
 
+  it("Fork 只克隆 retained branch 引用的 pending 草稿，且 child/source 可独立消费", async () => {
+    const store = new SessionCollabDraftStore();
+    const apply = vi.fn().mockResolvedValue({ delivered: true });
+    const retained = store.create(makeEntry({ apply }));
+    const discardedTail = store.create(makeEntry({ apply }));
+
+    const forked = store.forkSessionDrafts({
+      sourceSessionId: "src-1",
+      targetSessionId: "child-1",
+      targetSessionPath: "/sessions/child.jsonl",
+      retainedEntries: [{
+        type: "message",
+        message: {
+          role: "toolResult",
+          content: [{ type: "text", text: `Draft created (${retained.suggestionId})` }],
+          details: { suggestionId: retained.suggestionId, kind: "session_send_draft" },
+        },
+      }],
+    });
+
+    expect(forked).toMatchObject({ drafts: 1 });
+    const childSuggestionId = forked.suggestionIdMap[retained.suggestionId];
+    expect(childSuggestionId).toBeTruthy();
+    expect(forked.suggestionIdMap[discardedTail.suggestionId]).toBeUndefined();
+    expect(store.get(childSuggestionId)).toMatchObject({
+      sourceSessionId: "child-1",
+      sourceSessionPath: "/sessions/child.jsonl",
+      forkedFromSuggestionId: retained.suggestionId,
+    });
+
+    await expect(store.apply(childSuggestionId, { message: "child" })).resolves.toMatchObject({ ok: true });
+    expect(store.get(retained.suggestionId)).toBeTruthy();
+    await expect(store.apply(retained.suggestionId, { message: "source" })).resolves.toMatchObject({ ok: true });
+    expect(apply).toHaveBeenCalledTimes(2);
+  });
+
+  it("Fork 遇到 retained draft 正在 apply 时失败且不留下半克隆句柄", async () => {
+    const store = new SessionCollabDraftStore();
+    let resolveApply: (v: unknown) => void;
+    const applying = store.create(makeEntry({
+      apply: vi.fn(() => new Promise((resolve) => { resolveApply = resolve; })),
+    }));
+    const pending = store.apply(applying.suggestionId, {});
+
+    expect(() => store.forkSessionDrafts({
+      sourceSessionId: "src-1",
+      targetSessionId: "child-1",
+      retainedEntries: [{ details: { suggestionId: applying.suggestionId } }],
+    })).toThrow("being applied");
+    expect(store.listForSession("child-1")).toEqual([]);
+
+    resolveApply!("done");
+    await pending;
+  });
+
+  it("discardForkedSessionDrafts 只回收指定 child 句柄", () => {
+    const store = new SessionCollabDraftStore();
+    const source = store.create(makeEntry());
+    const forked = store.forkSessionDrafts({
+      sourceSessionId: "src-1",
+      targetSessionId: "child-1",
+      retainedEntries: [{ suggestionId: source.suggestionId }],
+    });
+    expect(store.discardForkedSessionDrafts({ suggestionIds: forked.suggestionIds })).toEqual({ discarded: 1 });
+    expect(store.get(source.suggestionId)).toBeTruthy();
+    expect(store.listForSession("child-1")).toEqual([]);
+  });
+
   describe("discard（灰测修复 C：确认状态持久化的忽略入口）", () => {
     it("discard 已存在条目：返回被删条目的公开形态，条目随后不可再 get", () => {
       const store = new SessionCollabDraftStore();

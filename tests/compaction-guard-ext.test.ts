@@ -231,6 +231,46 @@ describe("CompactionGuardExtension", () => {
       expect(computeHardTruncation).not.toHaveBeenCalled();
     });
 
+    it("shares the persisted cache lineage during compaction without replacing the child Pi identity", async () => {
+      pi = createMockPi();
+      const getSessionProviderCacheAffinityKey = vi.fn(() => "pi-source-lineage");
+      createCompactionGuardExtension({
+        cacheCompactor,
+        buildSessionCacheSnapshot,
+        getSessionProviderCacheAffinityKey,
+      })(pi);
+      (estimatePreparationTokens as any).mockReturnValue(50_000);
+      const codexModel = {
+        ...model,
+        api: "openai-codex-responses",
+        provider: "openai-codex",
+      };
+
+      await pi.trigger(
+        "session_before_compact",
+        { preparation, signal: { aborted: false } },
+        {
+          ...ctx,
+          model: codexModel,
+          sessionManager: {
+            ...ctx.sessionManager,
+            getSessionId: () => "pi-child",
+          },
+        },
+      );
+
+      expect(getSessionProviderCacheAffinityKey).toHaveBeenCalledWith("/sessions/current.jsonl");
+      const streamOptions = cacheCompactor.mock.calls[0][0].streamOptions;
+      expect(streamOptions.sessionId).toBe("pi-child");
+      await expect(streamOptions.onPayload({
+        prompt_cache_key: "pi-child",
+        input: [],
+      }, codexModel)).resolves.toMatchObject({
+        prompt_cache_key: "pi-source-lineage",
+        input: [],
+      });
+    });
+
     it("accepts resolver-approved header-only credentials", async () => {
       ctx.modelRegistry.getApiKeyAndHeaders.mockResolvedValueOnce({
         ok: true,

@@ -384,7 +384,10 @@ describe("subagent-tool (executeIsolated 原子模式)", () => {
             display: false,
             content: expect.stringContaining(`task-id="${taskId}"`),
           }),
-          { triggerTurn: true },
+          expect.objectContaining({
+            triggerTurn: true,
+            shouldDeliver: expect.any(Function),
+          }),
         );
       });
       expect(realStore.query(taskId)).toMatchObject({ delivered: true });
@@ -1171,6 +1174,77 @@ describe("subagent-tool direct instance lifecycle", () => {
     });
   });
 
+  it("fork 后用历史 threadId 只续接目标 Session 的独立 clone", async () => {
+    const sessionIds = new Map([
+      ["/source.jsonl", "sess_source"],
+      ["/fork.jsonl", "sess_fork"],
+      ["/children/source.jsonl", "sess_child_source"],
+      ["/children/fork.jsonl", "sess_child_fork"],
+    ]);
+    const getSessionIdForPath = (sessionPath) => sessionIds.get(sessionPath) || null;
+    const threadStore = new (SubagentThreadStore as any)(null, { getSessionIdForPath });
+    threadStore.beginRun("historical-thread", {
+      kind: "direct",
+      parentSessionPath: "/source.jsonl",
+      agentId: "other-agent",
+      agentName: "Other",
+      access: "read",
+    });
+    threadStore.attachSession("historical-thread", "/children/source.jsonl", {
+      childSessionId: "sess_child_source",
+    });
+    threadStore.finishRun("historical-thread", { status: "resolved", summary: "source ready", close: false });
+    await threadStore.forkOpenDirectThreads({
+      sourceSessionId: "sess_source",
+      sourceSessionPath: "/source.jsonl",
+      targetSessionId: "sess_fork",
+      targetSessionPath: "/fork.jsonl",
+      retainedEntries: [{ data: { threadId: "historical-thread" } }],
+      createThreadId: () => "fork-thread",
+      cloneChildSession: async () => ({
+        sessionId: "sess_child_fork",
+        sessionPath: "/children/fork.jsonl",
+      }),
+      discardChildSession: async () => undefined,
+    });
+    const capture = vi.fn().mockImplementation((_prompt, opts) => {
+      opts.onSessionReady?.("/children/fork.jsonl", {
+        sessionId: "sess_child_fork",
+        sessionPath: "/children/fork.jsonl",
+      });
+      return Promise.resolve({ replyText: "fork continued", error: null, sessionPath: "/children/fork.jsonl" });
+    });
+    const replyTool = createSubagentReplyTool(makeDeps({
+      executeIsolated: capture,
+      getDeferredStore: () => mockStore,
+      getSubagentThreadStore: () => threadStore,
+      getSessionIdForPath,
+    }));
+
+    const result = await replyTool.execute("c-fork", {
+      threadId: "historical-thread",
+      task: "只在 fork 里继续",
+    }, null, null, mockCtx("/fork.jsonl"));
+
+    expect((result.details as any).threadId).toBe("fork-thread");
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledOnce());
+    expect(capture.mock.calls[0][1]).toMatchObject({
+      parentSessionPath: "/fork.jsonl",
+      resumeSessionPath: "/children/fork.jsonl",
+      subagentThreadId: "fork-thread",
+    });
+    await vi.waitFor(() => expect(threadStore.get("fork-thread")).toMatchObject({
+      runCount: 2,
+      summary: "fork continued",
+      childSessionPath: "/children/fork.jsonl",
+    }));
+    expect(threadStore.get("historical-thread")).toMatchObject({
+      runCount: 1,
+      summary: "source ready",
+      childSessionPath: "/children/source.jsonl",
+    });
+  });
+
   it("subagent_reply 拒绝关闭的、跨父会话的或 workflow 节点线程", async () => {
     const threadStore = new (SubagentThreadStore as any)();
     threadStore.beginRun("closed", { kind: "direct", parentSessionPath: "/test/session.jsonl" });
@@ -1221,6 +1295,41 @@ describe("subagent-tool direct instance lifecycle", () => {
       status: "closed",
       summary: "探索阶段结束",
     });
+  });
+
+  it("fork 后 close 的历史 threadId 只关闭目标 Session clone", async () => {
+    const sessionIds = new Map([
+      ["/source.jsonl", "sess_source"],
+      ["/fork.jsonl", "sess_fork"],
+    ]);
+    const getSessionIdForPath = (sessionPath) => sessionIds.get(sessionPath) || null;
+    const threadStore = new (SubagentThreadStore as any)(null, { getSessionIdForPath });
+    threadStore.beginRun("source-thread", { kind: "direct", parentSessionPath: "/source.jsonl" });
+    threadStore.attachSession("source-thread", "/children/source.jsonl", { childSessionId: "sess_child_source" });
+    threadStore.finishRun("source-thread", { status: "resolved", close: false });
+    await threadStore.forkOpenDirectThreads({
+      sourceSessionId: "sess_source",
+      sourceSessionPath: "/source.jsonl",
+      targetSessionId: "sess_fork",
+      targetSessionPath: "/fork.jsonl",
+      retainedEntries: [{ threadId: "source-thread" }],
+      createThreadId: () => "fork-thread",
+      cloneChildSession: async () => ({ sessionId: "sess_child_fork", sessionPath: "/children/fork.jsonl" }),
+      discardChildSession: async () => undefined,
+    });
+    const closeTool = createSubagentCloseTool(makeDeps({
+      getSubagentThreadStore: () => threadStore,
+      getSessionIdForPath,
+    }));
+
+    const result = await closeTool.execute("close-fork", {
+      threadId: "source-thread",
+      reason: "fork done",
+    }, null, null, mockCtx("/fork.jsonl"));
+
+    expect(result.details).toMatchObject({ threadId: "fork-thread", streamStatus: "closed" });
+    expect(threadStore.get("fork-thread")).toMatchObject({ status: "closed", summary: "fork done" });
+    expect(threadStore.get("source-thread")).toMatchObject({ status: "open" });
   });
 
   it("同一 direct instance 并发 reply 串行排队，另一个 direct instance 不被阻塞", async () => {

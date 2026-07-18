@@ -2,6 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { SessionFileRegistry } from "../lib/session-files/session-file-registry.ts";
 
 const createSandboxedTools = vi.fn(() => ({ tools: [], customTools: [] }));
 
@@ -20,15 +21,67 @@ describe("HanaEngine.buildTools session external sandbox grants", () => {
     vi.clearAllMocks();
   });
 
-  it("passes active session external files as read-only sandbox inputs", () => {
+  function writeSession(sessionPath, entries) {
+    fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
+    fs.writeFileSync(sessionPath, [
+      JSON.stringify({
+        type: "session",
+        version: 3,
+        id: path.basename(sessionPath, ".jsonl"),
+        timestamp: "2026-07-19T00:00:00.000Z",
+        cwd: path.dirname(sessionPath),
+      }),
+      ...entries.map((entry) => JSON.stringify(entry)),
+      "",
+    ].join("\n"));
+  }
+
+  it("projects and resolves SessionFiles from an unloaded session's active branch", () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hana-engine-unloaded-session-files-"));
+    const sessionPath = path.join(tempRoot, "agents", "hana", "subagent-sessions", "child.jsonl");
+    const filePath = path.join(tempRoot, "outside", "child-note.md");
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, "child note");
+
+    const registry = new SessionFileRegistry({ now: () => 1234 });
+    const sessionFile = registry.registerFile({
+      sessionPath,
+      filePath,
+      origin: "stage_files",
+      storageKind: "external",
+    });
+    writeSession(sessionPath, [{
+      type: "message",
+      id: "user-child",
+      parentId: null,
+      timestamp: "2026-07-19T00:00:01.000Z",
+      message: {
+        role: "user",
+        content: `[SessionFile] ${JSON.stringify({ fileId: sessionFile.id })}`,
+      },
+    }]);
+
+    const engine = Object.create(HanaEngine.prototype);
+    engine._sessionFiles = registry;
+    engine.getSessionByPath = vi.fn(() => null);
+
+    expect(engine.listActiveSessionFiles(sessionPath)).toEqual([sessionFile]);
+    expect(engine.resolveActiveSessionFile({
+      fileId: sessionFile.id,
+      sessionPath,
+    })).toEqual(sessionFile);
+  });
+
+  it("grants and resolves only active-branch SessionFiles while retaining the hidden sidecar superset", async () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hana-engine-sandbox-files-"));
     const hanakoHome = path.join(tempRoot, "hana-home");
     const agentDir = path.join(hanakoHome, "agents", "hana");
     const workspace = path.join(tempRoot, "workspace");
     const externalFile = path.join(tempRoot, "outside", "brief.md");
+    const hiddenExternalFile = path.join(tempRoot, "outside", "abandoned.md");
     const workspaceFile = path.join(workspace, "owned.md");
     const managedFile = path.join(hanakoHome, "session-files", "cache", "shot.png");
-    for (const file of [externalFile, workspaceFile, managedFile]) {
+    for (const file of [externalFile, hiddenExternalFile, workspaceFile, managedFile]) {
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, "x");
     }
@@ -45,11 +98,31 @@ describe("HanaEngine.buildTools session external sandbox grants", () => {
     engine._emitEvent = vi.fn();
     engine.getSessionPermissionMode = vi.fn(() => "operate");
     engine._agentMgr = { agent: { id: "hana", agentDir, tools: [] } };
-    engine.listSessionFiles = vi.fn(() => [
-      { filePath: externalFile, realPath: fs.realpathSync(externalFile), storageKind: "external", status: "available" },
-      { filePath: workspaceFile, realPath: fs.realpathSync(workspaceFile), storageKind: "external", status: "available" },
-      { filePath: managedFile, realPath: fs.realpathSync(managedFile), storageKind: "managed_cache", status: "available" },
-    ]);
+    const activeFile = {
+      id: "sf-active",
+      sessionPath,
+      filePath: externalFile,
+      realPath: fs.realpathSync(externalFile),
+      storageKind: "external",
+      status: "available",
+    };
+    const hiddenFile = {
+      id: "sf-hidden",
+      sessionPath,
+      filePath: hiddenExternalFile,
+      realPath: fs.realpathSync(hiddenExternalFile),
+      storageKind: "external",
+      status: "available",
+    };
+    const activeProjection = [
+      activeFile,
+      { id: "sf-workspace", sessionPath, filePath: workspaceFile, realPath: fs.realpathSync(workspaceFile), storageKind: "external", status: "available" },
+      { id: "sf-managed", sessionPath, filePath: managedFile, realPath: fs.realpathSync(managedFile), storageKind: "managed_cache", status: "available" },
+    ];
+    engine.listSessionFiles = vi.fn(() => [...activeProjection, hiddenFile]);
+    engine.listActiveSessionFiles = vi.fn(() => activeProjection);
+    engine.getSessionFile = vi.fn((fileId) => [...activeProjection, hiddenFile]
+      .find((file) => file.id === fileId) || null);
 
     engine.buildTools(workspace, [], {
       agentDir,
@@ -59,6 +132,14 @@ describe("HanaEngine.buildTools session external sandbox grants", () => {
 
     const sandboxOpts = (createSandboxedTools.mock.calls as any)[0][2];
     expect(sandboxOpts!.getExternalReadPaths()).toEqual([fs.realpathSync(externalFile)]);
+    expect(sandboxOpts!.resolveSessionFile("sf-active", { sessionPath })).toBe(activeFile);
+    expect(sandboxOpts!.resolveSessionFile("sf-hidden", { sessionPath })).toBeNull();
+    await expect(sandboxOpts!.resourceIO.read({
+      kind: "session-file",
+      fileId: "sf-hidden",
+      sessionPath,
+    })).rejects.toThrow("session file not found");
+    expect(engine.listSessionFiles()).toContain(hiddenFile);
   });
 
   it("passes the sandbox network preference as a dynamic sandbox option", () => {
@@ -227,6 +308,63 @@ describe("HanaEngine.buildTools session external sandbox grants", () => {
     expect(sandboxOpts!.resourceIO).toBeTruthy();
   });
 
+  it("resolves a forked legacy file id against the active child before its source locator", () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hana-engine-fork-file-resolve-"));
+    const hanakoHome = path.join(tempRoot, "hana-home");
+    const agentDir = path.join(hanakoHome, "agents", "hana");
+    const workspace = path.join(tempRoot, "workspace");
+    const childSessionPath = path.join(agentDir, "sessions", "child.jsonl");
+    const sourceSessionPath = path.join(agentDir, "sessions", "source.jsonl");
+    const sourceFilePath = path.join(hanakoHome, "session-files", "source", "brief.md");
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.mkdirSync(workspace, { recursive: true });
+
+    const childFile = {
+      id: "child-file",
+      sessionPath: childSessionPath,
+      filePath: path.join(hanakoHome, "session-files", "child", "brief.md"),
+      legacyFileIds: ["source-file"],
+      legacyFilePaths: [sourceFilePath],
+    };
+    const engine = Object.create(HanaEngine.prototype);
+    engine.hanakoHome = hanakoHome;
+    engine.getAgent = vi.fn(() => ({ id: "hana", agentDir, tools: [] }));
+    engine._pluginManager = null;
+    engine._prefs = { getFileBackup: () => ({ enabled: false }) };
+    engine._readPreferences = () => ({ sandbox: true });
+    engine._confirmStore = null;
+    engine._emitEvent = vi.fn();
+    engine.getSessionPermissionMode = vi.fn(() => "operate");
+    engine._agentMgr = { agent: { id: "hana", agentDir, tools: [] } };
+    engine.listSessionFiles = vi.fn(() => []);
+    engine.listActiveSessionFiles = vi.fn(() => [childFile]);
+    engine.getSessionIdForPath = vi.fn(() => "sess-child");
+    engine.getSessionFile = vi.fn((fileId, options) => (
+      fileId === "source-file" && options?.sessionPath === childSessionPath ? childFile : null
+    ));
+    engine.getSessionFileByPath = vi.fn((filePath, options) => (
+      filePath === sourceFilePath && options?.sessionPath === childSessionPath ? childFile : null
+    ));
+    engine.recordSessionFileOperation = vi.fn();
+    engine.getVisionBridge = vi.fn(() => null);
+    engine.isVisionAuxiliaryEnabled = vi.fn(() => false);
+
+    engine.buildTools(workspace, [], {
+      agentDir,
+      workspace,
+      getSessionPath: () => childSessionPath,
+    });
+
+    const sandboxOpts = (createSandboxedTools.mock.calls as any)[0][2];
+    expect(sandboxOpts.resolveSessionFile("source-file", { sessionPath: sourceSessionPath })).toBe(childFile);
+    expect(engine.resolveActiveSessionFile({
+      filePath: sourceFilePath,
+      sessionPath: childSessionPath,
+    })).toBe(childFile);
+    expect(engine.listActiveSessionFiles).toHaveBeenCalledWith(childSessionPath, []);
+    expect(engine.getSessionFile).toHaveBeenCalledWith("source-file", { sessionId: null, sessionPath: childSessionPath });
+  });
+
   it("includes inherited parent session files in read-only sandbox inputs", () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hana-engine-sandbox-parent-files-"));
     const hanakoHome = path.join(tempRoot, "hana-home");
@@ -253,7 +391,7 @@ describe("HanaEngine.buildTools session external sandbox grants", () => {
     engine._emitEvent = vi.fn();
     engine.getSessionPermissionMode = vi.fn(() => "operate");
     engine._agentMgr = { agent: { id: "hana", agentDir, tools: [] } };
-    engine.listSessionFiles = vi.fn((sessionPath) => {
+    engine.listActiveSessionFiles = vi.fn((sessionPath) => {
       if (sessionPath === childSessionPath) {
         return [
           { filePath: childExternal, realPath: fs.realpathSync(childExternal), storageKind: "external", status: "available" },
@@ -280,5 +418,73 @@ describe("HanaEngine.buildTools session external sandbox grants", () => {
       fs.realpathSync(childExternal),
       fs.realpathSync(parentExternal),
     ]);
+  });
+
+  it("resolves and grants an unloaded explicit parent session file", () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hana-engine-unloaded-parent-files-"));
+    const hanakoHome = path.join(tempRoot, "hana-home");
+    const agentDir = path.join(hanakoHome, "agents", "hana");
+    const workspace = path.join(tempRoot, "workspace");
+    const childSessionPath = path.join(agentDir, "subagent-sessions", "child.jsonl");
+    const parentSessionPath = path.join(agentDir, "sessions", "parent.jsonl");
+    const parentExternal = path.join(tempRoot, "outside", "parent.md");
+    fs.mkdirSync(workspace, { recursive: true });
+    fs.mkdirSync(path.dirname(parentExternal), { recursive: true });
+    fs.writeFileSync(parentExternal, "parent note");
+
+    const registry = new SessionFileRegistry({ now: () => 1234 });
+    const parentFile = registry.registerFile({
+      sessionPath: parentSessionPath,
+      filePath: parentExternal,
+      origin: "stage_files",
+      storageKind: "external",
+    });
+    writeSession(parentSessionPath, [{
+      type: "message",
+      id: "parent-user",
+      parentId: null,
+      timestamp: "2026-07-19T00:00:01.000Z",
+      message: {
+        role: "user",
+        content: `[SessionFile] ${JSON.stringify({ fileId: parentFile.id })}`,
+      },
+    }]);
+    writeSession(childSessionPath, [{
+      type: "message",
+      id: "child-user",
+      parentId: null,
+      timestamp: "2026-07-19T00:00:02.000Z",
+      message: { role: "user", content: "continue" },
+    }]);
+
+    const engine = Object.create(HanaEngine.prototype);
+    engine.hanakoHome = hanakoHome;
+    engine._sessionFiles = registry;
+    engine.getSessionByPath = vi.fn(() => null);
+    engine.getAgent = vi.fn(() => ({ id: "hana", agentDir, tools: [] }));
+    engine._pluginManager = null;
+    engine._prefs = { getFileBackup: () => ({ enabled: false }) };
+    engine._readPreferences = () => ({ sandbox: true });
+    engine._confirmStore = null;
+    engine._emitEvent = vi.fn();
+    engine.getSessionPermissionMode = vi.fn(() => "operate");
+    engine._agentMgr = { agent: { id: "hana", agentDir, tools: [] } };
+    engine.getSessionIdForPath = vi.fn((sessionPath) => path.basename(sessionPath, ".jsonl"));
+    engine.recordSessionFileOperation = vi.fn();
+    engine.getVisionBridge = vi.fn(() => null);
+    engine.isVisionAuxiliaryEnabled = vi.fn(() => false);
+
+    engine.buildTools(workspace, [], {
+      agentDir,
+      workspace,
+      getSessionPath: () => childSessionPath,
+      fileReadSessionPaths: [parentSessionPath],
+    });
+
+    const sandboxOpts = (createSandboxedTools.mock.calls as any)[0][2];
+    expect(sandboxOpts!.getExternalReadPaths()).toEqual([fs.realpathSync(parentExternal)]);
+    expect(sandboxOpts!.resolveSessionFile(parentFile.id, {
+      sessionPath: parentSessionPath,
+    })).toEqual(parentFile);
   });
 });

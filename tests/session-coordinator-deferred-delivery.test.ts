@@ -39,6 +39,31 @@ function makeSession({ isStreaming }) {
 }
 
 describe("SessionCoordinator deferred custom delivery", () => {
+  it("rechecks prompt streaming state before committing input side effects", async () => {
+    const coord = makeCoordinator();
+    const sessionPath = "/tmp/fake/agents/test-agent/sessions/prompt-race.jsonl";
+    const afterCachePreflight = vi.fn();
+    const session = {
+      ...makeSession({ isStreaming: false }),
+      isStreaming: true,
+      prompt: vi.fn(),
+      agent: { state: { messages: [] } },
+    };
+    coord.sessions.set(sessionPath, {
+      session,
+      agentId: "test-agent",
+      lastTouchedAt: 0,
+    });
+
+    await expect(coord.promptSession(sessionPath, "retry", {}, {
+      afterCachePreflight,
+    })).rejects.toThrow("session_busy");
+
+    expect(afterCachePreflight).not.toHaveBeenCalled();
+    expect(coord.preflightSessionInput).not.toHaveBeenCalled();
+    expect(session.prompt).not.toHaveBeenCalled();
+  });
+
   it("wakes an idle live session with triggerTurn instead of steer", async () => {
     const order: string[] = [];
     const emitEvent = vi.fn();
@@ -127,6 +152,32 @@ describe("SessionCoordinator deferred custom delivery", () => {
     );
   });
 
+  it("refuses retry-only custom delivery if the session became streaming", async () => {
+    const coord = makeCoordinator();
+    const session = makeSession({ isStreaming: true });
+    const sessionPath = "/tmp/fake/agents/test-agent/sessions/retry-race.jsonl";
+    const beforeInputSideEffects = vi.fn();
+    coord.sessions.set(sessionPath, {
+      session,
+      agentId: "test-agent",
+      lastTouchedAt: 0,
+    });
+
+    await expect(coord.deliverCustomMessage(sessionPath, {
+      customType: "hana-background-result",
+      content: '<hana-background-result task-id="task-1" status="success" type="subagent">done</hana-background-result>',
+      display: false,
+    }, {
+      triggerTurn: true,
+      requireIdle: true,
+      beforeInputSideEffects,
+    })).rejects.toThrow("session_busy");
+
+    expect(beforeInputSideEffects).not.toHaveBeenCalled();
+    expect(coord.preflightSessionInput).not.toHaveBeenCalled();
+    expect(session.sendCustomMessage).not.toHaveBeenCalled();
+  });
+
   it("cold-loads an unloaded session before delivering the custom message", async () => {
     const coord = makeCoordinator();
     const session = makeSession({ isStreaming: false });
@@ -152,6 +203,35 @@ describe("SessionCoordinator deferred custom delivery", () => {
       expect.objectContaining({ customType: "hana-background-result", display: false }),
       { triggerTurn: true },
     );
+  });
+
+  it("rechecks a retry delivery fence after cold-loading and before appending", async () => {
+    const coord = makeCoordinator();
+    const session = makeSession({ isStreaming: false });
+    const sessionPath = "/tmp/fake/agents/test-agent/sessions/cold-fenced.jsonl";
+    let deliverAllowed = true;
+    coord.ensureSessionLoaded = vi.fn(async (resolvedPath) => {
+      coord.sessions.set(resolvedPath, {
+        session,
+        agentId: "test-agent",
+        lastTouchedAt: 0,
+      });
+      deliverAllowed = false;
+      return session;
+    });
+
+    const result = await coord.deliverCustomMessage(sessionPath, {
+      customType: "hana-background-result",
+      content: "<hana-background-result />",
+      display: false,
+    }, {
+      shouldDeliver: () => deliverAllowed,
+    });
+
+    expect(result).toEqual({ ok: false, mode: "suppressed" });
+    expect(coord.ensureSessionLoaded).toHaveBeenCalledWith(sessionPath);
+    expect(coord.preflightSessionInput).not.toHaveBeenCalled();
+    expect(session.sendCustomMessage).not.toHaveBeenCalled();
   });
 
   it("refuses to cold-load archived sessions for custom delivery", async () => {
@@ -248,6 +328,61 @@ describe("SessionCoordinator deferred custom delivery", () => {
 
     expect(session.sendCustomMessage).not.toHaveBeenCalled();
     expect(emitEvent).not.toHaveBeenCalled();
+  });
+
+  it("commits synchronous retry side effects after preflight and before custom input persistence", async () => {
+    const order: string[] = [];
+    const emitEvent = vi.fn(() => order.push("presentation"));
+    const coord = makeCoordinator({ emitEvent });
+    const session = makeSession({ isStreaming: false });
+    const sessionPath = "/tmp/fake/agents/test-agent/sessions/retry-custom.jsonl";
+    coord.sessions.set(sessionPath, {
+      session,
+      agentId: "test-agent",
+      lastTouchedAt: 0,
+    });
+    vi.mocked(coord.preflightSessionInput).mockImplementation(() => {
+      order.push("preflight");
+      return {} as any;
+    });
+    session.sendCustomMessage.mockImplementation(async () => {
+      order.push("send");
+    });
+
+    await coord.deliverCustomMessage(sessionPath, {
+      customType: "hana-background-result",
+      content: '<hana-background-result task-id="task-1" status="success" type="subagent">done</hana-background-result>',
+      display: false,
+    }, {
+      triggerTurn: true,
+      beforeInputSideEffects: () => order.push("commit"),
+    });
+
+    expect(order).toEqual(["preflight", "commit", "presentation", "send"]);
+  });
+
+  it("rejects asynchronous custom-input commit hooks before presentation or persistence", async () => {
+    const emitEvent = vi.fn();
+    const coord = makeCoordinator({ emitEvent });
+    const session = makeSession({ isStreaming: false });
+    const sessionPath = "/tmp/fake/agents/test-agent/sessions/retry-custom-async.jsonl";
+    coord.sessions.set(sessionPath, {
+      session,
+      agentId: "test-agent",
+      lastTouchedAt: 0,
+    });
+
+    await expect(coord.deliverCustomMessage(sessionPath, {
+      customType: "hana-background-result",
+      content: '<hana-background-result task-id="task-1" status="success" type="subagent">done</hana-background-result>',
+      display: false,
+    }, {
+      triggerTurn: true,
+      beforeInputSideEffects: async () => {},
+    })).rejects.toThrow(/must be synchronous/);
+
+    expect(emitEvent).not.toHaveBeenCalled();
+    expect(session.sendCustomMessage).not.toHaveBeenCalled();
   });
 
   it("records non-context custom entries on a live session manager without sending a custom message", () => {

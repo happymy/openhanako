@@ -1,8 +1,6 @@
 import fs from "fs";
 import path from "path";
 
-const TAIL_READ_THRESHOLD = 256 * 1024;
-
 export function sessionIdFromFilename(filename) {
   return filename.replace(/\.jsonl$/, "");
 }
@@ -46,7 +44,13 @@ export function listSessionFiles(sessionDir) {
 
 /**
  * 从 session JSONL 文件提取消息列表（带时间戳）。
- * 大文件只读尾部，保持和 memory ticker 的历史行为一致。
+ *
+ * Pi session 是 append-only tree：物理文件可能同时保留已经抛弃的旧分支，
+ * 最后一条可解析 tree entry 才是当前 leaf。这里必须先读取完整文件并沿 parentId
+ * 回溯 root → leaf，再做时间过滤。只读文件尾部无法证明父链完整，会把记忆/日记
+ * 截成残缺上下文；线性扫描则会把隐藏分支重新写进长期记忆。
+ *
+ * `full` 保留为兼容参数。分支正确性要求所有调用都完整读取。
  */
 export function readSessionMessages(filePath, opts: { since?: any; full?: boolean } = {}) {
   const since = opts.since && !Number.isNaN(Date.parse(opts.since))
@@ -54,42 +58,57 @@ export function readSessionMessages(filePath, opts: { since?: any; full?: boolea
     : null;
   let raw;
   try {
-    const stat = fs.statSync(filePath);
-    if (opts.full !== true && stat.size > TAIL_READ_THRESHOLD) {
-      const fd = fs.openSync(filePath, "r");
-      try {
-        const buf = Buffer.alloc(TAIL_READ_THRESHOLD);
-        fs.readSync(fd, buf, 0, TAIL_READ_THRESHOLD, stat.size - TAIL_READ_THRESHOLD);
-        raw = buf.toString("utf-8");
-        const firstNewline = raw.indexOf("\n");
-        if (firstNewline !== -1) raw = raw.slice(firstNewline + 1);
-      } finally {
-        fs.closeSync(fd);
-      }
-    } else {
-      raw = fs.readFileSync(filePath, "utf-8");
-    }
+    raw = fs.readFileSync(filePath, "utf-8");
   } catch {
     return { messages: [], lastTimestamp: null };
+  }
+
+  const parsedEntries = [];
+  let hasTreeEntries = false;
+  let leafId = null;
+  const byId = new Map();
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const entry = JSON.parse(line);
+      if (!entry || entry.type === "session") continue;
+      parsedEntries.push(entry);
+      if (typeof entry.id === "string" && entry.id) {
+        hasTreeEntries = true;
+        leafId = entry.id;
+        byId.set(entry.id, entry);
+      }
+    } catch {
+      // 单行损坏只丢弃该行，避免局部坏数据阻断整条记忆/日记链路。
+    }
+  }
+
+  let activeEntries = parsedEntries;
+  if (hasTreeEntries && leafId) {
+    const reversed = [];
+    const seen = new Set();
+    let current = byId.get(leafId);
+    while (current && typeof current.id === "string" && !seen.has(current.id)) {
+      reversed.push(current);
+      seen.add(current.id);
+      current = typeof current.parentId === "string" && current.parentId
+        ? byId.get(current.parentId)
+        : null;
+    }
+    activeEntries = reversed.reverse();
   }
 
   const messages = [];
   let lastTimestamp = null;
 
-  for (const line of raw.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      const entry = JSON.parse(line);
-      if (entry.type !== "message" || !entry.message) continue;
-      const { role, content } = entry.message;
-      if (role !== "user" && role !== "assistant") continue;
-      const ts = entry.timestamp ? Date.parse(entry.timestamp) : NaN;
-      if (since && (Number.isNaN(ts) || ts <= since)) continue;
-      messages.push({ role, content, timestamp: entry.timestamp || null });
-      if (entry.timestamp) lastTimestamp = entry.timestamp;
-    } catch {
-      // 单行损坏只丢弃该行，避免局部坏数据阻断整条记忆/日记链路。
-    }
+  for (const entry of activeEntries) {
+    if (entry.type !== "message" || !entry.message) continue;
+    const { role, content } = entry.message;
+    if (role !== "user" && role !== "assistant") continue;
+    const ts = entry.timestamp ? Date.parse(entry.timestamp) : NaN;
+    if (since !== null && (Number.isNaN(ts) || ts <= since)) continue;
+    messages.push({ role, content, timestamp: entry.timestamp || null });
+    if (entry.timestamp) lastTimestamp = entry.timestamp;
   }
 
   return { messages, lastTimestamp };

@@ -486,6 +486,71 @@ export class BrowserManager {
   }
 
   /**
+   * Copy the source tab workspace into an independent cold-resume record.
+   * A live browser view/process is never shared with the child session.
+   */
+  forkSessionState({
+    sourceSessionPath,
+    targetSessionPath,
+    includeSourceState = true,
+  }: Record<string, any> = {}) {
+    if (!sourceSessionPath) throw new Error("browser session fork requires sourceSessionPath");
+    if (!targetSessionPath) throw new Error("browser session fork requires targetSessionPath");
+    if (sourceSessionPath === targetSessionPath) {
+      throw new Error("browser session fork requires distinct source and target paths");
+    }
+
+    // The browser workspace is a current-state projection, not an event-sourced
+    // snapshot. A historical fork must not copy tabs opened after its boundary.
+    if (includeSourceState !== true) {
+      return { copied: false, tabs: 0, url: null, reason: "historical_boundary" };
+    }
+
+    const state = this._loadColdState();
+    if (this._getSessionEntry(targetSessionPath) || this._coldStateRecordForSession(state, targetSessionPath)) {
+      throw new Error("browser session fork target state already exists");
+    }
+    const sourceLive = this._getSessionEntry(sourceSessionPath);
+    const sourceCold = this._coldStateRecordForSession(state, sourceSessionPath);
+    const workspace = sourceLive && Array.isArray(sourceLive.tabs) && sourceLive.tabs.length > 0
+      ? serializeColdWorkspace(sourceLive)
+      : normalizeColdWorkspace(sourceCold?.raw);
+    if (!workspaceHasRestorableUrl(workspace)) {
+      return { copied: false, tabs: 0, url: null };
+    }
+
+    const targetKey = this._sessionKeyForPath(targetSessionPath);
+    state[targetKey] = {
+      ...serializeColdWorkspace(workspace),
+      sessionPath: targetSessionPath,
+    };
+    this._deleteColdStateKeysForSession(state, targetSessionPath, targetKey);
+    this._saveColdState(state);
+    if (!this._coldStateRecordForSession(this._loadColdState(), targetSessionPath)) {
+      throw new Error("browser session fork target state could not be persisted");
+    }
+    return {
+      copied: true,
+      tabs: workspace.tabs.length,
+      url: workspace.url,
+    };
+  }
+
+  discardForkedSessionState({ sessionPath }: Record<string, any> = {}) {
+    if (!sessionPath) throw new Error("browser session fork cleanup requires sessionPath");
+    if (this.isRunning(sessionPath)) {
+      throw new Error("cannot discard a running forked browser session");
+    }
+    const state = this._loadColdState();
+    const existing = this._coldStateRecordForSession(state, sessionPath);
+    this._deleteColdStateKeysForSession(state, sessionPath);
+    if (existing) this._saveColdState(state);
+    this._deleteSessionEntry(sessionPath);
+    this._removeLru(sessionPath);
+    return { discarded: !!existing };
+  }
+
+  /**
    * 获取所有有浏览器的 session（活跃 + 冷保存）
    * @returns {{ [sessionPath: string]: string }} sessionPath → url
    */

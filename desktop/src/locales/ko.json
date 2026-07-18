@@ -268,6 +268,7 @@
     "close": "닫기",
     "loading": "불러오는 중...",
     "regenerate": "다시 생성",
+    "forkSession": "새 세션으로 분기",
     "confirm": "확인",
     "cancel": "취소",
     "approve": "승인",

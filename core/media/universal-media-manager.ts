@@ -933,6 +933,14 @@ export class UniversalMediaManager {
     return retryImageTask({ taskId, ctx: this._toolContext() } as any);
   }
 
+  forkSessionTasks(options: Record<string, any> = {}) {
+    return this._store.forkSessionTasks(options);
+  }
+
+  discardForkedSessionTasks(options: Record<string, any> = {}) {
+    return this._store.discardForkedSessionTasks(options);
+  }
+
   listTasks({ adapterId, batchId, status, filter }: any = {}) {
     let tasks = this._store.listAll();
     if (adapterId) tasks = tasks.filter((task) => task.adapterId === adapterId);

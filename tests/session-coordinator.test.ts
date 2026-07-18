@@ -3638,6 +3638,83 @@ describe("SessionCoordinator", () => {
     expect(sessionManifestStore.updateLocatorLifecycle).not.toHaveBeenCalled();
   });
 
+  it("executeIsolated resumes a forked child with shared cache lineage and an independent Pi identity", async () => {
+    const resumeFile = path.join(tempDir, "forked-child.jsonl");
+    fs.writeFileSync(resumeFile, '{"type":"user","content":"hi"}\n');
+    fs.writeFileSync(path.join(tempDir, "session-meta.json"), JSON.stringify({
+      [path.basename(resumeFile)]: {
+        providerCacheAffinityKey: "pi-source-lineage",
+      },
+    }));
+    const existingManifest = {
+      sessionId: "sess_forked_child",
+      ownerAgentId: "hana",
+      domain: "subagent",
+      kind: "subagent_child",
+      lifecycle: "active",
+      currentLocator: { path: resumeFile },
+    };
+    const sessionManifestStore = {
+      resolveByLocatorPath: vi.fn((candidate) => candidate === resumeFile ? existingManifest : null),
+      getBySessionId: vi.fn((sessionId) => sessionId === existingManifest.sessionId ? existingManifest : null),
+      createForPath: vi.fn(),
+      updateLocatorLifecycle: vi.fn(),
+    };
+    const manager = {
+      getCwd: () => tempDir,
+      getSessionFile: () => resumeFile,
+      getSessionId: () => "pi-child",
+      getBranch: () => [],
+    };
+    const piSdk = await import("../lib/pi-sdk/index.ts");
+    (piSdk.SessionManager.open as any).mockReturnValue(manager);
+    const codexModel = {
+      id: "gpt-test",
+      provider: "openai-codex",
+      api: "openai-codex-responses",
+    };
+    let capturedOptions: any = null;
+    const originalStreamFn = vi.fn((_model, _context, options) => {
+      capturedOptions = options;
+      return {};
+    });
+    const session: any = {
+      agent: { streamFn: originalStreamFn },
+      sessionManager: manager,
+      subscribe: vi.fn(() => vi.fn()),
+      abort: vi.fn(),
+    };
+    session.prompt = vi.fn(async () => {
+      await session.agent.streamFn(codexModel, { messages: [] }, {
+        sessionId: "pi-child",
+        headers: { "x-test": "1" },
+      });
+    });
+    createAgentSessionMock.mockResolvedValue({ session });
+    const coordinator = new SessionCoordinator({
+      ...isoDeps(),
+      sessionManifestStore,
+    });
+    vi.spyOn(coordinator, "_repairOrphanToolHistory").mockImplementation(() => {});
+
+    await coordinator.executeIsolated("continue task", {
+      resumeSessionPath: resumeFile,
+      persist: tempDir,
+      model: codexModel,
+    });
+
+    expect(originalStreamFn).toHaveBeenCalledOnce();
+    expect(capturedOptions.sessionId).toBe("pi-child");
+    expect(capturedOptions.headers).toEqual({ "x-test": "1" });
+    await expect(capturedOptions.onPayload({
+      prompt_cache_key: "pi-child",
+      input: [],
+    }, codexModel)).resolves.toMatchObject({
+      prompt_cache_key: "pi-source-lineage",
+      input: [],
+    });
+  });
+
   it("executeIsolated backfills a missing legacy identity once and reuses it", async () => {
     const resumeFile = path.join(tempDir, "legacy-without-manifest.jsonl");
     fs.writeFileSync(resumeFile, '{"type":"user","content":"hi"}\n');

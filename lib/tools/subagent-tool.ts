@@ -125,6 +125,17 @@ function sameParentSession(deps, thread, parentSessionPath) {
   return thread.parentSessionPath === parentSessionPath;
 }
 
+function resolveDirectThreadForParent(threadStore, requestedThreadId, parentSessionRef, parentSessionPath) {
+  const scoped = threadStore?.resolveDirectThreadForSession?.(
+    requestedThreadId,
+    parentSessionRef || parentSessionPath,
+  );
+  // Legacy/custom stores may not expose scoped aliases yet. Keeping the exact
+  // lookup as a validation fallback preserves the explicit cross-session error;
+  // callers still cannot operate on it because sameParentSession rejects it.
+  return scoped || threadStore?.get?.(requestedThreadId) || null;
+}
+
 function applyRequestedAgentMetadata(target, requestedIdentity) {
   if (!target || !requestedIdentity) return target;
   target.requestedAgentId = requestedIdentity.executorAgentId;
@@ -521,6 +532,9 @@ export function createSubagentTool(deps) {
         ? threadStore.runSerialized(threadId, () => executeForAgent(targetAgentId))
         : executeForAgent(targetAgentId);
       runPromise.then(result => {
+        if (typeof result?.leafEntryId === "string" && result.leafEntryId.trim()) {
+          runStore?.upsert?.(taskId, { childLeafEntryId: result.leafEntryId });
+        }
         const wasUserAborted = registry?.query(taskId)?.aborted;
         if (wasUserAborted) {
           store.abort(taskId, t("error.subagentAborted"));
@@ -651,10 +665,16 @@ export function createSubagentReplyTool(deps) {
       if (!threadStore) {
         return errorResult("subagent thread store unavailable", { errorCode: "SUBAGENT_THREAD_STORE_UNAVAILABLE" });
       }
-      const threadId = typeof params.threadId === "string" ? params.threadId.trim() : "";
-      const initialThread = threadStore.get(threadId);
+      const requestedThreadId = typeof params.threadId === "string" ? params.threadId.trim() : "";
+      const initialThread = resolveDirectThreadForParent(
+        threadStore,
+        requestedThreadId,
+        parentSessionRef,
+        parentSessionPath,
+      );
       const validation = validateDirectThreadForReply(initialThread, parentSessionPath, (thread, sp) => sameParentSession(deps, thread, sp));
       if (validation) return validation;
+      const threadId = initialThread.threadId;
 
       const store = deps.getDeferredStore?.();
       if (!store || !parentSessionPath) {
@@ -816,6 +836,9 @@ export function createSubagentReplyTool(deps) {
 
       const runPromise = threadStore.runSerialized(threadId, executeExistingThread);
       runPromise.then(result => {
+        if (typeof result?.leafEntryId === "string" && result.leafEntryId.trim()) {
+          runStore?.upsert?.(taskId, { childLeafEntryId: result.leafEntryId });
+        }
         const wasUserAborted = registry?.query(taskId)?.aborted;
         const outcome: any = wasUserAborted
           ? { ok: false, reason: t("error.subagentAborted"), aborted: true }
@@ -903,9 +926,16 @@ export function createSubagentCloseTool(deps) {
       if (!threadStore) {
         return errorResult("subagent thread store unavailable", { errorCode: "SUBAGENT_THREAD_STORE_UNAVAILABLE" });
       }
-      const threadId = typeof params.threadId === "string" ? params.threadId.trim() : "";
-      const thread = threadStore.get(threadId);
-      if (!thread) return errorResult(`Unknown subagent thread: ${threadId}`, { errorCode: "SUBAGENT_THREAD_NOT_FOUND", threadId });
+      const requestedThreadId = typeof params.threadId === "string" ? params.threadId.trim() : "";
+      const parentSessionRef = parentSessionRefForPath(deps, parentSessionPath);
+      const thread = resolveDirectThreadForParent(
+        threadStore,
+        requestedThreadId,
+        parentSessionRef,
+        parentSessionPath,
+      );
+      const threadId = thread?.threadId || requestedThreadId;
+      if (!thread) return errorResult(`Unknown subagent thread: ${requestedThreadId}`, { errorCode: "SUBAGENT_THREAD_NOT_FOUND", threadId: requestedThreadId });
       if (thread.kind !== "direct") return errorResult(`Subagent thread is not a direct instance: ${threadId}`, { errorCode: "SUBAGENT_THREAD_NOT_DIRECT", threadId });
       if (!sameParentSession(deps, thread, parentSessionPath)) {
         return errorResult(`Subagent thread does not belong to this session: ${threadId}`, { errorCode: "SUBAGENT_THREAD_NOT_IN_SESSION", threadId });

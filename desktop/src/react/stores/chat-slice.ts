@@ -31,6 +31,12 @@ export interface ChatSlice {
   markOptimisticUserMessageFailed: (path: string, clientMessageId: string, error: string) => boolean;
   updateLastMessage: (path: string, updater: (msg: ChatMessage) => ChatMessage) => void;
   updateMessageById: (path: string, messageId: string, updater: (msg: ChatMessage) => ChatMessage) => boolean;
+  bindPersistedTurnEntries: (path: string, entries: {
+    turnInputEntryId?: string | null;
+    userEntryId?: string | null;
+    assistantEntryId?: string | null;
+    assistantMessageId?: string | null;
+  }) => boolean;
   truncateSessionFromMessage: (path: string, messageId: string) => boolean;
   appendInterludeItem: (sessionPath: string, block: Extract<ContentBlock, { type: 'interlude' }>) => boolean;
   resolveBlockByTaskId: (sessionPath: string, taskId: string, resolution: ContentBlock) => boolean;
@@ -277,13 +283,93 @@ export const createChatSlice = (
     return true;
   },
 
+  bindPersistedTurnEntries: (path, entries) => {
+    const turnInputEntryId = typeof entries?.turnInputEntryId === 'string' && entries.turnInputEntryId.trim()
+      ? entries.turnInputEntryId.trim()
+      : null;
+    const userEntryId = typeof entries?.userEntryId === 'string' && entries.userEntryId.trim()
+      ? entries.userEntryId.trim()
+      : null;
+    const assistantEntryId = typeof entries?.assistantEntryId === 'string' && entries.assistantEntryId.trim()
+      ? entries.assistantEntryId.trim()
+      : null;
+    const assistantMessageId = typeof entries?.assistantMessageId === 'string' && entries.assistantMessageId.trim()
+      ? entries.assistantMessageId.trim()
+      : null;
+    if (!turnInputEntryId && !userEntryId && !assistantEntryId) return false;
+
+    let changed = false;
+    set((s) => {
+      const session = scopedMapValue<SessionMessages>(s as any, s.chatSessions, path);
+      if (!session) return {};
+      const items = [...session.items];
+      const assistantIndex = assistantMessageId
+        ? items.findIndex((item) => (
+            item.type === 'message'
+            && item.data.role === 'assistant'
+            && item.data.id === assistantMessageId
+          ))
+        : -1;
+
+      if ((assistantEntryId || turnInputEntryId) && assistantIndex >= 0) {
+        const assistant = items[assistantIndex];
+        if (assistant.type === 'message' && (
+          (assistantEntryId && assistant.data.sourceEntryId !== assistantEntryId)
+          || (turnInputEntryId && assistant.data.turnInputEntryId !== turnInputEntryId)
+        )) {
+          items[assistantIndex] = {
+            type: 'message',
+            data: {
+              ...assistant.data,
+              ...(assistantEntryId ? { sourceEntryId: assistantEntryId } : {}),
+              ...(turnInputEntryId ? { turnInputEntryId } : {}),
+            },
+          };
+          changed = true;
+        }
+      }
+
+      if (userEntryId) {
+        const searchBefore = assistantIndex >= 0 ? assistantIndex : items.length;
+        let userIndex = -1;
+        for (let index = searchBefore - 1; index >= 0; index -= 1) {
+          const item = items[index];
+          if (item.type === 'message' && item.data.role === 'user') {
+            userIndex = index;
+            break;
+          }
+        }
+        if (userIndex >= 0) {
+          const user = items[userIndex];
+          if (user.type === 'message' && user.data.sourceEntryId !== userEntryId) {
+            items[userIndex] = {
+              type: 'message',
+              data: { ...user.data, sourceEntryId: userEntryId },
+            };
+            changed = true;
+          }
+        }
+      }
+
+      return changed
+        ? { chatSessions: putScopedMapValue(s as any, s.chatSessions, path, { ...session, items }) }
+        : {};
+    });
+    if (changed) bumpMessageLiveVersion(path);
+    return changed;
+  },
+
   truncateSessionFromMessage: (path, messageId) => {
     const session = scopedMapValue<SessionMessages>(get() as any, get().chatSessions, path);
     if (!session) return false;
 
     const targetIdx = session.items.findIndex((item) =>
       item.type === 'message' &&
-      (item.data.id === messageId || item.data.sourceEntryId === messageId),
+      (
+        item.data.id === messageId
+        || item.data.sourceEntryId === messageId
+        || item.data.turnInputEntryId === messageId
+      ),
     );
     if (targetIdx < 0) return false;
 
@@ -292,7 +378,11 @@ export const createChatSlice = (
       if (!latest) return {};
       const latestIdx = latest.items.findIndex((item) =>
         item.type === 'message' &&
-        (item.data.id === messageId || item.data.sourceEntryId === messageId),
+        (
+          item.data.id === messageId
+          || item.data.sourceEntryId === messageId
+          || item.data.turnInputEntryId === messageId
+        ),
       );
       if (latestIdx < 0) return {};
       const items = latest.items.slice(0, latestIdx);

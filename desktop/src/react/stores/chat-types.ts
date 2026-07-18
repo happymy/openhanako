@@ -88,6 +88,8 @@ export interface SessionRegistryFile {
   sessionPath?: string;
   filePath?: string;
   realPath?: string;
+  legacyFileIds?: string[];
+  legacyFilePaths?: string[];
   label?: string;
   displayName?: string;
   filename?: string;
@@ -292,6 +294,10 @@ export type ContentBlock = TextDecorator | RichBlock;
 export interface ChatMessage {
   id: string;              // UI message id；本地发送的 user message 可先使用 clientMessageId
   sourceEntryId?: string;  // Pi SDK session entry id，用于 branch-aware 的重新生成/编辑
+  /** 本次 Agent turn 的真实输入 entry；隐藏后台输入也必须保留，不能猜到最近可见 user。 */
+  turnInputEntryId?: string;
+  /** false 表示真实 turn input 只用于模型上下文，不对应可见用户节点。 */
+  turnInputVisible?: boolean;
   role: 'user' | 'assistant';
   // User
   text?: string;

@@ -585,12 +585,26 @@ export function handleServerMessage(msg: any): void {
     }
     case 'session_branch_reset': {
       const sp = msg.sessionPath;
-      const targetId = msg.clientMessageId || msg.messageId;
-      if (!sp || !targetId) { console.warn('[ws] session_branch_reset missing sessionPath or message id'); break; }
-      const truncated = useStore.getState().truncateSessionFromMessage(sp, targetId);
+      const targetIds = [...new Set([msg.clientMessageId, msg.messageId, msg.projectionMessageId]
+        .filter((id): id is string => typeof id === 'string' && !!id))];
+      if (!sp || targetIds.length === 0) { console.warn('[ws] session_branch_reset missing sessionPath or message id'); break; }
+      let truncated = false;
+      for (const targetId of targetIds) {
+        if (useStore.getState().truncateSessionFromMessage(sp, targetId)) {
+          truncated = true;
+          break;
+        }
+      }
       bumpMessageLiveVersion(sp);
       if (!truncated) {
-        console.warn('[ws] session_branch_reset target message not found:', sp, targetId);
+        console.warn('[ws] session_branch_reset target message not found:', sp, targetIds);
+      }
+      if (Array.isArray(msg.todos)) {
+        useStore.getState().setSessionTodosForPath(sp, msg.todos);
+        useStore.getState().bumpTodosLiveVersion(sp);
+      }
+      if (Array.isArray(msg.sessionFiles)) {
+        useStore.getState().setSessionRegistryFiles(sp, msg.sessionFiles);
       }
       break;
     }

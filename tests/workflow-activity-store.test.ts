@@ -52,6 +52,21 @@ describe("WorkflowActivityStore", () => {
     expect(store.size).toBe(1);
   });
 
+  it("upsertMany/removeMany 以批次持久化 Fork 投影", () => {
+    const store = new WorkflowActivityStore(file);
+    expect(store.upsertMany([
+      wfEntry({ id: "fork-parent", status: "done" }),
+      wfEntry({ id: "fork-child", kind: "workflow_agent", status: "done", parentTaskId: "fork-parent" }),
+    ])).toHaveLength(2);
+    expect(new WorkflowActivityStore(file).list().map((entry) => entry.id).sort()).toEqual([
+      "fork-child",
+      "fork-parent",
+    ]);
+
+    expect(store.removeMany(["fork-parent", "fork-child", "missing"])).toHaveLength(2);
+    expect(new WorkflowActivityStore(file).size).toBe(0);
+  });
+
   it("listBySession 只取该 session；按 path 存取不靠焦点", () => {
     const store = new WorkflowActivityStore(file);
     store.upsert(wfEntry({ id: "a1", sessionPath: "/s/a.jsonl" }));

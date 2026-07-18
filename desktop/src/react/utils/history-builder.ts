@@ -59,6 +59,8 @@ export interface HistoryApiResponse {
     images?: Array<{ data: string; mimeType: string }>;
     timestamp?: number | string | null;
     sourceIndex?: number;
+    turnInputEntryId?: string;
+    turnInputVisible?: boolean;
     agentReview?: import('../stores/chat-types').AgentReviewContext;
     agentReviewRequest?: import('../stores/chat-types').AgentReviewRequestContext;
     sessionRefs?: Array<{ sessionId: string; label: string }>;
@@ -208,8 +210,10 @@ function buildSessionFileLookup(sessionFiles: unknown): Map<string, SessionRegis
     const keys = [
       sessionFileIdLookupKey(record.fileId),
       sessionFileIdLookupKey(record.id),
+      ...(record.legacyFileIds || []).map(sessionFileIdLookupKey),
       normalizePathKey(record.filePath),
       normalizePathKey(record.realPath),
+      ...(record.legacyFilePaths || []).map(normalizePathKey),
       normalizePathKey(record.resource?.links?.content),
       normalizePathKey(record.resource?.links?.self),
     ].filter((key): key is string => !!key);
@@ -587,7 +591,14 @@ export function buildItemsFromHistory(data: HistoryApiResponse): ChatListItem[] 
         });
       }
 
-      const msg: ChatMessage = { id, sourceEntryId: m.entryId, role: 'assistant', blocks };
+      const msg: ChatMessage = {
+        id,
+        sourceEntryId: m.entryId,
+        role: 'assistant',
+        blocks,
+        ...(m.turnInputEntryId ? { turnInputEntryId: m.turnInputEntryId } : {}),
+        ...(typeof m.turnInputVisible === 'boolean' ? { turnInputVisible: m.turnInputVisible } : {}),
+      };
       if (timestamp !== undefined) msg.timestamp = timestamp;
       if (blocks.length > 0) {
         items.push({ type: 'message', data: msg });

@@ -107,6 +107,48 @@ describe('streamBufferManager.snapshot', () => {
     invalidateStreamBuffer(PATH);
     expect(snapshotStreamBuffer(PATH)).toBeNull();
   });
+
+  it('turn_end binds persisted Pi entry ids to the live user and assistant messages', () => {
+    streamBufferManager.handle({ type: 'text_delta', sessionPath: PATH, delta: 'reply' });
+    const assistantBefore = getAssistantMessage();
+    expect(assistantBefore?.sourceEntryId).toBeUndefined();
+
+    streamBufferManager.handle({
+      type: 'turn_end',
+      sessionPath: PATH,
+      turnInputEntryId: 'entry-user-1',
+      userEntryId: 'entry-user-1',
+      assistantEntryId: 'entry-assistant-1',
+    });
+
+    const items = getItems().filter((item) => item.type === 'message');
+    expect(items[0]?.type === 'message' ? items[0].data.sourceEntryId : null).toBe('entry-user-1');
+    expect(getAssistantMessage()?.sourceEntryId).toBe('entry-assistant-1');
+    expect(getAssistantMessage()?.turnInputEntryId).toBe('entry-user-1');
+  });
+
+  it('turn_end never overwrites a visible user with a hidden background input id', () => {
+    useStore.getState().initSession(PATH, [{
+      type: 'message',
+      data: { id: 'u1', role: 'user', text: 'hi', sourceEntryId: 'entry-visible-user' },
+    }], false);
+    streamBufferManager.handle({ type: 'text_delta', sessionPath: PATH, delta: 'background reply' });
+
+    streamBufferManager.handle({
+      type: 'turn_end',
+      sessionPath: PATH,
+      turnInputEntryId: 'entry-hidden-background-input',
+      userEntryId: null,
+      assistantEntryId: 'entry-background-assistant',
+    });
+
+    const visibleUser = getItems().find((item) => item.type === 'message' && item.data.role === 'user');
+    expect(visibleUser?.type === 'message' ? visibleUser.data.sourceEntryId : null).toBe('entry-visible-user');
+    expect(getAssistantMessage()).toMatchObject({
+      sourceEntryId: 'entry-background-assistant',
+      turnInputEntryId: 'entry-hidden-background-input',
+    });
+  });
 });
 
 describe('streamBufferManager.thinking 流式刷新', () => {

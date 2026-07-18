@@ -374,6 +374,19 @@ describe("loadSessionHistoryMessages", () => {
     ]);
   });
 
+  it("当当前分支只有隐藏提交时不回退到物理文件中的旧消息", async () => {
+    const sessionDir = path.join(tmpDir, "sessions-empty-active-branch");
+    const manager = SessionManager.create(tmpDir, sessionDir);
+    manager.appendMessage({ role: "user", content: "abandoned prompt" } as any);
+    manager.appendMessage({ role: "assistant", content: "abandoned answer" } as any);
+    manager.resetLeaf();
+    manager.appendCustomEntry("hana-session-branch-reset", { sourceEntryId: "old-user" });
+
+    const result = await loadSessionHistoryMessages({}, manager.getSessionFile());
+
+    expect(result).toEqual([]);
+  });
+
   it("从 Pi session 分支恢复 custom_message 供后台结果重建 UI 块", async () => {
     const sessionDir = path.join(tmpDir, "sessions");
     const manager = SessionManager.create(tmpDir, sessionDir);

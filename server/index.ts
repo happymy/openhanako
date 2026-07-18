@@ -474,6 +474,9 @@ export async function startServer(root: CompositionRoot = {}): Promise<void> {
     usageLedger: engine.usageLedger,
     getCompactionMode: () => getResolvedCompactionMode(engine.preferences),
     buildSessionCacheSnapshot: (sessionPath, options) => engine.buildSessionCacheSnapshot(sessionPath, options),
+    getSessionProviderCacheAffinityKey: (sessionPath) => (
+      engine.getSessionProviderCacheAffinityKey(sessionPath)
+    ),
     buildUsageContext: ({ ctx }) => {
       const sessionPath = ctx?.sessionManager?.getSessionFile?.() || null;
       const bridgeContext = sessionPath ? engine.getBridgeContextForSessionPath(sessionPath) : null;

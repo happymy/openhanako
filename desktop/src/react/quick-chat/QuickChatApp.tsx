@@ -15,6 +15,7 @@ import { useStore } from '../stores';
 import { sessionScopedListIncludes, sessionScopedValue } from '../stores/session-slice';
 import { applyAgentIdentity, loadAvatars } from '../stores/agent-actions';
 import { loadMessages } from '../stores/session-actions';
+import type { ForkedSessionRef } from '../stores/message-turn-actions';
 import { useI18n } from '../hooks/use-i18n';
 import inputStyles from '../components/input/InputArea.module.css';
 import chatStyles from '../components/chat/Chat.module.css';
@@ -639,6 +640,28 @@ export function QuickChatApp() {
     window.hana?.quickChatOpenSession?.(sessionPathRef.current);
   }, [markHidden]);
 
+  const handleForkCreated = useCallback(async (forked: ForkedSessionRef) => {
+    sessionPathRef.current = forked.sessionPath;
+    setSessionPath(forked.sessionPath);
+    setSending(false);
+    setError(null);
+
+    const resolvedAgentId = forked.agentId || selectedAgentIdRef.current;
+    if (resolvedAgentId) {
+      selectedAgentIdRef.current = resolvedAgentId;
+      setSelectedAgentId(resolvedAgentId);
+    }
+    const agent = agentsRef.current.find(item => item.id === resolvedAgentId) || null;
+    bindQuickChatDetachedSession({
+      path: forked.sessionPath,
+      sessionId: forked.sessionId,
+      agentId: resolvedAgentId,
+      agentName: agent?.name || null,
+    });
+    await loadMessages(forked.sessionPath);
+    window.hana?.quickChatResize?.('chat');
+  }, []);
+
   const closeQuickChat = useCallback(() => {
     markHidden();
     window.hana?.quickChatHide?.();
@@ -713,6 +736,7 @@ export function QuickChatApp() {
                         agentId={selectedAgentId}
                         readOnly={false}
                         enableProcessFold
+                        onForkCreated={handleForkCreated}
                       />
                     )}
                     {isStreaming && (

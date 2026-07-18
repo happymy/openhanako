@@ -47,6 +47,7 @@ import {
   CACHE_STRATEGIES,
   buildCacheStrategyMetadata,
 } from "../llm/cache-strategy-contract.ts";
+import { withProviderCacheAffinity } from "../llm/provider-cache-affinity.ts";
 import {
   COMPACTION_MODES,
   normalizeCompactionMode,
@@ -124,6 +125,9 @@ export function createCompactionGuardExtension(opts: Record<string, any> = {}) {
     : () => COMPACTION_MODES.AUTO;
   const buildSessionCacheSnapshot = typeof opts.buildSessionCacheSnapshot === "function"
     ? opts.buildSessionCacheSnapshot
+    : null;
+  const getSessionProviderCacheAffinityKey = typeof opts.getSessionProviderCacheAffinityKey === "function"
+    ? opts.getSessionProviderCacheAffinityKey
     : null;
 
   function readCompactionMode(event: any, ctx: any) {
@@ -296,6 +300,8 @@ export function createCompactionGuardExtension(opts: Record<string, any> = {}) {
           : normalizeRequestThinkingLevel(thinkingLevel, "off");
         const requestReasoningLevel = resolveCompactionReasoningPolicy(model, requestThinkingLevel).reasoningLevel;
 
+        const providerCacheAffinityKey = getSessionProviderCacheAffinityKey?.(sessionPath)
+          || ctx.sessionManager?.getSessionId?.();
         const buildCompactorRequest = ({
           requestMessages = messages,
           requestReplay = reasoningReplay,
@@ -316,7 +322,7 @@ export function createCompactionGuardExtension(opts: Record<string, any> = {}) {
           signal: event.signal,
           thinkingLevel: requestThinking,
           outputPolicy: COMPACTION_OUTPUT_POLICIES.PROVIDER_DEFAULT,
-          streamOptions: {
+          streamOptions: withProviderCacheAffinity({
             apiKey: auth.apiKey,
             headers: auth.headers,
             sessionId: ctx.sessionManager?.getSessionId?.(),
@@ -326,7 +332,7 @@ export function createCompactionGuardExtension(opts: Record<string, any> = {}) {
               reasoningLevel: requestReasoning,
               reasoningReplay: requestReplay,
             }),
-          },
+          }, model, providerCacheAffinityKey),
           convertToLlm: convertAgentMessagesToLlm,
           usageLedger,
           usageContext: buildUsageContext?.({ event, ctx, model }) || null,

@@ -94,6 +94,177 @@ describe("SessionSummaryManager._buildConversationText", () => {
   });
 });
 
+describe("SessionSummaryManager invalidation", () => {
+  it("removes one session's persisted summary and cache entry without touching others", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-session-summary-invalidate-"));
+    const manager = new SessionSummaryManager(tmpDir);
+    try {
+      manager.saveSummary("sess-a", { session_id: "sess-a", summary: "old branch" });
+      manager.saveSummary("sess-b", { session_id: "sess-b", summary: "keep" });
+
+      expect(manager.invalidateSession("sess-a")).toBe(true);
+      expect(manager.getSummary("sess-a")).toBeNull();
+      expect(manager.getSummary("sess-b")?.summary).toBe("keep");
+      expect(manager.invalidateSession("sess-a")).toBe(false);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps fork provenance but resets the child's independent summary cursor", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-session-summary-fork-reset-"));
+    const manager = new SessionSummaryManager(tmpDir);
+    try {
+      manager.initializeForkBaseline("sess-child", {
+        sourceSessionId: "sess-source",
+        throughEntryId: "entry-5",
+        messageCount: 5,
+        forkedAt: "2026-07-19T00:00:00.000Z",
+      });
+      manager.saveSummary("sess-child", {
+        ...manager.getSummary("sess-child"),
+        summary: "child-only memory",
+        messageCount: 9,
+        snapshot: "child-only memory",
+      });
+
+      expect(manager.invalidateSession("sess-child", { retainedMessageCount: 7 })).toBe(true);
+      expect(manager.getSummary("sess-child")).toMatchObject({
+        summary: "",
+        snapshot: "",
+        messageCount: 0,
+        fork_baseline: {
+          sourceSessionId: "sess-source",
+          throughEntryId: "entry-5",
+          retainedMessageCount: 5,
+        },
+      });
+      expect(manager.invalidateSession("sess-child", { retainedMessageCount: 3 })).toBe(true);
+      expect(manager.getSummary("sess-child")?.messageCount).toBe(0);
+      expect(manager.getSummary("sess-child")?.fork_baseline.retainedMessageCount).toBe(3);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("SessionSummaryManager fork baseline", () => {
+  it("builds an independent child summary once, then only sends divergent messages", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-session-summary-fork-"));
+    const manager = new SessionSummaryManager(tmpDir);
+    const inherited = [
+      { role: "user", content: "inherited question", timestamp: "2026-07-18T23:00:00.000Z" },
+      { role: "assistant", content: "inherited answer", timestamp: "2026-07-18T23:01:00.000Z" },
+    ];
+    try {
+      (callText as any).mockClear();
+      (callText as any).mockResolvedValueOnce(
+        "### 重要事实\n- 子会话继承了问题。\n\n### 事情经过\n- [2026-07-19 07:00] 用户提出继承问题。",
+      );
+      manager.initializeForkBaseline("sess-child", {
+        sourceSessionId: "sess-source",
+        throughEntryId: "entry-a1",
+        messageCount: inherited.length,
+        forkedAt: "2026-07-19T00:00:00.000Z",
+      });
+
+      await manager.rollingSummary(
+        "sess-child",
+        inherited,
+        { model: "m", api: "openai-completions", api_key: "k", base_url: "http://x" },
+      );
+      expect(callText).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify((callText as any).mock.calls[0][0].messages)).toContain("inherited question");
+
+      (callText as any).mockResolvedValueOnce("### 重要事实\n- 无\n\n### 事情经过\n- [2026-07-19 08:02] 用户开始了新分支。");
+      await manager.rollingSummary(
+        "sess-child",
+        [...inherited, { role: "user", content: "new branch", timestamp: "2026-07-19T00:02:00.000Z" }],
+        { model: "m", api: "openai-completions", api_key: "k", base_url: "http://x" },
+      );
+
+      expect(callText).toHaveBeenCalledTimes(2);
+      const promptText = JSON.stringify((callText as any).mock.calls[1][0].messages);
+      expect(promptText).toContain("new branch");
+      expect(promptText).not.toContain("inherited question");
+      expect(manager.getSummary("sess-child")?.fork_baseline).toMatchObject({
+        sourceSessionId: "sess-source",
+        retainedMessageCount: inherited.length,
+      });
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not skip post-reset messages when the retained source count is larger", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-session-summary-fork-reset-domain-"));
+    const manager = new SessionSummaryManager(tmpDir);
+    try {
+      (callText as any).mockClear();
+      (callText as any).mockResolvedValueOnce(
+        "### 重要事实\n- 子会话有独立记忆。\n\n### 事情经过\n- [2026-07-19 08:02] 用户继续了新分支。",
+      );
+      manager.initializeForkBaseline("sess-child", {
+        sourceSessionId: "sess-source",
+        throughEntryId: "entry-100",
+        messageCount: 100,
+        forkedAt: "2026-07-19T00:00:00.000Z",
+      });
+
+      await manager.rollingSummary(
+        "sess-child",
+        [{ role: "user", content: "post-reset child message", timestamp: "2026-07-19T00:02:00.000Z" }],
+        { model: "m", api: "openai-completions", api_key: "k", base_url: "http://x" },
+      );
+
+      expect(callText).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify((callText as any).mock.calls[0][0].messages)).toContain("post-reset child message");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the child's independently derived summary when the source is later invalidated", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-session-summary-fork-lineage-"));
+    const manager = new SessionSummaryManager(tmpDir);
+    try {
+      manager.saveSummary("sess-source", {
+        session_id: "sess-source",
+        summary: "source summary",
+        messageCount: 2,
+        created_at: "2026-07-18T23:00:00.000Z",
+        updated_at: "2026-07-18T23:01:00.000Z",
+      });
+      manager.initializeForkBaseline("sess-child", {
+        sourceSessionId: "sess-source",
+        throughEntryId: "entry-a1",
+        messageCount: 2,
+        forkedAt: "2026-07-19T00:00:00.000Z",
+      });
+      (callText as any).mockClear();
+      (callText as any).mockResolvedValueOnce(
+        "### 重要事实\n- 子会话保留了独立上下文。\n\n### 事情经过\n- [2026-07-19 08:01] 子会话继续工作。",
+      );
+      await manager.rollingSummary(
+        "sess-child",
+        [
+          { role: "user", content: "inherited", timestamp: "2026-07-18T23:00:00.000Z" },
+          { role: "assistant", content: "child context", timestamp: "2026-07-18T23:01:00.000Z" },
+        ],
+        { model: "m", api: "openai-completions", api_key: "k", base_url: "http://x" },
+      );
+      const childBefore = structuredClone(manager.getSummary("sess-child"));
+
+      expect(manager.invalidateSession("sess-source")).toBe(true);
+
+      expect(manager.getSummary("sess-source")).toBeNull();
+      expect(manager.getSummary("sess-child")).toEqual(childBefore);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("SessionSummaryManager.rollingSummary prompt contract", () => {
   function createManager() {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-session-summary-"));

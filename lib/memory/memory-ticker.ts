@@ -53,6 +53,7 @@ import { runMemoryReflection as defaultRunMemoryReflection } from "./memory-refl
 import { validateRollingSummaryFormat } from "./rolling-summary-format.ts";
 import { CACHE_STRATEGIES } from "../llm/cache-strategy-contract.ts";
 import { atomicWriteSync } from "../../shared/safe-fs.ts";
+import { invalidateSessionDerivedStateSync } from "./session-derived-state.ts";
 
 const log = createModuleLogger("memory-ticker");
 
@@ -123,6 +124,7 @@ export function createMemoryTicker(opts) {
     memoryDir = path.dirname(memoryMdPath),
   } = opts;
   const _memoryReflectionRunner = memoryReflectionRunner || { runMemoryReflection: defaultRunMemoryReflection };
+  let _aggregateCompileInFlight = 0;
 
   // 一次性、幂等的读时迁移：把 alpha 阶段遗留的 editable-facts.md 并入 facts.md。
   // 必须早于 assemble/compileEditableFacts 首次读取 facts.md 之前跑完。
@@ -724,6 +726,7 @@ export function createMemoryTicker(opts) {
   // ── 内部：今天编译 + 组装 ──
 
   async function _doCompileTodayAndAssemble() {
+    _aggregateCompileInFlight += 1;
     try {
       const resetAt = _getCompiledResetAt();
       await compileToday(summaryManager, todayMdPath, await getResolvedMemoryModel(), { since: resetAt });
@@ -735,6 +738,8 @@ export function createMemoryTicker(opts) {
     } catch (err) {
       _markFailure("compileToday", err);
       _logStepError("compileToday", err);
+    } finally {
+      _aggregateCompileInFlight = Math.max(0, _aggregateCompileInFlight - 1);
     }
   }
 
@@ -955,6 +960,38 @@ export function createMemoryTicker(opts) {
   }
 
   /**
+   * Retry 改写 active branch 前，作废只属于该 session 的摘要与深度事实。
+   *
+   * 聚合产物（today.md / facts.md / memory.md）是 Retry 发生前已经沉淀的历史记忆，
+   * 不做追溯改写。这里只清掉会继续参与后续编译的 per-session 摘要与深度事实，
+   * 从下一次 rolling pass 开始只消费新的 active branch。
+   */
+  function invalidateSessionDerivedState(ref) {
+    const explicitSessionId = typeof ref?.sessionId === "string" ? ref.sessionId.trim() : "";
+    const sessionPath = typeof ref?.sessionPath === "string" ? ref.sessionPath : "";
+    const sessionId = explicitSessionId || (sessionPath ? _sessionIdentityForPath(sessionPath) : "");
+    if (!sessionId) throw new Error("memory invalidation requires sessionId");
+    if (_summaryInProgress.has(sessionId) || _dailyRunning || _aggregateCompileInFlight > 0) {
+      const error: any = new Error("session_memory_busy");
+      error.code = "session_memory_busy";
+      error.status = 409;
+      throw error;
+    }
+    const result = invalidateSessionDerivedStateSync({
+      sessionId,
+      retainedMessageCount: ref?.retainedMessageCount,
+      summaryManager,
+      factStore,
+    });
+    _turnCounts.delete(sessionId);
+    debugLog()?.warn?.(
+      "memory",
+      `session-derived memory invalidated for ${sessionId}; existing aggregate history preserved`,
+    );
+    return result;
+  }
+
+  /**
    * 启动每小时的日期检查 timer（备用触发，不依赖用户对话）
    */
   function start() {
@@ -996,7 +1033,10 @@ export function createMemoryTicker(opts) {
       const existing = summaryManager.getSummary(sessionId);
       const existingSummaryAt = existing?.updated_at ? new Date(existing.updated_at).getTime() : 0;
       const summaryAt = resetMs ? Math.max(existingSummaryAt, resetMs) : existingSummaryAt;
-      if (mtime.getTime() > summaryAt + 5000) { // 5s 宽限，避免极近时间戳误判
+      const pendingForkBaseline = !!existing?.fork_baseline
+        && !String(existing?.summary || "").trim()
+        && Number(existing?.messageCount) === 0;
+      if (pendingForkBaseline || mtime.getTime() > summaryAt + 5000) { // 5s 宽限，避免极近时间戳误判
         await _doRollingSummary(filePath, "recovery");
         recovered += 1;
       }
@@ -1058,6 +1098,26 @@ export function createMemoryTicker(opts) {
   }
 
   /**
+   * A fork already contains a durable shared prefix even before the user sends
+   * a new turn. Materialize that prefix under the child Session ID immediately
+   * so the source and child memory lineages are independently durable.
+   */
+  function notifyForkCreated(sessionPath) {
+    if (_stopped || !sessionPath || !_isSessionMemoryOn(sessionPath)) return Promise.resolve();
+    const sessionId = _sessionIdentityForPath(sessionPath);
+    _turnCounts.set(sessionId, Math.max(1, _turnCounts.get(sessionId) || 0));
+    return _trackJob((async () => {
+      try {
+        await _doRollingSummary(sessionPath, "fork_created");
+        await _doCompileTodayAndAssemble();
+        debugLog()?.log("memory", `forked session summarized: ${sessionId.slice(0, 8)}...`);
+      } catch (err) {
+        log.error(`notifyForkCreated 失败: ${err.message}`);
+      }
+    })());
+  }
+
+  /**
    * 强制刷新指定 session 的摘要（日记等功能调用前确保摘要最新）
    * @param {string} sessionPath
    */
@@ -1094,5 +1154,18 @@ export function createMemoryTicker(opts) {
     return snapshot;
   }
 
-  return { start, stop, tick, triggerNow, notifyTurn, notifySessionEnd, notifyPromoted, flushSession, flushSessionAndCompile, getHealthStatus };
+  return {
+    start,
+    stop,
+    tick,
+    triggerNow,
+    notifyTurn,
+    notifySessionEnd,
+    notifyPromoted,
+    notifyForkCreated,
+    flushSession,
+    flushSessionAndCompile,
+    invalidateSessionDerivedState,
+    getHealthStatus,
+  };
 }

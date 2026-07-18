@@ -118,6 +118,75 @@ describe("plugin config schema", () => {
     }
   });
 
+  it("forks raw per-session values, including sensitive fields, into an independent bucket", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-plugin-config-fork-"));
+    try {
+      const schema = normalizePluginConfigSchema("demo", {
+        properties: {
+          sessionMode: { type: "object", scope: "per-session" },
+          sessionToken: { type: "string", scope: "per-session", sensitive: true },
+        },
+      });
+      const store = createPluginConfigStore({ dataDir: dir, schema });
+      store.setMany({
+        sessionMode: { nested: ["source"] },
+        sessionToken: "secret-source",
+      }, { scope: "per-session", sessionId: "sess-source" });
+
+      expect(store.forkSession({
+        sourceSessionId: "sess-source",
+        targetSessionId: "sess-child",
+      })).toMatchObject({ copied: true, targetSessionId: "sess-child" });
+      expect(store.getAll({ scope: "per-session", sessionId: "sess-child" })).toEqual({
+        sessionMode: { nested: ["source"] },
+        sessionToken: "secret-source",
+      });
+
+      store.set("sessionMode", { nested: ["child"] }, {
+        scope: "per-session",
+        sessionId: "sess-child",
+      });
+      expect(store.get("sessionMode", {
+        scope: "per-session",
+        sessionId: "sess-source",
+      })).toEqual({ nested: ["source"] });
+      expect(store.discardSession({ sessionId: "sess-child" })).toBe(true);
+      expect(store.getState().sessions).not.toHaveProperty("sess-child");
+      expect(store.getState().sessions).toHaveProperty("sess-source");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("forks a legacy sessionPath bucket into the child sessionId without changing the source", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-plugin-config-fork-legacy-"));
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, "config.json"), JSON.stringify({
+        schemaVersion: 1,
+        global: {},
+        agents: {},
+        sessions: { "/sessions/source.jsonl": { legacy: true } },
+      }));
+      const store = createPluginConfigStore({
+        dataDir: dir,
+        schema: normalizePluginConfigSchema("demo", {}),
+      });
+
+      expect(store.forkSession({
+        sourceSessionId: "sess-source",
+        sourceSessionPath: "/sessions/source.jsonl",
+        targetSessionId: "sess-child",
+      })).toMatchObject({ copied: true, sourceKey: "/sessions/source.jsonl" });
+      expect(store.getState().sessions).toEqual({
+        "/sessions/source.jsonl": { legacy: true },
+        "sess-child": { legacy: true },
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("reads old flat config files as global config", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-plugin-config-"));
     try {

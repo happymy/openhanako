@@ -154,6 +154,68 @@ describe("image generation retry", () => {
     }));
   });
 
+  it("routes a forked task retry only through the child SessionRef", async () => {
+    const sourceTask = makeFailedTask({
+      taskId: "task-source",
+      sessionId: "session-source",
+      sessionPath: "/sessions/source.jsonl",
+      sessionRef: { sessionId: "session-source", sessionPath: "/sessions/source.jsonl" },
+    });
+    const childTask = makeFailedTask({
+      taskId: "task-child",
+      sessionId: "session-child",
+      sessionPath: "/sessions/child.jsonl",
+      sessionRef: { sessionId: "session-child", sessionPath: "/sessions/child.jsonl" },
+      forkedFromTaskId: "task-source",
+    });
+    const { ctx, adapter, poller, bus } = makeCtx(childTask);
+    const tasks = new Map([
+      [sourceTask.taskId, structuredClone(sourceTask)],
+      [childTask.taskId, structuredClone(childTask)],
+    ]);
+    const store = {
+      get: vi.fn((taskId: string) => {
+        const task = tasks.get(taskId);
+        return task ? structuredClone(task) : null;
+      }),
+      update: vi.fn((taskId: string, patch: Record<string, any>) => {
+        const task = tasks.get(taskId);
+        if (!task) return null;
+        Object.assign(task, patch);
+        return structuredClone(task);
+      }),
+    };
+    (ctx._mediaGen as any).store = store;
+
+    const result = await retryImageTask({ taskId: "task-child", ctx });
+
+    expect(result).toMatchObject({ ok: true, taskId: "task-child" });
+    expect(bus.request).toHaveBeenCalledWith("deferred:retry", expect.objectContaining({
+      taskId: "task-child",
+      sessionId: "session-child",
+      sessionPath: "/sessions/child.jsonl",
+      sessionRef: expect.objectContaining({
+        sessionId: "session-child",
+        sessionPath: "/sessions/child.jsonl",
+      }),
+    }));
+    expect(bus.request).toHaveBeenCalledWith("task:register", expect.objectContaining({
+      taskId: "task-child",
+      sessionId: "session-child",
+      sessionRef: expect.objectContaining({
+        sessionId: "session-child",
+        sessionPath: "/sessions/child.jsonl",
+      }),
+      parentSessionPath: "/sessions/child.jsonl",
+    }));
+    expect(store.update).not.toHaveBeenCalledWith("task-source", expect.anything());
+    expect(tasks.get("task-source")).toEqual(sourceTask);
+    expect(poller.add).toHaveBeenCalledWith("task-child");
+
+    await flushBackgroundSubmits();
+    expect(adapter.submit).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects retry when the adapter no longer allows the saved reference image count", async () => {
     const task = makeFailedTask({
       params: {

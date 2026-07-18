@@ -491,6 +491,12 @@ class StreamBufferManager {
         break;
 
       case 'turn_end':
+        useStore.getState().bindPersistedTurnEntries?.(buf.sessionPath, {
+          turnInputEntryId: msg.turnInputEntryId,
+          userEntryId: msg.userEntryId,
+          assistantEntryId: msg.assistantEntryId,
+          assistantMessageId: buf.messageId,
+        });
         this.finishBufferTurn(buf);
         break;
 

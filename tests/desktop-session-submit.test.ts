@@ -193,6 +193,30 @@ describe("submitDesktopSessionMessage", () => {
     });
   });
 
+  it("can replay a hidden model input without emitting a visible user projection", async () => {
+    const session = makeFakeSession({ replyText: "background reply" });
+    const engine = {
+      ensureSessionLoaded: vi.fn(async () => session),
+      promptSession: vi.fn(async (sessionPath, text, opts) => session.prompt(text, opts)),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+    };
+    const hiddenInput = '<hana-background-result task-id="task-1">done</hana-background-result>';
+
+    await submitDesktopSessionMessage(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: hiddenInput,
+      projectUserMessage: false,
+    });
+
+    expect(engine.promptSession).toHaveBeenCalledWith("/tmp/desk.jsonl", hiddenInput, undefined);
+    expect(engine.emitEvent.mock.calls.some(([event]) => event?.type === "session_user_message")).toBe(false);
+    expect(engine.emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "session_status", isStreaming: true }),
+      "/tmp/desk.jsonl",
+    );
+  });
+
   it("deduplicates SessionFile refs by stable sessionId when it is available", async () => {
     const session = makeFakeSession();
     const engine = {
@@ -235,6 +259,60 @@ describe("submitDesktopSessionMessage", () => {
       })}\nopen it`,
       undefined,
     );
+  });
+
+  it("preserves an existing prompt envelope without duplicating media, SessionFile, or reminder markers", async () => {
+    const session = makeFakeSession();
+    (session as any).sessionManager = { appendCustomEntry: vi.fn() };
+    const registerSessionFile = vi.fn();
+    const engine = {
+      getSessionManifest: vi.fn(() => ({ currentLocator: { path: "/tmp/desk.jsonl" } })),
+      ensureSessionLoaded: vi.fn(async () => session),
+      promptSession: vi.fn(async (sessionPath, text, opts) => session.prompt(text, opts)),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      registerSessionFile,
+      renderSessionReminderBlock: vi.fn(() => ({
+        block: "[hana_reminder]\nnew reminder\n[/hana_reminder]",
+        receipt: { throughSeq: 1 },
+      })),
+    };
+    const originalPrompt = [
+      '[SessionFile] {"fileId":"sf-1","sessionId":"sess-1","sessionPath":"/tmp/desk.jsonl","label":"note","kind":"attachment"}',
+      "[attached_image: /tmp/image.png]",
+      "review this",
+    ].join("\n");
+
+    await submitDesktopSessionMessage(engine, {
+      sessionId: "sess-1",
+      sessionPath: "/tmp/desk.jsonl",
+      text: originalPrompt,
+      images: [{ type: "image", data: "BASE64", mimeType: "image/png" }],
+      imageAttachmentPaths: ["/tmp/image.png"],
+      sessionFileRefs: [{
+        fileId: "sf-1",
+        sessionId: "sess-1",
+        sessionPath: "/tmp/desk.jsonl",
+        label: "note",
+        kind: "attachment",
+      }],
+      displayMessage: {
+        text: "review this",
+        attachments: [{ fileId: "sf-1", path: "/tmp/image.png", name: "image.png" }],
+      },
+      preservePromptEnvelope: true,
+    } as any);
+
+    expect(engine.promptSession).toHaveBeenCalledWith(
+      "/tmp/desk.jsonl",
+      originalPrompt,
+      {
+        images: [{ type: "image", data: "BASE64", mimeType: "image/png" }],
+        imageAttachmentPaths: ["/tmp/image.png"],
+      },
+    );
+    expect(registerSessionFile).not.toHaveBeenCalled();
+    expect(engine.renderSessionReminderBlock).not.toHaveBeenCalled();
   });
 
   it("threads clientMessageId into the session user message event", async () => {
@@ -1318,10 +1396,12 @@ describe("session reminder block injection", () => {
       sessionPath: "/tmp/desk.jsonl",
       text: "hello",
       displayMessage: { text: "visible", source: "bridge_rc" },
+      beforeInputSideEffects: () => { order.push("retry-branch-commit"); },
     });
 
-    expect(order.slice(0, 4)).toEqual([
+    expect(order.slice(0, 5)).toEqual([
       "cache-preflight",
+      "retry-branch-commit",
       "session_status",
       "session_user_message",
       "pi-prompt",
@@ -1342,16 +1422,19 @@ describe("session reminder block injection", () => {
       renderSessionReminderBlock: vi.fn(() => ({ block: reminderBlock, receipt })),
       consumeRenderedSessionReminderBlock: vi.fn(),
     };
+    const beforeInputSideEffects = vi.fn();
 
     await expect(submitDesktopSessionMessage(engine, {
       sessionPath: "/tmp/desk.jsonl",
       text: "hello",
       displayMessage: { text: "hello", source: "bridge_rc" },
+      beforeInputSideEffects,
     })).rejects.toThrow("Cache prefix contract violated");
 
     expect(engine.emitEvent).not.toHaveBeenCalled();
     expect(appendCustomEntry).not.toHaveBeenCalled();
     expect(engine.consumeRenderedSessionReminderBlock).not.toHaveBeenCalled();
+    expect(beforeInputSideEffects).not.toHaveBeenCalled();
   });
 
   it("closes streaming status but retains the receipt when Pi prompt fails after the hook", async () => {

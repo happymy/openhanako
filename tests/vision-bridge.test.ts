@@ -308,6 +308,123 @@ describe("VisionBridge", () => {
     });
   });
 
+  it("forks only vision notes reachable from the retained session prefix", () => {
+    const dir = makeTempDir();
+    const sourceSessionPath = path.join(dir, "source.jsonl");
+    const targetSessionPath = path.join(dir, "target.jsonl");
+    const sourceSessionId = "sess_vision_source";
+    const targetSessionId = "sess_vision_target";
+    const retainedKey = "visual-resource:retained-shot";
+    const hiddenKey = "visual-resource:hidden-shot";
+    fs.writeFileSync(path.join(dir, "session-vision-notes.json"), JSON.stringify({
+      version: 1,
+      sessions: {
+        [sourceSessionId]: {
+          sessionId: sourceSessionId,
+          sessionPath: sourceSessionPath,
+          images: {
+            [retainedKey]: {
+              note: "retained note",
+              imagePath: retainedKey,
+              sessionId: sourceSessionId,
+              sessionPath: sourceSessionPath,
+              updatedAt: 10,
+            },
+            [hiddenKey]: {
+              note: "hidden note",
+              imagePath: hiddenKey,
+              sessionId: sourceSessionId,
+              sessionPath: sourceSessionPath,
+              updatedAt: 20,
+            },
+          },
+        },
+      },
+    }), "utf-8");
+
+    const bridge = makeVisionBridge({
+      getSessionIdForPath: (candidate) => {
+        if (candidate === sourceSessionPath) return sourceSessionId;
+        if (candidate === targetSessionPath) return targetSessionId;
+        return null;
+      },
+    });
+    const result = bridge.forkSessionNotes({
+      sourceSessionId,
+      sourceSessionPath,
+      targetSessionId,
+      targetSessionPath,
+      retainedEntries: [{ type: "custom", data: { resourceKey: retainedKey } }],
+    });
+
+    expect(result).toEqual({ notes: 1, keys: [retainedKey] });
+    const sidecar = JSON.parse(fs.readFileSync(path.join(dir, "session-vision-notes.json"), "utf-8"));
+    expect(sidecar.sessions[sourceSessionId].images[hiddenKey].note).toBe("hidden note");
+    expect(sidecar.sessions[targetSessionId].images).toEqual({
+      [retainedKey]: expect.objectContaining({
+        note: "retained note",
+        sessionId: targetSessionId,
+        sessionPath: targetSessionPath,
+      }),
+    });
+    expect(bridge.lookupNote(targetSessionPath, retainedKey)).toMatchObject({
+      note: "retained note",
+      sessionId: targetSessionId,
+      sessionPath: targetSessionPath,
+    });
+    expect(bridge.lookupNote(targetSessionPath, hiddenKey)).toBeNull();
+  });
+
+  it("discards forked vision notes without touching the source session", () => {
+    const dir = makeTempDir();
+    const sourceSessionPath = path.join(dir, "source.jsonl");
+    const targetSessionPath = path.join(dir, "target.jsonl");
+    const sourceSessionId = "sess_vision_source";
+    const targetSessionId = "sess_vision_target";
+    const resourceKey = "visual-resource:retained-shot";
+    fs.writeFileSync(path.join(dir, "session-vision-notes.json"), JSON.stringify({
+      version: 1,
+      sessions: {
+        [sourceSessionId]: {
+          sessionId: sourceSessionId,
+          sessionPath: sourceSessionPath,
+          images: {
+            [resourceKey]: {
+              note: "source note",
+              imagePath: resourceKey,
+              sessionId: sourceSessionId,
+              sessionPath: sourceSessionPath,
+            },
+          },
+        },
+      },
+    }), "utf-8");
+    const bridge = makeVisionBridge({
+      getSessionIdForPath: (candidate) => candidate === targetSessionPath ? targetSessionId : sourceSessionId,
+    });
+
+    bridge.forkSessionNotes({
+      sourceSessionId,
+      sourceSessionPath,
+      targetSessionId,
+      targetSessionPath,
+      retainedEntries: [{ resourceKey }],
+    });
+    expect(bridge.discardForkedSessionNotes({
+      sessionId: targetSessionId,
+      sessionPath: targetSessionPath,
+    })).toBe(true);
+    expect(bridge.discardForkedSessionNotes({
+      sessionId: targetSessionId,
+      sessionPath: targetSessionPath,
+    })).toBe(false);
+
+    const sidecar = JSON.parse(fs.readFileSync(path.join(dir, "session-vision-notes.json"), "utf-8"));
+    expect(sidecar.sessions[sourceSessionId].images[resourceKey].note).toBe("source note");
+    expect(sidecar.sessions[targetSessionId]).toBeUndefined();
+    expect(bridge.lookupNote(targetSessionPath, resourceKey)).toBeNull();
+  });
+
   it("summarizes resources on explicit request without requiring a text-only target model", async () => {
     const dir = makeTempDir();
     const sessionPath = path.join(dir, "session.jsonl");

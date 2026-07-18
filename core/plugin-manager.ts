@@ -6,7 +6,7 @@ import {
   isPluginBusCapabilityError,
 } from "./plugin-route-request-context.ts";
 import { freshImport } from "./fresh-import.ts";
-import { normalizePluginConfigSchema } from "./plugin-config.ts";
+import { createPluginConfigStore, normalizePluginConfigSchema } from "./plugin-config.ts";
 import { semverGte } from "../lib/plugin-versioning.ts";
 import { detectIncompatiblePluginFormat } from "../lib/plugin-format-guard.ts";
 import { createModuleLogger } from "../lib/debug-log.ts";
@@ -1196,6 +1196,52 @@ export class PluginManager {
       values: entry.ctx.config.getAll({ ...options, redacted: true }),
       rawValues: nextValues,
     };
+  }
+
+  _uniqueSessionConfigStores() {
+    const stores = [];
+    const seenDataDirs = new Set();
+    for (const entry of this._plugins.values()) {
+      const dataDir = pluginDataDirForEntry(this._dataDir, entry);
+      const key = path.resolve(dataDir);
+      if (seenDataDirs.has(key)) continue;
+      seenDataDirs.add(key);
+      stores.push({
+        pluginId: entry.id,
+        pluginKey: entry.pluginKey,
+        store: createPluginConfigStore({ dataDir, schema: entry.configSchema }),
+      });
+    }
+    return stores;
+  }
+
+  forkSessionConfig(options: Record<string, any> = {}) {
+    const copied = [];
+    try {
+      for (const entry of this._uniqueSessionConfigStores()) {
+        const result = entry.store.forkSession(options);
+        if (result.copied) copied.push(entry);
+      }
+    } catch (error) {
+      for (const entry of copied.reverse()) {
+        try { entry.store.discardSession({ sessionId: options.targetSessionId }); } catch {}
+      }
+      throw error;
+    }
+    return {
+      copied: copied.length,
+      plugins: copied.map((entry) => ({ pluginId: entry.pluginId, pluginKey: entry.pluginKey })),
+    };
+  }
+
+  discardSessionConfig({ sessionId }: Record<string, any> = {}) {
+    const discarded = [];
+    for (const entry of this._uniqueSessionConfigStores()) {
+      if (entry.store.discardSession({ sessionId })) {
+        discarded.push({ pluginId: entry.pluginId, pluginKey: entry.pluginKey });
+      }
+    }
+    return { discarded: discarded.length, plugins: discarded };
   }
 
   // ── Page / Widget loader ──────────────────────────────────────────────────

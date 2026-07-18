@@ -116,7 +116,7 @@ export async function loadSessionHistoryMessages(engine, explicitPath) {
         const message = historyMessageFromEntry(entry);
         if (message) messages.push(message);
       }
-      if (messages.length > 0) return messages.map(projectSessionMessageForDisplay);
+      return messages.map(projectSessionMessageForDisplay);
     }
   } catch {
     // 旧文件或损坏文件继续走兼容读取，不让历史页直接空白。

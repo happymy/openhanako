@@ -17,7 +17,7 @@ import { SettingsUpdateCard } from './SettingsUpdateCard';
 import { InteractiveCard } from './InteractiveCard';
 import { SessionCollabDraftCard } from './SessionCollabDraftCard';
 import { useMessageFooterActions } from './MessageActions';
-import { MessageFooterActions, formatMessageTime, type MessageFooterAction } from './MessageFooterActions';
+import { MessageFooterActions, formatMessageTime } from './MessageFooterActions';
 import { ChatResourceCard } from './ChatResourceCard';
 import { FileResourceIcon, SkillResourceIcon } from './ChatResourceIcons';
 import { BLOCK_RENDERERS } from './block-renderers';
@@ -35,12 +35,13 @@ import { resolveServerConnection } from '../../services/server-connection';
 import { resolveFileRefUrl } from '../../services/resource-url';
 import type { FileRef } from '../../types/file-ref';
 import { openPreview } from '../../stores/preview-actions';
-import { replayLatestUserMessage } from '../../stores/message-turn-actions';
+import type { ForkedSessionHandler, SessionNodeTarget } from '../../stores/message-turn-actions';
 import { selectSelectedIdsBySession } from '../../stores/session-selectors';
 import { extractSelectedTexts, extractTextBlockPlainText } from '../../utils/message-text';
 import { AgentAvatar, resolveAgentDisplayInfo, type AgentDisplayInfo } from '../../utils/agent-display';
 import { ScheduleEditor } from '../automation/ScheduleEditor';
 import { SelectWidget, type SelectOption } from '@/ui';
+import { useSessionNodeActions } from './SessionNodeActions';
 import {
   scheduleDraftFromStored,
   schedulePreviewFromDraft,
@@ -63,7 +64,9 @@ interface Props {
   isLatestAssistantMessage?: boolean;
   showTurnCompletionTime?: boolean;
   assistantTurnSelectionIds?: readonly string[];
+  turnTarget?: SessionNodeTarget | null;
   retrySourceMessage?: ChatMessage | null;
+  onForkCreated?: ForkedSessionHandler;
   messageRef?: (element: HTMLDivElement | null) => void;
 }
 
@@ -83,11 +86,11 @@ export const AssistantMessage = memo(function AssistantMessage({
   isLatestAssistantMessage = false,
   showTurnCompletionTime = false,
   assistantTurnSelectionIds,
+  turnTarget = null,
   retrySourceMessage = null,
+  onForkCreated,
   messageRef,
 }: Props) {
-  const t = window.t ?? ((p: string) => p);
-
   const displayInfo = agentDisplay;
   const displayName = agentDisplay.displayName;
   const displayYuan = agentDisplay.yuan;
@@ -102,7 +105,6 @@ export const AssistantMessage = memo(function AssistantMessage({
   const hasWideBlock = blocks.some(b => b.type === 'interactive_card');
 
   const [copied, setCopied] = useState(false);
-  const [retrying, setRetrying] = useState(false);
   const handleCopy = useCallback(() => {
     const ids = selectSelectedIdsBySession(useStore.getState(), sessionPath);
     let text: string;
@@ -127,17 +129,14 @@ export const AssistantMessage = memo(function AssistantMessage({
     fn(message.id, sessionPath);
   }, [message.id, sessionPath]);
 
-  const handleRegenerate = useCallback(async () => {
-    if (!retrySourceMessage || retrying || isStreaming) return;
-    setRetrying(true);
-    try {
-      await replayLatestUserMessage(sessionPath, retrySourceMessage);
-    } finally {
-      setRetrying(false);
-    }
-  }, [isStreaming, retrying, retrySourceMessage, sessionPath]);
-
-  const canShowRegenerateAction = !readOnly && showTurnCompletionTime && isLatestAssistantMessage && !!retrySourceMessage && !isStreaming;
+  const { actions: nodeActions, busy: nodeActionBusy } = useSessionNodeActions({
+    sessionPath,
+    target: readOnly || !showTurnCompletionTime ? null : turnTarget,
+    retryMessage: retrySourceMessage || undefined,
+    onForkCreated,
+    disabled: isStreaming,
+  });
+  const canShowNodeActions = !readOnly && showTurnCompletionTime && !!turnTarget && !isStreaming;
   const shouldPersistCompletionTime = showTurnCompletionTime && isLatestAssistantMessage && !isStreaming;
   const timeText = showTurnCompletionTime && !isStreaming ? formatMessageTime(message.timestamp) : null;
   const standardMessageActions = useMessageFooterActions({
@@ -147,19 +146,10 @@ export const AssistantMessage = memo(function AssistantMessage({
     onCopy: handleCopy,
     onScreenshot: () => { void handleScreenshot(); },
     copied,
-    isStreaming,
+    isStreaming: isStreaming || nodeActionBusy,
   });
   const messageActions = readOnly || !showTurnCompletionTime || isStreaming ? [] : standardMessageActions;
-  const regenerateActions: MessageFooterAction[] = useMemo(() => [
-    {
-      id: 'regenerate',
-      title: t('common.regenerate'),
-      icon: <RegenerateIcon />,
-      onClick: () => { void handleRegenerate(); },
-      disabled: retrying || isStreaming,
-    },
-  ], [handleRegenerate, isStreaming, retrying, t]);
-  const footerActions = canShowRegenerateAction ? regenerateActions : [];
+  const footerActions = canShowNodeActions ? nodeActions : [];
 
   return (
     <div className={`${styles.messageGroup} ${styles.messageGroupAssistant}${isInterludeOnly ? ` ${styles.messageGroupInterludeOnly}` : ''}${isSelected ? ` ${styles.messageGroupSelected}` : ''}`}
@@ -210,14 +200,6 @@ export const AssistantMessage = memo(function AssistantMessage({
     </div>
   );
 });
-
-function RegenerateIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 3v5m0 0h-5m5 0-3-2.708A9 9 0 1 0 20.777 14" />
-    </svg>
-  );
-}
 
 class ContentBlockErrorBoundary extends Component<{
   messageId: string;

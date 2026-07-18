@@ -478,17 +478,115 @@ describe('ws-message-handler session-scoped desktop events', () => {
       type: 'message',
       data: { id: 'a2', role: 'assistant', blocks: [] },
     });
+    useStore.getState().setSessionTodosForPath('/session/a.jsonl', [{ content: 'old todo', activeForm: 'old todo', status: 'pending' }]);
+    useStore.getState().setSessionRegistryFiles('/session/a.jsonl', [{ fileId: 'old-file', filePath: '/tmp/old.txt' }]);
 
     handleServerMessage({
       type: 'session_branch_reset',
       sessionPath: '/session/a.jsonl',
       messageId: 'entry-u2',
       clientMessageId: 'client-u2',
+      todos: [{ content: 'kept todo', activeForm: 'keeping todo', status: 'in_progress' }],
+      sessionFiles: [{ fileId: 'kept-file', filePath: '/tmp/kept.txt' }],
     });
 
     const items = useStore.getState().chatSessions['/session/a.jsonl']?.items || [];
     expect(items.map(item => item.type === 'message' ? item.data.id : item.id)).toEqual(['u1', 'a1']);
     expect(readMessageLiveVersion('/session/a.jsonl')).toBe(1);
+    expect(useStore.getState().todosBySession['/session/a.jsonl']).toEqual([
+      { content: 'kept todo', activeForm: 'keeping todo', status: 'in_progress' },
+    ]);
+    expect(useStore.getState().sessionRegistryFilesByPath['/session/a.jsonl']).toEqual([
+      { fileId: 'kept-file', filePath: '/tmp/kept.txt' },
+    ]);
+  });
+
+  it('session_branch_reset 在 live client id 失配时回退到历史 sourceEntryId', () => {
+    useStore.getState().appendItem('/session/a.jsonl', {
+      type: 'message',
+      data: { id: 'history-0', sourceEntryId: 'entry-u1', role: 'user', text: 'fork point' },
+    });
+    useStore.getState().appendItem('/session/a.jsonl', {
+      type: 'message',
+      data: { id: 'history-1', role: 'assistant', blocks: [] },
+    });
+
+    handleServerMessage({
+      type: 'session_branch_reset',
+      sessionPath: '/session/a.jsonl',
+      clientMessageId: 'source-live-uuid',
+      messageId: 'entry-u1',
+      todos: [],
+      sessionFiles: [],
+    });
+
+    expect(useStore.getState().chatSessions['/session/a.jsonl']?.items).toEqual([]);
+  });
+
+  it('session_branch_reset 用显式投影边界截断隐藏输入触发的 Agent turn', () => {
+    useStore.getState().appendItem('/session/a.jsonl', {
+      type: 'message',
+      data: { id: 'u1', sourceEntryId: 'entry-visible-user', role: 'user', text: 'visible question' },
+    });
+    useStore.getState().appendItem('/session/a.jsonl', {
+      type: 'message',
+      data: { id: 'a1', sourceEntryId: 'entry-visible-assistant', role: 'assistant', blocks: [] },
+    });
+    useStore.getState().appendItem('/session/a.jsonl', {
+      type: 'message',
+      data: {
+        id: 'a2',
+        sourceEntryId: 'entry-hidden-assistant',
+        turnInputEntryId: 'entry-hidden-input',
+        role: 'assistant',
+        blocks: [],
+      },
+    });
+
+    handleServerMessage({
+      type: 'session_branch_reset',
+      sessionPath: '/session/a.jsonl',
+      messageId: 'entry-hidden-input',
+      projectionMessageId: 'entry-hidden-assistant',
+      todos: [],
+      sessionFiles: [],
+    });
+
+    const items = useStore.getState().chatSessions['/session/a.jsonl']?.items || [];
+    expect(items.map(item => item.type === 'message' ? item.data.id : item.id)).toEqual(['u1', 'a1']);
+  });
+
+  it('session_branch_reset 在首个持久化回复不可见时按 turn input 截断可见回复', () => {
+    useStore.getState().appendItem('/session/a.jsonl', {
+      type: 'message',
+      data: { id: 'u1', sourceEntryId: 'entry-visible-user', role: 'user', text: 'visible question' },
+    });
+    useStore.getState().appendItem('/session/a.jsonl', {
+      type: 'message',
+      data: { id: 'a1', sourceEntryId: 'entry-visible-assistant', role: 'assistant', blocks: [] },
+    });
+    useStore.getState().appendItem('/session/a.jsonl', {
+      type: 'message',
+      data: {
+        id: 'visible-success',
+        sourceEntryId: 'entry-success-assistant',
+        turnInputEntryId: 'entry-hidden-input',
+        role: 'assistant',
+        blocks: [],
+      },
+    });
+
+    handleServerMessage({
+      type: 'session_branch_reset',
+      sessionPath: '/session/a.jsonl',
+      messageId: 'entry-hidden-input',
+      projectionMessageId: 'entry-empty-error-assistant',
+      todos: [],
+      sessionFiles: [],
+    });
+
+    const items = useStore.getState().chatSessions['/session/a.jsonl']?.items || [];
+    expect(items.map(item => item.type === 'message' ? item.data.id : item.id)).toEqual(['u1', 'a1']);
   });
 
   it('computer_overlay 写入当前 session 的 overlay keyed 状态并支持 clear', () => {

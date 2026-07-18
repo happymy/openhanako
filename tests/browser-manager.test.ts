@@ -9,6 +9,84 @@ const SP5 = "/sessions/session-5.json";
 const SP6 = "/sessions/session-6.json";
 
 describe("BrowserManager URL tracking (per-session)", () => {
+  it("forks a live tab workspace into an independent cold child and never shares the live view", () => {
+    const sessionIds = new Map([
+      [SP1, "sess-source"],
+      [SP2, "sess-child"],
+    ]);
+    const manager = new BrowserManager({
+      getSessionIdForPath: (sessionPath) => sessionIds.get(sessionPath) || null,
+    });
+    let coldState: any = {};
+    manager._loadColdState = vi.fn(() => structuredClone(coldState));
+    manager._saveColdState = vi.fn((next) => { coldState = structuredClone(next); });
+    manager._setSessionEntry(SP1, {
+      running: true,
+      activeTabId: "tab-2",
+      tabs: [
+        { tabId: "tab-1", title: "One", url: "https://one.example.com" },
+        { tabId: "tab-2", title: "Two", url: "https://two.example.com" },
+      ],
+    });
+
+    expect(manager.forkSessionState({
+      sourceSessionPath: SP1,
+      targetSessionPath: SP2,
+    })).toEqual({
+      copied: true,
+      tabs: 2,
+      url: "https://two.example.com",
+    });
+    expect(manager.isRunning(SP1)).toBe(true);
+    expect(manager.isRunning(SP2)).toBe(false);
+    expect(coldState["sess-child"]).toMatchObject({
+      sessionPath: SP2,
+      activeTabId: "tab-2",
+      url: "https://two.example.com",
+      tabs: [
+        expect.objectContaining({ tabId: "tab-1", url: "https://one.example.com" }),
+        expect.objectContaining({ tabId: "tab-2", url: "https://two.example.com" }),
+      ],
+    });
+
+    coldState["sess-child"].tabs[0].url = "https://child.example.com";
+    expect(manager.getTabs(SP1)[0].url).toBe("https://one.example.com");
+    expect(manager.discardForkedSessionState({ sessionPath: SP2 })).toEqual({ discarded: true });
+    expect(coldState).not.toHaveProperty("sess-child");
+    expect(manager.isRunning(SP1)).toBe(true);
+  });
+
+  it("does not leak the current tab workspace into a historical fork", () => {
+    const sessionIds = new Map([
+      [SP1, "sess-source"],
+      [SP2, "sess-child"],
+    ]);
+    const manager = new BrowserManager({
+      getSessionIdForPath: (sessionPath) => sessionIds.get(sessionPath) || null,
+    });
+    let coldState: any = {};
+    manager._loadColdState = vi.fn(() => structuredClone(coldState));
+    manager._saveColdState = vi.fn((next) => { coldState = structuredClone(next); });
+    manager._setSessionEntry(SP1, {
+      running: true,
+      activeTabId: "tail-tab",
+      tabs: [{ tabId: "tail-tab", title: "Tail", url: "https://tail.example" }],
+    });
+
+    expect(manager.forkSessionState({
+      sourceSessionPath: SP1,
+      targetSessionPath: SP2,
+      includeSourceState: false,
+    })).toEqual({
+      copied: false,
+      tabs: 0,
+      url: null,
+      reason: "historical_boundary",
+    });
+    expect(coldState).not.toHaveProperty("sess-child");
+    expect(manager.isRunning(SP1)).toBe(true);
+  });
+
   it("tracks tab workspaces per session and returns the active tab URL", async () => {
     const manager = new BrowserManager();
     manager._sendCmd = vi.fn()

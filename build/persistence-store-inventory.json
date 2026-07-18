@@ -2782,7 +2782,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 311,
+      "line": 312,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(this.channelsDir, { recursive: true })",
       "reason": "Creates the channel root.",
@@ -2791,7 +2791,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 357,
+      "line": 358,
       "kind": "persistent-store-constructor",
       "excerpt": "new PreferencesManager({ userDir: this.userDir, agentsDir: this.agentsDir })",
       "reason": "Constructs the preferences owner.",
@@ -2800,7 +2800,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 358,
+      "line": 359,
       "kind": "persistent-store-constructor",
       "excerpt": "new InputDraftsStore({ hanakoHome: this.hanakoHome })",
       "reason": "Constructs draft/project stores.",
@@ -2809,7 +2809,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 376,
+      "line": 377,
       "kind": "persistent-store-constructor",
       "excerpt": "new SessionProjectCatalogStore({ userDir: this.userDir })",
       "reason": "Constructs draft/project stores.",
@@ -2818,7 +2818,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 558,
+      "line": 604,
       "kind": "persistent-store-constructor",
       "excerpt": "new TaskRegistry({ persistencePath: path.join(this.hanakoHome, \".ephemeral\", \"plugin-tasks.json\"), getSessionIdForPath: (sessionPath) => this.getSessionIdForPath(sessionPath), })",
       "reason": "Constructs the plugin task registry.",
@@ -2827,7 +2827,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 1098,
+      "line": 1208,
       "kind": "persistent-store-constructor",
       "excerpt": "new SessionManifestStore({ dbPath })",
       "reason": "Constructs the manifest store during engine construction.",
@@ -2836,7 +2836,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 1119,
+      "line": 1229,
       "kind": "persistent-store-constructor",
       "excerpt": "new SessionManifestStore({ dbPath })",
       "reason": "Constructs the manifest store during engine construction.",
@@ -2845,7 +2845,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 2023,
+      "line": 2142,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(skillsDir, { recursive: true })",
       "reason": "Creates the user skill root.",
@@ -2854,7 +2854,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 2205,
+      "line": 2324,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(filePath)",
       "reason": "Deletes an expired legacy ephemeral session JSONL locator.",
@@ -2863,7 +2863,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 2259,
+      "line": 2378,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(pluginDevSourcesDir, { recursive: true })",
       "reason": "Creates the plugin development source root.",
@@ -3286,7 +3286,7 @@
     },
     {
       "sourceFile": "core/media/task-store.ts",
-      "line": 311,
+      "line": 677,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(this._dataDir, { recursive: true })",
       "reason": "Writes data within the active pluginId-scoped data directory.",
@@ -3295,7 +3295,7 @@
     },
     {
       "sourceFile": "core/media/task-store.ts",
-      "line": 313,
+      "line": 679,
       "kind": "write-file",
       "excerpt": "fs.writeFileSync(tmp, JSON.stringify([...this._tasks.values()]), \"utf8\")",
       "reason": "Writes data within the active pluginId-scoped data directory.",
@@ -3304,7 +3304,7 @@
     },
     {
       "sourceFile": "core/media/task-store.ts",
-      "line": 314,
+      "line": 680,
       "kind": "rename",
       "excerpt": "fs.renameSync(tmp, this._filePath)",
       "reason": "Writes data within the active pluginId-scoped data directory.",
@@ -3322,7 +3322,7 @@
     },
     {
       "sourceFile": "core/media/universal-media-manager.ts",
-      "line": 981,
+      "line": 989,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(path.join(this._generatedDir, filename))",
       "reason": "Writes data within the active pluginId-scoped data directory.",
@@ -4474,7 +4474,79 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 2274,
+      "line": 2411,
+      "kind": "remove-path",
+      "excerpt": "fsp.rm(sessionPath, { force: true })",
+      "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
+      "storeId": "session-jsonl",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/session-coordinator.ts",
+      "line": 2559,
+      "kind": "mkdir",
+      "excerpt": "fsp.mkdir(targetSessionDir, { recursive: true })",
+      "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
+      "storeId": "session-jsonl",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/session-coordinator.ts",
+      "line": 2836,
+      "kind": "remove-path",
+      "excerpt": "fsp.rm(targetSessionPath, { force: true })",
+      "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
+      "storeId": "session-jsonl",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/session-coordinator.ts",
+      "line": 2880,
+      "kind": "mkdir",
+      "excerpt": "fsp.mkdir(journalDir, { recursive: true })",
+      "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
+      "storeId": "session-jsonl",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/session-coordinator.ts",
+      "line": 2882,
+      "kind": "copy-file",
+      "excerpt": "fsp.copyFile(sourceJournalPath, targetJournalPath, fs.constants.COPYFILE_EXCL)",
+      "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
+      "storeId": "session-jsonl",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/session-coordinator.ts",
+      "line": 2996,
+      "kind": "remove-path",
+      "excerpt": "fsp.rm(journalPath, { force: true })",
+      "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
+      "storeId": "session-jsonl",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/session-coordinator.ts",
+      "line": 3001,
+      "kind": "remove-path",
+      "excerpt": "fsp.rmdir(sessionDir)",
+      "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
+      "storeId": "session-jsonl",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/session-coordinator.ts",
+      "line": 3814,
+      "kind": "remove-path",
+      "excerpt": "fsp.rm(childSessionPath, { force: true })",
+      "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
+      "storeId": "session-jsonl",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/session-coordinator.ts",
+      "line": 3913,
       "kind": "remove-path",
       "excerpt": "fsp.rm(createdSessionPath, { force: true })",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4483,7 +4555,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 4562,
+      "line": 6213,
       "kind": "write-file",
       "excerpt": "fsp.writeFile(titlePath, JSON.stringify(titles, null, 2), \"utf-8\")",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4492,7 +4564,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 4670,
+      "line": 6321,
       "kind": "write-file",
       "excerpt": "fsp.writeFile(titlePath, JSON.stringify(titles, null, 2), \"utf-8\")",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4501,7 +4573,25 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 4983,
+      "line": 6653,
+      "kind": "write-file",
+      "excerpt": "fsp.writeFile(metaPath, JSON.stringify(meta, null, 2))",
+      "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
+      "storeId": "session-jsonl",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/session-coordinator.ts",
+      "line": 6662,
+      "kind": "remove-path",
+      "excerpt": "fsp.rm(this._sessionMetaPayloadAbsolutePath(metaPath, ref.path), { force: true })",
+      "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
+      "storeId": "session-jsonl",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/session-coordinator.ts",
+      "line": 6684,
       "kind": "write-file",
       "excerpt": "fsp.writeFile(metaPath, JSON.stringify(compactedMeta, null, 2))",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4510,7 +4600,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 4991,
+      "line": 6694,
       "kind": "mkdir",
       "excerpt": "fsp.mkdir(path.dirname(metaPath), { recursive: true })",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4519,7 +4609,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 5039,
+      "line": 6742,
       "kind": "rename",
       "excerpt": "fsp.rename(metaPath, backupPath)",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4528,7 +4618,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 5066,
+      "line": 6769,
       "kind": "write-file",
       "excerpt": "fsp.writeFile(metaPath, JSON.stringify(budgeted, null, 2))",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4537,7 +4627,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 5138,
+      "line": 6841,
       "kind": "mkdir",
       "excerpt": "fsp.mkdir(path.dirname(absPath), { recursive: true })",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4546,7 +4636,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 5139,
+      "line": 6842,
       "kind": "write-file",
       "excerpt": "fsp.writeFile(absPath, encoded, \"utf-8\")",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4555,7 +4645,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 5314,
+      "line": 7017,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(agent.sessionDir, { recursive: true })",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4564,7 +4654,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 5315,
+      "line": 7018,
       "kind": "rename",
       "excerpt": "fs.renameSync(oldPath, newPath)",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4573,7 +4663,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 5331,
+      "line": 7034,
       "kind": "rename",
       "excerpt": "fs.renameSync(newPath, oldPath)",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4582,7 +4672,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 5422,
+      "line": 7126,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(sp)",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4591,7 +4681,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 5433,
+      "line": 7137,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(candidate)",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4600,7 +4690,7 @@
     },
     {
       "sourceFile": "core/session-coordinator.ts",
-      "line": 5438,
+      "line": 7142,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(sessionDir, { recursive: true })",
       "reason": "Creates, repairs, archives, restores, or appends session JSONL locators.",
@@ -4834,7 +4924,7 @@
     },
     {
       "sourceFile": "core/vision-bridge.ts",
-      "line": 124,
+      "line": 153,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(path.dirname(filePath), { recursive: true })",
       "reason": "Writes a session-owned sidecar or bridge index.",
@@ -4843,7 +4933,7 @@
     },
     {
       "sourceFile": "core/vision-bridge.ts",
-      "line": 126,
+      "line": 155,
       "kind": "write-file",
       "excerpt": "fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + \"\\n\", \"utf-8\")",
       "reason": "Writes a session-owned sidecar or bridge index.",
@@ -4852,7 +4942,7 @@
     },
     {
       "sourceFile": "core/vision-bridge.ts",
-      "line": 127,
+      "line": 156,
       "kind": "rename",
       "excerpt": "fs.renameSync(tmp, filePath)",
       "reason": "Writes a session-owned sidecar or bridge index.",
@@ -5950,7 +6040,7 @@
     },
     {
       "sourceFile": "lib/deferred-result-store.ts",
-      "line": 375,
+      "line": 522,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(path.dirname(this._persistPath), { recursive: true })",
       "reason": "Persists deferred task/result delivery state.",
@@ -5959,7 +6049,7 @@
     },
     {
       "sourceFile": "lib/deferred-result-store.ts",
-      "line": 376,
+      "line": 523,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(this._persistPath, JSON.stringify(obj, null, 2) + \"\\n\")",
       "reason": "Persists deferred task/result delivery state.",
@@ -6445,7 +6535,7 @@
     },
     {
       "sourceFile": "lib/memory/memory-ticker.ts",
-      "line": 394,
+      "line": 396,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(memoryDir, { recursive: true })",
       "reason": "Writes a named per-agent memory protocol file.",
@@ -6454,7 +6544,7 @@
     },
     {
       "sourceFile": "lib/memory/memory-ticker.ts",
-      "line": 395,
+      "line": 397,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(_dailyStatePath(), JSON.stringify(state, null, 2) + \"\\n\")",
       "reason": "Writes a named per-agent memory protocol file.",
@@ -6517,7 +6607,16 @@
     },
     {
       "sourceFile": "lib/memory/session-summary.ts",
-      "line": 183,
+      "line": 177,
+      "kind": "remove-path",
+      "excerpt": "fs.unlinkSync(this._filePath(normalized))",
+      "reason": "Writes a named per-agent memory protocol file.",
+      "storeId": "agent-memory",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "lib/memory/session-summary.ts",
+      "line": 276,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(this.summariesDir, { recursive: true })",
       "reason": "Writes a named per-agent memory protocol file.",
@@ -6526,7 +6625,7 @@
     },
     {
       "sourceFile": "lib/memory/session-summary.ts",
-      "line": 185,
+      "line": 278,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(file)",
       "reason": "Writes a named per-agent memory protocol file.",
@@ -7120,7 +7219,88 @@
     },
     {
       "sourceFile": "lib/session-files/session-file-registry.ts",
-      "line": 307,
+      "line": 313,
+      "kind": "mkdir",
+      "excerpt": "fs.mkdirSync(stagedCacheDir, { recursive: true })",
+      "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
+      "storeId": "session-files",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "lib/session-files/session-file-registry.ts",
+      "line": 326,
+      "kind": "copy-file",
+      "excerpt": "fs.cpSync(sourceBytesPath, path.join(stagedCacheDir, managedName), { recursive: !!sourceFile.isDirectory, force: false, errorOnExist: true, })",
+      "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
+      "storeId": "session-files",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "lib/session-files/session-file-registry.ts",
+      "line": 378,
+      "kind": "mkdir",
+      "excerpt": "fs.mkdirSync(path.dirname(targetCacheDir), { recursive: true })",
+      "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
+      "storeId": "session-files",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "lib/session-files/session-file-registry.ts",
+      "line": 379,
+      "kind": "rename",
+      "excerpt": "fs.renameSync(stagedCacheDir, targetCacheDir)",
+      "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
+      "storeId": "session-files",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "lib/session-files/session-file-registry.ts",
+      "line": 398,
+      "kind": "remove-path",
+      "excerpt": "fs.rmSync(targetSidecarPath, { force: true })",
+      "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
+      "storeId": "session-files",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "lib/session-files/session-file-registry.ts",
+      "line": 403,
+      "kind": "remove-path",
+      "excerpt": "fs.rmSync(stagedCacheDir, { recursive: true, force: true })",
+      "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
+      "storeId": "session-files",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "lib/session-files/session-file-registry.ts",
+      "line": 406,
+      "kind": "remove-path",
+      "excerpt": "fs.rmSync(targetCacheDir, { recursive: true, force: true })",
+      "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
+      "storeId": "session-files",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "lib/session-files/session-file-registry.ts",
+      "line": 449,
+      "kind": "remove-path",
+      "excerpt": "fs.rmSync(sidecarPath, { force: true })",
+      "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
+      "storeId": "session-files",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "lib/session-files/session-file-registry.ts",
+      "line": 451,
+      "kind": "remove-path",
+      "excerpt": "fs.rmSync(targetCacheDir, { recursive: true, force: true })",
+      "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
+      "storeId": "session-files",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "lib/session-files/session-file-registry.ts",
+      "line": 536,
       "kind": "remove-path",
       "excerpt": "fs.rmSync(target, { recursive: true, force: true })",
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
@@ -7129,7 +7309,7 @@
     },
     {
       "sourceFile": "lib/session-files/session-file-registry.ts",
-      "line": 433,
+      "line": 673,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(path.dirname(sidecarPath), { recursive: true })",
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
@@ -7138,7 +7318,7 @@
     },
     {
       "sourceFile": "lib/session-files/session-file-registry.ts",
-      "line": 435,
+      "line": 676,
       "kind": "write-file",
       "excerpt": "fs.writeFileSync(tmpPath, `${JSON.stringify(sidecar, null, 2)}\\n`, \"utf-8\")",
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
@@ -7147,9 +7327,18 @@
     },
     {
       "sourceFile": "lib/session-files/session-file-registry.ts",
-      "line": 436,
+      "line": 677,
       "kind": "rename",
       "excerpt": "fs.renameSync(tmpPath, sidecarPath)",
+      "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
+      "storeId": "session-files",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "lib/session-files/session-file-registry.ts",
+      "line": 679,
+      "kind": "remove-path",
+      "excerpt": "fs.rmSync(tmpPath, { force: true })",
       "reason": "Stages payload bytes or updates SessionFile sidecars under the managed cache.",
       "storeId": "session-files",
       "exemptionId": null
@@ -7354,7 +7543,7 @@
     },
     {
       "sourceFile": "lib/subagent-run-store.ts",
-      "line": 201,
+      "line": 881,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(path.dirname(this._persistPath), { recursive: true })",
       "reason": "Writes subagent run, thread, or executor metadata.",
@@ -7363,7 +7552,7 @@
     },
     {
       "sourceFile": "lib/subagent-run-store.ts",
-      "line": 202,
+      "line": 882,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(this._persistPath, JSON.stringify(data, null, 2) + \"\\n\")",
       "reason": "Writes subagent run, thread, or executor metadata.",
@@ -7372,7 +7561,7 @@
     },
     {
       "sourceFile": "lib/subagent-thread-store.ts",
-      "line": 293,
+      "line": 707,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(path.dirname(this._persistPath), { recursive: true })",
       "reason": "Writes subagent run, thread, or executor metadata.",
@@ -7381,7 +7570,7 @@
     },
     {
       "sourceFile": "lib/subagent-thread-store.ts",
-      "line": 294,
+      "line": 708,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(this._persistPath, JSON.stringify(data, null, 2) + \"\\n\")",
       "reason": "Writes subagent run, thread, or executor metadata.",
@@ -7561,7 +7750,7 @@
     },
     {
       "sourceFile": "lib/workflow-activity-store.ts",
-      "line": 122,
+      "line": 169,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(path.dirname(this._persistPath), { recursive: true })",
       "reason": "Writes workflow journal, session, or activity state.",
@@ -7570,7 +7759,7 @@
     },
     {
       "sourceFile": "lib/workflow-activity-store.ts",
-      "line": 123,
+      "line": 170,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(this._persistPath, JSON.stringify(data, null, 2) + \"\\n\")",
       "reason": "Writes workflow journal, session, or activity state.",
@@ -7723,7 +7912,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 664,
+      "line": 667,
       "kind": "persistent-store-constructor",
       "excerpt": "new ConfirmStore({ getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null, })",
       "reason": "ConfirmStore is deliberately process-memory-only: pending approvals time out or abort with their session and have no restart replay contract.",
@@ -7732,7 +7921,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 669,
+      "line": 672,
       "kind": "persistent-store-constructor",
       "excerpt": "new SubagentRunStore( path.join(hanakoHome, \"subagent-runs.json\"), { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null }, )",
       "reason": "Constructs subagent stores.",
@@ -7741,7 +7930,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 675,
+      "line": 678,
       "kind": "persistent-store-constructor",
       "excerpt": "new SubagentThreadStore( path.join(hanakoHome, \"subagent-threads.json\"), { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null }, )",
       "reason": "Constructs subagent stores.",
@@ -7750,7 +7939,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 686,
+      "line": 689,
       "kind": "persistent-store-constructor",
       "excerpt": "new WorkflowActivityStore( path.join(hanakoHome, \"workflow-activity.json\"), )",
       "reason": "Constructs the workflow activity store.",
@@ -7759,7 +7948,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1103,
+      "line": 1106,
       "kind": "append-file",
       "excerpt": "fs.promises.appendFile(_bwsLogPath, chunk)",
       "reason": "Appends the browser worker log.",
@@ -7768,7 +7957,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1162,
+      "line": 1165,
       "kind": "write-file",
       "excerpt": "fs.writeFileSync(serverInfoPath, JSON.stringify({ pid: process.pid, port: actualPort, host, configuredHost: serverRuntimeState.listenHost, networkMode: serverRuntimeState.mode, configuredMode: serverRuntimeState.configuredMode, configuredLi",
       "reason": "Writes or deletes live server discovery state.",
@@ -7777,7 +7966,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1260,
+      "line": 1263,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(path.join(hanakoHome, \"server-info.json\"))",
       "reason": "Writes or deletes live server discovery state.",
@@ -8110,7 +8299,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 632,
+      "line": 633,
       "kind": "rename",
       "excerpt": "fs.rename(sessionPath, stagedPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8119,7 +8308,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 636,
+      "line": 637,
       "kind": "rename",
       "excerpt": "fs.rename(stagedPath, sessionPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8128,7 +8317,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 650,
+      "line": 651,
       "kind": "rename",
       "excerpt": "fs.rename(stagedPath, sessionPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8137,7 +8326,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 655,
+      "line": 656,
       "kind": "remove-path",
       "excerpt": "fs.unlink(stagedPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8146,7 +8335,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 665,
+      "line": 666,
       "kind": "rename",
       "excerpt": "fs.rename(stagedPath, sessionPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8155,7 +8344,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 695,
+      "line": 696,
       "kind": "remove-path",
       "excerpt": "fs.unlink(destPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8164,7 +8353,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2121,
+      "line": 2293,
       "kind": "append-file",
       "excerpt": "appendFileSync(path.join(engine.hanakoHome, \"switch-error.log\"), `${new Date().toISOString()}\\n${errDetail}\\n---\\n`)",
       "reason": "Appends switch failure diagnostics.",
@@ -8173,7 +8362,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2305,
+      "line": 2477,
       "kind": "mkdir",
       "excerpt": "fs.mkdir(archiveDir, { recursive: true })",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8182,7 +8371,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2313,
+      "line": 2485,
       "kind": "rename",
       "excerpt": "fs.rename(sessionPath, destPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8191,7 +8380,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2379,
+      "line": 2551,
       "kind": "rename",
       "excerpt": "fs.rename(sessionPath, destPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8200,7 +8389,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2391,
+      "line": 2563,
       "kind": "mkdir",
       "excerpt": "fs.mkdir(archDir, { recursive: true })",
       "reason": "Archives, restores, or deletes a session JSONL locator.",
@@ -8209,7 +8398,7 @@
     },
     {
       "sourceFile": "server/routes/sessions.ts",
-      "line": 2392,
+      "line": 2564,
       "kind": "rename",
       "excerpt": "fs.rename(destPath, sessionPath)",
       "reason": "Archives, restores, or deletes a session JSONL locator.",

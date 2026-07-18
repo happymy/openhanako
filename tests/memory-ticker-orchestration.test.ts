@@ -54,6 +54,7 @@ vi.mock("../lib/debug-log.js", () => ({
 // ── Import under test ──
 
 import { createMemoryTicker } from "../lib/memory/memory-ticker.ts";
+import { SessionSummaryManager } from "../lib/memory/session-summary.ts";
 import {
   compileToday,
   compileDaily,
@@ -355,6 +356,196 @@ describe("_doDaily step orchestration", () => {
 
     const state = readDailyState(tmpDir);
     expect(state.completedSteps.rollDailyWindow).toBeUndefined();
+  });
+});
+
+describe("session-derived memory invalidation", () => {
+  let tmpDir;
+  let ticker;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-memory-invalidate-"));
+  });
+
+  afterEach(async () => {
+    await ticker?.stop();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("invalidates the summary, deep facts, and turn counter for exactly one stable session id", () => {
+    const summaryManager = {
+      rollingSummary: vi.fn(),
+      getSummary: vi.fn().mockReturnValue(null),
+      invalidateSession: vi.fn().mockReturnValue(true),
+      saveSummary: vi.fn(),
+    };
+    const factStore = {
+      deleteBySession: vi.fn().mockReturnValue(3),
+    };
+    ticker = makeTicker(tmpDir, summaryManager, {
+      factStore,
+      getSessionIdForPath: vi.fn(() => "sess-retried"),
+      getMemoryMasterEnabled: vi.fn(() => false),
+    });
+    ticker.notifyTurn("/tmp/retried.jsonl");
+
+    expect(ticker.invalidateSessionDerivedState({
+      sessionId: "sess-retried",
+      sessionPath: "/tmp/retried.jsonl",
+    })).toEqual({
+      sessionId: "sess-retried",
+      summaryInvalidated: true,
+      factsDeleted: 3,
+      aggregateHistoryPreserved: true,
+    });
+    expect(summaryManager.invalidateSession).toHaveBeenCalledWith("sess-retried");
+    expect(factStore.deleteBySession).toHaveBeenCalledWith("sess-retried");
+  });
+
+  it("restores the summary when the following atomic fact deletion fails", () => {
+    const originalSummary = {
+      session_id: "sess-retried",
+      summary: "old active summary",
+      messageCount: 4,
+    };
+    let currentSummary: any = structuredClone(originalSummary);
+    const summaryManager = {
+      rollingSummary: vi.fn(),
+      getSummary: vi.fn(() => currentSummary),
+      invalidateSession: vi.fn(() => {
+        currentSummary = null;
+        return true;
+      }),
+      saveSummary: vi.fn((_sessionId, snapshot) => {
+        currentSummary = structuredClone(snapshot);
+      }),
+    };
+    const factStore = {
+      deleteBySession: vi.fn(() => { throw new Error("facts database locked"); }),
+    };
+    ticker = makeTicker(tmpDir, summaryManager, {
+      factStore,
+      getSessionIdForPath: vi.fn(() => "sess-retried"),
+    });
+
+    expect(() => ticker.invalidateSessionDerivedState({
+      sessionId: "sess-retried",
+      sessionPath: "/tmp/retried.jsonl",
+      retainedMessageCount: 2,
+    })).toThrow("facts database locked");
+
+    expect(currentSummary).toEqual(originalSummary);
+    expect(summaryManager.saveSummary).toHaveBeenCalledWith("sess-retried", originalSummary);
+  });
+
+  it("rejects retry invalidation while an aggregate compile can still publish an older summary", async () => {
+    const sessionPath = path.join(tmpDir, "sessions", "compile-race.jsonl");
+    fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
+    writeSession(sessionPath);
+    const summaryManager = {
+      rollingSummary: vi.fn().mockResolvedValue("summary"),
+      getSummary: vi.fn().mockReturnValue(null),
+      invalidateSession: vi.fn().mockReturnValue(true),
+      saveSummary: vi.fn(),
+    };
+    const factStore = {
+      deleteBySession: vi.fn().mockReturnValue(0),
+    };
+    let releaseCompile: ((value: string) => void) | null = null;
+    (compileToday as any).mockImplementationOnce(() => new Promise((resolve) => {
+      releaseCompile = resolve;
+    }));
+    ticker = makeTicker(tmpDir, summaryManager, {
+      factStore,
+      getSessionIdForPath: vi.fn(() => "sess-race"),
+    });
+
+    const flush = ticker.flushSessionAndCompile(sessionPath);
+    await vi.waitFor(() => expect(compileToday).toHaveBeenCalled());
+
+    expect(() => ticker.invalidateSessionDerivedState({
+      sessionId: "sess-race",
+      sessionPath,
+    })).toThrow("session_memory_busy");
+    expect(summaryManager.invalidateSession).not.toHaveBeenCalled();
+    expect(factStore.deleteBySession).not.toHaveBeenCalled();
+
+    releaseCompile?.("compiled");
+    await flush;
+  });
+});
+
+describe("fork memory reset watermark", () => {
+  let tmpDir;
+  let ticker;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-memory-fork-reset-"));
+  });
+
+  afterEach(async () => {
+    await ticker?.stop();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("summarizes the child's post-reset transcript even when the source retained many messages", async () => {
+    const sessionPath = path.join(tmpDir, "sessions", "child.jsonl");
+    fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
+    writeSession(sessionPath);
+    fs.writeFileSync(path.join(tmpDir, "reset.json"), JSON.stringify({
+      compiledResetAt: "2026-04-17T10:00:05.000Z",
+    }) + "\n");
+
+    const summaryManager = new SessionSummaryManager(path.join(tmpDir, "summaries"));
+    summaryManager.initializeForkBaseline("sess-child", {
+      sourceSessionId: "sess-source",
+      throughEntryId: "source-entry-100",
+      messageCount: 100,
+      forkedAt: "2026-04-17T10:01:00.000Z",
+    });
+    const rollingLLM = vi.fn().mockResolvedValue(
+      "### 重要事实\n- 子会话继续独立工作。\n\n### 事情经过\n- [2026-04-17 10:00] 助手作出了回复。",
+    );
+    (summaryManager as any)._callRollingLLM = rollingLLM;
+    ticker = makeTicker(tmpDir, summaryManager, {
+      getSessionIdForPath: vi.fn(() => "sess-child"),
+    });
+
+    await ticker.notifyForkCreated(sessionPath);
+
+    expect(rollingLLM).toHaveBeenCalledTimes(1);
+    expect(rollingLLM.mock.calls[0][0]).toContain("hello");
+    expect(rollingLLM.mock.calls[0][0]).not.toContain("hi");
+    expect(summaryManager.getSummary("sess-child")?.messageCount).toBe(1);
+  });
+
+  it("recovers an unmaterialized blank Fork baseline after restart inside the timestamp grace window", async () => {
+    const sessionPath = path.join(tmpDir, "sessions", "child-restart.jsonl");
+    fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
+    writeSession(sessionPath);
+
+    const summaryManager = new SessionSummaryManager(path.join(tmpDir, "summaries"));
+    summaryManager.initializeForkBaseline("sess-child-restart", {
+      sourceSessionId: "sess-source",
+      throughEntryId: "source-entry-2",
+      messageCount: 2,
+      forkedAt: new Date(Date.now() + 4_000).toISOString(),
+    });
+    const rollingLLM = vi.fn().mockResolvedValue(
+      "### 重要事实\n- 分叉记忆已在重启后独立物化。\n\n### 事情经过\n- 助手完成了共同前缀的摘要。",
+    );
+    (summaryManager as any)._callRollingLLM = rollingLLM;
+    ticker = makeTicker(tmpDir, summaryManager, {
+      getSessionIdForPath: vi.fn(() => "sess-child-restart"),
+    });
+
+    await ticker.tick();
+
+    expect(rollingLLM).toHaveBeenCalledTimes(1);
+    expect(summaryManager.getSummary("sess-child-restart")?.summary).toContain("分叉记忆已在重启后独立物化");
+    expect(summaryManager.getSummary("sess-child-restart")?.messageCount).toBe(2);
   });
 });
 

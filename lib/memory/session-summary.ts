@@ -89,6 +89,99 @@ export class SessionSummaryManager {
     this._cache.set(sessionId, data);
   }
 
+  /**
+   * A fork owns an independent memory lineage. Keep the source/boundary metadata,
+   * but start the child's rolling-summary cursor at zero so its first memory pass
+   * can derive durable state from its own active transcript. Reusing the source
+   * message count would couple the child to the source summary and also mixes count
+   * domains when compiled-memory resetAt filtering is active.
+   */
+  initializeForkBaseline(sessionId, input: Record<string, any> = {}) {
+    const normalized = typeof sessionId === "string" ? sessionId.trim() : "";
+    if (!normalized) throw new Error("fork memory baseline requires sessionId");
+    const sourceSessionId = typeof input.sourceSessionId === "string" ? input.sourceSessionId.trim() : "";
+    const throughEntryId = typeof input.throughEntryId === "string" ? input.throughEntryId.trim() : "";
+    const retainedMessageCount = Number(input.retainedMessageCount ?? input.messageCount);
+    if (!sourceSessionId) throw new Error("fork memory baseline requires sourceSessionId");
+    if (!throughEntryId) throw new Error("fork memory baseline requires throughEntryId");
+    if (!Number.isInteger(retainedMessageCount) || retainedMessageCount < 0) {
+      throw new Error("fork memory baseline retainedMessageCount must be a non-negative integer");
+    }
+    if (this.getSummary(normalized) || fs.existsSync(this._filePath(normalized))) {
+      throw new Error(`fork memory baseline already exists for ${normalized}`);
+    }
+    const forkedAt = normalizeSince(input.forkedAt) || new Date().toISOString();
+    const data = {
+      session_id: normalized,
+      created_at: forkedAt,
+      updated_at: forkedAt,
+      summary: "",
+      messageCount: 0,
+      source_time_range: null,
+      snapshot: "",
+      snapshot_at: null,
+      fork_baseline: {
+        sourceSessionId,
+        throughEntryId,
+        retainedMessageCount,
+        forkedAt,
+      },
+    };
+    this.saveSummary(normalized, data);
+    return data;
+  }
+
+  /**
+   * 作废单个 session 的派生摘要。Retry 改变 active branch 后，旧摘要不能继续
+   * 参与 today/facts/deep-memory 编译。文件与内存缓存必须作为一个操作清掉。
+   *
+   * @param {string} sessionId
+   * @returns {boolean} 是否删除了持久化摘要或缓存项
+   */
+  invalidateSession(sessionId, opts: Record<string, any> = {}) {
+    const normalized = typeof sessionId === "string" ? sessionId.trim() : "";
+    if (!normalized) throw new Error("session summary invalidation requires sessionId");
+    const existing = this.getSummary(normalized);
+    const retainedMessageCount = Number(opts.retainedMessageCount);
+    if (
+      existing?.fork_baseline
+      && Number.isInteger(retainedMessageCount)
+      && retainedMessageCount >= 0
+    ) {
+      const inheritedCount = Number(
+        existing.fork_baseline.retainedMessageCount
+        ?? existing.fork_baseline.messageCount,
+      );
+      const nextRetainedCount = Number.isInteger(inheritedCount) && inheritedCount >= 0
+        ? Math.min(inheritedCount, retainedMessageCount)
+        : retainedMessageCount;
+      const now = new Date().toISOString();
+      this.saveSummary(normalized, {
+        session_id: normalized,
+        created_at: existing.created_at || existing.fork_baseline.forkedAt || now,
+        updated_at: now,
+        summary: "",
+        messageCount: 0,
+        source_time_range: null,
+        snapshot: "",
+        snapshot_at: null,
+        fork_baseline: {
+          ...existing.fork_baseline,
+          retainedMessageCount: nextRetainedCount,
+        },
+      });
+      return true;
+    }
+    const hadCache = this._cache.delete(normalized);
+    try {
+      fs.unlinkSync(this._filePath(normalized));
+      return true;
+    } catch (err) {
+      if (err?.code === "ENOENT") return hadCache;
+      throw err;
+    }
+  }
+
   // ════════════════════════════
   //  脏 session 追踪（供深度记忆用）
   // ════════════════════════════
@@ -400,9 +493,10 @@ export class SessionSummaryManager {
     const prevSummary = existing?.summary || "";
 
     // 增量：只取上次摘要之后的新消息，避免长 session 上下文爆炸
-    const lastMessageCount = existing?.messageCount || 0;
-    const newMessages = lastMessageCount > 0 && lastMessageCount < messages.length
-      ? messages.slice(lastMessageCount)
+    const hasMessageCount = Number.isInteger(existing?.messageCount) && existing.messageCount >= 0;
+    const lastMessageCount = hasMessageCount ? existing.messageCount : 0;
+    const newMessages = hasMessageCount
+      ? messages.slice(Math.min(lastMessageCount, messages.length))
       : messages; // 旧数据无 messageCount 时 fallback 到全量
 
     const timeZone = resolveMemoryTimeZone(opts.timeZone);
@@ -495,6 +589,7 @@ export class SessionSummaryManager {
       source_time_range: sourceTimeRange || existing?.source_time_range || null,
       snapshot: existing?.snapshot || "",
       snapshot_at: existing?.snapshot_at || null,
+      ...(existingRaw?.fork_baseline ? { fork_baseline: existingRaw.fork_baseline } : {}),
     };
 
     return {

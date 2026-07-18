@@ -11,6 +11,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { collectRetainedMediaTaskState } from "./session-fork.ts";
 
 const DEBOUNCE_MS = 300;
 const LEGACY_PROTOCOL_BY_ADAPTER = {
@@ -56,6 +58,211 @@ function normalizeLoadedTask(task) {
     deliveryMode,
     delivery: task.delivery || { mode: deliveryMode },
     params,
+  };
+}
+
+function text(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function deepClone(value) {
+  return value == null ? value : structuredClone(value);
+}
+
+function samePath(left, right) {
+  const normalizedLeft = text(left);
+  const normalizedRight = text(right);
+  if (!normalizedLeft || !normalizedRight) return false;
+  return path.resolve(normalizedLeft) === path.resolve(normalizedRight);
+}
+
+function requireSessionIdentity(value, fieldName) {
+  const sessionId = text(value);
+  if (!sessionId) throw new Error(`TaskStore: ${fieldName} is required for Session Fork`);
+  return sessionId;
+}
+
+function requireSessionPath(value, fieldName) {
+  const sessionPath = text(value);
+  if (!sessionPath) throw new Error(`TaskStore: ${fieldName} is required for Session Fork`);
+  if (!path.isAbsolute(sessionPath)) {
+    throw new Error(`TaskStore: ${fieldName} must be an absolute path`);
+  }
+  return sessionPath;
+}
+
+function mediaKindForTask(task) {
+  const type = text(task?.type)?.toLowerCase() || "";
+  if (type === "video" || type.includes("video")) return "video";
+  if (type === "image" || type.includes("image")) return "image";
+  return null;
+}
+
+function taskBelongsToSession(task, sessionId, sessionPath) {
+  const ownerSessionId = text(task?.sessionId) || text(task?.sessionRef?.sessionId);
+  if (ownerSessionId) return ownerSessionId === sessionId;
+  const ownerSessionPath = text(task?.sessionPath)
+    || text(task?.sessionRef?.sessionPath)
+    || text(task?.sessionRef?.path);
+  return samePath(ownerSessionPath, sessionPath);
+}
+
+function forkedMediaTaskId() {
+  return `media-fork-${randomUUID()}`;
+}
+
+function forkedMediaBatchId() {
+  return `media-fork-batch-${randomUUID()}`;
+}
+
+function childFileIdentityMaps(forkedSessionFiles) {
+  const bySourceId = new Map();
+  const bySourcePath = new Map();
+  for (const file of Array.isArray(forkedSessionFiles) ? forkedSessionFiles : []) {
+    if (!file || typeof file !== "object") continue;
+    for (const fileId of [
+      ...(Array.isArray(file.legacyFileIds) ? file.legacyFileIds : []),
+      file.forkedFromFileId,
+    ]) {
+      const normalized = text(fileId);
+      if (normalized) bySourceId.set(normalized, file);
+    }
+    for (const filePath of [
+      ...(Array.isArray(file.legacyFilePaths) ? file.legacyFilePaths : []),
+      file.forkedFromFilePath,
+    ]) {
+      const normalized = text(filePath);
+      if (normalized) bySourcePath.set(path.resolve(normalized), file);
+    }
+  }
+  return { bySourceId, bySourcePath };
+}
+
+function resolveChildSessionFile(sourceFile, maps) {
+  if (!sourceFile || typeof sourceFile !== "object") return null;
+  const sourceId = text(sourceFile.fileId) || text(sourceFile.id);
+  if (sourceId && maps.bySourceId.has(sourceId)) return maps.bySourceId.get(sourceId);
+  const sourcePath = text(sourceFile.filePath) || text(sourceFile.realPath);
+  if (sourcePath && maps.bySourcePath.has(path.resolve(sourcePath))) {
+    return maps.bySourcePath.get(path.resolve(sourcePath));
+  }
+  return null;
+}
+
+function mapResultSessionFiles(sourceFiles, maps) {
+  if (!Array.isArray(sourceFiles) || sourceFiles.length === 0) return null;
+  const mapped = [];
+  for (const sourceFile of sourceFiles) {
+    const childFile = resolveChildSessionFile(sourceFile, maps);
+    if (!childFile) return null;
+    mapped.push(deepClone(childFile));
+  }
+  return mapped;
+}
+
+function childFilePathMap(forkedSessionFiles) {
+  const result = new Map();
+  for (const file of Array.isArray(forkedSessionFiles) ? forkedSessionFiles : []) {
+    const targetPath = text(file?.filePath) || text(file?.realPath);
+    if (!targetPath) continue;
+    for (const sourcePath of Array.isArray(file?.legacyFilePaths) ? file.legacyFilePaths : []) {
+      const normalized = text(sourcePath);
+      if (normalized) result.set(normalized, targetPath);
+    }
+  }
+  return result;
+}
+
+function rewriteExactFilePaths(value, filePathMap) {
+  if (typeof value === "string") return filePathMap.get(value) || value;
+  if (Array.isArray(value)) return value.map((item) => rewriteExactFilePaths(item, filePathMap));
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [
+    key,
+    rewriteExactFilePaths(child, filePathMap),
+  ]));
+}
+
+function retainedTaskOutcome(task, retainedResult, childFileMaps, forkedAt) {
+  const kind = mediaKindForTask(task);
+  const deferredType = kind === "video" ? "video-generation" : "image-generation";
+  const independentAction = kind === "video"
+    ? "Start a new video generation in this Session."
+    : "Retry to generate an independent copy.";
+  if (retainedResult?.status === "success" || retainedResult?.status === "resolved") {
+    const sourceSessionFiles = Array.isArray(retainedResult?.result?.sessionFiles)
+      ? retainedResult.result.sessionFiles
+      : task.sessionFiles;
+    const childSessionFiles = mapResultSessionFiles(sourceSessionFiles, childFileMaps);
+    if (childSessionFiles) {
+      return {
+        taskStatus: "done",
+        failReason: null,
+        submitState: "completed",
+        sessionFiles: childSessionFiles,
+        deferredRecord: {
+          schemaVersion: 1,
+          taskId: null,
+          status: "success",
+          type: deferredType,
+          result: {
+            ...(retainedResult.result && typeof retainedResult.result === "object"
+              ? deepClone(retainedResult.result)
+              : {}),
+            sessionFiles: childSessionFiles,
+          },
+        },
+      };
+    }
+    const reason = `Forked media output is unavailable in this Session. ${independentAction}`;
+    return {
+      taskStatus: "failed",
+      failReason: reason,
+      submitState: "failed",
+      sessionFiles: [],
+      deferredRecord: {
+        schemaVersion: 1,
+        taskId: null,
+        status: "failed",
+        type: deferredType,
+        reason,
+      },
+    };
+  }
+
+  if (retainedResult?.status === "failed" || retainedResult?.status === "aborted") {
+    const status = retainedResult.status === "aborted" ? "aborted" : "failed";
+    const reason = text(retainedResult.reason)
+      || (status === "aborted" ? "Media generation was stopped." : "Media generation failed.");
+    return {
+      taskStatus: status,
+      failReason: reason,
+      submitState: "failed",
+      sessionFiles: [],
+      deferredRecord: {
+        schemaVersion: 1,
+        taskId: null,
+        status,
+        type: deferredType,
+        reason,
+      },
+    };
+  }
+
+  const reason = `Media generation was still running at the Fork point. ${independentAction}`;
+  return {
+    taskStatus: "aborted",
+    failReason: reason,
+    submitState: "failed",
+    sessionFiles: [],
+    completedAt: forkedAt,
+    deferredRecord: {
+      schemaVersion: 1,
+      taskId: null,
+      status: "aborted",
+      type: deferredType,
+      reason,
+    },
   };
 }
 
@@ -157,6 +364,165 @@ export class TaskStore {
   }
 
   /**
+   * Clone only media tasks structurally referenced by one retained Session
+   * branch. Every clone owns a fresh taskId and child SessionRef. A task that
+   * had no terminal receipt at the Fork point is converted to an explicit,
+   * retryable aborted result instead of sharing the source provider job.
+   */
+  forkSessionTasks({
+    sourceSessionId,
+    sourceSessionPath,
+    targetSessionId,
+    targetSessionPath,
+    retainedEntries = [],
+    forkedSessionFiles = [],
+    createTaskId = forkedMediaTaskId,
+    createBatchId = forkedMediaBatchId,
+  }: Record<string, any> = {}) {
+    const sourceId = requireSessionIdentity(sourceSessionId, "sourceSessionId");
+    const targetId = requireSessionIdentity(targetSessionId, "targetSessionId");
+    const sourcePath = requireSessionPath(sourceSessionPath, "sourceSessionPath");
+    const targetPath = requireSessionPath(targetSessionPath, "targetSessionPath");
+    if (sourceId === targetId || samePath(sourcePath, targetPath)) {
+      throw new Error("TaskStore: Session Fork target must be independent from its source");
+    }
+    if (typeof createTaskId !== "function" || typeof createBatchId !== "function") {
+      throw new Error("TaskStore: Session Fork id factories must be functions");
+    }
+
+    const retainedState = collectRetainedMediaTaskState(retainedEntries);
+    const childFileMaps = childFileIdentityMaps(forkedSessionFiles);
+    const filePathMap = childFilePathMap(forkedSessionFiles);
+    const createdTaskIds = [];
+    const taskIdMap: Record<string, string> = {};
+    const deferredRecords = [];
+    const skipped = [];
+    const forkedAt = new Date().toISOString();
+    const batchIdBySource = new Map();
+
+    try {
+      for (const sourceTaskId of retainedState.taskIds) {
+        const sourceTask = this._tasks.get(sourceTaskId);
+        if (!sourceTask) {
+          skipped.push({ taskId: sourceTaskId, reason: "task_not_found" });
+          continue;
+        }
+        const kind = mediaKindForTask(sourceTask);
+        if (!kind) {
+          skipped.push({ taskId: sourceTaskId, reason: "not_media_task" });
+          continue;
+        }
+        if (!taskBelongsToSession(sourceTask, sourceId, sourcePath)) {
+          throw new Error(`TaskStore: retained media task ownership mismatch for ${sourceTaskId}`);
+        }
+
+        const targetTaskId = text(createTaskId(sourceTask, createdTaskIds.length));
+        if (!targetTaskId) throw new Error("TaskStore: forked media taskId is required");
+        if (targetTaskId === sourceTaskId || this._tasks.has(targetTaskId)) {
+          throw new Error(`TaskStore: forked media taskId is not unique: ${targetTaskId}`);
+        }
+        const sourceBatchId = text(sourceTask.batchId) || sourceTaskId;
+        let targetBatchId = batchIdBySource.get(sourceBatchId);
+        if (!targetBatchId) {
+          targetBatchId = text(createBatchId(sourceTask, batchIdBySource.size));
+          if (!targetBatchId) throw new Error("TaskStore: forked media batchId is required");
+          batchIdBySource.set(sourceBatchId, targetBatchId);
+        }
+
+        const retainedResult = retainedState.resultsByTaskId[sourceTaskId] || null;
+        const outcome = retainedTaskOutcome(sourceTask, retainedResult, childFileMaps, forkedAt);
+        const params = rewriteExactFilePaths(deepClone(sourceTask.params || {}), filePathMap);
+        this.add({
+          taskId: targetTaskId,
+          adapterId: sourceTask.adapterId,
+          providerId: sourceTask.providerId,
+          modelId: sourceTask.modelId,
+          protocolId: sourceTask.protocolId,
+          credentialLaneId: sourceTask.credentialLaneId,
+          batchId: targetBatchId,
+          type: sourceTask.type,
+          prompt: sourceTask.prompt,
+          params,
+          sessionId: targetId,
+          sessionPath: targetPath,
+          sessionRef: { sessionId: targetId, sessionPath: targetPath },
+          deliveryMode: "session",
+          delivery: { mode: "session" },
+          deliveryTarget: null,
+          metadata: deepClone(sourceTask.metadata),
+          adapterTaskId: null,
+          submitState: outcome.submitState,
+        });
+        createdTaskIds.push(targetTaskId);
+        this.update(targetTaskId, {
+          status: outcome.taskStatus,
+          failReason: outcome.failReason,
+          submitState: outcome.submitState,
+          adapterTaskId: null,
+          files: [],
+          sessionFiles: outcome.sessionFiles,
+          favorited: sourceTask.favorited === true,
+          imageWidth: outcome.taskStatus === "done" ? sourceTask.imageWidth ?? null : null,
+          imageHeight: outcome.taskStatus === "done" ? sourceTask.imageHeight ?? null : null,
+          createdAt: sourceTask.createdAt || forkedAt,
+          completedAt: outcome.completedAt || sourceTask.completedAt || forkedAt,
+          retryCount: 0,
+          forkedFromTaskId: sourceTaskId,
+          forkedAt,
+          sourceTaskStatusAtFork: sourceTask.status || null,
+          ...(sourceTask.credentialProviderId
+            ? { credentialProviderId: sourceTask.credentialProviderId }
+            : {}),
+        });
+        taskIdMap[sourceTaskId] = targetTaskId;
+        deferredRecords.push({
+          ...outcome.deferredRecord,
+          taskId: targetTaskId,
+        });
+      }
+      if (createdTaskIds.length > 0 && !this.flushSync()) {
+        throw new Error("TaskStore: forked media tasks could not be persisted");
+      }
+      return {
+        tasks: createdTaskIds.length,
+        taskIds: createdTaskIds,
+        taskIdMap,
+        deferredRecords,
+        skipped,
+      };
+    } catch (error) {
+      for (const taskId of createdTaskIds) this._tasks.delete(taskId);
+      if (createdTaskIds.length > 0) this.flushSync();
+      throw error;
+    }
+  }
+
+  discardForkedSessionTasks({ targetSessionId, taskIds = [] }: Record<string, any> = {}) {
+    const targetId = requireSessionIdentity(targetSessionId, "targetSessionId");
+    let discarded = 0;
+    const skipped = [];
+    const removed = [];
+    for (const taskId of Array.isArray(taskIds) ? taskIds : []) {
+      const normalizedTaskId = text(taskId);
+      const task = normalizedTaskId ? this._tasks.get(normalizedTaskId) : null;
+      if (!task) continue;
+      const ownerSessionId = text(task.sessionId) || text(task.sessionRef?.sessionId);
+      if (ownerSessionId !== targetId || !text(task.forkedFromTaskId)) {
+        skipped.push(normalizedTaskId);
+        continue;
+      }
+      removed.push([normalizedTaskId, task]);
+      this._tasks.delete(normalizedTaskId);
+      discarded += 1;
+    }
+    if (discarded > 0 && !this.flushSync()) {
+      for (const [taskId, task] of removed) this._tasks.set(taskId, task);
+      throw new Error("TaskStore: forked media task cleanup could not be persisted");
+    }
+    return { discarded, skipped };
+  }
+
+  /**
    * Remove all non-pending, non-favorited tasks.
    * Returns an array of the removed task shallow copies so the caller
    * can clean up associated files on disk.
@@ -248,7 +614,7 @@ export class TaskStore {
       clearTimeout(this._debounceTimer);
       this._debounceTimer = null;
     }
-    this._writeSync();
+    return this._writeSync();
   }
 
   /**
@@ -312,9 +678,12 @@ export class TaskStore {
       const tmp = this._filePath + ".tmp";
       fs.writeFileSync(tmp, JSON.stringify([...this._tasks.values()]), "utf8");
       fs.renameSync(tmp, this._filePath);
+      return true;
     } catch (err) {
-      // Non-fatal: log to stderr but do not throw — memory remains authoritative.
+      // Ordinary task updates keep memory authoritative; transactional callers
+      // can treat the false return as a hard persistence failure.
       process.stderr.write(`TaskStore: write failed: ${err.message}\n`);
+      return false;
     }
   }
 }

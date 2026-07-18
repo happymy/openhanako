@@ -21,6 +21,9 @@
  * @param {Array<{fileId?:string, sessionId?:string, sessionPath?:string, label?:string, kind?:string}>} [opts.sessionFileRefs]
  * @param {object|null|undefined} [opts.uiContext]
  * @param {object|null|undefined} [opts.context]
+ * @param {boolean} [opts.preservePromptEnvelope] - prompt text already contains its persisted media/SessionFile/reminder envelope
+ * @param {boolean} [opts.projectUserMessage] - persist/emit a visible user projection for this model input
+ * @param {() => void} [opts.beforeInputSideEffects] - synchronous commit hook after cache/model preflight, before UI or prompt persistence
  * @returns {Promise<{ text: string | null, toolMedia: string[] }>}
  */
 import path from "path";
@@ -167,6 +170,9 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
   sessionFileRefs?: Array<{ fileId?: string; sessionId?: string; sessionPath?: string; label?: string; kind?: string }>;
   uiContext?: any;
   context?: any;
+  preservePromptEnvelope?: boolean;
+  projectUserMessage?: boolean;
+  beforeInputSideEffects?: () => unknown;
 } = {}) {
   const {
     sessionId: requestedSessionId,
@@ -185,6 +191,9 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
     sessionFileRefs,
     uiContext,
     context,
+    preservePromptEnvelope = false,
+    projectUserMessage = true,
+    beforeInputSideEffects,
   } = opts;
 
   if (!engine || typeof engine.ensureSessionLoaded !== "function" || typeof engine.promptSession !== "function") {
@@ -217,7 +226,11 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
     const displayComparisonPromptText = promptText;
     let promptSessionFileRefs = normalizeSessionFileRefs(sessionFileRefs, sessionPath, sessionId);
 
-    if (displayAttachments?.length) {
+    if (preservePromptEnvelope && inboundFiles?.length) {
+      throw new Error("desktop-session-submit: preservePromptEnvelope cannot materialize inboundFiles");
+    }
+
+    if (!preservePromptEnvelope && displayAttachments?.length) {
       const registeredDisplay = registerDisplayAttachments({
         hanakoHome: engine.hanakoHome,
         sessionPath,
@@ -245,7 +258,7 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
       );
     }
 
-    if (inboundFiles?.length) {
+    if (!preservePromptEnvelope && inboundFiles?.length) {
       const materialized = await materializeBridgeInboundFiles({
         hanakoHome: engine.hanakoHome,
         sessionId,
@@ -268,54 +281,62 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
       );
     }
 
-    promptText = addAttachedImageMarkers(promptText, promptImageAttachmentPaths);
-    promptText = addAttachedVideoMarkers(promptText, promptVideoAttachmentPaths);
-    promptText = addAttachedAudioMarkers(promptText, promptAudioAttachmentPaths);
-    promptText = addSessionFileRefMarkers(promptText, promptSessionFileRefs);
-    const reminderBlock = renderPendingReminderBlock(engine, sessionPath);
+    if (!preservePromptEnvelope) {
+      promptText = addAttachedImageMarkers(promptText, promptImageAttachmentPaths);
+      promptText = addAttachedVideoMarkers(promptText, promptVideoAttachmentPaths);
+      promptText = addAttachedAudioMarkers(promptText, promptAudioAttachmentPaths);
+      promptText = addSessionFileRefMarkers(promptText, promptSessionFileRefs);
+    }
+    const reminderBlock = preservePromptEnvelope ? null : renderPendingReminderBlock(engine, sessionPath);
     if (reminderBlock?.block) {
       promptText = `${reminderBlock.block}\n\n${promptText}`;
     }
 
     let inputSideEffectsStarted = false;
     const afterCachePreflight = () => {
+      const commitResult = beforeInputSideEffects?.();
+      if (commitResult && typeof (commitResult as any).then === "function") {
+        throw new TypeError("desktop-session-submit: beforeInputSideEffects must be synchronous");
+      }
       inputSideEffectsStarted = true;
       engine.emitEvent?.({ type: "session_status", isStreaming: true }, sessionPath);
-      // 展示投影与来源元信息先于 prompt 持久化，让 custom 条目注释其后的 user message。
-      // forceDisplayText 表示模型输入另含内部 Reminder；displayMessage 只保存用户可见正文。
-      recordMessagePresentationEntry(
-        session,
-        sessionPath,
-        displayComparisonPromptText,
-        displayMessage ?? { text: text ?? "" },
-        { forceDisplayText: !!reminderBlock?.block },
-      );
-      recordMessageOriginEntry(session, sessionPath, displayMessage);
-      recordAgentReviewEntry(session, sessionPath, displayMessage);
-      engine.emitEvent?.({
-        type: "session_user_message",
-        clientMessageId: clientMessageId || null,
-        message: {
-          text: displayMessage?.text ?? text ?? "",
-          timestamp: Date.now(),
+      if (projectUserMessage) {
+        // 展示投影与来源元信息先于 prompt 持久化，让 custom 条目注释其后的 user message。
+        // forceDisplayText 表示模型输入另含内部 Reminder；displayMessage 只保存用户可见正文。
+        recordMessagePresentationEntry(
+          session,
+          sessionPath,
+          displayComparisonPromptText,
+          displayMessage ?? { text: text ?? "" },
+          { forceDisplayText: !!reminderBlock?.block },
+        );
+        recordMessageOriginEntry(session, sessionPath, displayMessage);
+        recordAgentReviewEntry(session, sessionPath, displayMessage);
+        engine.emitEvent?.({
+          type: "session_user_message",
+          clientMessageId: clientMessageId || null,
+          message: {
+            text: displayMessage?.text ?? text ?? "",
+            timestamp: Date.now(),
+            attachments: displayAttachments,
+            quotedText: displayMessage?.quotedText,
+            skills: displayMessage?.skills,
+            deskContext: displayMessage?.deskContext ?? null,
+            source: displayMessage?.source || "desktop",
+            bridgeSessionKey: displayMessage?.bridgeSessionKey || null,
+            origin: displayMessage?.origin || null,
+            sessionRefs: displayMessage?.sessionRefs || null,
+            agentMentions: displayMessage?.agentMentions || null,
+            agentReview: displayMessage?.agentReview || null,
+            agentReviewRequest: displayMessage?.agentReviewRequest || null,
+          },
+        }, sessionPath);
+        queueVoiceInputTranscriptions({
+          speechRecognition: engine.speechRecognition,
+          sessionPath,
           attachments: displayAttachments,
-          quotedText: displayMessage?.quotedText,
-          skills: displayMessage?.skills,
-          deskContext: displayMessage?.deskContext ?? null,
-          source: displayMessage?.source || "desktop",
-          bridgeSessionKey: displayMessage?.bridgeSessionKey || null,
-          origin: displayMessage?.origin || null,
-          sessionRefs: displayMessage?.sessionRefs || null,
-          agentMentions: displayMessage?.agentMentions || null,
-          agentReview: displayMessage?.agentReview || null,
-          agentReviewRequest: displayMessage?.agentReviewRequest || null,
-        },
-      }, sessionPath);
-      queueVoiceInputTranscriptions({
-        speechRecognition: engine.speechRecognition,
-        sessionPath,
-        attachments: displayAttachments,
-      });
+        });
+      }
     };
 
     let captured = "";

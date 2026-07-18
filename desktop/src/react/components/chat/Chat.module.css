@@ -155,6 +155,7 @@
 
 .messageGroupUser:hover .messageFooterActions,
 .messageGroupAssistant:hover .messageFooterActions,
+.agentOriginCard:hover .messageFooterActions,
 .messageFooterActions:focus-within,
 .messageFooterActionsVisible {
     opacity: 0.72;

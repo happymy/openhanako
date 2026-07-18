@@ -1023,6 +1023,57 @@ describe("configuration", () => {
     expect(pm.getConfig("secret-cfg").values).toEqual({ enabled: true, apiKey: "********" });
     expect(pm.getPlugin("secret-cfg").ctx.config.get("apiKey")).toBe("secret-value");
   });
+
+  it("forks per-session config for loaded and disabled plugins without sharing child writes", async () => {
+    for (const [id, disabled] of [["loaded-cfg", false], ["disabled-cfg", true]] as const) {
+      const dir = path.join(pluginsDir, id);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({
+        id,
+        name: id,
+        version: "0.1.0",
+        contributes: { configuration: { properties: {
+          sessionValue: { type: "object", scope: "per-session" },
+        } } },
+      }));
+      const pluginDataDir = path.join(dataDir, id);
+      fs.mkdirSync(pluginDataDir, { recursive: true });
+      fs.writeFileSync(path.join(pluginDataDir, "config.json"), JSON.stringify({
+        schemaVersion: 1,
+        global: {},
+        agents: {},
+        sessions: { "sess-source": { sessionValue: { id, disabled } } },
+      }));
+    }
+    const preferencesManager = {
+      getDisabledPlugins: () => ["disabled-cfg"],
+    };
+    const pm = new PluginManager({
+      pluginsDir,
+      dataDir,
+      bus: await makeBus(),
+      preferencesManager,
+    } as any);
+    pm.scan();
+    await pm.loadAll();
+
+    expect(pm.forkSessionConfig({
+      sourceSessionId: "sess-source",
+      targetSessionId: "sess-child",
+    })).toMatchObject({ copied: 2 });
+    for (const id of ["loaded-cfg", "disabled-cfg"]) {
+      const state = JSON.parse(fs.readFileSync(path.join(dataDir, id, "config.json"), "utf-8"));
+      expect(state.sessions["sess-child"]).toEqual(state.sessions["sess-source"]);
+    }
+
+    pm.setConfig("loaded-cfg", { sessionValue: { id: "child-write" } }, {
+      scope: "per-session",
+      sessionId: "sess-child",
+    });
+    const loadedState = JSON.parse(fs.readFileSync(path.join(dataDir, "loaded-cfg", "config.json"), "utf-8"));
+    expect(loadedState.sessions["sess-source"].sessionValue).toEqual({ id: "loaded-cfg", disabled: false });
+    expect(pm.discardSessionConfig({ sessionId: "sess-child" })).toMatchObject({ discarded: 2 });
+  });
 });
 
 describe("agent templates", () => {

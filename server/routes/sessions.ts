@@ -22,6 +22,8 @@ import {
 import {
   TURN_INPUT_CONSUMPTION_EVENT_TYPE,
   TURN_INPUT_PRESENTATION_EVENT_TYPE,
+  isCustomTurnInputHistoryMessage,
+  isHiddenTurnInputMessage,
   parseTurnInputConsumptionRecord,
   parseTurnInputPresentationRecord,
 } from "../../lib/turn-input-presentation.ts";
@@ -74,7 +76,7 @@ import {
   resolveModelAudioInputTransport,
   resolveModelVideoInputTransport,
 } from "../../shared/model-capabilities.ts";
-import { replayLatestUserTurn } from "../../core/session-turn-actions.ts";
+import { replayLatestUserTurn, retrySessionTurn } from "../../core/session-turn-actions.ts";
 import { createRequestContext } from "../http/boundary.ts";
 import { createModuleLogger } from "../../lib/debug-log.ts";
 import { searchSessions } from "../../lib/search/session-search.ts";
@@ -263,7 +265,6 @@ function isDisplayableHistoryMessage(message) {
 // 与 /sessions/messages 主循环的序号语义逐字对齐：
 // 只有 user/assistant 且 isDisplayableHistoryMessage 为真的消息推进 displayIdx。
 // 改这里必须同步改 messages 主循环与 tests/session-find-route.test.ts 的一致性测试。
-const FIND_HIDDEN_USER_MESSAGE_RE = /<hana-background-result\s|<hana-deferred-tasks>/;
 const FIND_LEGACY_STEER_PREFIX_RE = /^(?:（插话，无需 MOOD）|\(Interjection, no MOOD needed\))\n?/;
 const FIND_TURN_TAG_PREFIX_RE = /^<t>[^<]*<\/t>\s*/;
 
@@ -287,7 +288,7 @@ export function collectFindableHistoryEntries(sourceMessages, sanitizeVisibleCon
       const content = sanitizeVisibleContent(text);
       // 前端 history-builder 不渲染这类系统消息（history-builder.ts:503），
       // 序号照常推进，但不参与命中。
-      if (FIND_HIDDEN_USER_MESSAGE_RE.test(content)) continue;
+      if (isHiddenTurnInputMessage({ content })) continue;
       const visible = content
         .replace(FIND_LEGACY_STEER_PREFIX_RE, "")
         .replace(FIND_TURN_TAG_PREFIX_RE, "");
@@ -1324,12 +1325,28 @@ export function createSessionsRoute(engine, hub = null) {
       const deferredInterludeDeliveryIds = new Set();
       const turnInputConsumptionDeliveryIds = new Set();
       const turnInputConsumptionEntryIds = new Set();
+      const turnInputByAssistantEntryId = new Map<string, string>();
+      const sourceIndexByEntryId = new Map<string, number>();
+      const displayIndexByEntryId = new Map<string, number>();
       const deferredStore = engine.deferredResults;
       const receiverName = resolveDeferredReceiverName(engine, resolvedSessionPath);
       // 草稿卡确认状态持久化（灰测修复 C）：决策 custom 消息本身 display:false
       // 不会进展示（与 origin 记录同理），只用来覆盖后面 toolResult 分支产出的
       // suggestion_card block 的 status，让重开 session 不再回弹 pending。
       const sessionCollabDecisions = collectSessionCollabDecisions(sourceMessages);
+      let projectedDisplayIndex = 0;
+      for (let sourceIndex = 0; sourceIndex < sourceMessages.length; sourceIndex += 1) {
+        const message = sourceMessages[sourceIndex];
+        const entryId = typeof message?.id === "string" && message.id.trim() ? message.id.trim() : null;
+        if (entryId) sourceIndexByEntryId.set(entryId, sourceIndex);
+        if (
+          (message?.role === "user" || message?.role === "assistant")
+          && isDisplayableHistoryMessage(message)
+        ) {
+          if (entryId) displayIndexByEntryId.set(entryId, projectedDisplayIndex);
+          projectedDisplayIndex += 1;
+        }
+      }
       for (const message of sourceMessages) {
         if (message?.role !== "custom" || message.customType !== TURN_INPUT_CONSUMPTION_EVENT_TYPE) continue;
         const parsed = parseTurnInputConsumptionRecord(message.data);
@@ -1339,8 +1356,12 @@ export function createSessionsRoute(engine, hub = null) {
         const entryId = typeof parsed?.input?.entryId === "string" && parsed.input.entryId.trim()
           ? parsed.input.entryId.trim()
           : null;
+        const assistantEntryId = typeof parsed?.assistant?.entryId === "string" && parsed.assistant.entryId.trim()
+          ? parsed.assistant.entryId.trim()
+          : null;
         if (deliveryId) turnInputConsumptionDeliveryIds.add(deliveryId);
         if (entryId) turnInputConsumptionEntryIds.add(entryId);
+        if (assistantEntryId && entryId) turnInputByAssistantEntryId.set(assistantEntryId, entryId);
       }
       const recordMediaGenerationResult = (parsed, afterIndex, sourceIndex = null) => {
         if (!parsed?.taskId || !isMediaGenerationDeferredResult(parsed)) return;
@@ -1354,10 +1375,24 @@ export function createSessionsRoute(engine, hub = null) {
         }
       };
       const recordTurnInputConsumptionInterlude = (message, afterIndex, sourceIndex = null) => {
-        if (!Number.isInteger(afterIndex) || afterIndex < 0) return;
         const parsed = parseTurnInputConsumptionRecord(message?.data);
         const block = parsed?.block;
         if (!block || block.type !== "interlude") return;
+        const assistantEntryId = typeof parsed?.assistant?.entryId === "string" && parsed.assistant.entryId.trim()
+          ? parsed.assistant.entryId.trim()
+          : null;
+        const inputEntryId = typeof parsed?.input?.entryId === "string" && parsed.input.entryId.trim()
+          ? parsed.input.entryId.trim()
+          : null;
+        const assistantDisplayIndex = assistantEntryId
+          ? displayIndexByEntryId.get(assistantEntryId)
+          : undefined;
+        const anchoredAfterIndex = Number.isInteger(assistantDisplayIndex)
+          ? Math.max(0, assistantDisplayIndex - 1)
+          : afterIndex;
+        if (!Number.isInteger(anchoredAfterIndex) || anchoredAfterIndex < 0) return;
+        const inputSourceIndex = inputEntryId ? sourceIndexByEntryId.get(inputEntryId) : undefined;
+        const anchoredSourceIndex = Number.isInteger(inputSourceIndex) ? inputSourceIndex : sourceIndex;
         const normalizedDeliveryId = typeof parsed.deliveryId === "string" && parsed.deliveryId.trim()
           ? parsed.deliveryId.trim()
           : null;
@@ -1365,8 +1400,8 @@ export function createSessionsRoute(engine, hub = null) {
         blocks.push({
           ...block,
           ...(normalizedDeliveryId ? { deliveryId: normalizedDeliveryId } : {}),
-          afterIndex,
-          ...(Number.isInteger(sourceIndex) ? { sourceIndex } : {}),
+          afterIndex: anchoredAfterIndex,
+          ...(Number.isInteger(anchoredSourceIndex) ? { sourceIndex: anchoredSourceIndex } : {}),
         });
         if (normalizedDeliveryId) deferredInterludeDeliveryIds.add(normalizedDeliveryId);
       };
@@ -1424,10 +1459,14 @@ export function createSessionsRoute(engine, hub = null) {
         if (normalizedDeliveryId) deferredInterludeDeliveryIds.add(normalizedDeliveryId);
       };
       let displayIdx = 0;
+      let latestTurnInputEntryId: string | null = null;
+      let latestTurnInputVisible = false;
 
       for (let sourceIndex = 0; sourceIndex < sourceMessages.length; sourceIndex += 1) {
         const m = sourceMessages[sourceIndex];
         if (m.role === "user") {
+          latestTurnInputEntryId = typeof m.id === "string" && m.id.trim() ? m.id.trim() : null;
+          latestTurnInputVisible = !isHiddenTurnInputMessage(m);
           if (!isDisplayableHistoryMessage(m)) continue;
           const currentIndex = displayIdx;
           displayIdx += 1;
@@ -1458,6 +1497,12 @@ export function createSessionsRoute(engine, hub = null) {
           }
         } else if (m.role === "assistant") {
           if (!isDisplayableHistoryMessage(m)) continue;
+          const assistantEntryId = typeof m.id === "string" && m.id.trim() ? m.id.trim() : null;
+          const consumedTurnInputEntryId = assistantEntryId
+            ? turnInputByAssistantEntryId.get(assistantEntryId) || null
+            : null;
+          const turnInputEntryId = consumedTurnInputEntryId || latestTurnInputEntryId;
+          const turnInputVisible = consumedTurnInputEntryId ? false : latestTurnInputVisible;
           const currentIndex = displayIdx;
           displayIdx += 1;
           if (currentIndex >= pageBounds.startIdx && currentIndex < pageBounds.endIdx) {
@@ -1469,6 +1514,7 @@ export function createSessionsRoute(engine, hub = null) {
               ...(m.id ? { entryId: m.id } : {}),
               role: "assistant",
               content,
+              ...(turnInputEntryId ? { turnInputEntryId, turnInputVisible } : {}),
               ...(contentHasThinkingBlock(m.content, { stripThink: true }) ? { thinking } : {}),
               toolCalls: toolUses.length ? toolUses : undefined,
               ...(m.timestamp ? { timestamp: m.timestamp } : {}),
@@ -1484,6 +1530,10 @@ export function createSessionsRoute(engine, hub = null) {
             }
           }
         } else if (m.role === "custom") {
+          if (isCustomTurnInputHistoryMessage(m)) {
+            latestTurnInputEntryId = typeof m.id === "string" && m.id.trim() ? m.id.trim() : null;
+            latestTurnInputVisible = false;
+          }
           const afterIndex = displayIdx - 1;
           if (m.display !== false && afterIndex >= pageBounds.startIdx && afterIndex < pageBounds.endIdx) {
             const extracted = extractBlocks(m.customType, m.details, m);
@@ -1644,7 +1694,7 @@ export function createSessionsRoute(engine, hub = null) {
       }
 
       patchSessionFileLifecycleBlocks(slicedBlocks, engine, resolvedSessionPath);
-      const sessionFiles = listSessionRegistryFiles(engine, resolvedSessionPath);
+      const sessionFiles = listSessionRegistryFiles(engine, resolvedSessionPath, sourceMessages);
 
       // 从历史中提取最新 todo 状态：branch-aware，沿当前 leaf 回溯到 root，
       // 只在当前分支路径上找最新合法快照。避免从抛弃的分支取到错误状态。
@@ -1702,6 +1752,128 @@ export function createSessionsRoute(engine, hub = null) {
     } catch (err) {
       const status = err.message === "session_busy" ? 409 : 400;
       return c.json({ error: err.message }, status);
+    }
+  });
+
+  route.post("/sessions/turns/retry", async (c) => {
+    try {
+      const requestContext = createRequestContext(c, engine);
+      const body = await safeJson(c);
+      const sessionRef = resolveSessionLocatorFromBody(body, "retrySessionTurn");
+      assertManifestLifecycle(sessionRef, "active", "retrySessionTurn");
+      const { sessionId, sessionPath } = sessionRef;
+      const auth = authorizeSessionRoute(requestContext, "sessions.write", {
+        kind: "session",
+        studioId: requestContext.studioId,
+        sessionPath,
+      });
+      if (!auth.allowed) return c.json({ error: "insufficient_scope", reason: auth.reason }, 403);
+      if (!isActiveDesktopSessionPath(sessionPath, engine.agentsDir)) {
+        return c.json({ error: "Invalid session path" }, 403);
+      }
+      if (isDeletedAgentSessionPath(sessionPath)) {
+        return rejectDeletedAgentSession(c);
+      }
+      if (!(await pathExists(sessionPath))) {
+        return c.json({ error: "session not found" }, 404);
+      }
+      if (engine.isSessionStreaming?.(sessionPath)) {
+        return c.json({ error: "session_busy" }, 409);
+      }
+
+      const result = await retrySessionTurn(engine, {
+        sessionId,
+        sessionPath,
+        target: body?.target,
+        clientMessageId: body?.clientMessageId || null,
+        replacementText: typeof body?.text === "string" ? body.text : undefined,
+        displayMessage: body?.displayMessage || null,
+        uiContext: body?.uiContext ?? null,
+      });
+      return c.json({ ok: true, ...result });
+    } catch (err) {
+      const status = Number.isInteger(err?.status)
+        ? err.status
+        : err?.message === "session_busy"
+          ? 409
+          : 400;
+      return c.json(bodyFromRouteError(err), status);
+    }
+  });
+
+  route.post("/sessions/fork", async (c) => {
+    try {
+      const requestContext = createRequestContext(c, engine);
+      const body = await safeJson(c);
+      const sessionRef = resolveSessionLocatorFromBody(body, "forkSessionAtNode");
+      assertManifestLifecycle(sessionRef, "active", "forkSessionAtNode");
+      const { sessionId, sessionPath } = sessionRef;
+      const auth = authorizeSessionRoute(requestContext, "sessions.write", {
+        kind: "session",
+        studioId: requestContext.studioId,
+        sessionPath,
+      });
+      if (!auth.allowed) return c.json({ error: "insufficient_scope", reason: auth.reason }, 403);
+      if (!isActiveDesktopSessionPath(sessionPath, engine.agentsDir)) {
+        return c.json({ error: "Invalid session path" }, 403);
+      }
+      if (isDeletedAgentSessionPath(sessionPath)) {
+        return rejectDeletedAgentSession(c);
+      }
+      if (!(await pathExists(sessionPath))) {
+        return c.json({ error: "session not found" }, 404);
+      }
+      if (engine.isSessionStreaming?.(sessionPath)) {
+        return c.json({ error: "session_busy" }, 409);
+      }
+      if (typeof engine.forkSessionAtNode !== "function") {
+        throw routeError("session fork is unavailable", "session_fork_unavailable", 503);
+      }
+
+      const result = await engine.forkSessionAtNode({
+        sessionId,
+        sessionPath,
+        target: body?.target,
+      });
+      const childPath = result?.sessionPath || result?.path || null;
+      const childSessionId = result?.sessionId || (childPath ? engine.getSessionIdForPath?.(childPath) : null) || null;
+      const permissionMode = result?.permissionMode || engine.getSessionPermissionMode?.(childPath) || "ask";
+      const response = {
+        ok: true,
+        path: childPath,
+        sessionPath: childPath,
+        sessionId: childSessionId,
+        agentId: result?.agentId || null,
+        agentName: result?.agentName || engine.getAgent?.(result?.agentId)?.agentName || result?.agentId || null,
+        cwd: result?.cwd || null,
+        workspaceFolders: Array.isArray(result?.workspaceFolders) ? result.workspaceFolders : [],
+        authorizedFolders: Array.isArray(result?.authorizedFolders) ? result.authorizedFolders : [],
+        planMode: result?.planMode ?? permissionMode === "read_only",
+        permissionMode,
+        accessMode: result?.accessMode || (permissionMode === "read_only" ? "read_only" : "operate"),
+        thinkingLevel: normalizeSessionThinkingLevel(result?.thinkingLevel),
+        projectId: result?.projectId ?? null,
+        workspaceMountId: result?.workspaceMountId || null,
+        workspaceLabel: result?.workspaceLabel || null,
+        sourceSessionId: result?.sourceSessionId || sessionId,
+        forkedFromEntryId: result?.forkedFromEntryId || null,
+        target: result?.target || body?.target || null,
+        sessionFiles: result?.sessionFiles || { files: [], refs: [], fileIdMap: {} },
+        visionNotes: result?.visionNotes || { notes: 0, keys: [] },
+        memoryModelUnavailableReason: engine.memoryModelUnavailableReason || null,
+      };
+      hub?.eventBus?.emit?.({
+        type: "session_created",
+        session: response,
+      }, childPath);
+      return c.json(response);
+    } catch (err) {
+      const status = Number.isInteger(err?.status)
+        ? err.status
+        : err?.message === "session_busy"
+          ? 409
+          : 500;
+      return c.json(bodyFromRouteError(err), status);
     }
   });
 
@@ -2477,9 +2649,9 @@ function patchSessionFileLifecycleBlocks(blocks, engine, sessionPath) {
   }
 }
 
-function listSessionRegistryFiles(engine, sessionPath) {
+function listSessionRegistryFiles(engine, sessionPath, activeReferences = []) {
   if (!sessionPath || typeof engine?.listSessionFiles !== "function") return [];
-  return engine.listSessionFiles(sessionPath)
+  return engine.listSessionFiles(sessionPath, { references: activeReferences })
     .map(file => {
       if (typeof engine.serializeSessionFile === "function") return engine.serializeSessionFile(file);
       return serializeSessionFile(file, { runtimeContext: engine?.runtimeContext || null });

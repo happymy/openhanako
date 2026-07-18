@@ -46,6 +46,8 @@ import {
   TURN_INPUT_PRESENTATION_EVENT_TYPE,
   buildTurnInputConsumptionRecord,
   buildTurnInputPresentationEvent,
+  isHiddenTurnInputMessage,
+  isSessionTurnInputEntry,
 } from "../../lib/turn-input-presentation.ts";
 import { buildAutomationSuggestionBlock } from "../suggestion-blocks.ts";
 import { isAllowedChatImageMime, isChatImageBase64WithinLimit } from "../../shared/image-mime.ts";
@@ -82,6 +84,51 @@ function extractText(content: any) {
     .filter(b => b.type === "text" && b.text)
     .map(b => b.text)
     .join("");
+}
+
+function persistedTurnEntryIds(engine: any, sessionPath: string) {
+  const branch = engine.getSessionByPath?.(sessionPath)?.sessionManager?.getBranch?.();
+  if (!Array.isArray(branch) || branch.length === 0) {
+    return { turnInputEntryId: null, userEntryId: null, assistantEntryId: null };
+  }
+
+  let lastTurnInputIndex = -1;
+  let lastAssistantIndex = -1;
+  for (let index = branch.length - 1; index >= 0; index -= 1) {
+    const entry = branch[index];
+    if (lastTurnInputIndex < 0 && isSessionTurnInputEntry(entry)) lastTurnInputIndex = index;
+    if (
+      lastAssistantIndex < 0
+      && entry?.type === "message"
+      && entry.message?.role === "assistant"
+    ) lastAssistantIndex = index;
+    if (lastTurnInputIndex >= 0 && lastAssistantIndex >= 0) break;
+  }
+  if (lastTurnInputIndex < 0) {
+    return { turnInputEntryId: null, userEntryId: null, assistantEntryId: null };
+  }
+
+  let turnInputIndex = lastTurnInputIndex;
+  let assistantEntryId = null;
+  if (lastAssistantIndex > lastTurnInputIndex) {
+    assistantEntryId = branch[lastAssistantIndex]?.id || null;
+    for (let index = lastAssistantIndex - 1; index >= 0; index -= 1) {
+      if (isSessionTurnInputEntry(branch[index])) {
+        turnInputIndex = index;
+        break;
+      }
+    }
+  }
+  const turnInputEntry = branch[turnInputIndex];
+  const turnInputEntryId = turnInputEntry?.id || null;
+  const visibleUserEntry = turnInputEntry?.type === "message"
+    && turnInputEntry.message?.role === "user"
+    && !isHiddenTurnInputMessage(turnInputEntry.message);
+  return {
+    turnInputEntryId,
+    userEntryId: visibleUserEntry ? turnInputEntryId : null,
+    assistantEntryId,
+  };
 }
 
 function deferredResultFileBlocks(result: any, taskId: any = null) {
@@ -413,6 +460,7 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
         titlePreview: "",
         pendingDeferredContentEvents: [],
         pendingTurnInputConsumptions: [],
+        consumedTurnInputsForCurrentTurn: [],
         flushedTurnInputConsumptionKeys: new Set(),
         pendingTurnCompletionNotification: null,
         pendingPhaseTextByIndex: new Map(),
@@ -606,6 +654,29 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
     emitDeferredContentEvents(sessionPath, ss, pending);
   }
 
+  function deferredContentEventTaskId(event) {
+    const block = event?.block;
+    if (!block || typeof block !== "object") return null;
+    return textOrNull(block.taskId) || textOrNull(block.replacesTaskId);
+  }
+
+  function discardQueuedBranchTaskEvents(ss, taskIds) {
+    const discarded = new Set(Array.isArray(taskIds) ? taskIds.filter(Boolean) : []);
+    if (!discarded.size) return;
+    ss.pendingDeferredContentEvents = (ss.pendingDeferredContentEvents || []).filter((event) => {
+      const taskId = deferredContentEventTaskId(event);
+      return !taskId || !discarded.has(taskId);
+    });
+    ss.pendingTurnInputConsumptions = (ss.pendingTurnInputConsumptions || []).filter((item) => {
+      const taskId = textOrNull(item?.input?.taskId) || textOrNull(item?.block?.taskId);
+      return !taskId || !discarded.has(taskId);
+    });
+    ss.consumedTurnInputsForCurrentTurn = (ss.consumedTurnInputsForCurrentTurn || []).filter((item) => {
+      const taskId = textOrNull(item?.input?.taskId) || textOrNull(item?.block?.taskId);
+      return !taskId || !discarded.has(taskId);
+    });
+  }
+
   function beginStreamingTurnState(sessionPath, ss, { streamId = null, flushDeferred = false } = {}) {
     if (flushDeferred) flushPendingDeferredContentEvents(sessionPath, ss);
     ss.pendingTurnCompletionNotification = null;
@@ -735,26 +806,68 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
     emitStreamEvent(sessionPath, ss, { type: "content_block", block });
   }
 
-  function persistTurnInputConsumption(sessionPath, item, assistantMessage = null) {
-    if (!sessionPath || typeof engine.recordCustomEntry !== "function") return;
+  function persistedConsumptionEntryIds(sessionPath, item, fallbackIds) {
+    const branch = engine.getSessionByPath?.(sessionPath)?.sessionManager?.getBranch?.();
+    const deliveryId = textOrNull(item?.deliveryId) || textOrNull(item?.input?.deliveryId);
+    const eventEntryId = textOrNull(item?.input?.entryId);
+    const inputEntry = Array.isArray(branch)
+      ? [...branch].reverse().find((entry) => (
+          entry?.type === "custom_message"
+          && (
+            (deliveryId && textOrNull(entry.details?.deliveryId) === deliveryId)
+            || (eventEntryId && entry.id === eventEntryId)
+          )
+        )) || null
+      : null;
+    const inputEntryId = inputEntry?.id || fallbackIds?.turnInputEntryId || eventEntryId || null;
+    const assistantEntryId = fallbackIds?.assistantEntryId || null;
+    const assistantEntry = Array.isArray(branch) && assistantEntryId
+      ? branch.find((entry) => entry?.id === assistantEntryId) || null
+      : null;
+    return {
+      inputEntryId,
+      assistantEntryId,
+      assistantParentId: assistantEntry?.parentId || null,
+      inputTimestamp: inputEntry?.timestamp || null,
+      assistantTimestamp: assistantEntry?.timestamp || null,
+    };
+  }
+
+  function persistTurnInputConsumption(sessionPath, item, fallbackIds) {
+    const recordCustomEntry = typeof engine.recordSessionCustomEntry === "function"
+      ? engine.recordSessionCustomEntry.bind(engine)
+      : typeof engine.recordCustomEntry === "function"
+        ? engine.recordCustomEntry.bind(engine)
+        : null;
+    if (!sessionPath || !recordCustomEntry) return;
+    const persisted = persistedConsumptionEntryIds(sessionPath, item, fallbackIds);
+    if (!persisted.assistantEntryId) return;
     const record = buildTurnInputConsumptionRecord({
-      input: item?.input,
-      assistant: assistantMessage && typeof assistantMessage === "object"
-        ? {
-            ...(textOrNull(assistantMessage.id) ? { entryId: textOrNull(assistantMessage.id) } : {}),
-            ...(textOrNull(assistantMessage.parentId) ? { parentId: textOrNull(assistantMessage.parentId) } : {}),
-            ...(textOrNull(assistantMessage.timestamp) ? { timestamp: textOrNull(assistantMessage.timestamp) } : {}),
-          }
-        : null,
+      input: {
+        ...(item?.input || {}),
+        ...(persisted.inputEntryId ? { entryId: persisted.inputEntryId } : {}),
+        ...(persisted.inputTimestamp ? { timestamp: persisted.inputTimestamp } : {}),
+      },
+      assistant: {
+        entryId: persisted.assistantEntryId,
+        ...(persisted.assistantParentId ? { parentId: persisted.assistantParentId } : {}),
+        ...(persisted.assistantTimestamp ? { timestamp: persisted.assistantTimestamp } : {}),
+      },
       presentation: item?.presentation,
       block: item?.block,
     });
     if (!record) return;
     try {
-      engine.recordCustomEntry(sessionPath, TURN_INPUT_CONSUMPTION_EVENT_TYPE, record);
+      recordCustomEntry(sessionPath, TURN_INPUT_CONSUMPTION_EVENT_TYPE, record);
     } catch (err) {
       log.warn(`turn input consumption persistence failed: ${err.message}`);
     }
+  }
+
+  function persistConsumedTurnInputs(sessionPath, ss, persistedIds) {
+    const consumed = ss.consumedTurnInputsForCurrentTurn || [];
+    ss.consumedTurnInputsForCurrentTurn = [];
+    for (const item of consumed) persistTurnInputConsumption(sessionPath, item, persistedIds);
   }
 
   function takePendingTurnInputConsumptionsForAssistant(ss, assistantMessage = null) {
@@ -778,8 +891,11 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
       ss.flushedTurnInputConsumptionKeys = new Set();
     }
     for (const item of items) {
-      persistTurnInputConsumption(sessionPath, item, assistantMessage);
       emitTurnInputConsumption(sessionPath, ss, item);
+      ss.consumedTurnInputsForCurrentTurn = [
+        ...(ss.consumedTurnInputsForCurrentTurn || []),
+        item,
+      ];
       const key = turnInputConsumptionKey(item);
       if (key) ss.flushedTurnInputConsumptionKeys.add(key);
     }
@@ -1340,10 +1456,17 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
       broadcast({ type: "bridge_status", platform: event.platform, status: event.status, error: event.error, agentId: event.agentId || null });
     } else if (event.type === "session_branch_reset") {
       if (!ss) return;
+      discardQueuedBranchTaskEvents(ss, event.discardedTaskIds);
+      ss.pendingTurnInputConsumptions = [];
+      ss.consumedTurnInputsForCurrentTurn = [];
+      ss.flushedTurnInputConsumptionKeys?.clear?.();
       emitStreamEvent(sessionPath, ss, {
         type: "session_branch_reset",
         messageId: event.messageId || null,
+        projectionMessageId: event.projectionMessageId || null,
         clientMessageId: event.clientMessageId || null,
+        todos: Array.isArray(event.todos) ? event.todos : [],
+        sessionFiles: Array.isArray(event.sessionFiles) ? event.sessionFiles : [],
       });
     } else if (event.type === "session_user_message") {
       if (!ss) return;
@@ -1515,7 +1638,12 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
         }
       } catch (_) { /* 统计失败不阻塞主流程 */ }
 
-      emitStreamEvent(sessionPath, ss, { type: "turn_end" });
+      const persistedEntries = persistedTurnEntryIds(engine, sessionPath);
+      persistConsumedTurnInputs(sessionPath, ss, persistedEntries);
+      emitStreamEvent(sessionPath, ss, {
+        type: "turn_end",
+        ...persistedEntries,
+      });
       finishSessionStream(ss);
       ss.turnActive = false;
       if (!isSessionRuntimeStreaming(sessionPath)) {
@@ -1532,6 +1660,7 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
       ss.hasError = false;
       ss.isAborted = false;
       ss.pendingTurnInputConsumptions = [];
+      ss.consumedTurnInputsForCurrentTurn = [];
       ss.thinkTagParser.reset();
       ss.moodParser.reset();
       ss.cardParser.reset();
@@ -1544,6 +1673,10 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
       maybeGenerateFirstTurnTitle(sessionPath, ss);
     } else if (event.type === "deferred_result") {
       if (!ss) return;
+      // Retry fences discarded task IDs in DeferredResultStore before emitting
+      // session_branch_reset. Ignore any delayed bus callback that observes the
+      // old branch after that fence was installed.
+      if (engine.deferredResults?.query?.(event.taskId)?.deliverySuppressed) return;
       const delayVisibleBlocks = ss.turnActive === true;
       emitStreamEvent(sessionPath, ss, {
         type: "deferred_result",

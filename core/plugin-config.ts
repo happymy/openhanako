@@ -129,6 +129,42 @@ export function createPluginConfigStore({ dataDir, schema }) {
           }
         : structuredClone(state);
     },
+    forkSession({
+      sourceSessionId,
+      sourceSessionPath = null,
+      targetSessionId,
+    }: Record<string, any> = {}) {
+      const sourceId = requireScopeId("sourceSessionId", sourceSessionId);
+      const targetId = requireScopeId("targetSessionId", targetSessionId);
+      if (sourceId === targetId) {
+        throw new Error("plugin config fork requires distinct source and target session ids");
+      }
+      const state = readState();
+      if (Object.prototype.hasOwnProperty.call(state.sessions, targetId)) {
+        throw new Error(`plugin config target session already exists: ${targetId}`);
+      }
+      const sourceKeys = [sourceId, text(sourceSessionPath, "")].filter(Boolean);
+      const sourceKey = sourceKeys.find((key) => isPlainObject(state.sessions[key]));
+      if (!sourceKey) {
+        return { copied: false, sourceSessionId: sourceId, targetSessionId: targetId };
+      }
+      state.sessions[targetId] = structuredClone(state.sessions[sourceKey]);
+      writeState(state);
+      return {
+        copied: true,
+        sourceSessionId: sourceId,
+        sourceKey,
+        targetSessionId: targetId,
+      };
+    },
+    discardSession({ sessionId }: Record<string, any> = {}) {
+      const targetId = requireScopeId("sessionId", sessionId);
+      const state = readState();
+      if (!Object.prototype.hasOwnProperty.call(state.sessions, targetId)) return false;
+      delete state.sessions[targetId];
+      writeState(state);
+      return true;
+    },
   };
 
 }
