@@ -15,7 +15,7 @@ describe('MentionMenu', () => {
         tab="sessions"
         items={[{
           kind: 'session', id: 'session:sess_a', sessionId: 'sess_a', name: 'Earlier plan',
-          detail: 'Hana · sess_a', agentId: 'hana', agentName: 'Hana',
+          detail: 'Hana', agentId: 'hana', agentName: 'Hana',
         }]}
         selected={0}
         busy={false}
@@ -29,6 +29,8 @@ describe('MentionMenu', () => {
     expect(screen.getByRole('tab', { name: 'input.mention.tab.sessions' })).toHaveAttribute('aria-selected', 'true');
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'input.mention.tab.agents' }));
     expect(onTabChange).toHaveBeenCalledWith('agents');
-    expect(screen.getByText(/sess_a/)).toBeInTheDocument();
+    expect(screen.getByText('Earlier plan')).toBeInTheDocument();
+    expect(screen.getByText('Hana')).toBeInTheDocument();
+    expect(screen.queryByText(/sess_a/)).not.toBeInTheDocument();
   });
 });

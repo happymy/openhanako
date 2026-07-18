@@ -47,13 +47,14 @@ export function buildSessionMentionItems({
     .slice(0, limit)
     .map(session => {
       const sessionId = session.sessionId!.trim();
-      const name = session.title?.trim() || session.firstMessage?.trim() || sessionId;
+      const agentLabel = session.agentName || session.agentId || 'Agent';
+      const name = session.title?.trim() || session.firstMessage?.trim() || agentLabel;
       return {
         kind: 'session' as const,
         id: `session:${sessionId}`,
         sessionId,
         name,
-        detail: `${session.agentName || session.agentId || 'Agent'} · ${sessionId}`,
+        detail: name === agentLabel ? '' : agentLabel,
         agentId: session.agentId,
         agentName: session.agentName,
       };

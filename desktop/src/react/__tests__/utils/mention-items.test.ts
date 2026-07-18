@@ -15,7 +15,26 @@ describe('mention items', () => {
     });
 
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ sessionId: 'sess_a', name: 'Plan review' });
+    expect(items[0]).toMatchObject({ sessionId: 'sess_a', name: 'Plan review', detail: 'Hana' });
+  });
+
+  it('keeps stable Session IDs available for selection without exposing them as display text', () => {
+    const items = buildSessionMentionItems({
+      query: '',
+      sessions: [{
+        path: '/tmp/titled.jsonl', sessionId: 'sess_titled_secret', title: 'Plan review', firstMessage: '', modified: '',
+        messageCount: 1, agentId: 'hana', agentName: 'Hana', cwd: null,
+      }, {
+        path: '/tmp/untitled.jsonl', sessionId: 'sess_untitled_secret', title: null, firstMessage: '', modified: '',
+        messageCount: 1, agentId: 'critic', agentName: 'Critic', cwd: null,
+      }],
+    });
+
+    expect(items.map(item => item.sessionId)).toEqual(['sess_titled_secret', 'sess_untitled_secret']);
+    expect(items.map(({ name, detail }) => ({ name, detail }))).toEqual([
+      { name: 'Plan review', detail: 'Hana' },
+      { name: 'Critic', detail: '' },
+    ]);
   });
 
   it('excludes the current Agent while filtering by name and model', () => {
