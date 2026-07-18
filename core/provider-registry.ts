@@ -13,7 +13,7 @@
 import fs from "fs";
 import path from "path";
 import YAML from "js-yaml";
-import { atomicWriteSync, safeReadYAMLSync } from "../shared/safe-fs.ts";
+import { atomicWriteSync } from "../shared/safe-fs.ts";
 import { fromRoot } from "../shared/hana-root.ts";
 import { lookupKnown } from "../shared/known-models.ts";
 import {
@@ -745,17 +745,33 @@ export class ProviderRegistry {
   migrateOverridesToAddedModels(agentsDir, log: (...args: any[]) => void = () => {}) {
     // 能力字段白名单：image 是新标准名；vision 是旧名，读到时转写为 image
     const CAPABILITY_KEYS = ["context", "maxOutput", "image", "video", "reasoning"];
-    const userConfig = this._loadAddedModels();
+    // Migration code must distinguish an unreadable catalog from an empty
+    // one. Runtime reads may degrade to an empty view, but cleanup must not.
+    const userConfig = normalizeProviderUserConfigMap(this._catalog.load().providers);
     let changed = false;
+    const pendingConfigWrites = [];
+    const sourceErrors: string[] = [];
 
     // 扫描所有 agent 的 config.yaml
     let agentDirs;
     try { agentDirs = fs.readdirSync(agentsDir, { withFileTypes: true }).filter(d => d.isDirectory()); }
-    catch { return; }
+    catch (err) {
+      if (err?.code === "ENOENT") return;
+      throw err;
+    }
 
     for (const dir of agentDirs) {
       const cfgPath = path.join(agentsDir, dir.name, "config.yaml");
-      const cfg = safeReadYAMLSync(cfgPath, null, YAML);
+      let cfg;
+      try {
+        cfg = YAML.load(fs.readFileSync(cfgPath, "utf-8"));
+        if (!cfg || typeof cfg !== "object" || Array.isArray(cfg)) {
+          throw new Error("config root must be an object");
+        }
+      } catch (err) {
+        if (err?.code !== "ENOENT") sourceErrors.push(`${dir.name}/config.yaml: ${err.message}`);
+        continue;
+      }
       if (!cfg?.models?.overrides) continue;
 
       const overrides = cfg.models.overrides;
@@ -764,34 +780,36 @@ export class ProviderRegistry {
       for (const [modelId, ov] of Object.entries(overrides) as [string, any][]) {
         if (!ov || typeof ov !== "object") continue;
         const meta: any = {};
-        // 旧字段 vision 重命名为 image（兼容两个版本后可删）
-        if (ov.vision !== undefined && ov.image === undefined) {
-          ov.image = ov.vision;
-        }
-        if (ov.vision !== undefined) {
-          delete ov.vision;
-          cfgChanged = true;
-        }
         for (const key of CAPABILITY_KEYS) {
-          if (ov[key] !== undefined) {
-            meta[key] = ov[key];
-            delete ov[key];
-            cfgChanged = true;
-          }
+          const value = key === "image" && ov.image === undefined ? ov.vision : ov[key];
+          if (value !== undefined) meta[key] = value;
         }
         if (Object.keys(meta).length === 0) continue;
 
-        // 找到对应 provider 并更新条目
+        // Only clean the source after finding a durable destination. Unknown
+        // model overrides remain valid user intent and must stay untouched.
+        let target = null;
         for (const [provName, prov] of Object.entries(userConfig) as [string, any][]) {
           if (!prov.models || !Array.isArray(prov.models)) continue;
           const idx = prov.models.findIndex(m => (typeof m === "object" ? m.id : m) === modelId);
           if (idx === -1) continue;
-          const existing = typeof prov.models[idx] === "object" ? prov.models[idx] : { id: modelId };
-          prov.models[idx] = { ...existing, ...meta };
-          changed = true;
-          log(`[migrate] override ${modelId}: ${Object.keys(meta).join(",")} → Provider Catalog`);
+          target = { provName, prov, idx };
           break;
         }
+        if (!target) {
+          log(`[migrate] override ${modelId}: no provider model destination; source preserved`);
+          continue;
+        }
+
+        const existing = typeof target.prov.models[target.idx] === "object"
+          ? target.prov.models[target.idx]
+          : { id: modelId };
+        target.prov.models[target.idx] = { ...existing, ...meta };
+        changed = true;
+        delete ov.vision;
+        for (const key of CAPABILITY_KEYS) delete ov[key];
+        cfgChanged = true;
+        log(`[migrate] override ${modelId}: ${Object.keys(meta).join(",")} → Provider Catalog`);
       }
 
       // 清理空的 override 条目，保存 config.yaml
@@ -804,15 +822,23 @@ export class ProviderRegistry {
         if (Object.keys(overrides).length === 0) {
           delete cfg.models.overrides;
         }
-        const header = "# HanaAgent 助手配置\n# 由设置页面管理，手动编辑也可以\n\n";
-        const yamlStr = header + YAML.dump(cfg, { indent: 2, lineWidth: -1, sortKeys: false, quotingType: '"', forceQuotes: false });
-        atomicWriteSync(cfgPath, yamlStr);
+        pendingConfigWrites.push({ cfgPath, cfg });
       }
     }
 
     if (changed) {
+      // Copy to the destination before cleaning any agent source. A failed
+      // catalog write therefore leaves every override available for retry.
       this._saveAddedModels(userConfig);
+      const header = "# HanaAgent 助手配置\n# 由设置页面管理，手动编辑也可以\n\n";
+      for (const { cfgPath, cfg } of pendingConfigWrites) {
+        const yamlStr = header + YAML.dump(cfg, { indent: 2, lineWidth: -1, sortKeys: false, quotingType: '"', forceQuotes: false });
+        atomicWriteSync(cfgPath, yamlStr);
+      }
       log("[migrate] model overrides migrated to Provider Catalog");
+    }
+    if (sourceErrors.length > 0) {
+      throw new Error(`Unreadable agent config prevents override migration completion: ${sourceErrors.join("; ")}`);
     }
   }
 

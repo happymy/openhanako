@@ -396,14 +396,14 @@ export const PERSISTENT_STORES: readonly StoreDescriptor[] = Object.freeze([
   defineStore({
     id: "user-preferences",
     ownerModule: "core/preferences-manager.ts",
-    pathPatterns: ["user/preferences.json"],
+    pathPatterns: ["user/preferences.json", "user/preferences.json.corrupt-{timestamp}"],
     format: "json",
     schemaSource: runtimeSource("core/preferences-manager.ts", "PreferencesManager defaults, coercion, and _dataVersion migration driver"),
     openEntry: ["new PreferencesManager"],
-    migrationEntry: ["core/migrations.ts runMigrations"],
+    migrationEntry: ["core/preferences-manager.ts unreadable-source preservation", "core/migrations.ts runMigrations"],
     firstPossibleOpenPhase: "desktop_bootstrap",
     firstPossibleWritePhase: "first_run_seed",
-    compatibility: "PreferencesManager is intentionally permissive; _dataVersion is the legacy migration cursor, not a strict schema validator.",
+    compatibility: "PreferencesManager is intentionally permissive; _dataVersion is the legacy migration cursor, not a strict schema validator. Unreadable source bytes are preserved before any replacement document is written.",
     identityContract: "One preferences document belongs to the local user in one HANA_HOME.",
     preCoordinatorReadProjection: {
       compatibility: "additive-only",

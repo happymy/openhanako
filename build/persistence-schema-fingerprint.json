@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:b09f04cce8f284cec15837cf46b76d7640b7d3ed5d057d407a33cfde4cbc9554",
+  "payloadFingerprint": "sha256:23fd99c92cbba7e570c9f4c4776de78e6e94800f5e2fb7a2f6f4249d47c5a8be",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2679,6 +2679,7 @@
       "id": "user-preferences",
       "identityContract": "One preferences document belongs to the local user in one HANA_HOME.",
       "migrationEntry": [
+        "core/preferences-manager.ts unreadable-source preservation",
         "core/migrations.ts runMigrations"
       ],
       "openEntry": [
@@ -2689,7 +2690,8 @@
       "pathKind": "file",
       "pathPattern": "user/preferences.json",
       "pathPatterns": [
-        "user/preferences.json"
+        "user/preferences.json",
+        "user/preferences.json.corrupt-{timestamp}"
       ],
       "preCoordinatorReadProjection": {
         "compatibility": "additive-only",
@@ -2709,7 +2711,7 @@
       "protocolModules": [],
       "restorePolicy": "Restore only through the owning module after reader compatibility is established.",
       "schemaContract": {
-        "compatibility": "PreferencesManager is intentionally permissive; _dataVersion is the legacy migration cursor, not a strict schema validator.",
+        "compatibility": "PreferencesManager is intentionally permissive; _dataVersion is the legacy migration cursor, not a strict schema validator. Unreadable source bytes are preserved before any replacement document is written.",
         "kind": "runtime-source",
         "source": "core/preferences-manager.ts"
       },
@@ -2876,8 +2878,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Adds optional per-migration completion and failure receipts while preserving the legacy contiguous data-version field and retrying absent receipts.",
-    "payloadFingerprint": "sha256:b09f04cce8f284cec15837cf46b76d7640b7d3ed5d057d407a33cfde4cbc9554"
+    "compatibilityReason": "Preserves unreadable preference bytes before replacement and makes legacy startup migrations copy-first, retryable, and non-blocking without changing live preference or provider schemas.",
+    "payloadFingerprint": "sha256:23fd99c92cbba7e570c9f4c4776de78e6e94800f5e2fb7a2f6f4249d47c5a8be"
   },
   "schemas": [
     {
@@ -3376,7 +3378,7 @@
       "contract": "PreferencesManager defaults, coercion, and _dataVersion migration driver",
       "kind": "runtime-contract",
       "module": "core/preferences-manager.ts",
-      "sourceHash": "sha256:c0198a12def439b58f3c273ceabad4e3fef1653bbfad4efef5d100a8861ac8e7",
+      "sourceHash": "sha256:a6bcf3042e27d3326e75981cdced18a8bbed59d274d5dd60305e635223434f21",
       "storeId": "user-preferences"
     },
     {
@@ -3844,7 +3846,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 300,
+      "line": 311,
       "reason": "Creates the channel root.",
       "sourceFile": "core/engine.ts",
       "storeId": "channels"
@@ -3852,7 +3854,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 346,
+      "line": 357,
       "reason": "Constructs the preferences owner.",
       "sourceFile": "core/engine.ts",
       "storeId": "user-preferences"
@@ -3860,7 +3862,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 347,
+      "line": 358,
       "reason": "Constructs draft/project stores.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-drafts-and-projects"
@@ -3868,7 +3870,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 365,
+      "line": 376,
       "reason": "Constructs draft/project stores.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-drafts-and-projects"
@@ -3876,7 +3878,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 547,
+      "line": 558,
       "reason": "Constructs the plugin task registry.",
       "sourceFile": "core/engine.ts",
       "storeId": "plugin-task-registry"
@@ -3884,7 +3886,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 1087,
+      "line": 1098,
       "reason": "Constructs the manifest store during engine construction.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-manifest-sqlite"
@@ -3892,7 +3894,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 1108,
+      "line": 1119,
       "reason": "Constructs the manifest store during engine construction.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-manifest-sqlite"
@@ -3900,7 +3902,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 1985,
+      "line": 2023,
       "reason": "Creates the user skill root.",
       "sourceFile": "core/engine.ts",
       "storeId": "skill-state"
@@ -3908,7 +3910,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 2167,
+      "line": 2205,
       "reason": "Deletes an expired legacy ephemeral session JSONL locator.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-jsonl"
@@ -3916,7 +3918,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 2221,
+      "line": 2259,
       "reason": "Creates the plugin development source root.",
       "sourceFile": "core/engine.ts",
       "storeId": "plugin-development-state"
@@ -4332,7 +4334,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 44,
+      "line": 43,
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
       "sourceFile": "core/migrate-providers.ts",
       "storeId": "provider-state"
@@ -4340,7 +4342,7 @@
     {
       "exemptionId": null,
       "kind": "rename",
-      "line": 45,
+      "line": 44,
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
       "sourceFile": "core/migrate-providers.ts",
       "storeId": "provider-state"
@@ -4348,6 +4350,14 @@
     {
       "exemptionId": null,
       "kind": "write-file",
+      "line": 49,
+      "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
+      "sourceFile": "core/migrate-providers.ts",
+      "storeId": "provider-state"
+    },
+    {
+      "exemptionId": null,
+      "kind": "rename",
       "line": 50,
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
       "sourceFile": "core/migrate-providers.ts",
@@ -4356,15 +4366,7 @@
     {
       "exemptionId": null,
       "kind": "rename",
-      "line": 51,
-      "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
-      "sourceFile": "core/migrate-providers.ts",
-      "storeId": "provider-state"
-    },
-    {
-      "exemptionId": null,
-      "kind": "rename",
-      "line": 70,
+      "line": 69,
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
       "sourceFile": "core/migrate-providers.ts",
       "storeId": "provider-state"
@@ -5140,7 +5142,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 130,
+      "line": 144,
       "reason": "Reads and atomically writes user preferences.",
       "sourceFile": "core/preferences-manager.ts",
       "storeId": "user-preferences"
@@ -5148,7 +5150,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 132,
+      "line": 147,
       "reason": "Reads and atomically writes user preferences.",
       "sourceFile": "core/preferences-manager.ts",
       "storeId": "user-preferences"
@@ -5156,7 +5158,15 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 135,
+      "line": 150,
+      "reason": "Reads and atomically writes user preferences.",
+      "sourceFile": "core/preferences-manager.ts",
+      "storeId": "user-preferences"
+    },
+    {
+      "exemptionId": null,
+      "kind": "copy-file",
+      "line": 185,
       "reason": "Reads and atomically writes user preferences.",
       "sourceFile": "core/preferences-manager.ts",
       "storeId": "user-preferences"
@@ -5212,7 +5222,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 809,
+      "line": 836,
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
       "sourceFile": "core/provider-registry.ts",
       "storeId": "provider-state"
@@ -9204,15 +9214,15 @@
     {
       "exemptionId": "config-scope-migration-helper",
       "kind": "write-file",
-      "line": 135,
+      "line": 149,
       "reason": "Compatibility helper mutates a caller-supplied config file; concrete agent config ownership is registered at callers.",
       "sourceFile": "shared/migrate-config-scope.ts",
       "storeId": null
     },
     {
       "exemptionId": "config-scope-migration-helper",
-      "kind": "write-file",
-      "line": 138,
+      "kind": "atomic-write",
+      "line": 152,
       "reason": "Compatibility helper mutates a caller-supplied config file; concrete agent config ownership is registered at callers.",
       "sourceFile": "shared/migrate-config-scope.ts",
       "storeId": null
