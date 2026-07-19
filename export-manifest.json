@@ -350,6 +350,7 @@
     "lib/providers/ollama.ts",
     "lib/providers/openai-codex-oauth.ts",
     "lib/providers/openai.ts",
+    "lib/providers/opencode.ts",
     "lib/providers/opencode-go.ts",
     "lib/providers/openrouter.ts",
     "lib/providers/perplexity.ts",

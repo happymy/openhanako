@@ -4069,7 +4069,7 @@
     },
     {
       "sourceFile": "core/model-sync.ts",
-      "line": 480,
+      "line": 493,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(modelsJsonPath, newStr)",
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
@@ -4330,7 +4330,7 @@
     },
     {
       "sourceFile": "core/provider-registry.ts",
-      "line": 836,
+      "line": 838,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(cfgPath, yamlStr)",
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",

@@ -22,6 +22,7 @@ import {
 // 0.80.0 起 pi-ai 老全局 API 移到 /compat 子入口（根入口是 createModels 新 API）
 import {
   getModel as rawGetPiModel,
+  getModels as rawGetPiModels,
   completeSimple as rawCompleteSimple,
 } from "@earendil-works/pi-ai/compat";
 import {
@@ -118,6 +119,10 @@ export { StringEnum } from "@earendil-works/pi-ai";
 
 export function getPiModel(provider, modelId) {
   return rawGetPiModel(provider, modelId);
+}
+
+export function getPiModels(provider) {
+  return rawGetPiModels(provider);
 }
 
 // ── Schema 构造（typebox 的 Type 透过 adapter，避免工具直接依赖第三方包名）──

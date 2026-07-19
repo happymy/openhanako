@@ -26,6 +26,7 @@ import { normalizeProviderBaseUrlForApi } from "../lib/llm/provider-client.ts";
 import { normalizeThinkingLevelForModel } from "./session-thinking-level.ts";
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
+const PI_BUILTIN_METADATA_PROVIDERS = new Set(["kimi-coding", "opencode", "opencode-go"]);
 const PI_BUILTIN_PROVIDER_REUSE = new Set(["kimi-coding", "opencode-go"]);
 const KIMI_CODING_PROVIDER = "kimi-coding";
 const KIMI_CODING_HEADER_MODEL_ID = "kimi-for-coding";
@@ -88,7 +89,7 @@ function normalizePiBuiltinCompat(piBuiltin) {
 }
 
 function getPiBuiltinModel(provider, modelId) {
-  if (!PI_BUILTIN_PROVIDER_REUSE.has(provider) || !modelId) return null;
+  if (!PI_BUILTIN_METADATA_PROVIDERS.has(provider) || !modelId) return null;
   try {
     return getPiModel(provider, modelId) || null;
   } catch {
@@ -97,11 +98,15 @@ function getPiBuiltinModel(provider, modelId) {
 }
 
 function getPiProtocolBaseline(provider, modelId) {
-  return provider === "opencode-go" ? getPiBuiltinModel(provider, modelId) : null;
+  return provider === "opencode" || provider === "opencode-go"
+    ? getPiBuiltinModel(provider, modelId)
+    : null;
 }
 
 function shouldReusePiBuiltinModel(provider, modelId, api) {
-  return api === "anthropic-messages" && !!getPiBuiltinModel(provider, modelId);
+  return PI_BUILTIN_PROVIDER_REUSE.has(provider)
+    && api === "anthropic-messages"
+    && !!getPiBuiltinModel(provider, modelId);
 }
 
 function isKimiCodingProvider(provider) {
@@ -224,6 +229,7 @@ function buildModelEntry(
   api = "openai-completions",
   modelDefaults = {},
   executionHeaders = {},
+  providerBaseUrl = baseUrl,
 ) {
   const isObj = typeof modelEntry === "object" && modelEntry !== null;
   const id = getModelId(modelEntry);
@@ -272,6 +278,7 @@ function buildModelEntry(
         || endpointReasoning === true
       ),
   };
+  if (baseUrl !== providerBaseUrl) entry.baseUrl = baseUrl;
   if (xhigh === true) entry.xhigh = true;
 
   const rawThinkingLevelMap = isObj && modelEntry.thinkingLevelMap !== undefined
@@ -435,13 +442,19 @@ export function syncModels(providers, opts: Record<string, any> = {}) {
         if (override) modelOverrides[id] = override;
         continue;
       }
+      const modelBaseUrl = normalizeProviderBaseUrlForApi({
+        provider,
+        baseUrl: p.base_url,
+        api: modelApi,
+      });
       customModels.push(buildModelEntry(
         modelEntry,
         provider,
-        effectiveBaseUrl,
+        modelBaseUrl,
         effectiveApi,
         modelDefaults,
         modelExecutionHeaders[id],
+        effectiveBaseUrl,
       ));
     }
 

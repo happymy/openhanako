@@ -280,6 +280,22 @@ describe("ProviderRegistry media capabilities", () => {
     expect(registry.getDefaultModels("opencode-go")).toEqual(["glm-5.2"]);
   });
 
+  it("exposes OpenCode Zen with model-owned wire protocols", () => {
+    const registry = new ProviderRegistry(tmpHome);
+    registry.reload();
+
+    expect(registry.get("opencode")).toMatchObject({
+      id: "opencode",
+      displayName: "OpenCode Zen",
+      baseUrl: "https://opencode.ai/zen",
+      api: "anthropic-messages",
+    });
+    expect(registry.getDefaultModelEntries("opencode")).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "claude-sonnet-4-6", api: "anthropic-messages" }),
+      expect.objectContaining({ id: "gpt-5.4", api: "openai-responses" }),
+    ]));
+  });
+
   it("uses MiniMax Token Plan credentials as a MiniMax image generation lane", () => {
     fs.writeFileSync(path.join(tmpHome, "added-models.yaml"), YAML.dump({
       providers: {

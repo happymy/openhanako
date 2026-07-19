@@ -6330,6 +6330,11 @@
         },
         {
           "root": "server-bootstrap",
+          "from": "lib/providers/opencode.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
           "from": "core/model-sync.ts",
           "kind": "import-statement"
         },
@@ -6559,7 +6564,7 @@
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/compaction-utils.ts (import-statement); lib/llm/session-snapshot-side-task-runner.ts (import-statement); core/session-compactor.ts (import-statement); +46 more importer(s)."
+      "reason": "Reached via esbuild source module graph, imported by core/compaction-utils.ts (import-statement); lib/llm/session-snapshot-side-task-runner.ts (import-statement); core/session-compactor.ts (import-statement); +47 more importer(s)."
     },
     {
       "path": "lib/pi-sdk/search-tools.ts",
@@ -7024,6 +7029,18 @@
     },
     {
       "path": "lib/providers/opencode-go.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "server-bootstrap",
+          "from": "core/provider-registry.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by core/provider-registry.ts (import-statement)."
+    },
+    {
+      "path": "lib/providers/opencode.ts",
       "inputType": "source-graph",
       "provenance": [
         {
@@ -111730,9 +111747,9 @@
     }
   ],
   "stats": {
-    "totalFiles": 9591,
+    "totalFiles": 9592,
     "byInputType": {
-      "source-graph": 612,
+      "source-graph": 613,
       "runtime-asset": 11,
       "nft-runtime-trace": 8968
     }

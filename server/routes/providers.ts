@@ -42,6 +42,24 @@ function writeModelsCache(engine: any, cache: any) {
   fs.renameSync(tmp, target);
 }
 
+function getProviderModelId(model: any) {
+  if (typeof model === "string") return model.trim();
+  return typeof model?.id === "string" ? model.id.trim() : "";
+}
+
+function pickProbeModelId(providerRegistry: any, providerId: any, api: any, requestedModelId: any) {
+  if (typeof requestedModelId === "string" && requestedModelId.trim()) {
+    return requestedModelId.trim();
+  }
+  if (typeof providerId !== "string" || !providerId.trim()) return "";
+  const models = providerRegistry?.getChatModelEntries?.(providerId) || [];
+  const matching = models.find((model: any) => {
+    const modelApi = typeof model === "object" && model !== null ? model.api : null;
+    return !modelApi || modelApi === api;
+  });
+  return getProviderModelId(matching);
+}
+
 export function createProvidersRoute(engine: any) {
   const route = new Hono();
 
@@ -588,7 +606,14 @@ export function createProvidersRoute(engine: any) {
     }
 
     try {
-      const result = await (probeProvider as any)({ baseUrl: base_url, api, apiKey: api_key, headers });
+      const modelId = pickProbeModelId(engine.providerRegistry, name, api, body.model_id);
+      const result = await (probeProvider as any)({
+        baseUrl: base_url,
+        api,
+        apiKey: api_key,
+        headers,
+        ...(modelId ? { modelId } : {}),
+      });
       return c.json(result);
     } catch (err) {
       return c.json({ ok: false, error: err.message });

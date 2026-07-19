@@ -2041,6 +2041,41 @@ describe("syncModels", () => {
     });
   });
 
+  it("projects OpenCode Zen model endpoints from each model protocol without duplicate suffixes", async () => {
+    const syncModels = await loadSync();
+
+    syncModels({
+      opencode: {
+        base_url: "https://opencode.ai/zen/v1/messages",
+        api: "anthropic-messages",
+        api_key: "sk-test",
+        models: [
+          { id: "claude-sonnet-4-6", api: "anthropic-messages" },
+          { id: "gpt-5.4", api: "openai-responses" },
+        ],
+      },
+    }, { modelsJsonPath });
+
+    const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
+    expect(result.providers.opencode).toMatchObject({
+      baseUrl: "https://opencode.ai/zen",
+      api: "anthropic-messages",
+      apiKey: "hana-runtime-api-key:opencode",
+    });
+    const models = new Map<string, any>(result.providers.opencode.models.map((model) => [model.id, model]));
+    expect(models.get("claude-sonnet-4-6")).toMatchObject({
+      id: "claude-sonnet-4-6",
+      api: "anthropic-messages",
+    });
+    expect(models.get("claude-sonnet-4-6").baseUrl ?? result.providers.opencode.baseUrl)
+      .toBe("https://opencode.ai/zen");
+    expect(models.get("gpt-5.4")).toMatchObject({
+      id: "gpt-5.4",
+      api: "openai-responses",
+      baseUrl: "https://opencode.ai/zen/v1",
+    });
+  });
+
   it("skips models with type: image from models.json output", async () => {
     const syncModels = await loadSync();
 

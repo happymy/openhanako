@@ -20,6 +20,7 @@ const { createAgentSessionMock, emitSessionShutdownMock, sessionManagerCreateMoc
 vi.mock("../lib/pi-sdk/index.js", () => ({
   createAgentSession: createAgentSessionMock,
   emitSessionShutdown: emitSessionShutdownMock,
+  getPiModels: vi.fn(() => []),
   SessionManager: {
     create: sessionManagerCreateMock,
     open: vi.fn(),

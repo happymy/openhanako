@@ -953,6 +953,44 @@ describe("model sync related routes", () => {
     });
   });
 
+  it("provider connection test probes a configured model matching the active protocol", async () => {
+    const { createProvidersRoute } = await import("../server/routes/providers.ts");
+    const app = new Hono();
+    probeProvider.mockResolvedValue({ ok: true, status: 200 });
+    const engine = {
+      resolveProviderCredentialsFresh: vi.fn(async () => ({
+        api_key: "zen-key",
+        base_url: "https://opencode.ai/zen/v1/messages",
+        api: "anthropic-messages",
+        headers: {},
+      })),
+      providerRegistry: {
+        getChatModelEntries: vi.fn(() => [
+          { id: "gpt-5.4", api: "openai-responses" },
+          { id: "claude-sonnet-4-6", api: "anthropic-messages" },
+        ]),
+        resolveChatProvider: vi.fn(() => ({ credentialSource: "provider-catalog" })),
+      },
+      hanakoHome: "/tmp",
+    };
+    app.route("/api", createProvidersRoute(engine));
+
+    const res = await app.request("/api/providers/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "opencode" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(probeProvider).toHaveBeenCalledWith({
+      baseUrl: "https://opencode.ai/zen",
+      api: "anthropic-messages",
+      apiKey: "zen-key",
+      headers: {},
+      modelId: "claude-sonnet-4-6",
+    });
+  });
+
   it("provider connection test treats explicit body headers as the only credentials", async () => {
     const { createProvidersRoute } = await import("../server/routes/providers.ts");
     const app = new Hono();
