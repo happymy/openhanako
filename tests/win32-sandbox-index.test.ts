@@ -7,6 +7,8 @@ const Type = {
   String: (options = {}) => ({ type: "string", ...options }),
   Number: (options = {}) => ({ type: "number", ...options }),
   Boolean: (options = {}) => ({ type: "boolean", ...options }),
+  Literal: (value) => ({ const: value }),
+  Union: (schemas, options = {}) => ({ anyOf: schemas, ...options }),
   Optional: (schema) => schema,
 };
 
@@ -71,6 +73,22 @@ describe("createSandboxedTools on Windows", () => {
     ]);
     expect(tools.find((tool) => tool.name === "bash")).toBeUndefined();
     const execCommandTool = tools.find((tool) => tool.name === "exec_command");
+    expect(execCommandTool.sessionPermission.resolveInvocation({ cmd: "echo ok" })).toMatchObject({
+      kind: "review",
+      sideEffect: {
+        sandboxed: true,
+        sandboxPermissions: "use_default",
+        networkAccess: "review_required",
+        hostIpcAccess: "review_required",
+      },
+    });
+    expect(execCommandTool.sessionPermission.resolveInvocation({
+      cmd: "Invoke-WebRequest https://example.com",
+      sandbox_permissions: "require_escalated",
+    })).toMatchObject({
+      kind: "review",
+      sideEffect: { sandboxPermissions: "require_escalated" },
+    });
     await execCommandTool.execute("call-1", { cmd: "echo ok" });
     expect(createWin32Exec).toHaveBeenCalledWith(expect.objectContaining({
       sandbox: expect.objectContaining({

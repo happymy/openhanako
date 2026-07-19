@@ -70,6 +70,13 @@ export function createTodoTool() {
         { description: "Complete todo list; each call replaces the previous list" },
       ),
     }),
+    sessionPermission: {
+      resolveInvocation: () => ({
+        action: "replace",
+        kind: "routine",
+        capability: "todo_write.replace",
+      }),
+    },
 
     execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
       const todos = params.todos || [];

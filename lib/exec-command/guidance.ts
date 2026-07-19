@@ -1,11 +1,14 @@
 export function execCommandDescription({ platform = process.platform }: { platform?: NodeJS.Platform } = {}) {
   const common = [
     "Run a short, one-shot local command in the current session.",
+    "When the OS sandbox is enabled, one-shot commands use its network-blocked path by default on macOS/Linux. Set sandbox_permissions=\"require_escalated\" only when the command genuinely needs reviewed network-capable execution; explicit sandbox network settings still apply.",
+    "Every command execution is permission-reviewed because command sandboxes do not isolate every host IPC surface. In Auto mode this review is automatic and normally requires no user action.",
     "Use tty=true only when the command must remain interactive or long-running; then continue with write_stdin.",
     "For local GUI app control, use the computer tool instead of shell commands.",
   ];
   if (platform === "win32") {
     common.push(
+      "Windows cannot isolate command networking; sandbox_permissions=\"use_default\" still uses the restricted-token runner but requires the same permission review.",
       "On Windows the default shell is PowerShell. Use PowerShell cmdlets and syntax by default.",
       "Use shell=\"cmd\" only for cmd.exe builtins or batch files.",
       "Use shell=\"bash\" only for explicit POSIX commands; the bundled runtime provides an sh-compatible shell (POSIX sh syntax, not full Bash). Bash-specific features require a system Git Bash install.",

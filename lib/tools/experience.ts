@@ -207,6 +207,28 @@ export function createExperienceTools(agentDir, opts: { isEnabled?: () => boolea
     name: "record_experience",
     label: "Record Experience",
     description: "Record a lesson learned to the experience library. Use when: the user points out a mistake and explains the correct approach, the user shows frustration or repeatedly emphasizes something, you discover an effective method after trying multiple approaches, the user explicitly says 'from now on do/don't do this', or you hit a pitfall during patrol or autonomous work. Each entry should be concise and direct, one sentence.",
+    sessionPermission: {
+      resolveInvocation: (params: any = {}) => {
+        if (typeof params.category !== "string" || typeof params.content !== "string") return null;
+        const category = params.category.replace(/^#+\s*/, "").trim();
+        if (!category || !params.content.trim()) return null;
+        try {
+          const normalized = normalizeExperienceCategory(category);
+          return {
+            action: "record",
+            kind: "routine",
+            capability: "record_experience.record",
+            target: {
+              type: "experience_category",
+              id: Buffer.from(normalized, "utf-8").toString("base64url"),
+              label: normalized,
+            },
+          };
+        } catch {
+          return null;
+        }
+      },
+    },
     parameters: Type.Object({
       category: Type.String({
         description: "Category for the experience, a 2-4 word phrase, e.g. 'tool usage', 'search tips', 'response style'",

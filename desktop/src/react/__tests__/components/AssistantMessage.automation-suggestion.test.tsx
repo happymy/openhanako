@@ -65,6 +65,9 @@ describe('AssistantMessage automation suggestion card', () => {
       agentName: 'Hanako',
       agentYuan: 'hanako',
       currentAgentId: 'hanako',
+      currentSessionId: 'session-main',
+      currentSessionPath: '/sessions/main.jsonl',
+      sessions: [{ sessionId: 'session-main', path: '/sessions/main.jsonl' }],
       streamingSessions: [],
       selectedMessageIdsBySession: {},
     } as never);
@@ -90,7 +93,7 @@ describe('AssistantMessage automation suggestion card', () => {
     expect(screen.getByDisplayValue('奶茶提醒')).toBeInTheDocument();
   });
 
-  it('creates directly from a suggestion card without calling ConfirmStore', async () => {
+  it('applies a suggestion through the session-bound one-shot route without calling ConfirmStore', async () => {
     renderSuggestion('pending');
 
     fireEvent.click(screen.getByRole('button', { name: 'automation.openDraft' }));
@@ -100,6 +103,21 @@ describe('AssistantMessage automation suggestion card', () => {
       expect(hanaFetch).toHaveBeenCalledWith('/api/desk/cron', expect.objectContaining({
         method: 'POST',
       }));
+    });
+    const deskCronCall = vi.mocked(hanaFetch).mock.calls.find(([url]) => url === '/api/desk/cron');
+    const body = JSON.parse((deskCronCall?.[1] as RequestInit).body as string);
+    expect(body).toEqual({
+      action: 'apply_suggestion',
+      suggestionId: 'automation_suggestion_1',
+      sessionId: 'session-main',
+      jobData: {
+        type: 'cron',
+        schedule: '0 12 * * *',
+        label: '奶茶提醒',
+        prompt: '提醒我喝奶茶',
+        model: '',
+        targetAgentId: 'hanako',
+      },
     });
     expect(hanaFetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/confirm/'), expect.anything());
   });
@@ -124,9 +142,10 @@ describe('AssistantMessage automation suggestion card', () => {
       const deskCronCall = vi.mocked(hanaFetch).mock.calls.find(([url]) => url === '/api/desk/cron');
       expect(deskCronCall).toBeTruthy();
       const body = JSON.parse((deskCronCall?.[1] as RequestInit).body as string);
-      expect(body.actorAgentId).toBe('maomao');
-      expect(body.executor.agentId).toBe('maomao');
-      expect(body.executionContext.cwd).toBe('/home/maomao');
+      expect(body.jobData.targetAgentId).toBe('maomao');
+      expect(body.jobData.actorAgentId).toBeUndefined();
+      expect(body.jobData.executor).toBeUndefined();
+      expect(body.jobData.executionContext).toBeUndefined();
     });
   });
 
@@ -144,8 +163,8 @@ describe('AssistantMessage automation suggestion card', () => {
       const deskCronCall = vi.mocked(hanaFetch).mock.calls.find(([url]) => url === '/api/desk/cron');
       expect(deskCronCall).toBeTruthy();
       const body = JSON.parse((deskCronCall?.[1] as RequestInit).body as string);
-      expect(body.type).toBe('every');
-      expect(body.schedule).toBe(7_200_000);
+      expect(body.jobData.type).toBe('every');
+      expect(body.jobData.schedule).toBe(7_200_000);
     });
   });
 });

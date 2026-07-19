@@ -189,6 +189,14 @@ export class ChannelRouter {
         description: isZh
           ? "读取当前手机群聊频道的最近消息。数据源是频道聊天记录 Truth，不是你的 phone session。"
           : "Read recent messages from the current phone channel. The source is the channel transcript Truth, not your phone session.",
+        sessionPermission: {
+          resolveInvocation: () => ({
+            action: "read",
+            kind: "read",
+            capability: "channel_read_context.read",
+            target: { type: "channel", id: channelName, label: channelName },
+          }),
+        },
         parameters: Type.Object({
           count: Type.Optional(Type.Number({
             description: isZh ? "要读取的最近消息数量，默认 20，最多 50。" : "Number of recent messages to read, defaults to 20, max 50.",
@@ -219,6 +227,18 @@ export class ChannelRouter {
         description: isZh
           ? "把本轮回复发送到当前频道。只有这个工具的 content 会写入群聊；普通生成文本只会留在你的手机动态里。"
           : "Send this turn's reply to the current channel. Only this tool's content is posted; ordinary generated text stays in your phone activity.",
+        // This capability is pre-scoped to one phone delivery: the caller
+        // cannot choose another channel, membership is rechecked at execution,
+        // and markDecision allows at most one channel decision for the turn.
+        sessionPermission: {
+          resolveInvocation: () => ({
+            action: "post",
+            kind: "routine",
+            capability: "channel_reply.post",
+            target: { type: "channel", id: channelName, label: channelName },
+            sideEffect: { kind: "channel_message" },
+          }),
+        },
         parameters: Type.Object({
           content: Type.String({
             description: isZh ? "要发送到频道的正文。不要包含 mood、解释或工具调用说明。" : "Message body to post. Do not include mood, explanations, or tool-call notes.",
@@ -292,6 +312,14 @@ export class ChannelRouter {
         description: isZh
           ? "表示你已经看过这批手机群聊消息，但本轮选择不在频道发言。"
           : "Mark these phone channel messages as seen while choosing not to post this turn.",
+        sessionPermission: {
+          resolveInvocation: () => ({
+            action: "decide",
+            kind: "routine",
+            capability: "channel_pass.decide",
+            target: { type: "channel", id: channelName, label: channelName },
+          }),
+        },
         parameters: Type.Object({
           reason: Type.Optional(Type.String({
             description: isZh ? "简短说明为什么本轮不发言。" : "Brief reason for not posting this turn.",

@@ -3,8 +3,10 @@ import { getToolSessionPath } from "../tools/tool-session.ts";
 import { execCommandDescription, writeStdinDescription } from "./guidance.ts";
 import { classifyExecCommand } from "./policy.ts";
 import {
+  EXEC_COMMAND_SANDBOX_PERMISSIONS,
   jsonResult,
   normalizeExecCommandParams,
+  normalizeExecCommandSandboxPermissions,
   normalizeWriteStdinParams,
   textResult,
 } from "./schema.ts";
@@ -13,10 +15,13 @@ import { renderCommandForExecShell, renderCommandWithWorkdir, resolveExecShell }
 
 export function createExecCommandTools({
   bashTool,
+  escalatedBashTool,
   commandExec,
+  escalatedCommandExec,
   getTerminalSessionManager,
   getAgentId,
   getCwd,
+  isOneShotSandboxEnforced,
   platform = process.platform,
   env = process.env,
 }: any = {}) {
@@ -30,12 +35,44 @@ export function createExecCommandTools({
         kind: params.tty ? "interactive_command" : "command",
         command: params.cmd || params.command || "",
       }),
+      resolveInvocation: (params: any = {}) => {
+        const command = typeof (params.cmd || params.command) === "string"
+          ? (params.cmd || params.command).trim()
+          : "";
+        if (!command) return null;
+        const sandboxPermissions = normalizeExecCommandSandboxPermissions(params.sandbox_permissions);
+        if (!sandboxPermissions.ok) return null;
+        const tty = params.tty === true;
+        const sandboxed = !tty && isOneShotSandboxEnforced?.() === true;
+        const requiresEscalated = sandboxPermissions.value
+          === EXEC_COMMAND_SANDBOX_PERMISSIONS.REQUIRE_ESCALATED;
+        const networkIsolated = sandboxed && platform !== "win32" && !requiresEscalated;
+        return {
+          action: "run",
+          kind: "review",
+          capability: "exec_command.run",
+          sideEffect: {
+            kind: tty ? "interactive_command" : "command",
+            command,
+            sandboxed,
+            sandboxPermissions: sandboxPermissions.value,
+            networkAccess: networkIsolated ? "blocked" : "review_required",
+            hostIpcAccess: "review_required",
+          },
+        };
+      },
     },
     parameters: Type.Object({
       cmd: Type.String({ description: "Command to execute. On Windows this is PowerShell syntax unless shell is set." }),
       workdir: Type.Optional(Type.String({ description: "Working directory. Defaults to the current session cwd." })),
       shell: Type.Optional(Type.String({ description: "Optional shell override: auto, powershell, pwsh, cmd, bash." })),
       tty: Type.Optional(Type.Boolean({ description: "Start an interactive PTY-backed process instead of a one-shot command." })),
+      sandbox_permissions: Type.Optional(Type.Union([
+        Type.Literal(EXEC_COMMAND_SANDBOX_PERMISSIONS.USE_DEFAULT),
+        Type.Literal(EXEC_COMMAND_SANDBOX_PERMISSIONS.REQUIRE_ESCALATED),
+      ], {
+        description: "Use use_default for the normal contained command path. Use require_escalated only when the command needs reviewed network-capable execution.",
+      })),
       yield_time_ms: Type.Optional(Type.Number({ description: "Requested initial wait budget in milliseconds. Recorded for scheduling; not a command timeout." })),
       max_output_tokens: Type.Optional(Type.Number({ description: "Approximate maximum output token budget returned by this call." })),
       timeout: Type.Optional(Type.Number({ description: "Optional one-shot timeout in seconds." })),
@@ -82,6 +119,7 @@ export function createExecCommandTools({
         shellFamily: shell.family,
         shellRequested: shell.requested,
         tty: value.tty,
+        sandboxPermissions: value.sandboxPermissions,
         platform,
         classification,
         yieldTimeMs: value.yieldTimeMs,
@@ -103,9 +141,13 @@ export function createExecCommandTools({
         });
       }
 
-      if (commandExec) {
+      const selectedCommandExec = value.sandboxPermissions
+        === EXEC_COMMAND_SANDBOX_PERMISSIONS.REQUIRE_ESCALATED
+        ? escalatedCommandExec || commandExec
+        : commandExec;
+      if (selectedCommandExec) {
         return runExecCommandDirect({
-          commandExec,
+          commandExec: selectedCommandExec,
           command: renderedCommand,
           workdir: value.workdir,
           timeout: value.timeout,
@@ -117,7 +159,11 @@ export function createExecCommandTools({
         });
       }
 
-      if (!bashTool?.execute) {
+      const selectedBashTool = value.sandboxPermissions
+        === EXEC_COMMAND_SANDBOX_PERMISSIONS.REQUIRE_ESCALATED
+        ? escalatedBashTool || bashTool
+        : bashTool;
+      if (!selectedBashTool?.execute) {
         return textResult("exec_command runner unavailable", {
           errorCode: "EXEC_COMMAND_RUNNER_UNAVAILABLE",
           execCommand: execDetails,
@@ -125,7 +171,7 @@ export function createExecCommandTools({
       }
 
       return runExecCommandOnce({
-        bashTool,
+        bashTool: selectedBashTool,
         toolCallId,
         command: renderedCommand,
         timeout: value.timeout,
@@ -148,6 +194,19 @@ export function createExecCommandTools({
         kind: "terminal_input",
         processId: params.process_id || params.processId || "",
       }),
+      resolveInvocation: (params: any = {}) => {
+        const processId = typeof (params.process_id || params.processId) === "string"
+          ? (params.process_id || params.processId).trim()
+          : "";
+        if (!processId) return null;
+        const isPoll = typeof params.chars !== "string" || params.chars.length === 0;
+        return {
+          action: isPoll ? "poll" : "write",
+          kind: isPoll ? "read" : "review",
+          capability: isPoll ? "write_stdin.poll" : "write_stdin.write",
+          target: { type: "terminal_process", id: processId, label: processId },
+        };
+      },
     },
     parameters: Type.Object({
       process_id: Type.String({ description: "process_id returned by exec_command with tty=true." }),

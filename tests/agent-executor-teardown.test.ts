@@ -67,7 +67,10 @@ function makeEngine(agent, cwd) {
     createSessionContext: () => ({
       resourceLoader: {},
       getSkillsForAgent: () => ({ skills: [], diagnostics: [] }),
-      buildTools: () => ({ tools: [], customTools: [] }),
+      buildTools: (_cwd, customTools = [], opts: any = {}) => ({
+        tools: [],
+        customTools: [...customTools, ...(opts.extraCustomTools || [])],
+      }),
       resolveModel: () => ({ id: "gpt-4o", provider: "openai", name: "GPT-4o" }),
       authStorage: {},
       modelRegistry: {},
@@ -224,9 +227,9 @@ describe("runAgentSession teardown", () => {
     const agent = makeAgent(rootDir);
     agent.tools = [{ name: "search_memory" }, { name: "record_experience" }];
 
-    const buildTools = vi.fn((_cwd, customTools) => ({
+    const buildTools = vi.fn((_cwd, customTools, opts: any = {}) => ({
       tools: [{ name: "read" }, { name: "write" }],
-      customTools,
+      customTools: [...customTools, ...(opts.extraCustomTools || [])],
     }));
     const engine = {
       ...makeEngine(agent, cwd),
@@ -472,9 +475,9 @@ describe("runAgentSession teardown", () => {
     agent.tools = [{ name: "channel" }, { name: "search_memory" }, { name: "record_experience" }];
     (agent as any).getToolsSnapshot = vi.fn(() => agent.tools);
 
-    const buildTools = vi.fn((_cwd, customTools) => ({
+    const buildTools = vi.fn((_cwd, customTools, opts: any = {}) => ({
       tools: [{ name: "read" }, { name: "write" }],
-      customTools,
+      customTools: [...customTools, ...(opts.extraCustomTools || [])],
     }));
     const engine = {
       ...makeEngine(agent, cwd),
@@ -510,8 +513,28 @@ describe("runAgentSession teardown", () => {
       conversationType: "channel",
       toolMode: "read_only",
       extraCustomTools: [
-        { name: "channel_reply", execute: vi.fn() },
-        { name: "channel_pass", execute: vi.fn() },
+        {
+          name: "channel_reply",
+          sessionPermission: {
+            resolveInvocation: () => ({
+              action: "post",
+              kind: "routine",
+              capability: "channel_reply.post",
+            }),
+          },
+          execute: vi.fn(),
+        },
+        {
+          name: "channel_pass",
+          sessionPermission: {
+            resolveInvocation: () => ({
+              action: "decide",
+              kind: "routine",
+              capability: "channel_pass.decide",
+            }),
+          },
+          execute: vi.fn(),
+        },
       ],
     });
 
@@ -532,6 +555,17 @@ describe("runAgentSession teardown", () => {
       "channel_reply",
       "channel_pass",
     ]);
+    const sessionCustomTools = createAgentSessionMock.mock.calls[0][0].customTools;
+    expect(sessionCustomTools.find((tool) => tool.name === "channel_reply")
+      .sessionPermission.resolveInvocation()).toMatchObject({
+      kind: "routine",
+      capability: "channel_reply.post",
+    });
+    expect(sessionCustomTools.find((tool) => tool.name === "channel_pass")
+      .sessionPermission.resolveInvocation()).toMatchObject({
+      kind: "routine",
+      capability: "channel_pass.decide",
+    });
     expect(setActiveToolsByName).toHaveBeenCalledWith([
       "read",
       "write",
@@ -549,9 +583,9 @@ describe("runAgentSession teardown", () => {
     agent.tools = [{ name: "channel" }, { name: "search_memory" }, { name: "record_experience" }, { name: "web_fetch" }];
     (agent as any).getToolsSnapshot = vi.fn(() => agent.tools);
 
-    const buildTools = vi.fn((_cwd, customTools) => ({
+    const buildTools = vi.fn((_cwd, customTools, opts: any = {}) => ({
       tools: [{ name: "read" }, { name: "write" }],
-      customTools,
+      customTools: [...customTools, ...(opts.extraCustomTools || [])],
     }));
     const engine = {
       ...makeEngine(agent, cwd),

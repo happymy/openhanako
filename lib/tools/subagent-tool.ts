@@ -263,6 +263,23 @@ export function createSubagentTool(deps) {
         { description: "Optional permission tier. \"read\": read-only subagent for research, exploration, or review tasks; it cannot edit files or run mutating commands. \"write\": operable subagent for execution, edits, or commands; requires the parent session to be in an operable (non read-only) mode, otherwise the call is rejected with an error. Omit to inherit the current session permission. Pick \"read\" whenever the task does not need to change anything." },
       )),
     }),
+    sessionPermission: {
+      resolveInvocation: (params) => {
+        const agent = typeof params?.agent === "string" ? params.agent.trim() : "";
+        if (agent === "?" || agent === "list") {
+          return {
+            action: "list",
+            kind: "read",
+            capability: "subagent.list",
+          };
+        }
+        return {
+          action: "launch",
+          kind: "routine",
+          capability: "subagent.launch",
+        };
+      },
+    },
 
     execute: async (_toolCallId, params, _signal, _onUpdate, ctx) => {
       // discovery 模式
@@ -656,6 +673,13 @@ export function createSubagentReplyTool(deps) {
         { description: "Optional permission tier. \"read\": read-only continuation for research, exploration, or review. \"write\": operable continuation for execution, edits, or commands; requires the parent session to be in an operable (non read-only) mode, otherwise the call is rejected with an error. Omit to reuse the instance access, still bounded by the current session permission." },
       )),
     }),
+    sessionPermission: {
+      resolveInvocation: () => ({
+        action: "continue",
+        kind: "routine",
+        capability: "subagent_reply.continue",
+      }),
+    },
     execute: async (_toolCallId, params, _signal, _onUpdate, ctx) => {
       const parentSessionPath = getToolSessionPath(ctx);
       const parentSessionRef = parentSessionRefForPath(deps, parentSessionPath);
@@ -920,6 +944,13 @@ export function createSubagentCloseTool(deps) {
       threadId: Type.String({ description: "The threadId of the open subagent instance to close." }),
       reason: Type.Optional(Type.String({ description: "Optional closing reason, saved as the instance's final summary." })),
     }),
+    sessionPermission: {
+      resolveInvocation: () => ({
+        action: "close",
+        kind: "routine",
+        capability: "subagent_close.close",
+      }),
+    },
     execute: async (_toolCallId, params, _signal, _onUpdate, ctx) => {
       const parentSessionPath = getToolSessionPath(ctx);
       const threadStore = deps.getSubagentThreadStore?.() || null;

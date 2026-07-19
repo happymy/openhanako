@@ -69,7 +69,7 @@ import {
  * @param {object} [opts.resourceIO]  session 级 ResourceIO 内核；未传入时按 cwd 创建 local_fs 内核
  * @param {(event: object, sessionPath?: string|null) => void} [opts.emitEvent]  ResourceIO 事件出口
  * @param {object|null} [opts.legacyCleanupQueue] Windows 旧 ACL 清理队列
- * @returns {{ tools: object[], customTools: object[] }}
+ * @returns {{ tools: object[], customTools: object[], permissionBoundary: object }}
  */
 export function createSandboxedTools(cwd, customTools, {
   agentDir,
@@ -114,6 +114,7 @@ export function createSandboxedTools(cwd, customTools, {
   });
   const guard = {
     check: (absolutePath, operation) => new PathGuard(makePolicy()).check(absolutePath, operation),
+    getAccessLevel: (absolutePath) => new PathGuard(makePolicy()).getAccessLevel(absolutePath),
   };
 
   // 增强 readFile：xlsx 解析 + 编码检测，保留 PI SDK 默认的 image mime 判断
@@ -125,6 +126,25 @@ export function createSandboxedTools(cwd, customTools, {
   const resolveSandboxNetworkEnabled = typeof getSandboxNetworkEnabled === "function"
     ? getSandboxNetworkEnabled
     : () => true;
+  const osSandboxAvailable = platform === "win32-restricted-token"
+    ? true
+    : checkAvailability(platform);
+  const isOneShotSandboxEnforced = () => {
+    try {
+      if (typeof getSandboxEnabled === "function" && getSandboxEnabled() === false) return false;
+    } catch {
+      return false;
+    }
+    if (platform === "win32-restricted-token") return true;
+    if (platform === "seatbelt") return osSandboxAvailable;
+    // A missing bwrap executor is fail-closed below, so it never falls through
+    // to a direct host command while the sandbox preference remains enabled.
+    if (platform === "bwrap") return true;
+    return false;
+  };
+  const permissionBoundary = {
+    checkStagePath: (absolutePath) => guard.check(absolutePath, "stage"),
+  };
 
   // 无 OS 沙盒时的 bash 工具（沙盒关闭时回退用）
   const normalBashTool = isWin32
@@ -208,12 +228,20 @@ export function createSandboxedTools(cwd, customTools, {
     emitEvent,
     withResourceTarget: resourceOps.withResourceTarget,
   });
-  const createExecToolsForBash = (bashTool, commandExec = null) => createExecCommandTools({
+  const createExecToolsForBash = (
     bashTool,
+    commandExec = null,
+    escalatedBashTool = null,
+    escalatedCommandExec = null,
+  ) => createExecCommandTools({
+    bashTool,
+    escalatedBashTool,
     commandExec,
+    escalatedCommandExec,
     getTerminalSessionManager,
     getAgentId,
     getCwd: () => cwd,
+    isOneShotSandboxEnforced,
     platform: process.platform,
   });
 
@@ -244,49 +272,67 @@ export function createSandboxedTools(cwd, customTools, {
         readTool,
         writeToolWithResourceIO,
         editTool,
-        ...createExecToolsForBash(wrappedBashTool, wrappedWin32Exec),
+        ...createExecToolsForBash(
+          wrappedBashTool,
+          wrappedWin32Exec,
+          wrappedBashTool,
+          wrappedWin32Exec,
+        ),
         createGrepTool(cwd, { ...searchToolPaths, operations: resourceOps.grep }),
         createFindTool(cwd, { ...searchToolPaths, operations: resourceOps.find }),
         createLsTool(cwd, { operations: resourceOps.ls }),
       ]),
       customTools,
+      permissionBoundary,
     };
   }
 
   // ── macOS / Linux: PathGuard + OS 沙盒 ──
-  let sandboxedBashTool = normalBashTool;
-  if (checkAvailability(platform)) {
-    const sandboxExec = platform === "seatbelt"
+  let defaultSandboxedBashTool = normalBashTool;
+  let escalatedSandboxedBashTool = normalBashTool;
+  if (osSandboxAvailable) {
+    const makeSandboxExec = (resolveNetworkEnabled) => platform === "seatbelt"
       ? (command, execCwd, execOpts) => createSeatbeltExec(
           makePolicy(),
-          { getSandboxNetworkEnabled: resolveSandboxNetworkEnabled },
+          { getSandboxNetworkEnabled: resolveNetworkEnabled },
         )(command, execCwd, execOpts)
       : (command, execCwd, execOpts) => createBwrapExec(
           makePolicy(),
-          { getExternalReadPaths, getSandboxNetworkEnabled: resolveSandboxNetworkEnabled },
+          { getExternalReadPaths, getSandboxNetworkEnabled: resolveNetworkEnabled },
         )(command, execCwd, execOpts);
-    sandboxedBashTool = createBashTool(cwd, { operations: { exec: sandboxExec as any } });
+    const defaultSandboxExec = makeSandboxExec(() => false);
+    const escalatedSandboxExec = makeSandboxExec(resolveSandboxNetworkEnabled);
+    defaultSandboxedBashTool = createBashTool(cwd, {
+      operations: { exec: defaultSandboxExec as any },
+    });
+    escalatedSandboxedBashTool = createBashTool(cwd, {
+      operations: { exec: escalatedSandboxExec as any },
+    });
   } else if (platform === "bwrap") {
-    sandboxedBashTool = {
+    const unavailableBashTool = {
       ...normalBashTool,
       execute: async () => ({
         content: [{ type: "text" as const, text: t("sandbox.osRequired", { platform }) }],
       }) as any,
     };
+    defaultSandboxedBashTool = unavailableBashTool;
+    escalatedSandboxedBashTool = unavailableBashTool;
   }
 
-  const wrappedBashTool = wrapBashTool(sandboxedBashTool, guard, cwd, bashWrapOpts);
+  const wrappedDefaultBashTool = wrapBashTool(defaultSandboxedBashTool, guard, cwd, bashWrapOpts);
+  const wrappedEscalatedBashTool = wrapBashTool(escalatedSandboxedBashTool, guard, cwd, bashWrapOpts);
   return {
     tools: buildResourceIoFileTools([
       readTool,
       writeToolWithResourceIO,
       editTool,
-      ...createExecToolsForBash(wrappedBashTool),
+      ...createExecToolsForBash(wrappedDefaultBashTool, null, wrappedEscalatedBashTool),
       createGrepTool(cwd, { ...searchToolPaths, operations: resourceOps.grep }),
       createFindTool(cwd, { ...searchToolPaths, operations: resourceOps.find }),
       createLsTool(cwd, { operations: resourceOps.ls }),
     ]),
     customTools,
+    permissionBoundary,
   };
 }
 

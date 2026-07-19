@@ -7277,6 +7277,10 @@ export class SessionCoordinator {
             : {}),
         })
         : targetAgent.tools;
+      const requestedExtraCustomTools = Array.isArray(opts.extraCustomTools)
+        ? opts.extraCustomTools.filter(t => t && typeof t.name === "string" && t.name.trim())
+        : [];
+      const extraCustomToolNames = new Set(requestedExtraCustomTools.map(t => t.name));
       const { tools: allBuiltinTools, customTools: allCustomTools } = this._d.buildTools(
         execCwd,
         targetAgentToolsSnapshot,
@@ -7292,11 +7296,17 @@ export class SessionCoordinator {
           getAgentId: () => targetAgent.id || null,
           fileReadSessionPaths,
           getPermissionMode: () => execPermissionMode,
-          permissionContext: { isSubagent: !!opts.subagentContext },
+          permissionContext: {
+            ...(opts.permissionContext && typeof opts.permissionContext === "object"
+              ? opts.permissionContext
+              : {}),
+            isSubagent: !!opts.subagentContext,
+          },
           allowHumanApproval: opts.allowHumanApproval !== false,
           ...(opts.approvalPolicy ? { approvalPolicy: opts.approvalPolicy } : {}),
           ...(opts.bridgeContext ? { bridgeContext: opts.bridgeContext } : {}),
           ...(opts.notificationContext ? { notificationContext: opts.notificationContext } : {}),
+          extraCustomTools: requestedExtraCustomTools,
         },
       );
 
@@ -7307,12 +7317,11 @@ export class SessionCoordinator {
       // 会让该任务持续触发后续巡检/活动，看起来像「巡检间隔被破坏」(#398)
       const isHeartbeat = opts.activityType === "heartbeat";
       const heartbeatBlocked = new Set(isHeartbeat ? ["automation", "cron"] : []);
+      const wrappedExtraCustomTools = allCustomTools.filter(t => extraCustomToolNames.has(t.name));
+      const baseCustomTools = allCustomTools.filter(t => !extraCustomToolNames.has(t.name));
       const actCustomTools = patrolAllowed === "*"
-        ? allCustomTools.filter(t => !heartbeatBlocked.has(t.name))
-        : allCustomTools.filter(t => new Set(patrolAllowed).has(t.name) && !heartbeatBlocked.has(t.name));
-      const extraCustomTools = Array.isArray(opts.extraCustomTools)
-        ? opts.extraCustomTools.filter(t => t && typeof t.name === "string" && t.name.trim())
-        : [];
+        ? baseCustomTools.filter(t => !heartbeatBlocked.has(t.name))
+        : baseCustomTools.filter(t => new Set(patrolAllowed).has(t.name) && !heartbeatBlocked.has(t.name));
 
       const actTools = opts.builtinFilter
         ? allBuiltinTools.filter(t => opts.builtinFilter.includes(t.name))
@@ -7374,7 +7383,7 @@ export class SessionCoordinator {
         thinkingLevel: execThinkingLevel,
         resourceLoader: execResourceLoader,
         tools: actTools,
-        customTools: [...actCustomTools, ...extraCustomTools],
+        customTools: [...actCustomTools, ...wrappedExtraCustomTools],
       });
 
       if (isolatedProviderCacheAffinityKey && typeof session?.agent?.streamFn === "function") {
@@ -7438,7 +7447,7 @@ export class SessionCoordinator {
           toolNames: uniqueToolNames(toolNamesFromObjects([
             ...(actTools || []),
             ...(actCustomTools || []),
-            ...(extraCustomTools || []),
+            ...(wrappedExtraCustomTools || []),
           ])),
         });
       }

@@ -265,6 +265,14 @@ export function createInstallSkillTool({ getUserSkillsDir, getConfig, resolveUti
     name: "install_skill",
     label: "Install Skill",
     description: "Install a complete skill package into the shared skill pool, enabled only for the current Agent by default. Provide github_url for a GitHub repo, local_path for a package path visible to the current Hana server, fileId for an uploaded SessionFile package, or source as a typed FileRef such as { type: 'path', path } / { type: 'session_file', fileId }. The full package directory is installed so references/scripts/assets are preserved. Do not provide raw skill_content or a single SKILL.md file. If the safety review returns requiresRiskConfirmation, explain the risk to the user and call again with risk_accepted=true plus the returned risk_confirmation_token only after explicit user confirmation.",
+    sessionPermission: {
+      resolveInvocation: () => ({
+        action: "install",
+        kind: "review",
+        capability: "install_skill.install",
+        sideEffect: { kind: "shared_executable_content_install" },
+      }),
+    },
     parameters: Type.Object({
       github_url: Type.Optional(
         Type.String({ description: "GitHub repo URL containing a complete skill package with SKILL.md" })

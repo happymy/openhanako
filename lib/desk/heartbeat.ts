@@ -236,6 +236,13 @@ function createJianStatusTool({ jianPath, instructionSnapshot, isZh }) {
     description: isZh
       ? "更新当前 jian.md 的执行状态。程序会写入本轮开始时的任务快照，你只提交状态、进度和说明。"
       : "Update the current jian.md execution status. The program writes the task snapshot captured at patrol start; submit only status, progress, and note.",
+    sessionPermission: {
+      resolveInvocation: () => ({
+        action: "update",
+        kind: "routine",
+        capability: "jian_update_status.update",
+      }),
+    },
     parameters: Type.Object({
       status: StringEnum(JIAN_STATUS_VALUES, {
         description: isZh
@@ -454,6 +461,13 @@ function createPatrolLogTool({ patrolLogPath, isZh }) {
     description: isZh
       ? "写入本轮工作台巡检日志。你只提交状态和一句说明，程序负责时间戳、目录、UTF-8 编码和旧日志归一化。"
       : "Write this workspace patrol log entry. Submit only status and one note; the program owns timestamping, directory creation, UTF-8 encoding, and legacy log normalization.",
+    sessionPermission: {
+      resolveInvocation: () => ({
+        action: "update",
+        kind: "routine",
+        capability: "patrol_update_log.update",
+      }),
+    },
     parameters: Type.Object({
       status: StringEnum(PATROL_STATUS_VALUES, {
         description: isZh

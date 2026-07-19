@@ -279,6 +279,13 @@ export function createMcpConnectorsStatusToolDefinition({ getState, getGlobalEna
     parameters: { type: "object", properties: {} },
     invocationStyle: "pi_tool",
     metadata: { kind: "mcp", readOnly: true },
+    sessionPermission: {
+      resolveInvocation: () => ({
+        action: "read",
+        kind: "read",
+        capability: "connectors_status.read",
+      }),
+    },
     // Read-only diagnostics are available to any agent whenever Connectors are
     // globally enabled; they are intentionally not gated per-connector, since
     // the point is to inspect connectors the agent may not have enabled.
@@ -320,6 +327,13 @@ export function createMcpToolDefinition({
     description: description || `MCP connector tool ${connectorId}/${toolName}`,
     parameters: inputSchema || { type: "object", properties: {} },
     invocationStyle: "pi_tool",
+    sessionPermission: {
+      resolveInvocation: () => ({
+        action: "invoke",
+        kind: "review",
+        capability: `${name}.invoke`,
+      }),
+    },
     metadata: {
       kind: "mcp",
       connectorId,

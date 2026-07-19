@@ -444,6 +444,9 @@ export async function runAgentPhoneSession(agentId, rounds, {
     })
     : agent.tools;
   const phonePermissionMode = getAgentPhonePermissionMode(toolMode);
+  const phoneExtraCustomTools = Array.isArray(extraCustomTools)
+    ? extraCustomTools.filter(tool => tool && typeof tool.name === "string" && tool.name.trim())
+    : [];
   const built = ctx.buildTools(cwd, agentToolsSnapshot, {
     agentDir,
     workspace: engine.getHomeCwd(agentId),
@@ -452,7 +455,13 @@ export async function runAgentPhoneSession(agentId, rounds, {
     getPermissionMode: () => phonePermissionMode,
     // 拦截分层（#1614）：标记 conversation surface，read_only 拦截时错误提示
     // 指向"会话设置面板可切换"而非通用 plan 模式提示。
-    permissionContext: { surface: "conversation" },
+    permissionContext: {
+      surface: "conversation",
+      // These phone-only decisions are already bound by the host to the
+      // current channel and revalidate membership before one delivery.
+      preAuthorizedRoutineCapabilities: ["channel_reply.post", "channel_pass.decide"],
+    },
+    extraCustomTools: phoneExtraCustomTools,
   });
   // @ts-expect-error filterAgentPhoneTools signature accepts 1 arg; second arg ({ toolMode }) is unused at runtime
   const { tools, customTools } = filterAgentPhoneTools(built, { toolMode });
@@ -464,7 +473,6 @@ export async function runAgentPhoneSession(agentId, rounds, {
     : null;
   const sessionCustomTools = [
     ...applyConversationScopedMemorySearch(customTools, scopedMemorySearch),
-    ...(Array.isArray(extraCustomTools) ? extraCustomTools : []),
   ];
   const activeToolNames = getAgentPhoneActiveToolNames({
     tools,

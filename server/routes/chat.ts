@@ -226,6 +226,16 @@ function sessionIdForLegacyCompactPath(engine: any, sessionPath: string) {
   }
 }
 
+export function buildDesktopSlashSessionRef(engine: any, agentId: string, sessionPath: string) {
+  const sessionId = sessionIdForLegacyCompactPath(engine, sessionPath);
+  return {
+    kind: "desktop",
+    agentId,
+    sessionPath,
+    ...(sessionId ? { sessionId } : {}),
+  };
+}
+
 export function resolveCompactSessionTarget(engine: any, msg: any) {
   let sessionId = normalizedIdentity(msg?.sessionId);
   const legacySessionPath = normalizedIdentity(msg?.sessionPath);
@@ -1902,7 +1912,7 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
                 wsSend(ws, { type: "slash_result", sessionPath: sp, text, level: "success" });
               };
               const res = await dispatcher.tryDispatch(msg.text.trim(), {
-                sessionRef: { kind: "desktop", agentId, sessionPath: sp },
+                sessionRef: buildDesktopSlashSessionRef(engine, agentId, sp),
                 source: "desktop",
                 senderId: "desktop",
                 isOwner: true,

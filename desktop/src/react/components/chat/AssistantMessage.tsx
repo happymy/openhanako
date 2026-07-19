@@ -26,6 +26,7 @@ const lazyScreenshot = () => import('../../utils/screenshot').then(m => m.takeSc
 import type { ChatMessage, ContentBlock } from '../../stores/chat-types';
 import { useStore } from '../../stores';
 import { selectSessionFiles } from '../../stores/selectors/file-refs';
+import { sessionIdForPathFromLocatorState } from '../../stores/session-slice';
 import { hanaFetch } from '../../hooks/use-hana-fetch';
 import { openFilePreview, openSkillPreview } from '../../utils/file-preview';
 import { writeAppFileDragPayload, clearAppFileDragPayload } from '../../utils/app-file-drag';
@@ -831,6 +832,10 @@ function buildAutomationExecutionContext({
   const homeFolder = typeof agent?.homeFolder === 'string' && agent.homeFolder.trim()
     ? agent.homeFolder.trim()
     : null;
+  const baseAgentId = typeof baseContext.createdByAgentId === 'string' && baseContext.createdByAgentId.trim()
+    ? baseContext.createdByAgentId.trim()
+    : null;
+  const crossesAgentBoundary = !!baseAgentId && !!agentId && baseAgentId !== agentId;
   return {
     kind: typeof baseContext.kind === 'string' && baseContext.kind.trim()
       ? baseContext.kind
@@ -841,9 +846,18 @@ function buildAutomationExecutionContext({
       : (Array.isArray(baseContext.workspaceFolders)
         ? baseContext.workspaceFolders.filter((folder: unknown) => typeof folder === 'string' && folder.trim())
         : []),
-    sourceSessionPath: typeof baseContext.sourceSessionPath === 'string' && baseContext.sourceSessionPath.trim()
-      ? baseContext.sourceSessionPath
-      : (sessionPath || null),
+    authorizedFolders: crossesAgentBoundary
+      ? []
+      : (Array.isArray(baseContext.authorizedFolders)
+        ? baseContext.authorizedFolders.filter((folder: unknown) => typeof folder === 'string' && folder.trim())
+        : []),
+    sourceSessionId: crossesAgentBoundary ? null : (baseContext.sourceSessionId || null),
+    sourceBridgeSessionKey: crossesAgentBoundary ? null : (baseContext.sourceBridgeSessionKey || null),
+    sourceSessionPath: crossesAgentBoundary
+      ? null
+      : typeof baseContext.sourceSessionPath === 'string' && baseContext.sourceSessionPath.trim()
+        ? baseContext.sourceSessionPath
+        : (sessionPath || null),
     createdByAgentId: agentId || null,
   };
 }
@@ -861,6 +875,7 @@ const CronConfirmBlock = memo(function CronConfirmBlock({ block, sessionPath }: 
   const initialType = (jobData.type || jobData.scheduleType || 'cron') as string;
   const agents = useStore(s => s.agents);
   const currentAgentId = useStore(s => s.currentAgentId);
+  const sourceSessionId = useStore(state => sessionIdForPathFromLocatorState(state, sessionPath));
   const fallbackAgentName = useStore(s => s.agentName) || 'Hanako';
   const fallbackAgentYuan = useStore(s => s.agentYuan) || 'hanako';
   const initialPrompt = (jobData.prompt as string) || (block.description as string) || '';
@@ -951,15 +966,41 @@ const CronConfirmBlock = memo(function CronConfirmBlock({ block, sessionPath }: 
   };
 
   const submitDraftJob = async (editedJobData: Record<string, unknown>) => {
+    if (isSuggestionCard) {
+      const suggestionId = block.suggestionId || block.detail?.suggestionId;
+      if (typeof suggestionId !== 'string' || !suggestionId.trim() || !sourceSessionId) {
+        throw new Error('automation suggestion identity unavailable');
+      }
+      const response = await hanaFetch('/api/desk/cron', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'apply_suggestion',
+          suggestionId: suggestionId.trim(),
+          sessionId: sourceSessionId,
+          jobData: {
+            type: editedJobData.type,
+            schedule: editedJobData.schedule,
+            label: editedJobData.label,
+            prompt: editedJobData.prompt,
+            model: editedJobData.model,
+            ...(effectiveAgentId ? { targetAgentId: effectiveAgentId } : {}),
+          },
+        }),
+      });
+      if (!response.ok) throw new Error(`automation suggestion apply failed: ${response.status}`);
+      return;
+    }
     const isUpdate = operation === 'update';
     const { id, ...fields } = editedJobData;
-    await hanaFetch('/api/desk/cron', {
+    const response = await hanaFetch('/api/desk/cron', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(isUpdate
         ? { action: 'update', id, ...fields }
         : { action: 'add', ...editedJobData }),
     });
+    if (!response.ok) throw new Error(`automation draft submit failed: ${response.status}`);
   };
 
   const handleApprove = async () => {

@@ -106,6 +106,63 @@ describe("exec_command tools", () => {
     });
   });
 
+  it("routes use_default and require_escalated through separate one-shot runners", async () => {
+    const defaultBashTool = {
+      execute: vi.fn(async () => ({ content: [{ type: "text", text: "default" }] })),
+    };
+    const escalatedBashTool = {
+      execute: vi.fn(async () => ({ content: [{ type: "text", text: "escalated" }] })),
+    };
+    const [execCommand] = createExecCommandTools({
+      bashTool: defaultBashTool,
+      escalatedBashTool,
+      getCwd: () => DEFAULT_TEST_CWD,
+      platform: "linux",
+    });
+
+    const defaultResult: any = await execCommand.execute(
+      "call-default",
+      { cmd: "pwd" },
+      null,
+      null,
+      makeCtx(),
+    );
+    const escalatedResult: any = await execCommand.execute(
+      "call-escalated",
+      { cmd: "npm view vitest version", sandbox_permissions: "require_escalated" },
+      null,
+      null,
+      makeCtx(),
+    );
+
+    expect(defaultBashTool.execute).toHaveBeenCalledOnce();
+    expect(escalatedBashTool.execute).toHaveBeenCalledOnce();
+    expect(defaultResult.content[0].text).toBe("default");
+    expect(defaultResult.details.execCommand.sandboxPermissions).toBe("use_default");
+    expect(escalatedResult.content[0].text).toBe("escalated");
+    expect(escalatedResult.details.execCommand.sandboxPermissions).toBe("require_escalated");
+  });
+
+  it("rejects unknown sandbox_permissions before invoking a command runner", async () => {
+    const bashTool = { execute: vi.fn() };
+    const [execCommand] = createExecCommandTools({
+      bashTool,
+      getCwd: () => DEFAULT_TEST_CWD,
+      platform: "linux",
+    });
+
+    const result: any = await execCommand.execute(
+      "call-invalid-sandbox-permissions",
+      { cmd: "pwd", sandbox_permissions: "network_on" },
+      null,
+      null,
+      makeCtx(),
+    );
+
+    expect(bashTool.execute).not.toHaveBeenCalled();
+    expect(result.details.errorCode).toBe("EXEC_COMMAND_INVALID_SANDBOX_PERMISSIONS");
+  });
+
   it("starts tty processes through the terminal manager and write_stdin writes to the same process id", async () => {
     const platform = "linux";
     const manager = {

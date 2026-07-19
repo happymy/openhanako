@@ -2782,7 +2782,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 312,
+      "line": 315,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(this.channelsDir, { recursive: true })",
       "reason": "Creates the channel root.",
@@ -2791,7 +2791,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 358,
+      "line": 361,
       "kind": "persistent-store-constructor",
       "excerpt": "new PreferencesManager({ userDir: this.userDir, agentsDir: this.agentsDir })",
       "reason": "Constructs the preferences owner.",
@@ -2800,7 +2800,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 359,
+      "line": 362,
       "kind": "persistent-store-constructor",
       "excerpt": "new InputDraftsStore({ hanakoHome: this.hanakoHome })",
       "reason": "Constructs draft/project stores.",
@@ -2809,7 +2809,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 377,
+      "line": 380,
       "kind": "persistent-store-constructor",
       "excerpt": "new SessionProjectCatalogStore({ userDir: this.userDir })",
       "reason": "Constructs draft/project stores.",
@@ -2818,7 +2818,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 604,
+      "line": 607,
       "kind": "persistent-store-constructor",
       "excerpt": "new TaskRegistry({ persistencePath: path.join(this.hanakoHome, \".ephemeral\", \"plugin-tasks.json\"), getSessionIdForPath: (sessionPath) => this.getSessionIdForPath(sessionPath), })",
       "reason": "Constructs the plugin task registry.",
@@ -2827,7 +2827,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 1208,
+      "line": 1211,
       "kind": "persistent-store-constructor",
       "excerpt": "new SessionManifestStore({ dbPath })",
       "reason": "Constructs the manifest store during engine construction.",
@@ -2836,7 +2836,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 1229,
+      "line": 1232,
       "kind": "persistent-store-constructor",
       "excerpt": "new SessionManifestStore({ dbPath })",
       "reason": "Constructs the manifest store during engine construction.",
@@ -2845,7 +2845,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 2142,
+      "line": 2145,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(skillsDir, { recursive: true })",
       "reason": "Creates the user skill root.",
@@ -2854,7 +2854,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 2324,
+      "line": 2327,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(filePath)",
       "reason": "Deletes an expired legacy ephemeral session JSONL locator.",
@@ -2863,7 +2863,7 @@
     },
     {
       "sourceFile": "core/engine.ts",
-      "line": 2378,
+      "line": 2381,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(pluginDevSourcesDir, { recursive: true })",
       "reason": "Creates the plugin development source root.",
@@ -4843,7 +4843,7 @@
     },
     {
       "sourceFile": "core/studio-cron-service.ts",
-      "line": 77,
+      "line": 60,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(jobsPath, JSON.stringify(next, null, 2) + \"\\n\")",
       "reason": "Writes cron jobs or execution receipts.",
@@ -4852,16 +4852,16 @@
     },
     {
       "sourceFile": "core/studio-cron-service.ts",
-      "line": 156,
+      "line": 210,
       "kind": "persistent-store-constructor",
-      "excerpt": "new CronStore( path.join(deskDir, \"cron-jobs.json\"), path.join(deskDir, \"cron-runs\"), { idPrefix: \"studio_job\" }, )",
+      "excerpt": "new CronStore( path.join(deskDir, \"cron-jobs.json\"), path.join(deskDir, \"cron-runs\"), { idPrefix: \"studio_job\", studioId: normalizedStudioId }, )",
       "reason": "Writes cron jobs or execution receipts.",
       "storeId": "cron-automation",
       "exemptionId": null
     },
     {
       "sourceFile": "core/studio-cron-service.ts",
-      "line": 223,
+      "line": 280,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(studioRunsDir, { recursive: true })",
       "reason": "Writes cron jobs or execution receipts.",
@@ -4870,7 +4870,7 @@
     },
     {
       "sourceFile": "core/studio-cron-service.ts",
-      "line": 224,
+      "line": 281,
       "kind": "copy-file",
       "excerpt": "fs.copyFileSync(source, target)",
       "reason": "Writes cron jobs or execution receipts.",
@@ -5482,7 +5482,7 @@
     },
     {
       "sourceFile": "hub/channel-router.ts",
-      "line": 1038,
+      "line": 1066,
       "kind": "persistent-store-constructor",
       "excerpt": "new FactStore(dbPath)",
       "reason": "Opens or repairs the canonical per-agent facts database.",
@@ -6085,7 +6085,7 @@
     },
     {
       "sourceFile": "lib/desk/cron-store.ts",
-      "line": 208,
+      "line": 257,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(path.dirname(this._jobsPath), { recursive: true })",
       "reason": "Writes cron jobs or execution receipts.",
@@ -6094,7 +6094,7 @@
     },
     {
       "sourceFile": "lib/desk/cron-store.ts",
-      "line": 214,
+      "line": 264,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(this._jobsPath, data)",
       "reason": "Writes cron jobs or execution receipts.",
@@ -6103,7 +6103,7 @@
     },
     {
       "sourceFile": "lib/desk/cron-store.ts",
-      "line": 572,
+      "line": 722,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(this._runsDir, { recursive: true })",
       "reason": "Writes cron jobs or execution receipts.",
@@ -6112,7 +6112,7 @@
     },
     {
       "sourceFile": "lib/desk/cron-store.ts",
-      "line": 573,
+      "line": 723,
       "kind": "append-file",
       "excerpt": "fs.appendFileSync(filePath, line, \"utf-8\")",
       "reason": "Writes cron jobs or execution receipts.",
@@ -6121,7 +6121,7 @@
     },
     {
       "sourceFile": "lib/desk/cron-store.ts",
-      "line": 580,
+      "line": 730,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(filePath, lines.slice(-300).join(\"\\n\") + \"\\n\")",
       "reason": "Writes cron jobs or execution receipts.",
@@ -6148,7 +6148,7 @@
     },
     {
       "sourceFile": "lib/desk/heartbeat.ts",
-      "line": 271,
+      "line": 278,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(path.dirname(jianPath), { recursive: true })",
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
@@ -6157,7 +6157,7 @@
     },
     {
       "sourceFile": "lib/desk/heartbeat.ts",
-      "line": 272,
+      "line": 279,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(jianPath, composeJianContent(instructions, execLog))",
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
@@ -6166,7 +6166,7 @@
     },
     {
       "sourceFile": "lib/desk/heartbeat.ts",
-      "line": 443,
+      "line": 450,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(filePath, kept.join(\"\\n\") + \"\\n\")",
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
@@ -6175,7 +6175,7 @@
     },
     {
       "sourceFile": "lib/desk/heartbeat.ts",
-      "line": 477,
+      "line": 491,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(path.dirname(patrolLogPath), { recursive: true })",
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
@@ -6184,7 +6184,7 @@
     },
     {
       "sourceFile": "lib/desk/heartbeat.ts",
-      "line": 478,
+      "line": 492,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(patrolLogPath, `${existing}${prefix}${line}`)",
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
@@ -6193,7 +6193,7 @@
     },
     {
       "sourceFile": "lib/desk/heartbeat.ts",
-      "line": 623,
+      "line": 637,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(path.dirname(registryPath), { recursive: true })",
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
@@ -6202,7 +6202,7 @@
     },
     {
       "sourceFile": "lib/desk/heartbeat.ts",
-      "line": 624,
+      "line": 638,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(registryPath, JSON.stringify(reg, null, 2))",
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
@@ -7849,7 +7849,7 @@
     },
     {
       "sourceFile": "plugins/mcp/lib/mcp-runtime.ts",
-      "line": 418,
+      "line": 432,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(this.ctx.dataDir, { recursive: true })",
       "reason": "Writes data within the active pluginId-scoped data directory.",
@@ -8128,7 +8128,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 516,
+      "line": 683,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(uploadRoot, { recursive: true })",
       "reason": "Writes or removes a bounded temporary cover upload.",
@@ -8137,7 +8137,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 519,
+      "line": 686,
       "kind": "write-file",
       "excerpt": "fs.writeFileSync(filePath, buffer)",
       "reason": "Writes or removes a bounded temporary cover upload.",
@@ -8146,7 +8146,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 522,
+      "line": 689,
       "kind": "remove-path",
       "excerpt": "fs.rmSync(tempDir, { recursive: true, force: true })",
       "reason": "Writes or removes a bounded temporary cover upload.",
@@ -8155,7 +8155,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 1078,
+      "line": 1312,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(skillsDir, { recursive: true })",
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",
@@ -8164,7 +8164,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 1128,
+      "line": 1362,
       "kind": "remove-path",
       "excerpt": "fs.rmSync(skillDir, { recursive: true, force: true })",
       "reason": "Deletes a skill directory only after the route proves it belongs to the explicitly mounted workspace skill catalog, outside Hana-owned persistence.",
@@ -8173,7 +8173,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 1144,
+      "line": 1378,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(dir, { recursive: true })",
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",
@@ -8182,7 +8182,7 @@
     },
     {
       "sourceFile": "server/routes/desk.ts",
-      "line": 1249,
+      "line": 1483,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(baseDir, { recursive: true })",
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",

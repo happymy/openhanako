@@ -41,6 +41,24 @@ export function createDmTool({ agentId, agentsDir, listAgents, onDmSent, isEnabl
     name: "dm",
     label: "Direct Message",
     description: "Send a single direct message to another agent to inform them of something.\nDo not use this tool to assign tasks or get results; that is subagent's job.",
+    sessionPermission: {
+      resolveInvocation: (params: any = {}) => {
+        const agents = listAgents();
+        const resolved = resolveAgentParam(agents, params.to);
+        if (!resolved.ok || !resolved.agentId || resolved.agentId === agentId) return null;
+        const target = agents.find((candidate) => candidate.id === resolved.agentId);
+        return {
+          action: "send",
+          kind: "review",
+          capability: "dm.send",
+          target: {
+            type: "agent",
+            id: resolved.agentId,
+            label: target?.name || resolved.agentId,
+          },
+        };
+      },
+    },
     parameters: Type.Object({
       to: Type.String({ description: "Target agent's id field value (the one in parentheses in the team roster, not the bold display name)" }),
       message: Type.String({ description: "Message content" }),

@@ -2497,9 +2497,14 @@
           "root": "server-bootstrap",
           "from": "core/session-manifest/legacy-migration.ts",
           "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "hub/scheduler.ts",
+          "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/session-manifest/store.ts (import-statement); core/session-manifest/legacy-migration.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/session-manifest/store.ts (import-statement); core/session-manifest/legacy-migration.ts (import-statement); hub/scheduler.ts (import-statement)."
     },
     {
       "path": "core/session-manifest/ref.ts",
@@ -4366,6 +4371,11 @@
         },
         {
           "root": "server-bootstrap",
+          "from": "lib/approval-gateway.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
           "from": "lib/llm/usage-observer.ts",
           "kind": "import-statement"
         },
@@ -4740,7 +4750,7 @@
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/migrations.ts (import-statement); lib/desk/cron-store.ts (import-statement); core/studio-cron-service.ts (import-statement); +78 more importer(s)."
+      "reason": "Reached via esbuild source module graph, imported by core/migrations.ts (import-statement); lib/desk/cron-store.ts (import-statement); core/studio-cron-service.ts (import-statement); +79 more importer(s)."
     },
     {
       "path": "lib/default-models.json",
@@ -4859,11 +4869,33 @@
         },
         {
           "root": "server-bootstrap",
+          "from": "lib/tools/automation-draft.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
           "from": "lib/tools/automation-tool.ts",
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by lib/desk/automation-normalizer.ts (import-statement); lib/tools/automation-tool.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by lib/desk/automation-normalizer.ts (import-statement); lib/tools/automation-draft.ts (import-statement); lib/tools/automation-tool.ts (import-statement)."
+    },
+    {
+      "path": "lib/desk/automation-execution-context.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "server-bootstrap",
+          "from": "core/studio-cron-service.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "hub/scheduler.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by core/studio-cron-service.ts (import-statement); hub/scheduler.ts (import-statement)."
     },
     {
       "path": "lib/desk/automation-executors.ts",
@@ -4890,9 +4922,31 @@
           "root": "server-bootstrap",
           "from": "lib/desk/cron-store.ts",
           "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "lib/desk/cron-scheduler.ts",
+          "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/migrations.ts (import-statement); lib/desk/cron-store.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/migrations.ts (import-statement); lib/desk/cron-store.ts (import-statement); lib/desk/cron-scheduler.ts (import-statement)."
+    },
+    {
+      "path": "lib/desk/automation-suggestion-receipt.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "server-bootstrap",
+          "from": "lib/desk/cron-store.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "lib/tools/automation-suggestion-store.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by lib/desk/cron-store.ts (import-statement); lib/tools/automation-suggestion-store.ts (import-statement)."
     },
     {
       "path": "lib/desk/cron-scheduler.ts",
@@ -6299,6 +6353,18 @@
     },
     {
       "path": "lib/permission/safety-policy.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "server-bootstrap",
+          "from": "lib/tools/session-permission-wrapper.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by lib/tools/session-permission-wrapper.ts (import-statement)."
+    },
+    {
+      "path": "lib/permission/tool-invocation-permission.ts",
       "inputType": "source-graph",
       "provenance": [
         {
@@ -8858,9 +8924,14 @@
           "root": "server-bootstrap",
           "from": "core/agent.ts",
           "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "lib/permission/safety-policy.ts",
+          "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/agent.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/agent.ts (import-statement); lib/permission/safety-policy.ts (import-statement)."
     },
     {
       "path": "lib/tools/pinned-memory.ts",
@@ -9156,6 +9227,11 @@
         },
         {
           "root": "server-bootstrap",
+          "from": "lib/tools/stop-task-tool.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
           "from": "lib/tools/current-status-tool.ts",
           "kind": "import-statement"
         },
@@ -9205,7 +9281,7 @@
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/plugin-manager.ts (import-statement); lib/tools/automation-tool.ts (import-statement); lib/tools/output-file-tool.ts (import-statement); +17 more importer(s)."
+      "reason": "Reached via esbuild source module graph, imported by core/plugin-manager.ts (import-statement); lib/tools/automation-tool.ts (import-statement); lib/tools/output-file-tool.ts (import-statement); +18 more importer(s)."
     },
     {
       "path": "lib/tools/update-settings-tool.ts",
@@ -110452,6 +110528,16 @@
         },
         {
           "root": "server-bootstrap",
+          "from": "lib/desk/cron-store.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "lib/desk/automation-execution-context.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
           "from": "core/agent-manager.ts",
           "kind": "import-statement"
         },
@@ -110466,7 +110552,7 @@
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/migrations.ts (import-statement); core/agent-manager.ts (import-statement); core/session-list-projection-cache.ts (import-statement); +1 more importer(s)."
+      "reason": "Reached via esbuild source module graph, imported by core/migrations.ts (import-statement); lib/desk/cron-store.ts (import-statement); lib/desk/automation-execution-context.ts (import-statement); +3 more importer(s)."
     },
     {
       "path": "shared/log-redactor.ts",
@@ -111747,9 +111833,9 @@
     }
   ],
   "stats": {
-    "totalFiles": 9592,
+    "totalFiles": 9595,
     "byInputType": {
-      "source-graph": 613,
+      "source-graph": 616,
       "runtime-asset": 11,
       "nft-runtime-trace": 8968
     }

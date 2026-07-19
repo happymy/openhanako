@@ -407,7 +407,7 @@ describe("migration #30: cron jobs to automation read model", () => {
     });
 
     const [job] = readStudioCronJobs("default");
-    expect(job.schemaVersion).toBe(3);
+    expect(job.schemaVersion).toBe(4);
     expect(job.type).toBe("cron");
     expect(job.prompt).toBe("summarize");
     expect(job.trigger).toEqual({ kind: "cron", expression: "0 9 * * *" });
@@ -1834,7 +1834,7 @@ describe("migration #38: direct notify automations become Agent runs", () => {
     });
 
     const [job] = readStudioCronJobs("default");
-    expect(job.schemaVersion).toBe(3);
+    expect(job.schemaVersion).toBe(4);
     expect(job.prompt).toContain("站起来活动一下");
     expect(job.executor).toMatchObject({
       kind: "agent_session",
@@ -2042,13 +2042,20 @@ describe("migration #39: repair automation ownership after Agent-run consolidati
     runMigration39();
 
     const [job] = readStudioCronJobs("default");
+    const downgradedExecutionContext = {
+      ...executionContext,
+      cwd: null,
+      workspaceFolders: [],
+      sourceSessionPath: null,
+    };
     expect(job.prompt).toContain("notes/create_note");
+    expect(job.executionContext).toEqual(downgradedExecutionContext);
     expect(job.executor).toEqual({
       kind: "agent_session",
       agentId: "hana",
       prompt: job.prompt,
       model: "",
-      executionContext,
+      executionContext: downgradedExecutionContext,
       migratedFrom: {
         kind: "plugin_action",
         pluginId: "notes",

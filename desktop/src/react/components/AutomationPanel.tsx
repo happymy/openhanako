@@ -10,6 +10,9 @@ import { AgentTabScroller, type AgentTabScrollerItem } from './automation/AgentT
 import type { CronJob, ModelOption } from './automation/automation-types';
 import { jobAgentId } from './automation/automation-utils';
 import type { Agent } from '../types';
+import { sessionScopedValue } from '../stores/session-slice';
+
+const EMPTY_FOLDERS: string[] = [];
 
 function updateBadge(jobs: CronJob[]) {
   useStore.setState({ automationCount: jobs.length });
@@ -44,6 +47,7 @@ export function AutomationPanel() {
   const agentName = useStore(s => s.agentName);
   const agentYuan = useStore(s => s.agentYuan);
   const currentAgentId = useStore(s => s.currentAgentId);
+  const currentSessionId = useStore(s => s.currentSessionId);
   const currentSessionPath = useStore(s => s.currentSessionPath);
   const currentSessionProjection = useStore(s => s.currentSessionPath
     ? s.sessions.find(session => session.path === s.currentSessionPath)
@@ -51,6 +55,10 @@ export function AutomationPanel() {
   const deskBasePath = useStore(s => s.deskBasePath);
   const deskWorkspaceMountId = useStore(s => s.deskWorkspaceMountId);
   const homeFolder = useStore(s => s.homeFolder);
+  const currentWorkspaceFolders = useStore(s => s.workspaceFolders);
+  const currentAuthorizedFolders = useStore(s => s.currentSessionPath
+    ? (sessionScopedValue(s, s.sessionAuthorizedFoldersByPath, s.currentSessionPath) || EMPTY_FOLDERS)
+    : EMPTY_FOLDERS);
   const agents = useStore(s => s.agents);
   const addToast = useStore(s => s.addToast);
   const t = window.t ?? ((p: string) => p);
@@ -121,9 +129,17 @@ export function AutomationPanel() {
       addToast(tr('automation.agentRequired'), 'error');
       return;
     }
-    const cwd = deskWorkspaceMountId
+    const actor = agents.find(agent => agent.id === actorAgentId) || null;
+    const keepsSourceSession = actorAgentId === currentAgentId && !!currentSessionId;
+    const sourceCwd = deskWorkspaceMountId
       ? (currentSessionProjection?.cwd || null)
       : (deskBasePath || homeFolder || null);
+    const cwd = keepsSourceSession
+      ? sourceCwd
+      : (actor?.homeFolder || null);
+    const workspaceFolders = keepsSourceSession
+      ? (currentWorkspaceFolders.length > 0 ? currentWorkspaceFolders : (cwd ? [cwd] : []))
+      : (cwd ? [cwd] : []);
     const res = await hanaFetch('/api/desk/cron', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -138,8 +154,11 @@ export function AutomationPanel() {
         executionContext: {
           kind: 'ui_manual',
           cwd,
-          workspaceFolders: cwd ? [cwd] : [],
-          sourceSessionPath: currentSessionPath,
+          workspaceFolders,
+          authorizedFolders: keepsSourceSession ? currentAuthorizedFolders : [],
+          sourceSessionId: keepsSourceSession ? currentSessionId : null,
+          sourceBridgeSessionKey: null,
+          sourceSessionPath: keepsSourceSession ? currentSessionPath : null,
           createdByAgentId: actorAgentId,
         },
         createdBy: { kind: 'user' },
@@ -153,7 +172,7 @@ export function AutomationPanel() {
     const data = await res.json();
     await loadData();
     if (data.job?.id) setOpenJobs(prev => ({ ...prev, [data.job.id]: true }));
-  }, [addToast, agents, currentAgentId, currentSessionPath, currentSessionProjection?.cwd, deskBasePath, deskWorkspaceMountId, homeFolder, loadData, selectedAgentId]);
+  }, [addToast, agents, currentAgentId, currentAuthorizedFolders, currentSessionId, currentSessionPath, currentSessionProjection?.cwd, currentWorkspaceFolders, deskBasePath, deskWorkspaceMountId, homeFolder, loadData, selectedAgentId]);
 
   const groups = useMemo(() => groupJobs(jobs, currentAgentId), [currentAgentId, jobs]);
   const tabs = useMemo(() => agentTabIds(agents, groups), [agents, groups]);

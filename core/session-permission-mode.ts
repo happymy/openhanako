@@ -46,7 +46,6 @@ const SIDE_EFFECT_TOOLS = new Set([
   "update_settings",
   "todo_write",
   "stage_files",
-  "present_files",
   "subagent",
   "workflow",
   "notify",
@@ -62,7 +61,6 @@ const AUTO_REVIEW_TOOLS = new Set([
   "dm",
   "notify",
   "pin_memory",
-  "present_files",
   "record_experience",
   "stage_files",
   "terminal",
@@ -95,26 +93,10 @@ const SUBAGENT_BLOCKED_TOOLS = new Set([
   "session_folders",
 ]);
 
-const BROWSER_READ_ACTIONS = new Set([
-  "start",
-  "navigate",
-  "snapshot",
-  "screenshot",
-  "scroll",
-  "wait",
-  "show",
-  "stop",
-]);
-
 // session 工具（跨 session 协作）：读侧零副作用；send/create 的 execute 只产草稿卡，
 // 真正副作用发生在用户点击确认卡之后——卡即权限关卡（spec 决策 3），
 // 故不进 AUTO_REVIEW（LLM 审查双重把关且非确定，灰测已实证会误拒）。
 const SESSION_COLLAB_READ_ACTIONS = new Set(["?", "list", "read"]);
-
-const TERMINAL_READ_ACTIONS = new Set([
-  "read",
-  "list",
-]);
 
 const FILE_READ_ACTIONS = new Set([
   "stat",
@@ -129,6 +111,15 @@ const DECLARED_READ_KINDS = new Set([
 const DECLARED_AUTO_ALLOW_KINDS = new Set([
   "plugin_output",
   "session_file_output",
+]);
+
+const EXTERNAL_ROUTINE_TARGET_TYPES = new Set([
+  "url",
+  "browser_tab",
+  "channel",
+  "channel_draft",
+  "agent",
+  "notification_route",
 ]);
 
 export function normalizeSessionPermissionMode(raw) {
@@ -271,36 +262,47 @@ function classifyDeclaredToolPermission(mode, toolName, context) {
   return prompt(toolName);
 }
 
-function classifyBrowserAction(mode, action, context) {
-  if (BROWSER_READ_ACTIONS.has(action)) return { action: "allow" };
-  if (mode === SESSION_PERMISSION_MODES.READ_ONLY) return blockedByReadOnly("browser", context);
-  if (mode === SESSION_PERMISSION_MODES.AUTO) return review("browser");
-  if (mode === SESSION_PERMISSION_MODES.ASK) return prompt("browser");
-  return { action: "allow" };
-}
-
-function classifyTerminalAction(mode, action, context) {
-  if (TERMINAL_READ_ACTIONS.has(action)) return { action: "allow" };
-  if (mode === SESSION_PERMISSION_MODES.READ_ONLY) return blockedByReadOnly("terminal", context);
-  if (mode === SESSION_PERMISSION_MODES.AUTO) return review("terminal");
-  if (mode === SESSION_PERMISSION_MODES.ASK) return prompt("terminal");
-  return { action: "allow" };
+function classifyResolvedToolInvocation(mode, toolName, context) {
+  const invocation = context?.toolInvocation;
+  if (!invocation || typeof invocation !== "object") return null;
+  if (invocation.kind === "read") return { action: "allow" };
+  const routineIsHostPreAuthorized =
+    invocation.kind === "routine"
+    && Array.isArray(context?.preAuthorizedRoutineCapabilities)
+    && context.preAuthorizedRoutineCapabilities.includes(invocation.capability);
+  if (routineIsHostPreAuthorized) {
+    return { action: "allow" };
+  }
+  if (mode === SESSION_PERMISSION_MODES.OPERATE) return { action: "allow" };
+  if (mode === SESSION_PERMISSION_MODES.READ_ONLY) return blockedByReadOnly(toolName, context);
+  // Codex-style Auto: actions already contained by the current workspace and
+  // hard safety policy are routine work, so they continue without a reviewer.
+  // Only boundary-crossing actions use automatic approval review.
+  if (invocation.kind === "routine") {
+    if (
+      context?.isPluginTool === true
+      || EXTERNAL_ROUTINE_TARGET_TYPES.has(invocation.target?.type)
+    ) {
+      return mode === SESSION_PERMISSION_MODES.AUTO
+        ? review(toolName)
+        : prompt(toolName);
+    }
+    return mode === SESSION_PERMISSION_MODES.AUTO
+      ? { action: "allow" }
+      : prompt(toolName);
+  }
+  if (mode === SESSION_PERMISSION_MODES.AUTO) {
+    return review(toolName);
+  }
+  return prompt(toolName);
 }
 
 function classifyExecCommandAction(mode, params, context) {
   if (mode === SESSION_PERMISSION_MODES.READ_ONLY) return blockedByReadOnly("exec_command", context);
   if (params?.tty === true) {
-    if (mode === SESSION_PERMISSION_MODES.AUTO) return review("exec_command");
     if (mode === SESSION_PERMISSION_MODES.ASK) return prompt("exec_command");
   }
   if (mode === SESSION_PERMISSION_MODES.ASK) return prompt("exec_command");
-  return { action: "allow" };
-}
-
-function classifyWriteStdinAction(mode, context) {
-  if (mode === SESSION_PERMISSION_MODES.READ_ONLY) return blockedByReadOnly("write_stdin", context);
-  if (mode === SESSION_PERMISSION_MODES.AUTO) return review("write_stdin");
-  if (mode === SESSION_PERMISSION_MODES.ASK) return prompt("write_stdin");
   return { action: "allow" };
 }
 
@@ -336,13 +338,12 @@ export function classifySessionPermission({ mode, toolName, params, context }: {
         + `This tool is always blocked in subagent context regardless of access level; perform this action from the parent session instead.`,
     });
   }
+  const resolvedInvocation = classifyResolvedToolInvocation(normalized, name, context);
+  if (resolvedInvocation) return resolvedInvocation;
   const declared = classifyDeclaredToolPermission(normalized, name, context);
   if (declared) return declared;
   if (INFORMATION_TOOLS.has(name)) return { action: "allow" };
-  if (name === "browser") return classifyBrowserAction(normalized, params?.action, context);
   if (name === "exec_command") return classifyExecCommandAction(normalized, params, context);
-  if (name === "write_stdin") return classifyWriteStdinAction(normalized, context);
-  if (name === "terminal") return classifyTerminalAction(normalized, params?.action, context);
   if (name === "session_folders") return classifySessionFoldersAction(normalized, params?.action, context);
   if (name === "file") return classifyFileAction(normalized, params?.action, context);
   if (name === "session") return classifySessionCollabAction(normalized, params?.action, context);

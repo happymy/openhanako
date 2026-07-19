@@ -72,6 +72,24 @@ export const PLUGIN_BACKED_OPTIONAL_TOOL_IDS = {
   office: "office",
 };
 
+/**
+ * Built-ins whose invocation boundary is enforced by an older host-owned
+ * gateway instead of a tool-owned `sessionPermission.resolveInvocation`.
+ *
+ * Keep this list small and explicit. Adding a name here is a security decision:
+ * the named implementation must already derive its authority from the host
+ * sandbox, ResourceIO, or an internal capability gate.
+ */
+export const BUILT_IN_PERMISSION_GATEWAY_TOOL_NAMES = [
+  // PI filesystem primitives are constrained by the session ResourceIO/sandbox.
+  "read", "write", "edit", "grep", "find", "ls",
+  // Existing read/network surfaces still use the host permission classifier.
+  "search_memory", "web_search", "web_fetch",
+  // These tools own a deeper action/path/session gate at execution time.
+  "file", "current_status", "session_folders", "computer",
+  "session", "workflow",
+];
+
 const OPTIONAL_TOOL_NAMES_SET = new Set(OPTIONAL_TOOL_NAMES);
 
 /**
@@ -147,6 +165,70 @@ export function assertAllToolsCategorized(actualToolNames) {
       `Tools not categorized in shared/tool-categories.js: ${missing.join(", ")}.\n` +
       `Every built-in tool must be explicitly labeled as core / standard / optional. ` +
       `See the header of shared/tool-categories.js for the decision rules.`
+    );
+  }
+}
+
+function hasOwnDataPluginId(tool) {
+  if (!tool || (typeof tool !== "object" && typeof tool !== "function")) return false;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(tool, "_pluginId");
+    return !!descriptor
+      && Object.prototype.hasOwnProperty.call(descriptor, "value")
+      && typeof descriptor.value === "string"
+      && descriptor.value.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function hasOwnInvocationPermissionResolver(tool) {
+  if (!tool || (typeof tool !== "object" && typeof tool !== "function")) return false;
+  try {
+    const permissionDescriptor = Object.getOwnPropertyDescriptor(tool, "sessionPermission");
+    if (
+      !permissionDescriptor
+      || !Object.prototype.hasOwnProperty.call(permissionDescriptor, "value")
+      || !permissionDescriptor.value
+      || typeof permissionDescriptor.value !== "object"
+    ) {
+      return false;
+    }
+    const resolverDescriptor = Object.getOwnPropertyDescriptor(
+      permissionDescriptor.value,
+      "resolveInvocation",
+    );
+    return !!resolverDescriptor
+      && Object.prototype.hasOwnProperty.call(resolverDescriptor, "value")
+      && typeof resolverDescriptor.value === "function";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Startup invariant for the permission catalog. Every non-plugin built-in must
+ * either declare a synchronous tool-owned invocation resolver or be named in
+ * the explicit host-gateway list above. Plugin tools are intentionally skipped:
+ * a plugin without a declaration remains review-required at runtime.
+ *
+ * @param {Array<object>} actualTools
+ * @throws {Error} if a built-in has no permission boundary
+ */
+export function assertAllBuiltInToolsPermissionCovered(actualTools) {
+  const gatewayNames = new Set(BUILT_IN_PERMISSION_GATEWAY_TOOL_NAMES);
+  const missing = uniqueToolNames((actualTools || [])
+    .filter((tool) => !hasOwnDataPluginId(tool))
+    .filter((tool) => {
+      const name = typeof tool?.name === "string" ? tool.name : "";
+      return name && !gatewayNames.has(name) && !hasOwnInvocationPermissionResolver(tool);
+    })
+    .map((tool) => tool.name));
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Built-in tools missing invocation permission coverage: ${missing.join(", ")}.\n`
+      + "Add a tool-owned sessionPermission.resolveInvocation descriptor, or explicitly document its host gateway in shared/tool-categories.js.",
     );
   }
 }

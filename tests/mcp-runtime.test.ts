@@ -634,6 +634,24 @@ describe("MCP runtime policy", () => {
     expect(result.content[0].text).toMatch(/MCP is disabled/);
   });
 
+  it("marks connector invocations for review at the plugin boundary", () => {
+    const tool = createMcpToolDefinition({
+      serverId: "github",
+      toolName: "search",
+      description: "Search repositories",
+      inputSchema: { type: "object", properties: {} },
+      getGlobalEnabled: () => true,
+      getAgentConfig: () => ({}),
+      callTool: vi.fn(),
+    });
+
+    expect(tool.sessionPermission.resolveInvocation()).toEqual({
+      action: "invoke",
+      kind: "review",
+      capability: "github_search.invoke",
+    });
+  });
+
   it("returns an explicit tool error when the per-agent MCP tool switch is off", async () => {
     const callTool = vi.fn();
     const tool = createMcpToolDefinition({
@@ -698,6 +716,11 @@ describe("MCP connectors status tool", () => {
     const statusTool = findStatusTool(registered);
     expect(statusTool).toBeTruthy();
     expect(statusTool.name).toBe(MCP_CONNECTORS_STATUS_TOOL_NAME);
+    expect(statusTool.sessionPermission.resolveInvocation({})).toEqual({
+      action: "read",
+      kind: "read",
+      capability: "connectors_status.read",
+    });
     expect(statusTool.invocationStyle).toBe("pi_tool");
     expect(statusTool.metadata).toMatchObject({ kind: "mcp", readOnly: true });
     // Diagnostic tool takes no input.

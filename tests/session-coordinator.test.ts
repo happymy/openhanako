@@ -4459,9 +4459,9 @@ describe("SessionCoordinator", () => {
 
   it("executeIsolated appends execution-scoped custom tools", async () => {
     const sessionFile = path.join(tempDir, "isolated-extra-tool.jsonl");
-    const buildTools = vi.fn((_cwd, customTools) => ({
+    const buildTools = vi.fn((_cwd, customTools, buildOpts: any = {}) => ({
       tools: [],
-      customTools,
+      customTools: [...customTools, ...(buildOpts.extraCustomTools || [])],
     }));
     const agent = {
       id: "hana",
@@ -4534,12 +4534,13 @@ describe("SessionCoordinator", () => {
     const activityDir = path.join(agentDir, "activity");
     const sessionDir = path.join(agentDir, "sessions");
     const sessionFile = path.join(activityDir, "heartbeat-session.jsonl");
-    const buildTools = vi.fn(() => ({
+    const buildTools = vi.fn((_cwd, _customTools, buildOpts: any = {}) => ({
       tools: [{ name: "read" }],
       customTools: [
         { name: "todo_write" },
         { name: "mcp_github_search", _pluginId: "github" },
         { name: "cron" },
+        ...(buildOpts.extraCustomTools || []),
       ],
     }));
     const agent = {

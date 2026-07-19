@@ -290,17 +290,29 @@ async function _applyAutomationSuggestion(ctx) {
   const bridgeSessionKey = ctx.sessionRef?.kind === "bridge"
     ? ctx.sessionRef.sessionKey
     : null;
-  const sessionPath = ctx.sessionRef?.kind === "desktop"
-    ? ctx.sessionRef.sessionPath
+  const sessionId = ctx.sessionRef?.kind === "desktop"
+    ? ctx.sessionRef.sessionId
     : null;
-  if (!bridgeSessionKey && !sessionPath) {
+  if (!bridgeSessionKey && !sessionId) {
     return { reply: "/apply 只能在当前会话中创建自动任务建议" };
+  }
+  let studioId = null;
+  try {
+    const runtimeContext = ctx.engine?.getRuntimeContext?.();
+    studioId = typeof runtimeContext?.studioId === "string" && runtimeContext.studioId.trim()
+      ? runtimeContext.studioId.trim()
+      : null;
+  } catch {
+    studioId = null;
+  }
+  if (!studioId) {
+    return { reply: "当前 Studio 身份不可用，无法创建自动任务建议" };
   }
 
   try {
     const result = await store.apply({
-      bridgeSessionKey,
-      sessionPath,
+      studioId,
+      ...(bridgeSessionKey ? { bridgeSessionKey } : { sessionId }),
       ref,
     });
     if (!result?.ok) {

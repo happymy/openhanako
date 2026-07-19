@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:99e0fec2bc3e783453deab1f81bfd7db7255cfb4a27ddf4210a00ef36204be10",
+  "payloadFingerprint": "sha256:c5406bd4fa364ac4c362787235090a490f8273cfb300b8138566ef769a1dccf5",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2878,15 +2878,15 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Adds session-scoped derived-memory invalidation and fork baselines without changing SQLite tables or DATA_EPOCH.",
-    "payloadFingerprint": "sha256:99e0fec2bc3e783453deab1f81bfd7db7255cfb4a27ddf4210a00ef36204be10"
+    "compatibilityReason": "Adds versioned cron metadata, live session-scope derivation, and transactional revision fields with load-time defaults for existing records.",
+    "payloadFingerprint": "sha256:c5406bd4fa364ac4c362787235090a490f8273cfb300b8138566ef769a1dccf5"
   },
   "schemas": [
     {
       "contract": "user profile, DM, experience index, and diary Markdown conventions",
       "kind": "directory-contract",
       "module": "lib/tools/experience.ts",
-      "sourceHash": "sha256:f4c0884a7a383327d5bc6968bcbcf43676a7014b388a0f5c56a21696478c76ae",
+      "sourceHash": "sha256:2f54ddeed8fafe0314c36f1c3caf8fe6ed1568b5bd7dfd0c407eb1774fdc7254",
       "storeId": "agent-authored-records"
     },
     {
@@ -2961,7 +2961,7 @@
       "contract": "agent config and authored Markdown/image profile protocol",
       "kind": "directory-contract",
       "module": "core/agent-manager.ts",
-      "sourceHash": "sha256:b73f9d5bd01b298172b164653345df66a9799cc756743e875d11e89c5b6ea68f",
+      "sourceHash": "sha256:5bc801f69605b845f30844874d7d8eead3078964572e0af2117a9c7dfea4cc60",
       "storeId": "agent-profile"
     },
     {
@@ -2982,7 +2982,7 @@
       "contract": "CronStore job registry and run receipt protocol",
       "kind": "directory-contract",
       "module": "lib/desk/cron-store.ts",
-      "sourceHash": "sha256:957b3eaa9f2cc197ff60b5efe5981aa1cb48a3f5ae002d066ed3c90a5557d44a",
+      "sourceHash": "sha256:695a6f6a0a7c59ec8b927ebc8abb205f6b7805a40976626344c619bba1829255",
       "storeId": "cron-automation"
     },
     {
@@ -3041,7 +3041,7 @@
       "contract": "bounded base64 cover upload temporary-directory lifecycle",
       "kind": "directory-contract",
       "module": "server/routes/desk.ts",
-      "sourceHash": "sha256:aef8628965100b5fb18a4314dc1838ae38351d1508080725345ccb105ccea18c",
+      "sourceHash": "sha256:a0e35fa038a9b1b930e65b96caf75ed8d5ef69d8ee8dc3ce621d44d1495b0d5e",
       "storeId": "desk-cover-upload-staging"
     },
     {
@@ -3230,7 +3230,7 @@
         {
           "contract": "core/session-coordinator.ts Hana metadata extensions",
           "module": "core/session-coordinator.ts",
-          "sourceHash": "sha256:8cc5d873b22cf665bb74b6e9e74e6a2b5a04b57506ff446fe24ac3a8840aa8a4"
+          "sourceHash": "sha256:680a27977d69667631a72d17d074f3f8842d112e7777b6bfbef1f7f961024e21"
         },
         {
           "contract": "core/session-jsonl-file.ts repair contract",
@@ -3846,7 +3846,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 312,
+      "line": 315,
       "reason": "Creates the channel root.",
       "sourceFile": "core/engine.ts",
       "storeId": "channels"
@@ -3854,7 +3854,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 358,
+      "line": 361,
       "reason": "Constructs the preferences owner.",
       "sourceFile": "core/engine.ts",
       "storeId": "user-preferences"
@@ -3862,7 +3862,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 359,
+      "line": 362,
       "reason": "Constructs draft/project stores.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-drafts-and-projects"
@@ -3870,7 +3870,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 377,
+      "line": 380,
       "reason": "Constructs draft/project stores.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-drafts-and-projects"
@@ -3878,7 +3878,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 604,
+      "line": 607,
       "reason": "Constructs the plugin task registry.",
       "sourceFile": "core/engine.ts",
       "storeId": "plugin-task-registry"
@@ -3886,7 +3886,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 1208,
+      "line": 1211,
       "reason": "Constructs the manifest store during engine construction.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-manifest-sqlite"
@@ -3894,7 +3894,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 1229,
+      "line": 1232,
       "reason": "Constructs the manifest store during engine construction.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-manifest-sqlite"
@@ -3902,7 +3902,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 2142,
+      "line": 2145,
       "reason": "Creates the user skill root.",
       "sourceFile": "core/engine.ts",
       "storeId": "skill-state"
@@ -3910,7 +3910,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 2324,
+      "line": 2327,
       "reason": "Deletes an expired legacy ephemeral session JSONL locator.",
       "sourceFile": "core/engine.ts",
       "storeId": "session-jsonl"
@@ -3918,7 +3918,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 2378,
+      "line": 2381,
       "reason": "Creates the plugin development source root.",
       "sourceFile": "core/engine.ts",
       "storeId": "plugin-development-state"
@@ -4990,7 +4990,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 480,
+      "line": 493,
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
       "sourceFile": "core/model-sync.ts",
       "storeId": "provider-state"
@@ -5222,7 +5222,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 836,
+      "line": 838,
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
       "sourceFile": "core/provider-registry.ts",
       "storeId": "provider-state"
@@ -5678,7 +5678,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 77,
+      "line": 60,
       "reason": "Writes cron jobs or execution receipts.",
       "sourceFile": "core/studio-cron-service.ts",
       "storeId": "cron-automation"
@@ -5686,7 +5686,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 156,
+      "line": 210,
       "reason": "Writes cron jobs or execution receipts.",
       "sourceFile": "core/studio-cron-service.ts",
       "storeId": "cron-automation"
@@ -5694,7 +5694,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 223,
+      "line": 280,
       "reason": "Writes cron jobs or execution receipts.",
       "sourceFile": "core/studio-cron-service.ts",
       "storeId": "cron-automation"
@@ -5702,7 +5702,7 @@
     {
       "exemptionId": null,
       "kind": "copy-file",
-      "line": 224,
+      "line": 281,
       "reason": "Writes cron jobs or execution receipts.",
       "sourceFile": "core/studio-cron-service.ts",
       "storeId": "cron-automation"
@@ -6246,7 +6246,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 1038,
+      "line": 1066,
       "reason": "Opens or repairs the canonical per-agent facts database.",
       "sourceFile": "hub/channel-router.ts",
       "storeId": "agent-facts-sqlite"
@@ -6782,7 +6782,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 208,
+      "line": 257,
       "reason": "Writes cron jobs or execution receipts.",
       "sourceFile": "lib/desk/cron-store.ts",
       "storeId": "cron-automation"
@@ -6790,7 +6790,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 214,
+      "line": 264,
       "reason": "Writes cron jobs or execution receipts.",
       "sourceFile": "lib/desk/cron-store.ts",
       "storeId": "cron-automation"
@@ -6798,7 +6798,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 572,
+      "line": 722,
       "reason": "Writes cron jobs or execution receipts.",
       "sourceFile": "lib/desk/cron-store.ts",
       "storeId": "cron-automation"
@@ -6806,7 +6806,7 @@
     {
       "exemptionId": null,
       "kind": "append-file",
-      "line": 573,
+      "line": 723,
       "reason": "Writes cron jobs or execution receipts.",
       "sourceFile": "lib/desk/cron-store.ts",
       "storeId": "cron-automation"
@@ -6814,7 +6814,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 580,
+      "line": 730,
       "reason": "Writes cron jobs or execution receipts.",
       "sourceFile": "lib/desk/cron-store.ts",
       "storeId": "cron-automation"
@@ -6838,7 +6838,7 @@
     {
       "exemptionId": "external-heartbeat-workspace",
       "kind": "mkdir",
-      "line": 271,
+      "line": 278,
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
       "sourceFile": "lib/desk/heartbeat.ts",
       "storeId": null
@@ -6846,7 +6846,7 @@
     {
       "exemptionId": "external-heartbeat-workspace",
       "kind": "atomic-write",
-      "line": 272,
+      "line": 279,
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
       "sourceFile": "lib/desk/heartbeat.ts",
       "storeId": null
@@ -6854,7 +6854,7 @@
     {
       "exemptionId": "external-heartbeat-workspace",
       "kind": "atomic-write",
-      "line": 443,
+      "line": 450,
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
       "sourceFile": "lib/desk/heartbeat.ts",
       "storeId": null
@@ -6862,7 +6862,7 @@
     {
       "exemptionId": "external-heartbeat-workspace",
       "kind": "mkdir",
-      "line": 477,
+      "line": 491,
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
       "sourceFile": "lib/desk/heartbeat.ts",
       "storeId": null
@@ -6870,7 +6870,7 @@
     {
       "exemptionId": "external-heartbeat-workspace",
       "kind": "atomic-write",
-      "line": 478,
+      "line": 492,
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
       "sourceFile": "lib/desk/heartbeat.ts",
       "storeId": null
@@ -6878,7 +6878,7 @@
     {
       "exemptionId": "external-heartbeat-workspace",
       "kind": "mkdir",
-      "line": 623,
+      "line": 637,
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
       "sourceFile": "lib/desk/heartbeat.ts",
       "storeId": null
@@ -6886,7 +6886,7 @@
     {
       "exemptionId": "external-heartbeat-workspace",
       "kind": "atomic-write",
-      "line": 624,
+      "line": 638,
       "reason": "Writes heartbeat/task files inside an explicitly mounted workspace, not a Hana-owned persistence root.",
       "sourceFile": "lib/desk/heartbeat.ts",
       "storeId": null
@@ -8350,7 +8350,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 418,
+      "line": 432,
       "reason": "Writes data within the active pluginId-scoped data directory.",
       "sourceFile": "plugins/mcp/lib/mcp-runtime.ts",
       "storeId": "plugin-runtime-data"
@@ -8598,7 +8598,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 516,
+      "line": 683,
       "reason": "Writes or removes a bounded temporary cover upload.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": "desk-cover-upload-staging"
@@ -8606,7 +8606,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 519,
+      "line": 686,
       "reason": "Writes or removes a bounded temporary cover upload.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": "desk-cover-upload-staging"
@@ -8614,7 +8614,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 522,
+      "line": 689,
       "reason": "Writes or removes a bounded temporary cover upload.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": "desk-cover-upload-staging"
@@ -8622,7 +8622,7 @@
     {
       "exemptionId": "external-desk-workspace-roots",
       "kind": "mkdir",
-      "line": 1078,
+      "line": 1312,
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": null
@@ -8630,7 +8630,7 @@
     {
       "exemptionId": "workspace-skill-delete",
       "kind": "remove-path",
-      "line": 1128,
+      "line": 1362,
       "reason": "Deletes a skill directory only after the route proves it belongs to the explicitly mounted workspace skill catalog, outside Hana-owned persistence.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": null
@@ -8638,7 +8638,7 @@
     {
       "exemptionId": "external-desk-workspace-roots",
       "kind": "mkdir",
-      "line": 1144,
+      "line": 1378,
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": null
@@ -8646,7 +8646,7 @@
     {
       "exemptionId": "external-desk-workspace-roots",
       "kind": "mkdir",
-      "line": 1249,
+      "line": 1483,
       "reason": "Creates an approved external workspace root or its .agents/skills directory; the mount registry owns authorization, not the external content.",
       "sourceFile": "server/routes/desk.ts",
       "storeId": null

@@ -479,6 +479,7 @@ export class Agent {
       getAgentId: () => this.id,
       getSessionCwd: (sp) => this._cb?.getSessionCwd?.(sp),
       getSessionWorkspaceFolders: (sp) => this._cb?.getSessionWorkspaceFolders?.(sp) || [],
+      getSessionAuthorizedFolders: (sp) => this._cb?.getSessionAuthorizedFolders?.(sp) || [],
       getHomeCwd: (agentId) => this._cb?.getHomeCwd?.(agentId),
     });
     const resolveActiveSessionFile = (fileId, options: any = {}) => {
@@ -520,6 +521,7 @@ export class Agent {
     });
     this._stopTaskTool = createStopTaskTool({
       getTaskRegistry: () => this._cb?.getTaskRegistry?.(),
+      getSessionIdForPath: (sessionPath) => this._cb?.getEngine?.()?.getSessionIdForPath?.(sessionPath) || null,
     });
 
     this._checkDeferredTool = createCheckDeferredTool({

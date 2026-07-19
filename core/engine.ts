@@ -147,7 +147,10 @@ import { externalReadPathsFromSessionFiles } from "../lib/sandbox/win32-policy.t
 import { Win32LegacySandboxCleanupQueue } from "../lib/sandbox/win32-legacy-migration.ts";
 import { t } from "../lib/i18n.ts";
 import { CheckpointStore } from "../lib/checkpoint-store.ts";
-import { assertAllToolsCategorized } from "../shared/tool-categories.ts";
+import {
+  assertAllBuiltInToolsPermissionCovered,
+  assertAllToolsCategorized,
+} from "../shared/tool-categories.ts";
 import { workspaceRootsForSandbox } from "../shared/workspace-scope.ts";
 import { wrapWithCheckpoint } from "../lib/checkpoint-wrapper.ts";
 import { wrapWithSessionPermission } from "../lib/tools/session-permission-wrapper.ts";
@@ -2498,6 +2501,9 @@ export class HanaEngine {
       opts.requireSessionIdentity === true,
     );
     let ct = customTools;
+    const extraCustomTools = Array.isArray(opts.extraCustomTools)
+      ? opts.extraCustomTools.filter((tool) => tool && typeof tool.name === "string" && tool.name.trim())
+      : [];
     let agentId;
     let toolAgent;
     if (!ct) {
@@ -2518,6 +2524,8 @@ export class HanaEngine {
       agentId = opts.agentDir ? path.basename(opts.agentDir) : (this.agent?.id || "");
       toolAgent = opts.agentDir ? this.getAgent(agentId) : this.agent;
     }
+    const baseCustomTools = Array.isArray(ct) ? ct : [];
+    ct = [...baseCustomTools, ...extraCustomTools];
     const getSessionPath = runtimeSessionRef
       ? (() => runtimeSessionRef.sessionPath)
       : typeof opts.getSessionPath === "function"
@@ -2612,6 +2620,12 @@ export class HanaEngine {
           getAgentId: () => agentId,
         })
       : [];
+    assertUniqueBuiltToolNames([
+      { source: "custom tools", tools: baseCustomTools },
+      { source: "extra custom tools", tools: extraCustomTools },
+      { source: "plugin tools", tools: pluginTools },
+      { source: "plugin development tools", tools: pluginDevTools },
+    ]);
     const allTools = filterToolObjectsByAvailability(
       [...runtimeCustomTools, ...wrappedPluginTools, ...pluginDevTools],
       toolAgent?.config || {},
@@ -2722,6 +2736,10 @@ export class HanaEngine {
       emitEvent: (event, sessionPath) => this._emitEvent(event, sessionPath),
       legacyCleanupQueue: this._win32LegacySandboxCleanupQueue,
     } as any);
+    assertUniqueBuiltToolNames([
+      { source: "Pi built-in tools", tools: result.tools },
+      { source: "runtime custom tools", tools: result.customTools },
+    ]);
 
     // Checkpoint wrapper (outside sandbox layer)
     const backupCfg = this._prefs.getFileBackup();
@@ -2755,6 +2773,8 @@ export class HanaEngine {
         getAuthorizedFolders,
         allowHumanApproval,
         approvalPolicy,
+        getSessionIdForPath: (sessionPath) => this.getSessionIdForPath(sessionPath),
+        permissionBoundary: result.permissionBoundary,
         getConfirmStore: () => this._confirmStore,
         getApprovalGateway: () => this._approvalGateway,
         emitEvent: (event, sessionPath) => this._emitEvent(event, sessionPath),
@@ -2770,6 +2790,8 @@ export class HanaEngine {
         getAuthorizedFolders,
         allowHumanApproval,
         approvalPolicy,
+        getSessionIdForPath: (sessionPath) => this.getSessionIdForPath(sessionPath),
+        permissionBoundary: result.permissionBoundary,
         getConfirmStore: () => this._confirmStore,
         getApprovalGateway: () => this._approvalGateway,
         emitEvent: (event, sessionPath) => this._emitEvent(event, sessionPath),
@@ -2801,10 +2823,14 @@ export class HanaEngine {
     // Startup assertion: every built-in tool must be categorized in
     // shared/tool-categories.js. All session-creation paths route through
     // this function, so a single check here catches the whole surface.
+    assertAllBuiltInToolsPermissionCovered([
+      ...result.tools,
+      ...result.customTools,
+    ]);
     assertAllToolsCategorized([
       ...result.tools.map((t) => t.name).filter(Boolean),
       ...runtimeCustomTools
-        .filter((t) => !t._pluginId)
+        .filter((t) => !t._pluginId && !extraCustomTools.some((extra) => extra.name === t.name))
         .map((t) => t.name)
         .filter(Boolean),
     ]);
@@ -3086,4 +3112,23 @@ function freezeRuntimeSessionRef(value, required = false) {
     );
   }
   return Object.freeze({ sessionId, sessionPath });
+}
+
+function assertUniqueBuiltToolNames(groups: Array<{ source: string; tools: any[] }>) {
+  const seen = new Map<string, string>();
+  for (const group of groups) {
+    for (const tool of group.tools || []) {
+      const name = typeof tool?.name === "string" && tool.name.trim()
+        ? tool.name
+        : null;
+      if (!name) continue;
+      const previousSource = seen.get(name);
+      if (previousSource) {
+        throw new Error(
+          `buildTools: duplicate tool name "${name}" across ${previousSource} and ${group.source}`,
+        );
+      }
+      seen.set(name, group.source);
+    }
+  }
 }

@@ -1120,6 +1120,7 @@ export class AgentManager {
       getSessionPermissionMode: (sp) => getEngine()?.getSessionPermissionMode?.(sp) ?? null,
       getSessionCwd:        (sp) => getEngine()?.getSessionByPath?.(sp)?.sessionManager?.getCwd?.() ?? null,
       getSessionWorkspaceFolders: (sp) => getEngine()?.getSessionWorkspaceFolders?.(sp) ?? [],
+      getSessionAuthorizedFolders: (sp) => getEngine()?.getSessionAuthorizedFolders?.(sp) ?? [],
       getHomeCwd:           (agentId) => getEngine()?.getHomeCwd?.(agentId) ?? null,
       getStudioCronStore:   () => getEngine()?.getStudioCronStore?.() ?? null,
       emitEvent:            (event, sp) => getEngine()?._emitEvent?.(event, sp),
