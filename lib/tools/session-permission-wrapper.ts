@@ -158,6 +158,7 @@ async function reviewToolApproval(tool: any, toolName: any, params: any, session
       allowed: false,
       status: "ask_user",
       reason: "approval-gateway-unavailable",
+      reasonCode: "approval_gateway_unavailable",
     };
   }
   const request = buildToolApprovalGatewayRequest(tool, toolName, params, sessionPath, stableSessionKey(sessionPath, deps, ctx), ctx, deps);
@@ -171,12 +172,19 @@ async function reviewToolApproval(tool: any, toolName: any, params: any, session
     return { allowed: true, status: "approved", decision };
   }
   if (decision?.action === "ask_user") {
-    return { allowed: false, status: "ask_user", decision, reason: decision.reason };
+    return {
+      allowed: false,
+      status: "ask_user",
+      decision,
+      reason: decision.reason,
+      reasonCode: decision.reasonCode,
+    };
   }
   return {
     allowed: false,
     status: decision?.action === "hard_deny" ? "blocked" : "denied",
     decision,
+    reasonCode: decision?.reasonCode,
     reason: decision?.reason
       ? `session permission auto-review: ${decision.reason}`
       : "session permission auto-review denied this action",
@@ -200,6 +208,7 @@ function toolApprovalUnavailable(toolName: any, status = "needs_user_approval_bu
       status,
       toolName,
       reason,
+      reasonCode: "human_approval_unavailable",
       approvalPolicy: SESSION_APPROVAL_POLICIES.DENY_ON_PROMPT,
       ...extras,
     },
@@ -265,16 +274,20 @@ export function wrapWithSessionPermission(tools: any[] = [], deps: any = {}) {
                 status: review.status,
                 toolName: tool.name,
                 reason: review.reason,
+                reasonCode: review.reasonCode,
                 reviewer: review.decision?.reviewer,
                 risk: review.decision?.risk,
+                reviewerFailures: review.decision?.reviewerFailures,
               },
             });
           }
           if (approvalPolicy === SESSION_APPROVAL_POLICIES.DENY_ON_PROMPT) {
             return toolApprovalUnavailable(tool.name, "needs_user_approval_but_unavailable", review.reason || "human approval unavailable", {
               reviewStatus: "ask_user",
+              reasonCode: review.reasonCode || review.decision?.reasonCode || "approval_reviewer_unavailable",
               reviewer: review.decision?.reviewer,
               risk: review.decision?.risk,
+              reviewerFailures: review.decision?.reviewerFailures,
             });
           }
         }

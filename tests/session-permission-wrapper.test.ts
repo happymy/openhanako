@@ -489,6 +489,63 @@ describe("session permission wrapper", () => {
     });
   });
 
+  it("preserves structured reviewer failures while unattended auto mode fails closed", async () => {
+    const tool = makeTool("browser");
+    const confirmStore = { create: vi.fn() };
+    const approvalGateway = {
+      review: vi.fn(async () => ({
+        action: "ask_user",
+        reviewer: "policy",
+        reason: "Automatic approval review could not produce a valid decision.",
+        reasonCode: "approval_review_failed",
+        reviewerFailures: [
+          {
+            reviewer: "small_tool_model",
+            reasonCode: "reviewer_invalid_json",
+            attempts: 2,
+          },
+          {
+            reviewer: "large_tool_model",
+            reasonCode: "reviewer_timeout",
+            errorCode: "LLM_TIMEOUT",
+            attempts: 1,
+          },
+        ],
+        risk: "medium",
+      })),
+    };
+    const [wrapped] = wrapWithSessionPermission([tool], {
+      getPermissionMode: () => "auto",
+      getConfirmStore: () => confirmStore,
+      getApprovalGateway: () => approvalGateway,
+      emitEvent: vi.fn(),
+    });
+
+    const result = await wrapped.execute("call-1", { action: "click", selector: "#send" }, null, null, ctx);
+
+    expect(confirmStore.create).not.toHaveBeenCalled();
+    expect(tool.execute).not.toHaveBeenCalled();
+    expect(result.details.confirmation).toMatchObject({
+      status: "needs_user_approval_but_unavailable",
+      approvalPolicy: "deny_on_prompt",
+      reviewStatus: "ask_user",
+      reasonCode: "approval_review_failed",
+      reviewerFailures: [
+        {
+          reviewer: "small_tool_model",
+          reasonCode: "reviewer_invalid_json",
+          attempts: 2,
+        },
+        {
+          reviewer: "large_tool_model",
+          reasonCode: "reviewer_timeout",
+          errorCode: "LLM_TIMEOUT",
+          attempts: 1,
+        },
+      ],
+    });
+  });
+
   it("passes trust context to the auto reviewer for reviewer-bound tool actions", async () => {
     const tool = makeTool("browser");
     const approvalGateway = {
