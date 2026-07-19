@@ -88,6 +88,7 @@ function BridgeProbe() {
       <span data-testid="qq-secret-stored">{String(qqAppSecretDraft.hasStored)}</span>
       <span data-testid="public-ishiki">{publicIshiki}</span>
       <span data-testid="selected-agent">{selectedAgentId || 'none'}</span>
+      <span data-testid="wechat-status">{status?.wechat?.status || 'none'}</span>
       <button type="button" onClick={() => loadStatus()}>reload status</button>
       <button type="button" onClick={() => setSelectedAgentId('mio')}>bridge probe switch to mio</button>
     </div>
@@ -268,6 +269,7 @@ describe('useBridgeState snapshot hydration', () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -290,6 +292,83 @@ describe('useBridgeState snapshot hydration', () => {
       '/api/bridge/status?agentId=hana',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it('keeps reconciling WeChat after QR confirmation until the selected Agent connects', async () => {
+    vi.useFakeTimers();
+    let statusRequests = 0;
+    mockHanaFetch.mockImplementation((url: string) => {
+      if (url !== '/api/bridge/status?agentId=hana') {
+        throw new Error(`unexpected request: ${url}`);
+      }
+      statusRequests += 1;
+      const wechat = statusRequests === 1
+        ? { enabled: false, status: 'disconnected', token: '', agentId: 'hana' }
+        : statusRequests === 2
+          ? { enabled: true, status: 'connecting', token: '********', agentId: 'hana' }
+          : { enabled: true, status: 'connected', token: '********', agentId: 'hana' };
+      return Promise.resolve(new Response(JSON.stringify(bridgeStatus({ wechat }))));
+    });
+
+    render(<BridgeProbe />);
+    await act(async () => { await Promise.resolve(); });
+
+    await act(async () => {
+      window.dispatchEvent(new Event('hana-bridge-reload'));
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('wechat-status')).toHaveTextContent('connecting');
+
+    await act(async () => { await vi.runOnlyPendingTimersAsync(); });
+    expect(screen.getByTestId('wechat-status')).toHaveTextContent('connected');
+
+    const requestsAfterConnection = statusRequests;
+    await act(async () => { await vi.runAllTimersAsync(); });
+    expect(statusRequests).toBe(requestsAfterConnection);
+  });
+
+  it('cancels WeChat reconciliation when the selected Agent changes', async () => {
+    vi.useFakeTimers();
+    let hanaStatusRequests = 0;
+    mockHanaFetch.mockImplementation((url: string) => {
+      if (url === '/api/bridge/status?agentId=hana') {
+        hanaStatusRequests += 1;
+        const wechat = hanaStatusRequests === 1
+          ? { enabled: false, status: 'disconnected', token: '', agentId: 'hana' }
+          : { enabled: true, status: 'connecting', token: '********', agentId: 'hana' };
+        return Promise.resolve(new Response(JSON.stringify(bridgeStatus({ wechat }))));
+      }
+      if (url === '/api/bridge/status?agentId=mio') {
+        return Promise.resolve(new Response(JSON.stringify(bridgeStatus({
+          agentId: 'mio',
+          wechat: { enabled: false, status: 'disconnected', token: '', agentId: 'mio' },
+        }))));
+      }
+      if (url === '/api/agents/mio/public-ishiki') {
+        return Promise.resolve(new Response(JSON.stringify({ content: '' })));
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+
+    render(<BridgeProbe />);
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      window.dispatchEvent(new Event('hana-bridge-reload'));
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('wechat-status')).toHaveTextContent('connecting');
+    expect(hanaStatusRequests).toBe(2);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'bridge probe switch to mio' }));
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('selected-agent')).toHaveTextContent('mio');
+    expect(screen.getByTestId('wechat-status')).toHaveTextContent('disconnected');
+
+    await act(async () => { await vi.runAllTimersAsync(); });
+    expect(hanaStatusRequests).toBe(2);
+    expect(screen.getByTestId('wechat-status')).toHaveTextContent('disconnected');
   });
 
   it('keeps saved public ishiki in the settings snapshot for remounts', async () => {
