@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useI18n } from '../../hooks/use-i18n';
 import { useTrainUpdateState } from '../../hooks/use-train-update-state';
 import type { TrainUpdatePhase, TrainUpdateProgressState } from '../../hooks/use-train-update-state';
 import type { CrashFallbackNotice } from '../../types';
@@ -42,8 +43,6 @@ interface SidebarUpdateNoticeCardProps {
   onAckFallback?: () => void | Promise<unknown>;
   storage?: NoticeStorage | null;
 }
-
-const tr = (key: string, vars?: Record<string, string | number>) => window.t?.(key, vars) ?? key;
 
 function safeStorage(): NoticeStorage | null {
   if (typeof window === 'undefined') return null;
@@ -130,11 +129,14 @@ function resolveStickerContent({
   phase,
   progress,
   fallbackNotice,
-}: Pick<SidebarUpdateNoticeCardProps, 'available' | 'minShellBlocked' | 'phase' | 'progress' | 'fallbackNotice'>): StickerContent | null {
+  translate,
+}: Pick<SidebarUpdateNoticeCardProps, 'available' | 'minShellBlocked' | 'phase' | 'progress' | 'fallbackNotice'> & {
+  translate: Window['t'];
+}): StickerContent | null {
   if (fallbackNotice) {
     return {
       kind: 'fallback',
-      title: tr('settings.about.fallbackStickerTitle', {
+      title: translate('settings.about.fallbackStickerTitle', {
         fromVersion: fallbackNotice.fromVersion ?? '?',
         toVersion: fallbackNotice.toVersion ?? '?',
       }),
@@ -144,7 +146,7 @@ function resolveStickerContent({
   if (minShellBlocked) {
     return {
       kind: 'blocked',
-      title: tr('settings.about.shellStickerTitleBlocking'),
+      title: translate('settings.about.shellStickerTitleBlocking'),
       subtitle: available ? `v${available.version}` : null,
     };
   }
@@ -152,20 +154,20 @@ function resolveStickerContent({
   if (phase === 'downloading') {
     return {
       kind: 'train',
-      title: tr('settings.about.trainStickerDownloading', { percent: percentOf(progress) }),
+      title: translate('settings.about.trainStickerDownloading', { percent: percentOf(progress) }),
       subtitle: `v${available.version}`,
     };
   }
   if (phase === 'applying') {
     return {
       kind: 'train',
-      title: tr('settings.about.trainStickerApplying'),
+      title: translate('settings.about.trainStickerApplying'),
       subtitle: `v${available.version}`,
     };
   }
   return {
     kind: 'train',
-    title: tr('settings.about.trainStickerTitle'),
+    title: translate('settings.about.trainStickerTitle'),
     subtitle: `v${available.version}`,
   };
 }
@@ -181,6 +183,7 @@ export function SidebarUpdateNoticeCard({
   onAckFallback,
   storage,
 }: SidebarUpdateNoticeCardProps) {
+  const { t } = useI18n();
   const resolvedStorage = storage === undefined ? safeStorage() : storage;
 
   // blocked 形态的叉号状态只活在组件内存里（不落 localStorage）：进程
@@ -195,10 +198,17 @@ export function SidebarUpdateNoticeCard({
     setTrainDismissedKey(readDismissedKey(resolvedStorage, DISMISSED_TRAIN_UPDATE_KEY));
   }, [trainKey, resolvedStorage]);
 
-  const content = useMemo(
-    () => resolveStickerContent({ available, minShellBlocked, phase, progress, fallbackNotice }),
-    [available, minShellBlocked, phase, progress, fallbackNotice],
-  );
+  // Resolve translated content during every subscribed render. useI18n owns
+  // the locale subscription, so startup loading and runtime language changes
+  // cannot leave a module-level or memoized translation frozen in the card.
+  const content = resolveStickerContent({
+    available,
+    minShellBlocked,
+    phase,
+    progress,
+    fallbackNotice,
+    translate: t,
+  });
 
   if (!content) return null;
   if (content.kind === 'blocked' && blockedDismissed) return null;
@@ -246,7 +256,7 @@ export function SidebarUpdateNoticeCard({
         <button
           type="button"
           className={styles.closeButton}
-          aria-label={content.kind === 'fallback' ? tr('settings.about.fallbackStickerAckLabel') : tr('window.close')}
+          aria-label={content.kind === 'fallback' ? t('settings.about.fallbackStickerAckLabel') : t('window.close')}
           onClick={dismiss}
         >
           <CloseIcon />

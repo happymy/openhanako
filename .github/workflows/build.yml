@@ -524,11 +524,28 @@ jobs:
           printf '%s\n' "$HANA_SIGN_KEY_PEM" > "$RUNNER_TEMP/hana-train-sign-key.pem"
           echo "HANA_SIGN_KEY=$RUNNER_TEMP/hana-train-sign-key.pem" >> "$GITHUB_ENV"
 
-      # Stable is the primary channel for every tagged release. Beta has no separate
-      # pre-release track yet, so it always follows stable's every publish with the SAME
-      # archives (see scripts/publish-train.mjs's file header) so beta users never go
-      # without an update path.
+      # The automatic publisher classifies the source installer Release before choosing
+      # channels. A prerelease advances beta only; stable requires a non-prerelease source
+      # here, or an explicit operator choice in the dedicated manual Publish Train workflow.
+      # publish-train.mjs independently enforces the same boundary before any remote write.
+      - name: Inspect source release
+        id: source_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          IS_PRERELEASE="$(gh release view "${{ github.ref_name }}" --json isPrerelease --jq '.isPrerelease')"
+          case "$IS_PRERELEASE" in
+            true|false) ;;
+            *)
+              echo "::error::Unexpected isPrerelease value for ${{ github.ref_name }}: $IS_PRERELEASE"
+              exit 1
+              ;;
+          esac
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+
       - name: Publish stable train
+        if: steps.source_release.outputs.is_prerelease == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/publish-train.mjs --tag "${{ github.ref_name }}" --channel stable
@@ -545,14 +562,18 @@ jobs:
             echo "### Hot-update train publish — ${{ github.ref_name }}"
             echo ""
             if [ "${{ job.status }}" = "success" ]; then
-              echo "Both the stable and beta channel pointers were updated."
+              if [ "${{ steps.source_release.outputs.is_prerelease }}" = "true" ]; then
+                echo "The beta channel pointer was updated; stable was intentionally left unchanged because the source Release is a prerelease."
+              else
+                echo "Both the stable and beta channel pointers were updated from a non-prerelease source Release."
+              fi
             else
               echo "This job did not finish. The installer release for ${{ github.ref_name }} is unaffected"
               echo "(published by the separate, already-completed \`release\` job)."
               echo ""
               echo "To retry: re-run this job — the publish script detects and safely resumes a partially"
-              echo "created train release — or trigger the **Publish Train** workflow manually with"
-              echo "\`tag=${{ github.ref_name }}\` and \`channel=stable\`, then again with \`channel=beta\`."
+              echo "created train release — or trigger the **Publish Train** workflow manually for the"
+              echo "intended channel. A prerelease-to-stable publish also requires its explicit confirmation checkbox."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

@@ -3,10 +3,11 @@
  */
 
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlatformApi, TrainUpdateStatus } from '../../types';
+import { useStore } from '../../stores';
 
 // The regression test below asserts the sidebar card ignores the shell
 // auto-updater entirely: a downloaded shell update alone must not trigger the card. Stubbing
@@ -49,12 +50,14 @@ describe('SidebarUpdateNoticeCard', () => {
   beforeEach(() => {
     window.t = translate as typeof window.t;
     window.localStorage.clear();
+    useStore.setState({ locale: 'zh-CN' });
   });
 
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
     window.localStorage.clear();
+    useStore.setState({ locale: 'zh-CN' });
   });
 
   it('stays silent when nothing is available and the shell is not blocked', () => {
@@ -86,6 +89,53 @@ describe('SidebarUpdateNoticeCard', () => {
 
     fireEvent.click(screen.getByText('有新版本可用'));
     expect(onApplyTrain).toHaveBeenCalledTimes(1);
+  });
+
+  it('retranslates an already-visible update when i18n finishes loading after the card mounts', () => {
+    window.t = ((key: string) => key) as typeof window.t;
+    useStore.setState({ locale: '' });
+    render(
+      <SidebarUpdateNoticeCard
+        available={{ version: '0.400.0' }}
+        minShellBlocked={false}
+        phase="idle"
+        progress={null}
+      />,
+    );
+
+    expect(screen.getByText('settings.about.trainStickerTitle')).toBeInTheDocument();
+
+    window.t = translate as typeof window.t;
+    act(() => useStore.setState({ locale: 'zh-CN' }));
+
+    expect(screen.getByText('有新版本可用')).toBeInTheDocument();
+    expect(screen.queryByText('settings.about.trainStickerTitle')).not.toBeInTheDocument();
+  });
+
+  it('retranslates the card when the user switches locale at runtime', () => {
+    let activeLabels: Record<string, string> = {
+      ...labels,
+      'settings.about.trainStickerTitle': 'Update available',
+      'window.close': 'Close',
+    };
+    window.t = ((key: string) => activeLabels[key] ?? key) as typeof window.t;
+    useStore.setState({ locale: 'en' });
+    render(
+      <SidebarUpdateNoticeCard
+        available={{ version: '0.400.0' }}
+        minShellBlocked={false}
+        phase="idle"
+        progress={null}
+      />,
+    );
+
+    expect(screen.getByText('Update available')).toBeInTheDocument();
+
+    activeLabels = labels;
+    act(() => useStore.setState({ locale: 'zh-CN' }));
+
+    expect(screen.getByText('有新版本可用')).toBeInTheDocument();
+    expect(screen.queryByText('Update available')).not.toBeInTheDocument();
   });
 
   it('renders download progress and applying phase text on the card while an apply is in flight', () => {
@@ -237,12 +287,14 @@ describe('SidebarNoticeSlot (wired to the real hook)', () => {
   beforeEach(() => {
     window.t = translate as typeof window.t;
     window.localStorage.clear();
+    useStore.setState({ locale: 'zh-CN' });
   });
 
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
     window.localStorage.clear();
+    useStore.setState({ locale: 'zh-CN' });
   });
 
   function installHana(status: Partial<TrainUpdateStatus>) {
