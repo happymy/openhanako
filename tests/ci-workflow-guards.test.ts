@@ -113,3 +113,57 @@ describe("build.yml: seed kit verification precedes every electron-builder invoc
     expect(jobsWithElectronBuilder.length).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe("build.yml: Windows standalone server stays outside the seed/OTA boundary", () => {
+  const doc = loadWorkflow(BUILD_YAML_PATH);
+
+  it("builds and smoke-verifies the standalone archive after both server and sandbox helper", () => {
+    const steps = doc.jobs.build?.steps ?? [];
+    const serverIndex = steps.findIndex((step) => stepRun(step).includes("scripts/build-server.mjs"));
+    const helperIndex = steps.findIndex((step) => stepRun(step).includes("scripts/build-windows-sandbox-helper.mjs"));
+    const installerIndex = steps.findIndex((step) => stepRun(step).includes("npx electron-builder --win nsis"));
+    const packIndex = steps.findIndex((step) => stepRun(step).includes("scripts/build-standalone-server-artifact.mjs"));
+    const verifyIndex = steps.findIndex((step) => stepRun(step).includes("scripts/verify-standalone-server-artifact.mjs"));
+    const uploadIndex = steps.findIndex((step) => step.name === "Upload artifacts");
+
+    expect(serverIndex).toBeGreaterThanOrEqual(0);
+    expect(helperIndex).toBeGreaterThan(serverIndex);
+    expect(packIndex).toBeGreaterThan(helperIndex);
+    expect(verifyIndex).toBeGreaterThan(packIndex);
+    expect(installerIndex).toBeGreaterThan(verifyIndex);
+    expect(uploadIndex).toBeGreaterThan(verifyIndex);
+    expect(steps[packIndex]?.if).toBe("runner.os == 'Windows'");
+    expect(steps[verifyIndex]?.if).toBe("runner.os == 'Windows'");
+    expect(stepRun(steps[packIndex])).not.toContain("win-unpacked");
+    expect(stepRun(steps[verifyIndex])).toContain("--smoke");
+  });
+
+  it("uploads and gates the standalone archive plus SHA-256 manifest without a signing-key gate", () => {
+    const buildSteps = doc.jobs.build?.steps ?? [];
+    const uploadArtifact = buildSteps.find((step) => step.name === "Upload artifacts");
+    const uploadArtifactText = JSON.stringify(uploadArtifact);
+    expect(uploadArtifactText).toContain("dist-standalone/HanaCore-*-Windows-x64.tar.gz");
+    expect(uploadArtifactText).toContain("dist-standalone/HanaCore-*-Windows-x64.manifest.json");
+    expect(uploadArtifactText).not.toContain("dist-standalone/HanaCore-*-Windows-x64.manifest.json.sig");
+
+    const releaseSteps = doc.jobs.release?.steps ?? [];
+    const releaseUpload = releaseSteps.find((step) => step.name === "Upload release assets");
+    const releaseGate = releaseSteps.find((step) => step.name === "Verify release assets");
+    expect(stepRun(releaseUpload ?? {})).toContain("dist-standalone/HanaCore-*-Windows-x64.tar.gz");
+    expect(stepRun(releaseUpload ?? {})).toContain("dist-standalone/HanaCore-*-Windows-x64.manifest.json");
+    expect(stepRun(releaseUpload ?? {})).not.toContain("dist-standalone/HanaCore-*-Windows-x64*'");
+    expect(stepRun(releaseGate ?? {})).toContain("HanaCore-.*-Windows-x64\\.tar\\.gz");
+    expect(stepRun(releaseGate ?? {})).toContain("HanaCore-.*-Windows-x64\\.manifest\\.json");
+    expect(stepRun(releaseGate ?? {})).toContain("Obsolete standalone manifest signature leaked into the release");
+    expect(stepRun(releaseGate ?? {})).not.toContain(
+      'MISSING+=("Windows x64 standalone server manifest signature")',
+    );
+  });
+
+  it("does not expose the standalone namespace to publish-train", () => {
+    const publishTrainText = JSON.stringify(doc.jobs["publish-train"]);
+    expect(publishTrainText).not.toContain("dist-standalone");
+    expect(publishTrainText).not.toContain("HanaCore-");
+    expect(publishTrainText).toContain("publish-train.mjs");
+  });
+});

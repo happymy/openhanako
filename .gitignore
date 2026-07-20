@@ -35,6 +35,7 @@ dist-server/
 dist-server-open/
 dist-server-artifact/
 dist-renderer-artifact/
+dist-standalone/
 desktop/dist-splash/
 dist-server-bundle/
 dist-computer-use/

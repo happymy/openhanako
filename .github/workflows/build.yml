@@ -233,6 +233,20 @@ jobs:
         shell: pwsh
         run: node scripts/build-windows-sandbox-helper.mjs ${{ matrix.arch }}
 
+      # 独立 Server 下载包与桌面 seed/OTA 是两个发布边界。直接使用本次
+      # build-windows-sandbox-helper 的输出，不依赖 electron-builder、
+      # win-unpacked 或 Windows 代码签名。验证步骤从解包结果实际运行
+      # MinGit、根 hana-server.cmd 和 restricted-token sandbox 链。
+      - name: Build Windows standalone server archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: node scripts/build-standalone-server-artifact.mjs ${{ matrix.arch }}
+
+      - name: Verify Windows standalone server archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: node scripts/verify-standalone-server-artifact.mjs ${{ matrix.arch }} --smoke
+
       # 装箱前 fail-closed 复核：electron-builder 是直调（不经过 package.json
       # 的 pack/dist/dist:win/dist:linux 脚本链），scripts/verify-seed-kit.mjs
       # 挂在那条脚本链里、这里不会自动生效，必须单独接线，否则一份陈旧/串
@@ -324,6 +338,8 @@ jobs:
             dist-server-artifact/*/seed-train-*.json
             dist-server-artifact/*/seed-train-*.json.sig
             dist-renderer-artifact/renderer-*.tar.gz
+            dist-standalone/HanaCore-*-Windows-x64.tar.gz
+            dist-standalone/HanaCore-*-Windows-x64.manifest.json
           if-no-files-found: error
 
   release:
@@ -399,6 +415,16 @@ jobs:
               gh release upload "${{ github.ref_name }}" "$f" --clobber
             done
 
+          echo "=== Uploading self-contained Windows standalone server assets ==="
+          find artifacts -type f \( \
+              -path '*/dist-standalone/HanaCore-*-Windows-x64.tar.gz' -o \
+              -path '*/dist-standalone/HanaCore-*-Windows-x64.manifest.json' \
+            \) -print0 |
+            while IFS= read -r -d '' f; do
+              echo "  $f"
+              gh release upload "${{ github.ref_name }}" "$f" --clobber
+            done
+
           # Renderer archive is platform-independent AND now byte-identical across all four
           # matrix jobs: it is built once by the renderer-box job and downloaded/reused by
           # every platform (see scripts/pack-renderer-box.mjs and packDualKindSeed's
@@ -468,6 +494,13 @@ jobs:
           echo "$ASSETS" | grep -qE '^server-.*-win32-x64\.tar\.gz$' || MISSING+=("server win32-x64 hot-update archive")
           echo "$ASSETS" | grep -qE '^server-.*-linux-x64\.tar\.gz$' || MISSING+=("server linux-x64 hot-update archive")
           echo "$ASSETS" | grep -qE '^renderer-.*\.tar\.gz$' || MISSING+=("renderer hot-update archive")
+          echo "$ASSETS" | grep -qE '^HanaCore-.*-Windows-x64\.tar\.gz$' || MISSING+=("Windows x64 standalone server archive")
+          echo "$ASSETS" | grep -qE '^HanaCore-.*-Windows-x64\.manifest\.json$' || MISSING+=("Windows x64 standalone server manifest")
+
+          if echo "$ASSETS" | grep -qE '^HanaCore-.*-Windows-x64\.manifest\.json\.sig$'; then
+            echo "::error::Obsolete standalone manifest signature leaked into the release"
+            exit 1
+          fi
 
           # 清洁性检查：不应该有 blockmap 漏进来
           if echo "$ASSETS" | grep -qE '\.blockmap$'; then

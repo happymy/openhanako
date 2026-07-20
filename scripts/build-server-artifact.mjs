@@ -60,6 +60,7 @@ const activation = require("../shared/artifact-core/activation.cjs");
 const manifestModule = require("../shared/artifact-core/manifest.cjs");
 const { loadPinnedKeyset } = require("../shared/artifact-core/keyset.cjs");
 const { PRELOAD_API_VERSION, SERVER_PROTOCOL_VERSION } = require("../shared/contract-versions.cjs");
+const { assertOfficePdfFontAssets } = require("../desktop/src/office-pdf-fonts.cjs");
 
 /**
  * Per-platform seed manifest file name. Each CI platform-arch job produces
@@ -393,6 +394,18 @@ export async function packRendererArtifact({ rendererDistDir, artifactOutDir, ve
     throw new Error(
       `[build-server] renderer dist dir not found: ${rendererDistDir}. `
         + "Run npm run build:renderer (or build:client) before packing the renderer artifact.",
+    );
+  }
+
+  // Office HTML→PDF helper resolves fonts from the activated renderer artifact.
+  // Refuse to create a renderer box whose CSS or referenced font files are
+  // incomplete: Chromium would otherwise silently print with fallback fonts.
+  try {
+    assertOfficePdfFontAssets({ themesDir: path.join(rendererDistDir, "themes") });
+  } catch (err) {
+    throw new Error(
+      `[build-server] renderer Office PDF font assets are invalid: ${err?.message || err}`,
+      { cause: err },
     );
   }
 

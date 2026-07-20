@@ -8,13 +8,18 @@
  * `vite.config.server.js`'s build entry (packaged `bundle/index.js`, which
  * `server/bootstrap.ts` imports at runtime).
  *
- * It statically imports the open composition root's `startServer` export
- * plus the closed route registration hook and closed media adapter list,
- * and calls one with the other — no runtime switch, no env var: which
- * composition boots is decided by which entry file gets spawned, decided
- * once at each boot path above.
+ * Normal boot statically pairs the open composition root's `startServer`
+ * export with the closed route hook and media adapter list. The sole env
+ * branch below is a release-only, one-shot runtime probe: it starts no
+ * composition and cannot switch an open server into the closed product or
+ * vice versa. Which composition boots remains fixed by the selected entry.
  */
 import { startServer } from "./index.ts";
 import { registerClosedRoutes, builtinMediaAdapters } from "./composition/full-root.ts";
+import { runPackagedStandaloneRuntimeSmoke } from "./standalone-runtime-smoke.ts";
 
-await startServer({ registerClosedRoutes, builtinMediaAdapters });
+if (process.env.HANA_INTERNAL_STANDALONE_RUNTIME_SMOKE === "1") {
+  await runPackagedStandaloneRuntimeSmoke();
+} else {
+  await startServer({ registerClosedRoutes, builtinMediaAdapters });
+}

@@ -8,6 +8,11 @@ import { packDualKindSeed, seedManifestFileName } from "../scripts/build-server-
 import { verifySeedKit } from "../scripts/verify-seed-kit.mjs";
 
 const tempDirs: string[] = [];
+const OFFICE_FONT_FIXTURE_CSS = `
+@font-face { font-family: 'EB Garamond'; src: url('./fonts/eb.woff2') format('woff2'); }
+@font-face { font-family: 'Noto Serif SC'; src: url('./fonts/noto.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; src: url('./fonts/mono.woff2') format('woff2'); }
+`;
 
 function makeTempDir(prefix: string) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -46,6 +51,13 @@ function makeRendererTree(root: string) {
   fs.mkdirSync(path.join(rendererDir, "assets"), { recursive: true });
   fs.writeFileSync(path.join(rendererDir, "index.html"), "<!doctype html><html></html>\n");
   fs.writeFileSync(path.join(rendererDir, "assets", "index.js"), "console.log('renderer');\n");
+  const themesDir = path.join(rendererDir, "themes");
+  const fontsDir = path.join(themesDir, "fonts");
+  fs.mkdirSync(fontsDir, { recursive: true });
+  fs.writeFileSync(path.join(themesDir, "new-warm-paper-fonts.css"), OFFICE_FONT_FIXTURE_CSS, "utf8");
+  for (const fileName of ["eb.woff2", "noto.woff2", "mono.woff2"]) {
+    fs.writeFileSync(path.join(fontsDir, fileName), Buffer.from("wOF2fixture"));
+  }
   return rendererDir;
 }
 

@@ -152,6 +152,9 @@ describe("composition boundary behavior lock: builtin media adapter injection", 
     expect(mainFullSource).toContain('from "./composition/full-root.ts"');
     expect(mainFullSource).toMatch(/registerClosedRoutes,\s*builtinMediaAdapters/);
     expect(mainFullSource).toMatch(/startServer\(\{\s*registerClosedRoutes,\s*builtinMediaAdapters\s*\}\)/);
+    expect(mainFullSource).toContain('from "./standalone-runtime-smoke.ts"');
+    expect(mainFullSource).toContain('process.env.HANA_INTERNAL_STANDALONE_RUNTIME_SMOKE === "1"');
+    expect(mainFullSource).toContain("await runPackagedStandaloneRuntimeSmoke();");
   });
 });
 
