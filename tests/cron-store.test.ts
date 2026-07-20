@@ -656,7 +656,7 @@ describe("Automation suggestion receipts and persistence", () => {
     const job = store.addJob({
       ...baseJob(),
       type: "at",
-      schedule: "2026-07-20T12:00:00.000Z",
+      schedule: new Date(Date.now() + 60_000).toISOString(),
     });
     const staleAfterRun = receipt({
       suggestionId: "automation_suggestion_before_at_run",

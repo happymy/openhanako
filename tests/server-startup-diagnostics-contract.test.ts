@@ -340,7 +340,7 @@ describe("server startup diagnostics contract", () => {
     let alive = true;
     let checks = 0;
     const context = vm.createContext({
-      SERVER_SHUTDOWN_POLL_MS: 1,
+      SERVER_SHUTDOWN_POLL_MS: 5,
       isPidAliveForDiagnostics: () => {
         checks++;
         return alive;
@@ -350,13 +350,18 @@ describe("server startup diagnostics contract", () => {
     });
 
     vm.runInContext(`${hasChildExitObserved}\n${waitForProcessExit}`, context);
-    const wait = context.waitForProcessExit(null, 12345, 25);
+    // Keep the wait window far above a few poll ticks so a delayed setTimeout
+    // under load cannot race past the deadline before the mid-wait assertion.
+    const wait = context.waitForProcessExit(null, 12345, 500);
     let settled = false;
     wait.then(() => { settled = true; });
 
-    await new Promise(resolve => setTimeout(resolve, 5));
-    expect(settled).toBe(false);
+    const deadline = Date.now() + 200;
+    while (checks === 0 && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
     expect(checks).toBeGreaterThan(0);
+    expect(settled).toBe(false);
 
     alive = false;
     await expect(wait).resolves.toBe(true);
