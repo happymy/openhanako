@@ -73,6 +73,21 @@ describe("ci.yml: open composition build+smoke guard is wired", () => {
   });
 });
 
+describe("ci.yml: Windows restricted-token helper is exercised before release builds", () => {
+  const doc = loadWorkflow(CI_YAML_PATH);
+
+  it("builds and runs the native helper smoke in the Windows test matrix", () => {
+    const steps = doc.jobs.test?.steps ?? [];
+    const buildIndex = steps.findIndex((step) => stepRun(step).includes("build-windows-sandbox-helper.mjs"));
+    const smokeIndex = steps.findIndex((step) => stepRun(step).includes("smoke-windows-sandbox-helper.mjs"));
+
+    expect(buildIndex).toBeGreaterThanOrEqual(0);
+    expect(smokeIndex).toBeGreaterThan(buildIndex);
+    expect(steps[buildIndex]?.if).toBe("runner.os == 'Windows'");
+    expect(steps[smokeIndex]?.if).toBe("runner.os == 'Windows'");
+  });
+});
+
 describe("build.yml: seed kit verification precedes every electron-builder invocation", () => {
   const doc = loadWorkflow(BUILD_YAML_PATH);
 

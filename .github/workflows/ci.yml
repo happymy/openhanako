@@ -26,6 +26,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build Windows sandbox helper
+        if: runner.os == 'Windows'
+        run: node scripts/build-windows-sandbox-helper.mjs x64
+
+      - name: Smoke-test Windows restricted-token helper
+        if: runner.os == 'Windows'
+        run: node scripts/smoke-windows-sandbox-helper.mjs x64
+
       - name: Typecheck
         run: npm run typecheck
 

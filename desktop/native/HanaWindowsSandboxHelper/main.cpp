@@ -70,7 +70,10 @@ struct AclRestore {
 };
 
 struct SandboxDesktop {
-    std::wstring name;
+    std::wstring stationName;
+    std::wstring desktopName;
+    std::wstring qualifiedName;
+    HWINSTA station = nullptr;
     HDESK handle = nullptr;
 };
 
@@ -874,40 +877,77 @@ static bool createSandboxDesktop(const std::vector<WritableRoot>& roots, Sandbox
     queryTokenDefaultDacl(processToken, baseDefaultDacl);
     CloseHandle(processToken);
 
-    PACL desktopDacl = buildDaclWithRootSids(roots, baseDefaultDacl.dacl, GENERIC_ALL);
-    if (!desktopDacl) {
-        fail(L"cannot build sandbox desktop ACL");
+    PACL userObjectDacl = buildDaclWithRootSids(roots, baseDefaultDacl.dacl, GENERIC_ALL);
+    if (!userObjectDacl) {
+        fail(L"cannot build sandbox user-object ACL");
         return false;
     }
 
     SECURITY_DESCRIPTOR descriptor = {};
     if (!InitializeSecurityDescriptor(&descriptor, SECURITY_DESCRIPTOR_REVISION) ||
-        !SetSecurityDescriptorDacl(&descriptor, TRUE, desktopDacl, FALSE)) {
+        !SetSecurityDescriptorDacl(&descriptor, TRUE, userObjectDacl, FALSE)) {
         DWORD err = GetLastError();
-        LocalFree(desktopDacl);
-        fail(L"cannot initialize sandbox desktop descriptor: " + win32Message(err));
+        LocalFree(userObjectDacl);
+        fail(L"cannot initialize sandbox user-object descriptor: " + win32Message(err));
         return false;
     }
 
-    desktop.name = L"hana-win-sandbox-" +
+    const std::wstring uniqueSuffix =
         std::to_wstring(GetCurrentProcessId()) + L"-" +
         std::to_wstring(GetTickCount64());
+    desktop.stationName = L"hana-win-sandbox-station-" + uniqueSuffix;
+    desktop.desktopName = L"hana-win-sandbox-desktop-" + uniqueSuffix;
+    desktop.qualifiedName = desktop.stationName + L"\\" + desktop.desktopName;
     SECURITY_ATTRIBUTES attributes = {};
     attributes.nLength = sizeof(attributes);
     attributes.lpSecurityDescriptor = &descriptor;
     attributes.bInheritHandle = FALSE;
 
+    desktop.station = CreateWindowStationW(
+        desktop.stationName.c_str(),
+        0,
+        WINSTA_ALL_ACCESS,
+        &attributes
+    );
+    if (!desktop.station) {
+        DWORD errorCode = GetLastError();
+        LocalFree(userObjectDacl);
+        fail(L"CreateWindowStationW failed: " + win32Message(errorCode));
+        return false;
+    }
+
+    HWINSTA originalStation = GetProcessWindowStation();
+    if (!originalStation || !SetProcessWindowStation(desktop.station)) {
+        DWORD errorCode = GetLastError();
+        CloseWindowStation(desktop.station);
+        desktop.station = nullptr;
+        LocalFree(userObjectDacl);
+        fail(L"cannot enter sandbox window station: " + win32Message(errorCode));
+        return false;
+    }
+
     desktop.handle = CreateDesktopW(
-        desktop.name.c_str(),
+        desktop.desktopName.c_str(),
         nullptr,
         nullptr,
         0,
         GENERIC_ALL,
         &attributes
     );
-    LocalFree(desktopDacl);
+    DWORD createDesktopError = desktop.handle ? ERROR_SUCCESS : GetLastError();
+    BOOL restoredStation = SetProcessWindowStation(originalStation);
+    DWORD restoreStationError = restoredStation ? ERROR_SUCCESS : GetLastError();
+    LocalFree(userObjectDacl);
     if (!desktop.handle) {
-        fail(L"CreateDesktopW failed: " + win32Message(GetLastError()));
+        CloseWindowStation(desktop.station);
+        desktop.station = nullptr;
+        fail(L"CreateDesktopW failed: " + win32Message(createDesktopError));
+        return false;
+    }
+    if (!restoredStation) {
+        CloseDesktop(desktop.handle);
+        desktop.handle = nullptr;
+        fail(L"cannot restore process window station: " + win32Message(restoreStationError));
         return false;
     }
     return true;
@@ -916,26 +956,49 @@ static bool createSandboxDesktop(const std::vector<WritableRoot>& roots, Sandbox
 static void closeSandboxDesktop(SandboxDesktop& desktop) {
     if (desktop.handle) CloseDesktop(desktop.handle);
     desktop.handle = nullptr;
-    desktop.name.clear();
+    if (desktop.station) CloseWindowStation(desktop.station);
+    desktop.station = nullptr;
+    desktop.stationName.clear();
+    desktop.desktopName.clear();
+    desktop.qualifiedName.clear();
 }
 
 static std::wstring probeNamedObjectNamespace(HANDLE restrictedToken);
 
-static std::wstring probeRestrictedDesktopAccess(HANDLE restrictedToken, const std::wstring& desktopName) {
-    if (desktopName.empty()) return L"skipped:no-desktop";
+static std::wstring probeRestrictedDesktopAccess(HANDLE restrictedToken, const SandboxDesktop& sandbox) {
+    if (sandbox.stationName.empty() || sandbox.desktopName.empty()) return L"skipped:no-desktop";
     if (!ImpersonateLoggedOnUser(restrictedToken)) {
         DWORD rc = GetLastError();
         return L"impersonate-failed:" + std::to_wstring(rc) + L":" + win32Message(rc);
     }
 
+    HWINSTA station = OpenWindowStationW(
+        sandbox.stationName.c_str(),
+        FALSE,
+        WINSTA_ALL_ACCESS
+    );
+    if (!station) {
+        DWORD rc = GetLastError();
+        RevertToSelf();
+        return L"station-error:" + std::to_wstring(rc) + L":" + win32Message(rc);
+    }
+    HWINSTA originalStation = GetProcessWindowStation();
+    if (!originalStation || !SetProcessWindowStation(station)) {
+        DWORD rc = GetLastError();
+        CloseWindowStation(station);
+        RevertToSelf();
+        return L"station-switch-error:" + std::to_wstring(rc) + L":" + win32Message(rc);
+    }
     HDESK desktop = OpenDesktopW(
-        desktopName.c_str(),
+        sandbox.desktopName.c_str(),
         0,
         FALSE,
-        DESKTOP_CREATEWINDOW | DESKTOP_READOBJECTS | DESKTOP_WRITEOBJECTS
+        GENERIC_ALL
     );
     DWORD rc = desktop ? ERROR_SUCCESS : GetLastError();
     if (desktop) CloseDesktop(desktop);
+    if (!SetProcessWindowStation(originalStation) && rc == ERROR_SUCCESS) rc = GetLastError();
+    CloseWindowStation(station);
     RevertToSelf();
 
     if (rc == ERROR_SUCCESS) return L"ok";
@@ -984,7 +1047,7 @@ static void emitCreateProcessLaunchFailureDiagnostic(
         << L" executable=\"" << escapeDiagnosticValue(opts.executable) << L"\""
         << L" cwd=\"" << escapeDiagnosticValue(opts.cwd) << L"\""
         << L" commandLine=\"" << escapeDiagnosticValue(commandLine) << L"\""
-        << L" desktop=\"" << escapeDiagnosticValue(desktop.name) << L"\""
+        << L" desktop=\"" << escapeDiagnosticValue(desktop.qualifiedName) << L"\""
         << L" flags=\"" << flags << L"\""
         << L" flagsHex=\"" << hexDword(flags) << L"\""
         << L" inheritHandles=\"" << boolDiagnosticValue(inheritHandles != FALSE) << L"\""
@@ -992,7 +1055,7 @@ static void emitCreateProcessLaunchFailureDiagnostic(
         << std::endl;
     std::wcerr
         << L"hana-win-sandbox: launch-failure-probes"
-        << L" desktopProbe=\"" << escapeDiagnosticValue(probeRestrictedDesktopAccess(restrictedToken, desktop.name)) << L"\""
+        << L" desktopProbe=\"" << escapeDiagnosticValue(probeRestrictedDesktopAccess(restrictedToken, desktop)) << L"\""
         << L" windowStation=\"" << escapeDiagnosticValue(probeProcessWindowStationName()) << L"\""
         << L" namedObjectsProbe=\"" << escapeDiagnosticValue(probeNamedObjectNamespace(restrictedToken)) << L"\""
         << std::endl;
@@ -1336,7 +1399,7 @@ static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
     startup.StartupInfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     startup.StartupInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
     startup.StartupInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-    startup.StartupInfo.lpDesktop = const_cast<LPWSTR>(desktop.name.c_str());
+    startup.StartupInfo.lpDesktop = const_cast<LPWSTR>(desktop.qualifiedName.c_str());
 
     std::vector<HANDLE> inheritedHandles;
     pushUniqueHandle(inheritedHandles, startup.StartupInfo.hStdInput);

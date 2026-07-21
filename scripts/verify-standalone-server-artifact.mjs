@@ -148,8 +148,13 @@ export function createRestrictedTokenSmokeRuntimeEnv({
   };
 }
 
-export function standaloneRestrictedTokenSmokeSpec({ layoutRoot, workDir, hanaHome, env = process.env }) {
-  const helperPath = path.win32.join(layoutRoot, "sandbox", "windows", "hana-win-sandbox.exe");
+export function standaloneRestrictedTokenSmokeSpec({
+  layoutRoot,
+  workDir,
+  hanaHome,
+  helperPath = path.win32.join(layoutRoot, "sandbox", "windows", "hana-win-sandbox.exe"),
+  env = process.env,
+}) {
   const { env: smokeEnv, runtimeDirs } = createRestrictedTokenSmokeRuntimeEnv({
     workDir,
     hanaHome,
@@ -189,6 +194,59 @@ export function standaloneRestrictedTokenSmokeSpec({ layoutRoot, workDir, hanaHo
       shellCommand,
     ],
   };
+}
+
+export function runRestrictedTokenHelperSmoke({
+  layoutRoot,
+  workDir,
+  hanaHome,
+  helperPath,
+  env = process.env,
+  spawnSyncImpl = spawnSync,
+}) {
+  const spec = standaloneRestrictedTokenSmokeSpec({ layoutRoot, workDir, hanaHome, helperPath, env });
+  fs.mkdirSync(spec.blockedDir, { recursive: true });
+  for (const dir of spec.runtimeDirs || []) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  const sandboxResult = spawnSyncImpl(spec.helperPath, spec.args, {
+    cwd: workDir,
+    env: spec.env,
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: 45_000,
+  });
+  if (sandboxResult.error || sandboxResult.status !== 0) {
+    throw new Error(
+      "[verify-standalone] restricted-token sandbox smoke failed"
+        + ` (status=${String(sandboxResult.status)}, signal=${String(sandboxResult.signal)})`
+        + (sandboxResult.error ? `: ${sandboxResult.error.message}` : "")
+        + (sandboxResult.stderr ? `\nstderr: ${sandboxResult.stderr.trim()}` : ""),
+    );
+  }
+  const smokeStdout = String(sandboxResult.stdout || "");
+  const smokeStderr = String(sandboxResult.stderr || "");
+  if (!smokeStdout.includes("HANA_RESTRICTED_TOKEN_OK")) {
+    throw new Error("[verify-standalone] restricted-token sandbox smoke did not emit its success marker");
+  }
+  if (!smokeStdout.includes("HANA_DENY_WRITE_OK")) {
+    throw new Error("[verify-standalone] restricted-token sandbox smoke did not prove deny-write enforcement");
+  }
+  const terminalRecord = 'hana-win-sandbox: terminal-v1 status="exited" exitCode="0" timeoutMs="30000" win32Error="0"';
+  if (!smokeStderr.includes(terminalRecord)) {
+    throw new Error(
+      `[verify-standalone] restricted-token sandbox smoke emitted no successful terminal record\nstderr: ${smokeStderr.trim()}`,
+    );
+  }
+  expectEqual(
+    fs.readFileSync(spec.markerPath, "utf8").trim(),
+    "HANA_RESTRICTED_TOKEN_OK",
+    "restricted-token writable-root marker",
+  );
+  if (fs.existsSync(spec.deniedMarkerPath)) {
+    throw new Error("[verify-standalone] restricted-token sandbox wrote inside an explicit deny-write path");
+  }
+  return spec;
 }
 
 export function standaloneExecCommandSmokeSpec({ layoutRoot, workDir, hanaHome, env = process.env }) {
@@ -236,48 +294,7 @@ function smokeExtractedRuntime({ rootDir, layoutRoot }) {
   fs.mkdirSync(workDir, { recursive: true });
   fs.mkdirSync(path.join(smokeHome, "agents", "standalone-smoke"), { recursive: true });
   try {
-    const spec = standaloneRestrictedTokenSmokeSpec({ layoutRoot, workDir, hanaHome: smokeHome });
-    fs.mkdirSync(spec.blockedDir, { recursive: true });
-    for (const dir of spec.runtimeDirs || []) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    const sandboxResult = spawnSync(spec.helperPath, spec.args, {
-      cwd: workDir,
-      env: spec.env,
-      encoding: "utf8",
-      windowsHide: true,
-      timeout: 45_000,
-    });
-    if (sandboxResult.error || sandboxResult.status !== 0) {
-      throw new Error(
-        "[verify-standalone] restricted-token sandbox smoke failed"
-          + ` (status=${String(sandboxResult.status)}, signal=${String(sandboxResult.signal)})`
-          + (sandboxResult.error ? `: ${sandboxResult.error.message}` : "")
-          + (sandboxResult.stderr ? `\nstderr: ${sandboxResult.stderr.trim()}` : ""),
-      );
-    }
-    const smokeStdout = String(sandboxResult.stdout || "");
-    const smokeStderr = String(sandboxResult.stderr || "");
-    if (!smokeStdout.includes("HANA_RESTRICTED_TOKEN_OK")) {
-      throw new Error("[verify-standalone] restricted-token sandbox smoke did not emit its success marker");
-    }
-    if (!smokeStdout.includes("HANA_DENY_WRITE_OK")) {
-      throw new Error("[verify-standalone] restricted-token sandbox smoke did not prove deny-write enforcement");
-    }
-    const terminalRecord = 'hana-win-sandbox: terminal-v1 status="exited" exitCode="0" timeoutMs="30000" win32Error="0"';
-    if (!smokeStderr.includes(terminalRecord)) {
-      throw new Error(
-        `[verify-standalone] restricted-token sandbox smoke emitted no successful terminal record\nstderr: ${smokeStderr.trim()}`,
-      );
-    }
-    expectEqual(
-      fs.readFileSync(spec.markerPath, "utf8").trim(),
-      "HANA_RESTRICTED_TOKEN_OK",
-      "restricted-token writable-root marker",
-    );
-    if (fs.existsSync(spec.deniedMarkerPath)) {
-      throw new Error("[verify-standalone] restricted-token sandbox wrote inside an explicit deny-write path");
-    }
+    runRestrictedTokenHelperSmoke({ layoutRoot, workDir, hanaHome: smokeHome });
 
     const execSpec = standaloneExecCommandSmokeSpec({
       layoutRoot,

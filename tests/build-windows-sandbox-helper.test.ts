@@ -55,15 +55,21 @@ describe("Windows sandbox helper build script", () => {
     expect(source).not.toContain("SECURITY_CAPABILITIES capabilities");
   });
 
-  it("runs restricted-token children on a private desktop", () => {
+  it("runs restricted-token children on a private window station and desktop pair", () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, "../desktop/native/HanaWindowsSandboxHelper/main.cpp"),
       "utf8"
     );
 
+    expect(source).toContain("CreateWindowStationW");
+    expect(source).toContain("OpenWindowStationW");
+    expect(source).toContain("SetProcessWindowStation");
     expect(source).toContain("CreateDesktopW");
     expect(source).toContain("CloseDesktop");
+    expect(source).toContain("CloseWindowStation");
+    expect(source).toContain('desktop.qualifiedName = desktop.stationName + L"\\\\" + desktop.desktopName');
     expect(source).toContain("startup.StartupInfo.lpDesktop");
+    expect(source).toContain("desktop.qualifiedName.c_str()");
   });
 
   it("uses ordinary Hana write SIDs while retaining legacy capability ACL cleanup", () => {
