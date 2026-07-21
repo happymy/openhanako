@@ -346,7 +346,15 @@ describe("Windows sandbox helper build script", () => {
       "utf8"
     );
 
-    expect(source).toContain("PROC_THREAD_ATTRIBUTE_HANDLE_LIST");
+    const setupHandleList = source.match(
+      /static bool setupInheritedHandleList\([\s\S]*?\n\}/
+    )?.[0] || "";
+
+    expect(setupHandleList).toContain("SetHandleInformation");
+    expect(setupHandleList).toContain("HANDLE_FLAG_INHERIT");
+    expect(setupHandleList.indexOf("SetHandleInformation"))
+      .toBeLessThan(setupHandleList.indexOf("UpdateProcThreadAttribute"));
+    expect(setupHandleList).toContain("PROC_THREAD_ATTRIBUTE_HANDLE_LIST");
     expect(source).toContain("EXTENDED_STARTUPINFO_PRESENT");
     expect(source).toContain("setupInheritedHandleList");
   });

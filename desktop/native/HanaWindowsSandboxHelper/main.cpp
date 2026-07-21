@@ -1214,6 +1214,13 @@ static void pushUniqueHandle(std::vector<HANDLE>& handles, HANDLE handle) {
 
 static bool setupInheritedHandleList(const std::vector<HANDLE>& handles, StartupAttributeList& attributes) {
     if (handles.empty()) return true;
+    for (HANDLE handle : handles) {
+        if (!SetHandleInformation(handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT)) {
+            fail(L"SetHandleInformation(HANDLE_FLAG_INHERIT) failed: " +
+                 win32Message(GetLastError()));
+            return false;
+        }
+    }
     SIZE_T size = 0;
     InitializeProcThreadAttributeList(nullptr, 1, 0, &size);
     if (size == 0) {
