@@ -144,46 +144,33 @@ describe("Windows sandbox helper build script", () => {
     expect(source).not.toContain("GetTokenInformation(token, TokenUser");
   });
 
-  it("uses concrete USER-object rights instead of generic ACL grants", () => {
+  it("grants full access only to each per-launch private USER object", () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, "../desktop/native/HanaWindowsSandboxHelper/main.cpp"),
       "utf8"
     );
 
-    expect(source).toContain("WINSTA_ACCESSCLIPBOARD");
-    expect(source).toContain("WINSTA_ACCESSGLOBALATOMS");
-    expect(source).toContain("WINSTA_CREATEDESKTOP");
     const stationMask = source.match(
       /static const DWORD SANDBOX_WINDOW_STATION_ACCESS =([\s\S]*?);/
     )?.[1] || "";
     const desktopMask = source.match(
       /static const DWORD SANDBOX_DESKTOP_ACCESS =([\s\S]*?);/
     )?.[1] || "";
+    const createDesktop = source.match(
+      /static bool createSandboxDesktop\([\s\S]*?\n\}/
+    )?.[0] || "";
+    const probeDesktop = source.match(
+      /static std::wstring probeRestrictedDesktopAccess\([\s\S]*?\n\}/
+    )?.[0] || "";
 
-    expect(stationMask).toContain("WINSTA_ACCESSCLIPBOARD");
-    expect(stationMask).toContain("WINSTA_ACCESSGLOBALATOMS");
-    expect(stationMask).toContain("WINSTA_CREATEDESKTOP");
-    expect(stationMask).toContain("WINSTA_EXITWINDOWS");
-    expect(stationMask).toContain("WINSTA_READATTRIBUTES");
-    expect(stationMask).toContain("STANDARD_RIGHTS_REQUIRED");
-    expect(stationMask).not.toContain("WINSTA_ENUMDESKTOPS");
-    expect(stationMask).not.toContain("WINSTA_ENUMERATE");
-    expect(stationMask).not.toContain("WINSTA_READSCREEN");
-    expect(stationMask).not.toContain("WINSTA_WRITEATTRIBUTES");
-    expect(source).toContain("DESKTOP_CREATEWINDOW");
-    expect(source).toContain("DESKTOP_ENUMERATE");
-    expect(source).toContain("DESKTOP_READOBJECTS");
-    expect(source).toContain("DESKTOP_WRITEOBJECTS");
-    expect(desktopMask).toContain("DESKTOP_CREATEMENU");
-    expect(desktopMask).toContain("DESKTOP_CREATEWINDOW");
-    expect(desktopMask).toContain("DESKTOP_ENUMERATE");
-    expect(desktopMask).toContain("DESKTOP_HOOKCONTROL");
-    expect(desktopMask).toContain("DESKTOP_READOBJECTS");
-    expect(desktopMask).toContain("DESKTOP_WRITEOBJECTS");
-    expect(desktopMask).toContain("STANDARD_RIGHTS_REQUIRED");
-    expect(desktopMask).not.toContain("DESKTOP_JOURNALPLAYBACK");
-    expect(desktopMask).not.toContain("DESKTOP_JOURNALRECORD");
-    expect(desktopMask).not.toContain("DESKTOP_SWITCHDESKTOP");
+    expect(stationMask.trim()).toBe("WINSTA_ALL_ACCESS");
+    expect(desktopMask.trim()).toBe("DESKTOP_ALL_ACCESS");
+    expect(createDesktop).toContain("SANDBOX_WINDOW_STATION_ACCESS");
+    expect(createDesktop).toContain("SANDBOX_DESKTOP_ACCESS");
+    expect(probeDesktop).toContain("SANDBOX_WINDOW_STATION_ACCESS");
+    expect(probeDesktop).toContain("SANDBOX_DESKTOP_ACCESS");
+    expect(source).toContain("per-launch private USER objects");
+    expect(source).toContain("File ACLs and the shared WinSta0 station are unchanged");
   });
 
   it("exposes a token diagnostic mode with a named-object namespace probe", () => {
