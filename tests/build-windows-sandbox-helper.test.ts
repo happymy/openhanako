@@ -164,7 +164,21 @@ describe("Windows sandbox helper build script", () => {
     )?.[0] || "";
 
     expect(stationMask.trim()).toBe("WINSTA_ALL_ACCESS");
-    expect(desktopMask.trim()).toBe("DESKTOP_ALL_ACCESS");
+    for (const accessRight of [
+      "STANDARD_RIGHTS_REQUIRED",
+      "DESKTOP_CREATEMENU",
+      "DESKTOP_CREATEWINDOW",
+      "DESKTOP_ENUMERATE",
+      "DESKTOP_HOOKCONTROL",
+      "DESKTOP_JOURNALPLAYBACK",
+      "DESKTOP_JOURNALRECORD",
+      "DESKTOP_READOBJECTS",
+      "DESKTOP_SWITCHDESKTOP",
+      "DESKTOP_WRITEOBJECTS",
+    ]) {
+      expect(desktopMask).toContain(accessRight);
+    }
+    expect(desktopMask).not.toContain("DESKTOP_ALL_ACCESS");
     expect(createDesktop).toContain("SANDBOX_WINDOW_STATION_ACCESS");
     expect(createDesktop).toContain("SANDBOX_DESKTOP_ACCESS");
     expect(probeDesktop).toContain("SANDBOX_WINDOW_STATION_ACCESS");
