@@ -3,6 +3,101 @@
   "entries": [
     {
       "schemaVersion": 1,
+      "tag": "v0.416.3",
+      "version": "0.416.3",
+      "previousTag": "v0.415.16",
+      "generatedAt": "2026-07-21T12:50:00.000Z",
+      "noUserFacingChanges": false,
+      "summary": {
+        "zh": "Kimi K3 新增中档与高档思考选项，中文界面将最高档标为 Max；并修复导致 Windows 发版打包卡住的独立服务端校验。",
+        "en": "Kimi K3 now offers medium and high thinking tiers, Chinese UI labels the top tier as Max, and Windows release packaging no longer stalls on standalone server verification."
+      },
+      "counts": {
+        "feature": 1,
+        "fix": 2,
+        "improvement": 0,
+        "migration": 0
+      },
+      "source": {
+        "owner": "liliMozi",
+        "repo": "openhanako",
+        "commitRange": "v0.415.16..v0.416.3",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.416.3",
+        "releaseNotes": ""
+      },
+      "items": [
+        {
+          "id": "kimi-k3-thinking-tiers",
+          "kind": "feature",
+          "importance": "high",
+          "title": {
+            "zh": "Kimi K3 支持中档与高档思考",
+            "en": "Kimi K3 medium and high thinking tiers"
+          },
+          "summary": {
+            "zh": "Kimi K3 提供中档与高档思考级别，并去掉不可用的关闭档。",
+            "en": "Kimi K3 exposes medium and high thinking levels and drops the unusable off tier."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "02e466e17",
+              "title": "feat(models): offer medium and high thinking levels for Kimi K3"
+            },
+            {
+              "type": "commit",
+              "ref": "5b58c25b4",
+              "title": "fix(models): drop the off thinking level from Kimi K3"
+            }
+          ]
+        },
+        {
+          "id": "thinking-max-zh-label",
+          "kind": "fix",
+          "importance": "medium",
+          "title": {
+            "zh": "最高思考档中文显示为 Max",
+            "en": "Chinese UI labels top thinking tier as Max"
+          },
+          "summary": {
+            "zh": "中文界面将最高思考档位显示为 Max。",
+            "en": "Chinese locales label the highest thinking tier as Max."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "0f8123373",
+              "title": "fix(i18n): label the max thinking tier as Max in Chinese locales"
+            }
+          ]
+        },
+        {
+          "id": "windows-standalone-release-verify",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "修复 Windows 独立服务端发版校验",
+            "en": "Fix Windows standalone release verification"
+          },
+          "summary": {
+            "zh": "发版校验改为按真实沙箱契约准备临时目录与用户目录，Windows 安装包发布流水线可以继续完成。",
+            "en": "Release verification now prepares temp and profile dirs under the real sandbox writable contract, so Windows installer publishing can finish."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "3540cdf5e",
+              "title": "fix(release): verify Windows standalone sandbox with a native cmd.exe child"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
       "tag": "v0.415.16",
       "version": "0.415.16",
       "previousTag": "v0.415.15",

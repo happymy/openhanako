@@ -75,23 +75,87 @@ function assertExtractedLayout(layoutRoot) {
   );
 }
 
-export function standaloneRestrictedTokenSmokeSpec({ layoutRoot, workDir, hanaHome, env = process.env }) {
-  const helperPath = path.win32.join(layoutRoot, "sandbox", "windows", "hana-win-sandbox.exe");
-  const smokeEnv = createHermeticMinGitSmokeEnv({
-    runtimeRoot: path.win32.join(layoutRoot, "git"),
-    workRoot: hanaHome,
-    env,
-  });
-  Object.assign(smokeEnv, {
-    // The sandbox grants write access to workDir only, so the child's temp
-    // dirs must live inside it. Production win32-exec follows the same
-    // contract by pointing TEMP at a directory it also grants.
-    TEMP: workDir,
-    TMP: workDir,
+function envValue(env, name) {
+  const match = Object.entries(env || {}).find(([key]) => key.toLowerCase() === name.toLowerCase());
+  return match?.[1] ? String(match[1]) : "";
+}
+
+/**
+ * Build the helper-child environment for the restricted-token release smoke.
+ * Production win32-exec materializes TEMP/LOCALAPPDATA/APPDATA under a writable
+ * ephemeral root and starts from a near-complete process env. This smoke keeps
+ * Path native-only (no MinGit/MSYS) so it proves helper + writable/deny-write
+ * without borrowing host Git or forcing MSYS DLLs into the child.
+ */
+export function createRestrictedTokenSmokeRuntimeEnv({
+  workDir,
+  hanaHome,
+  helperPath,
+  layoutRoot,
+  env = process.env,
+} = {}) {
+  if (!workDir) throw new Error("workDir is required");
+  if (!hanaHome) throw new Error("hanaHome is required");
+  if (!helperPath) throw new Error("helperPath is required");
+  if (!layoutRoot) throw new Error("layoutRoot is required");
+
+  const systemRoot = envValue(env, "SystemRoot") || envValue(env, "WINDIR") || "C:\\Windows";
+  const runtimeEnvRoot = path.win32.join(workDir, ".ephemeral", "win32-sandbox-env");
+  const tempDir = path.win32.join(runtimeEnvRoot, "Temp");
+  const localAppDataDir = path.win32.join(runtimeEnvRoot, "LocalAppData");
+  const appDataDir = path.win32.join(runtimeEnvRoot, "AppData", "Roaming");
+  const profileDir = path.win32.join(workDir, "Profile");
+  const smokeEnv = {
+    SystemRoot: systemRoot,
+    WINDIR: systemRoot,
+    ComSpec: envValue(env, "ComSpec") || path.win32.join(systemRoot, "System32", "cmd.exe"),
+    PATHEXT: envValue(env, "PATHEXT") || ".COM;.EXE;.BAT;.CMD",
+    Path: path.win32.join(systemRoot, "System32"),
+    TEMP: tempDir,
+    TMP: tempDir,
+    LOCALAPPDATA: localAppDataDir,
+    APPDATA: appDataDir,
+    USERPROFILE: profileDir,
+    HOME: profileDir,
     HANA_HOME: hanaHome,
     HANA_ROOT: path.win32.join(layoutRoot, "server"),
     HANA_SERVER_ENTRY: path.win32.join(layoutRoot, "server", "bundle", "index.js"),
     HANA_WIN32_SANDBOX_HELPER: helperPath,
+  };
+
+  // Carry the small set of host identity/system keys production inherits, but
+  // never host PATH/NODE_OPTIONS (those are how CI Git and injectors leak in).
+  for (const key of [
+    "SystemDrive",
+    "USERNAME",
+    "USERDOMAIN",
+    "USERDOMAIN_ROAMINGPROFILE",
+    "NUMBER_OF_PROCESSORS",
+    "PROCESSOR_ARCHITECTURE",
+    "PROCESSOR_IDENTIFIER",
+    "OS",
+    "COMPUTERNAME",
+    "PUBLIC",
+    "ProgramData",
+  ]) {
+    const value = envValue(env, key);
+    if (value) smokeEnv[key] = value;
+  }
+
+  return {
+    env: smokeEnv,
+    runtimeDirs: [tempDir, localAppDataDir, appDataDir, profileDir],
+  };
+}
+
+export function standaloneRestrictedTokenSmokeSpec({ layoutRoot, workDir, hanaHome, env = process.env }) {
+  const helperPath = path.win32.join(layoutRoot, "sandbox", "windows", "hana-win-sandbox.exe");
+  const { env: smokeEnv, runtimeDirs } = createRestrictedTokenSmokeRuntimeEnv({
+    workDir,
+    hanaHome,
+    helperPath,
+    layoutRoot,
+    env,
   });
   const markerFileName = "hana-restricted-token-smoke.txt";
   const blockedDirName = "blocked";
@@ -112,6 +176,7 @@ export function standaloneRestrictedTokenSmokeSpec({ layoutRoot, workDir, hanaHo
     markerPath: path.win32.join(workDir, markerFileName),
     blockedDir: path.win32.join(workDir, blockedDirName),
     deniedMarkerPath: path.win32.join(workDir, blockedDirName, deniedFileName),
+    runtimeDirs,
     env: smokeEnv,
     args: [
       "--cwd", workDir,
@@ -173,6 +238,9 @@ function smokeExtractedRuntime({ rootDir, layoutRoot }) {
   try {
     const spec = standaloneRestrictedTokenSmokeSpec({ layoutRoot, workDir, hanaHome: smokeHome });
     fs.mkdirSync(spec.blockedDir, { recursive: true });
+    for (const dir of spec.runtimeDirs || []) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     const sandboxResult = spawnSync(spec.helperPath, spec.args, {
       cwd: workDir,
       env: spec.env,
