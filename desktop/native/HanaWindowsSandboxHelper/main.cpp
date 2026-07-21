@@ -1856,7 +1856,16 @@ static int diagnoseRestrictedToken(const Options& opts) {
 
     std::vector<SID_AND_ATTRIBUTES> restrictingSids;
     std::vector<PSID> ownedRestrictingSids;
-    bool ok = buildRestrictingSids(opts.writableRoots, baseToken, restrictingSids, ownedRestrictingSids);
+    PSID everyoneSid = nullptr;
+    PSID logonSid = nullptr;
+    bool ok = buildRestrictingSids(
+        opts.writableRoots,
+        baseToken,
+        restrictingSids,
+        ownedRestrictingSids,
+        everyoneSid,
+        logonSid
+    );
     CloseHandle(baseToken);
     if (!ok) {
         freeOwnedSids(ownedRestrictingSids);

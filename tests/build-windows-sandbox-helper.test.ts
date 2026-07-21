@@ -356,6 +356,7 @@ describe("Windows sandbox helper build script", () => {
     expect(createToken).toContain("enableTokenPrivilege(restrictedToken, SE_CHANGE_NOTIFY_NAME)");
     expect(source).toContain("AdjustTokenPrivileges");
     expect(source).toContain("ERROR_SUCCESS");
+    expect(source.match(/buildRestrictingSids\(/g)).toHaveLength(3);
   });
 
   it("restricts child handle inheritance to stdio handles", () => {
