@@ -113,7 +113,7 @@ const KNOWN_MODELS = {
       name: "Kimi K3",
       context: 1048576,
       reasoning: true,
-      thinkingLevels: ["off", "medium", "high", "max"],
+      thinkingLevels: ["medium", "high", "max"],
       thinkingLevelMap: {
         off: null,
         low: "low",
