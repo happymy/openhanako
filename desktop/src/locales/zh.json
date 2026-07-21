@@ -418,8 +418,8 @@
       "auto": "自动",
       "medium": "中等",
       "high": "深度",
-      "xhigh": "极致",
-      "max": "极致",
+      "xhigh": "Max",
+      "max": "Max",
       "low": "浅思"
     },
     "thinkingDesc": {
@@ -1714,8 +1714,8 @@
         "medium": "中等",
         "high": "深思",
         "auto": "自动",
-        "max": "极致",
-        "xhigh": "极致"
+        "max": "Max",
+        "xhigh": "Max"
       },
       "addedModels": "已添加的模型",
       "displayName": "显示名称",
