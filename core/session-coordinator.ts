@@ -978,6 +978,7 @@ export class SessionCoordinator {
   declare _turnContextBySession: Map<string, any>;
   declare _sessionManifestStore: any;
   declare _envChangeLedger: any;
+  declare _ensureSessionLoadedInFlight: Map<string, Promise<any>>;
 
   /**
    * @param {object} deps
@@ -1024,6 +1025,7 @@ export class SessionCoordinator {
     this._turnContextBySession = new Map();
     this._sessionManifestStore = deps.sessionManifestStore || null;
     this._envChangeLedger = deps.envChangeLedger || null;
+    this._ensureSessionLoadedInFlight = new Map();
   }
 
   static _TITLES_TTL = 60_000; // 60 秒
@@ -6302,6 +6304,25 @@ export class SessionCoordinator {
       return existing.session;
     }
 
+    // 并发去重：同一 sessionPath 的并发加载共享同一个创建 Promise。
+    // 没有这层，两个并发调用（如启动时多个 deferred-result 同时投递）会各自
+    // 走完 createSession，产生两个 AgentSession/SessionManager 同时写同一个
+    // JSONL——后注册的实例覆盖 map，先注册的变成幽灵写入者，最终在文件里留下
+    // 引用缺失父条目的孤儿分支，此后该 session 每次冷加载都因分支校验失败而 500。
+    // 键用 sessionPath：入口的 _assertCurrentActiveSessionLocator 保证同一
+    // session 同一时刻只有一个 active locator path，避免 manifest 创建过程中
+    // sessionId/path 双键漂移绕过去重。
+    const inFlight = this._ensureSessionLoadedInFlight.get(sessionPath);
+    if (inFlight) return inFlight;
+    const loadPromise = this._loadSessionForAttach(sessionPath).finally(() => {
+      this._ensureSessionLoadedInFlight.delete(sessionPath);
+    });
+    this._ensureSessionLoadedInFlight.set(sessionPath, loadPromise);
+    return loadPromise;
+  }
+
+  /** @private ensureSessionLoaded 的实际加载路径；只允许经由 in-flight 去重调用 */
+  async _loadSessionForAttach(sessionPath: any) {
     const targetAgentId = this.resolveSessionOwnership(sessionPath).agentId;
     if (!targetAgentId) {
       throw new Error(`ensureSessionLoaded: cannot resolve agentId for ${sessionPath}`);
