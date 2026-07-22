@@ -456,10 +456,40 @@ describe("createWin32Exec", () => {
       "utf16le",
     ).toString("base64");
     expect(helperArgs).not.toContain("--current-desktop");
-    expect(cmdCommand).toContain(`"${powerShellExe}"`);
+    expect(cmdCommand).toContain(powerShellExe);
+    expect(cmdCommand).not.toContain(`"${powerShellExe}"`);
     expect(cmdCommand).toContain(`-EncodedCommand ${encoded}`);
     expect(cmdCommand).not.toContain("Write-Output 1");
     expect(cmdCommand).not.toContain(pwshExe);
+  });
+
+  it("keeps the cmd command-string boundary outside a configured PowerShell path that needs quotes", async () => {
+    classifyWin32Command.mockReturnValue({ runner: "powershell-command", reason: "default-powershell" });
+    const helper = "C:\\Hanako\\resources\\sandbox\\windows\\hana-win-sandbox.exe";
+    const configuredPowerShell = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
+    existsSync.mockImplementation((candidate) => candidate === helper);
+    const createWin32Exec = await loadExecFactory();
+    const exec = createWin32Exec({
+      sandbox: {
+        helperPath: helper,
+        grants: { readPaths: [], writePaths: ["C:\\work"] },
+      },
+    });
+
+    await exec("Write-Output 1", "C:\\work", {
+      onData: () => {},
+      signal: undefined,
+      timeout: 5,
+      env: {
+        HANA_POWERSHELL: configuredPowerShell,
+        PATH: "C:\\Windows\\System32",
+        SystemRoot: "C:\\Windows",
+      },
+    });
+
+    const cmdCommand = spawnAndStream.mock.calls[0][1].at(-1);
+    expect(cmdCommand).toMatch(/& ""C:\\Program Files\\PowerShell\\7\\pwsh\.exe" /);
+    expect(cmdCommand).toMatch(/-EncodedCommand [A-Za-z0-9+/=]+"$/);
   });
 
   it("routes batch scripts through cmd call without bash", async () => {

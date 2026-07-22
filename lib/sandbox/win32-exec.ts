@@ -863,10 +863,19 @@ function powerShellArgsForRestrictedCmdProxy(args) {
 function restrictedPowerShellCmdProxy(powerShellInfo, env) {
   const executable = resolveWin32CmdExecutable(env);
   const powerShellArgs = powerShellArgsForRestrictedCmdProxy(powerShellInfo.args);
-  const command = [
-    quoteCmdArg(powerShellInfo.executable, { always: true }),
+  const powerShellExecutable = quoteCmdArg(powerShellInfo.executable);
+  const commandBody = [
+    powerShellExecutable,
     ...powerShellArgs.map((arg) => quoteCmdArg(arg)),
   ].join(" ");
+  // With cmd /s /c, an unnecessary opening quote can be treated as the
+  // boundary of the entire command string and keep -EncodedCommand from
+  // reaching PowerShell. Leave ordinary system paths unquoted. If an
+  // executable really needs quotes, add the documented outer cmd pair so
+  // the inner executable quotes survive /s processing.
+  const command = powerShellExecutable === powerShellInfo.executable
+    ? commandBody
+    : `"${commandBody}"`;
   return {
     executable,
     args: cmdArgsForCommand(command),

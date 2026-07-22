@@ -40,6 +40,9 @@ describe("Windows sandbox helper CI smoke", () => {
     expect(spec.powerShellArgs).toContain("C:\\Windows\\System32\\cmd.exe");
     expect(spec.powerShellArgs).toContain("/c");
     expect(spec.powerShellArgs.at(-1)).toContain(
+      "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    );
+    expect(spec.powerShellArgs.at(-1)).not.toContain(
       '"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"',
     );
     expect(spec.powerShellArgs.at(-1)).toContain("-EncodedCommand");

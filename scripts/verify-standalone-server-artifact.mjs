@@ -189,9 +189,15 @@ export function standaloneRestrictedTokenSmokeSpec({
     + "$OutputEncoding = [Console]::OutputEncoding; "
     + "Write-Output HANA_RESTRICTED_POWERSHELL_OK";
   const encodedPowerShellCommand = Buffer.from(powerShellCommand, "utf16le").toString("base64");
-  const powerShellViaCmd =
-    `"${powerShellPath}" -NoLogo -NoProfile -NonInteractive `
+  const quotedPowerShellPath = /[\s"&|<>^()]/.test(powerShellPath)
+    ? `"${powerShellPath.replace(/"/g, '""')}"`
+    : powerShellPath;
+  const powerShellCommandBody =
+    `${quotedPowerShellPath} -NoLogo -NoProfile -NonInteractive `
     + `-ExecutionPolicy Bypass -EncodedCommand ${encodedPowerShellCommand}`;
+  const powerShellViaCmd = quotedPowerShellPath === powerShellPath
+    ? powerShellCommandBody
+    : `"${powerShellCommandBody}"`;
   return {
     helperPath,
     markerPath: path.win32.join(workDir, markerFileName),
