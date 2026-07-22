@@ -844,48 +844,6 @@ function powerShellArgsWithUtf8Prelude(args) {
   return args;
 }
 
-function powerShellArgsForRestrictedCmdProxy(args) {
-  if (args.some(isPowerShellEncodedCommandFlag)) return args;
-
-  const commandIndex = args.findIndex(isPowerShellCommandFlag);
-  if (commandIndex < 0 || commandIndex + 1 >= args.length) return args;
-
-  const next = [...args];
-  next.splice(
-    commandIndex,
-    2,
-    "-EncodedCommand",
-    Buffer.from(String(args[commandIndex + 1]), "utf16le").toString("base64"),
-  );
-  return next;
-}
-
-function restrictedPowerShellCmdProxy(powerShellInfo, env) {
-  const executable = resolveWin32CmdExecutable(env);
-  const powerShellArgs = powerShellArgsForRestrictedCmdProxy(powerShellInfo.args);
-  const powerShellExecutable = quoteCmdArg(powerShellInfo.executable);
-  const commandBody = [
-    powerShellExecutable,
-    ...powerShellArgs.map((arg) => quoteCmdArg(arg)),
-  ].join(" ");
-  // With cmd /s /c, an unnecessary opening quote can be treated as the
-  // boundary of the entire command string and keep -EncodedCommand from
-  // reaching PowerShell. Leave ordinary system paths unquoted. If an
-  // executable really needs quotes, add the documented outer cmd pair so
-  // the inner executable quotes survive /s processing.
-  const command = powerShellExecutable === powerShellInfo.executable
-    ? commandBody
-    : `"${commandBody}"`;
-  return {
-    executable,
-    args: cmdArgsForCommand(command),
-    // Let the native helper quote an ordinary command string as one /c
-    // argument. Only preserve the final argument verbatim when the PowerShell
-    // executable itself needs the nested cmd quote boundary above.
-    verbatimLastArg: powerShellExecutable !== powerShellInfo.executable,
-  };
-}
-
 function resolvePowerShellExecutable(token, env = process.env) {
   return resolveWin32PowerShellExecutable(token, env, {
     resolveOnPath: (commandName) => firstPathResult(commandName, env),
@@ -1436,18 +1394,15 @@ export function createWin32Exec({ sandbox = null } = {}) {
 
       if (sandboxIsEnabled(sandbox)) {
         const helperPath = sandbox.helperPath || resolveWin32SandboxHelper({ env: shellEnv });
-        // Windows PowerShell can remain stuck during its own initialization when
-        // it is the direct CreateProcessAsUser target. Start the already-supported
-        // cmd.exe under the restricted token, then let it create PowerShell as a
-        // normal child. The child inherits the same token, private desktop, stdio,
-        // environment, and kill-on-close Job. Encode the script so cmd.exe never
-        // interprets PowerShell metacharacters.
-        const cmdProxy = restrictedPowerShellCmdProxy(powerShellInfo, shellEnv);
+        // The helper gives PowerShell an explicit Unicode environment, a private
+        // desktop, inherited stdio, and atomic Job membership at process creation.
+        // Launch it directly so CREATE_NO_WINDOW applies to PowerShell itself and
+        // no intermediate cmd.exe creates a new console host during startup.
         return runWithWin32Diagnostics({
           route,
           mode: "sandbox-helper",
-          executable: cmdProxy.executable,
-          args: cmdProxy.args,
+          executable: powerShellInfo.executable,
+          args: powerShellInfo.args,
           cwd,
           env: shellEnv,
           onData,
@@ -1455,19 +1410,14 @@ export function createWin32Exec({ sandbox = null } = {}) {
           sandbox,
           run: (diagnosticOnData) => spawnViaSandboxHelper({
             sandbox,
-            executable: cmdProxy.executable,
-            args: cmdProxy.args,
+            executable: powerShellInfo.executable,
+            args: powerShellInfo.args,
             cwd,
             env: shellEnv,
             onData: diagnosticOnData,
             signal,
             timeout,
             desktopMode: "private",
-            // cmd.exe consumes the command after /c from its raw command line.
-            // Ordinary command strings need the helper's outer argument quotes;
-            // configured executable paths with spaces already carry the nested
-            // cmd boundary and must remain verbatim.
-            verbatimLastArg: cmdProxy.verbatimLastArg,
           }),
         });
       }

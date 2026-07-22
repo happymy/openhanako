@@ -406,7 +406,7 @@ describe("Windows sandbox helper build script", () => {
     );
 
     const setupHandleList = source.match(
-      /static bool setupInheritedHandleList\([\s\S]*?\n\}/
+      /static bool setupStartupAttributeList\([\s\S]*?\n\}/
     )?.[0] || "";
 
     expect(setupHandleList).toContain("SetHandleInformation");
@@ -415,7 +415,27 @@ describe("Windows sandbox helper build script", () => {
       .toBeLessThan(setupHandleList.indexOf("UpdateProcThreadAttribute"));
     expect(setupHandleList).toContain("PROC_THREAD_ATTRIBUTE_HANDLE_LIST");
     expect(source).toContain("EXTENDED_STARTUPINFO_PRESENT");
+    expect(source).toContain("setupStartupAttributeList");
     expect(source).toContain("setupInheritedHandleList");
+  });
+
+  it("creates restricted commands with an explicit environment and atomic Job membership", () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, "../desktop/native/HanaWindowsSandboxHelper/main.cpp"),
+      "utf8"
+    );
+    const start = source.indexOf("static int runSandboxed(");
+    const end = source.indexOf("static int diagnoseRestrictedToken(", start);
+    const runSandboxed = source.slice(start, end);
+
+    expect(runSandboxed).toContain("snapshotCurrentEnvironment(environmentBlock)");
+    expect(runSandboxed).toContain("CREATE_UNICODE_ENVIRONMENT");
+    expect(runSandboxed).toContain("environmentBlock.data()");
+    expect(runSandboxed).toContain("setupStartupAttributeList(inheritedHandles, job");
+    expect(source).toContain("PROC_THREAD_ATTRIBUTE_JOB_LIST");
+    expect(runSandboxed).not.toContain("CREATE_SUSPENDED");
+    expect(runSandboxed).not.toContain("AssignProcessToJobObject");
+    expect(runSandboxed).not.toContain("ResumeThread");
   });
 
   it("owns timeout termination in the private Job and emits a versioned terminal record", () => {

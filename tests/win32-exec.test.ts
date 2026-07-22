@@ -407,7 +407,7 @@ describe("createWin32Exec", () => {
     );
   });
 
-  it("starts inbox PowerShell through restricted cmd.exe without exposing script metacharacters to cmd", async () => {
+  it("starts inbox PowerShell directly through the restricted helper", async () => {
     classifyWin32Command.mockReturnValue({ runner: "powershell-command", reason: "default-powershell" });
     const helper = "C:\\Hanako\\resources\\sandbox\\windows\\hana-win-sandbox.exe";
     const pwshExe = "D:\\PowerShell\\7\\pwsh.exe";
@@ -441,29 +441,20 @@ describe("createWin32Exec", () => {
       helper,
       expect.arrayContaining([
         "--",
-        systemCmdExe,
-        "/d",
-        "/s",
-        "/c",
+        powerShellExe,
+        "-Command",
+        withPowerShellUtf8Prelude("Write-Output 1"),
       ]),
       expect.objectContaining({ cwd: "C:\\work" }),
     );
     const helperArgs = spawnAndStream.mock.calls[0][1];
-    const cmdCommand = helperArgs.at(-1);
-    const encoded = Buffer.from(
-      withPowerShellUtf8Prelude("Write-Output 1"),
-      "utf16le",
-    ).toString("base64");
     expect(helperArgs).not.toContain("--current-desktop");
     expect(helperArgs).not.toContain("--verbatim-last-arg");
-    expect(cmdCommand).toContain(powerShellExe);
-    expect(cmdCommand).not.toContain(`"${powerShellExe}"`);
-    expect(cmdCommand).toContain(`-EncodedCommand ${encoded}`);
-    expect(cmdCommand).not.toContain("Write-Output 1");
-    expect(cmdCommand).not.toContain(pwshExe);
+    expect(helperArgs).not.toContain(systemCmdExe);
+    expect(helperArgs).not.toContain(pwshExe);
   });
 
-  it("keeps the cmd command-string boundary outside a configured PowerShell path that needs quotes", async () => {
+  it("passes a configured PowerShell path directly to the restricted helper", async () => {
     classifyWin32Command.mockReturnValue({ runner: "powershell-command", reason: "default-powershell" });
     const helper = "C:\\Hanako\\resources\\sandbox\\windows\\hana-win-sandbox.exe";
     const configuredPowerShell = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
@@ -488,10 +479,10 @@ describe("createWin32Exec", () => {
     });
 
     const helperArgs = spawnAndStream.mock.calls[0][1];
-    const cmdCommand = helperArgs.at(-1);
-    expect(helperArgs).toContain("--verbatim-last-arg");
-    expect(cmdCommand).toMatch(/& ""C:\\Program Files\\PowerShell\\7\\pwsh\.exe" /);
-    expect(cmdCommand).toMatch(/-EncodedCommand [A-Za-z0-9+/=]+"$/);
+    expect(helperArgs).not.toContain("--verbatim-last-arg");
+    expect(helperArgs).toContain(configuredPowerShell);
+    expect(helperArgs).toContain("-Command");
+    expect(helperArgs).toContain(withPowerShellUtf8Prelude("Write-Output 1"));
   });
 
   it("routes batch scripts through cmd call without bash", async () => {

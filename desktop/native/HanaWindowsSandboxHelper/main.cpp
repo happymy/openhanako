@@ -26,6 +26,9 @@
 #ifndef WRITE_RESTRICTED
 #define WRITE_RESTRICTED 0x00000008
 #endif
+#ifndef PROC_THREAD_ATTRIBUTE_JOB_LIST
+#define PROC_THREAD_ATTRIBUTE_JOB_LIST ProcThreadAttributeValue(13, FALSE, TRUE, FALSE)
+#endif
 
 struct WritableRoot {
     std::wstring path;
@@ -87,6 +90,8 @@ struct TokenDefaultDaclSnapshot {
 
 struct StartupAttributeList {
     LPPROC_THREAD_ATTRIBUTE_LIST list = nullptr;
+    std::vector<HANDLE> inheritedHandles;
+    std::vector<HANDLE> jobs;
 };
 
 struct GuardianControlWatch {
@@ -1400,8 +1405,11 @@ static void pushUniqueHandle(std::vector<HANDLE>& handles, HANDLE handle) {
     }
 }
 
-static bool setupInheritedHandleList(const std::vector<HANDLE>& handles, StartupAttributeList& attributes) {
-    if (handles.empty()) return true;
+static bool setupStartupAttributeList(
+    const std::vector<HANDLE>& handles,
+    HANDLE job,
+    StartupAttributeList& attributes
+) {
     for (HANDLE handle : handles) {
         if (!SetHandleInformation(handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT)) {
             fail(L"SetHandleInformation(HANDLE_FLAG_INHERIT) failed: " +
@@ -1409,8 +1417,11 @@ static bool setupInheritedHandleList(const std::vector<HANDLE>& handles, Startup
             return false;
         }
     }
+    const bool hasJob = isValidInheritableCandidate(job);
+    const DWORD attributeCount = (handles.empty() ? 0 : 1) + (hasJob ? 1 : 0);
+    if (attributeCount == 0) return true;
     SIZE_T size = 0;
-    InitializeProcThreadAttributeList(nullptr, 1, 0, &size);
+    InitializeProcThreadAttributeList(nullptr, attributeCount, 0, &size);
     if (size == 0) {
         fail(L"InitializeProcThreadAttributeList size failed: " + win32Message(GetLastError()));
         return false;
@@ -1422,23 +1433,45 @@ static bool setupInheritedHandleList(const std::vector<HANDLE>& handles, Startup
         fail(L"HeapAlloc for process attribute list failed");
         return false;
     }
-    if (!InitializeProcThreadAttributeList(attributes.list, 1, 0, &size)) {
+    if (!InitializeProcThreadAttributeList(attributes.list, attributeCount, 0, &size)) {
         fail(L"InitializeProcThreadAttributeList failed: " + win32Message(GetLastError()));
         return false;
     }
-    if (!UpdateProcThreadAttribute(
-        attributes.list,
-        0,
-        PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-        const_cast<HANDLE*>(handles.data()),
-        handles.size() * sizeof(HANDLE),
-        nullptr,
-        nullptr
-    )) {
-        fail(L"UpdateProcThreadAttribute(PROC_THREAD_ATTRIBUTE_HANDLE_LIST) failed: " + win32Message(GetLastError()));
-        return false;
+    if (!handles.empty()) {
+        attributes.inheritedHandles = handles;
+        if (!UpdateProcThreadAttribute(
+            attributes.list,
+            0,
+            PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+            attributes.inheritedHandles.data(),
+            attributes.inheritedHandles.size() * sizeof(HANDLE),
+            nullptr,
+            nullptr
+        )) {
+            fail(L"UpdateProcThreadAttribute(PROC_THREAD_ATTRIBUTE_HANDLE_LIST) failed: " + win32Message(GetLastError()));
+            return false;
+        }
+    }
+    if (hasJob) {
+        attributes.jobs.push_back(job);
+        if (!UpdateProcThreadAttribute(
+            attributes.list,
+            0,
+            PROC_THREAD_ATTRIBUTE_JOB_LIST,
+            attributes.jobs.data(),
+            attributes.jobs.size() * sizeof(HANDLE),
+            nullptr,
+            nullptr
+        )) {
+            fail(L"UpdateProcThreadAttribute(PROC_THREAD_ATTRIBUTE_JOB_LIST) failed: " + win32Message(GetLastError()));
+            return false;
+        }
     }
     return true;
+}
+
+static bool setupInheritedHandleList(const std::vector<HANDLE>& handles, StartupAttributeList& attributes) {
+    return setupStartupAttributeList(handles, nullptr, attributes);
 }
 
 static void freeStartupAttributeList(StartupAttributeList& attributes) {
@@ -1447,6 +1480,26 @@ static void freeStartupAttributeList(StartupAttributeList& attributes) {
         HeapFree(GetProcessHeap(), 0, attributes.list);
     }
     attributes.list = nullptr;
+    attributes.inheritedHandles.clear();
+    attributes.jobs.clear();
+}
+
+static bool snapshotCurrentEnvironment(std::vector<wchar_t>& environment) {
+    LPWCH rawEnvironment = GetEnvironmentStringsW();
+    if (!rawEnvironment) {
+        const DWORD errorCode = GetLastError();
+        fail(L"GetEnvironmentStringsW failed: " + win32Message(errorCode));
+        SetLastError(errorCode);
+        return false;
+    }
+    const wchar_t* end = rawEnvironment;
+    while (*end != L'\0') {
+        end += wcslen(end) + 1;
+    }
+    ++end;
+    environment.assign(rawEnvironment, end);
+    FreeEnvironmentStringsW(rawEnvironment);
+    return true;
 }
 
 static DWORD WINAPI readGuardianControl(LPVOID rawContext) {
@@ -1732,6 +1785,15 @@ static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
         return HELPER_LAUNCH_FAILED_EXIT_CODE;
     }
 
+    HANDLE job = createKillOnCloseJob();
+    if (!job) {
+        DWORD errorCode = GetLastError();
+        fail(L"CreateJobObject failed: " + win32Message(errorCode));
+        closeSandboxDesktop(desktop);
+        emitTerminalRecord(L"launch_failed", false, 0, opts.timeoutMs, errorCode);
+        return HELPER_LAUNCH_FAILED_EXIT_CODE;
+    }
+
     STARTUPINFOEXW startup = {};
     startup.StartupInfo.cb = sizeof(STARTUPINFOW);
     startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
@@ -1745,18 +1807,28 @@ static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
     pushUniqueHandle(inheritedHandles, startup.StartupInfo.hStdOutput);
     pushUniqueHandle(inheritedHandles, startup.StartupInfo.hStdError);
     StartupAttributeList inheritedAttributes;
-    if (!setupInheritedHandleList(inheritedHandles, inheritedAttributes)) {
-        freeStartupAttributeList(inheritedAttributes);
-        closeSandboxDesktop(desktop);
+    if (!setupStartupAttributeList(inheritedHandles, job, inheritedAttributes)) {
         DWORD errorCode = GetLastError();
+        freeStartupAttributeList(inheritedAttributes);
+        CloseHandle(job);
+        closeSandboxDesktop(desktop);
         emitTerminalRecord(L"launch_failed", false, 0, opts.timeoutMs, errorCode);
         return HELPER_LAUNCH_FAILED_EXIT_CODE;
     }
     startup.lpAttributeList = inheritedAttributes.list;
 
     std::wstring commandLine = buildCommandLine(opts);
+    std::vector<wchar_t> environmentBlock;
+    if (!snapshotCurrentEnvironment(environmentBlock)) {
+        freeStartupAttributeList(inheritedAttributes);
+        CloseHandle(job);
+        closeSandboxDesktop(desktop);
+        DWORD errorCode = GetLastError();
+        emitTerminalRecord(L"launch_failed", false, 0, opts.timeoutMs, errorCode);
+        return HELPER_LAUNCH_FAILED_EXIT_CODE;
+    }
     PROCESS_INFORMATION process = {};
-    DWORD flags = CREATE_SUSPENDED | CREATE_NO_WINDOW;
+    DWORD flags = CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT;
     BOOL inheritHandles = FALSE;
     if (startup.lpAttributeList) {
         startup.StartupInfo.cb = sizeof(STARTUPINFOEXW);
@@ -1768,6 +1840,7 @@ static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
     if (prelaunchDesktopProbe != L"ok") {
         emitPrelaunchDesktopProbeFailureDiagnostic(prelaunchDesktopProbe);
         freeStartupAttributeList(inheritedAttributes);
+        CloseHandle(job);
         closeSandboxDesktop(desktop);
         emitTerminalRecord(L"launch_failed", false, 0, opts.timeoutMs, ERROR_ACCESS_DENIED);
         return HELPER_LAUNCH_FAILED_EXIT_CODE;
@@ -1781,7 +1854,7 @@ static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
         nullptr,
         inheritHandles,
         flags,
-        nullptr,
+        environmentBlock.data(),
         opts.cwd.c_str(),
         &startup.StartupInfo,
         &process
@@ -1800,42 +1873,6 @@ static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
             inheritHandles,
             inheritedHandles.size()
         );
-        closeSandboxDesktop(desktop);
-        emitTerminalRecord(L"launch_failed", false, 0, opts.timeoutMs, errorCode);
-        return HELPER_LAUNCH_FAILED_EXIT_CODE;
-    }
-
-    HANDLE job = createKillOnCloseJob();
-    if (!job) {
-        DWORD errorCode = GetLastError();
-        fail(L"CreateJobObject failed: " + win32Message(errorCode));
-        TerminateProcess(process.hProcess, 1);
-        CloseHandle(process.hThread);
-        CloseHandle(process.hProcess);
-        closeSandboxDesktop(desktop);
-        emitTerminalRecord(L"launch_failed", false, 0, opts.timeoutMs, errorCode);
-        return HELPER_LAUNCH_FAILED_EXIT_CODE;
-    }
-    if (!AssignProcessToJobObject(job, process.hProcess)) {
-        DWORD errorCode = GetLastError();
-        fail(L"AssignProcessToJobObject failed: " + win32Message(errorCode));
-        TerminateProcess(process.hProcess, 1);
-        CloseHandle(job);
-        CloseHandle(process.hThread);
-        CloseHandle(process.hProcess);
-        closeSandboxDesktop(desktop);
-        emitTerminalRecord(L"launch_failed", false, 0, opts.timeoutMs, errorCode);
-        return HELPER_LAUNCH_FAILED_EXIT_CODE;
-    }
-
-    if (ResumeThread(process.hThread) == static_cast<DWORD>(-1)) {
-        DWORD errorCode = GetLastError();
-        fail(L"ResumeThread failed: " + win32Message(errorCode));
-        TerminateJobObject(job, 1);
-        DWORD ignored = ERROR_SUCCESS;
-        waitForJobEmpty(job, TERMINATION_GRACE_MS, &ignored);
-        CloseHandle(process.hThread);
-        CloseHandle(process.hProcess);
         CloseHandle(job);
         closeSandboxDesktop(desktop);
         emitTerminalRecord(L"launch_failed", false, 0, opts.timeoutMs, errorCode);

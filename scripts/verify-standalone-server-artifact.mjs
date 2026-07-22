@@ -189,17 +189,6 @@ export function standaloneRestrictedTokenSmokeSpec({
     + "$OutputEncoding = [Console]::OutputEncoding; "
     + "Write-Output HANA_RESTRICTED_POWERSHELL_OK";
   const encodedPowerShellCommand = Buffer.from(powerShellCommand, "utf16le").toString("base64");
-  const quotedPowerShellPath = /[\s"&|<>^()]/.test(powerShellPath)
-    ? `"${powerShellPath.replace(/"/g, '""')}"`
-    : powerShellPath;
-  const powerShellCommandBody =
-    `${quotedPowerShellPath} -NoLogo -NoProfile -NonInteractive `
-    + `-ExecutionPolicy Bypass -EncodedCommand ${encodedPowerShellCommand}`;
-  const powerShellViaCmd = quotedPowerShellPath === powerShellPath
-    ? powerShellCommandBody
-    : `"${powerShellCommandBody}"`;
-  const powerShellSmokeCommand =
-    `echo HANA_RESTRICTED_POWERSHELL_PROXY_ENTERED && ${powerShellViaCmd}`;
   return {
     helperPath,
     markerPath: path.win32.join(workDir, markerFileName),
@@ -222,9 +211,10 @@ export function standaloneRestrictedTokenSmokeSpec({
       "--writable-root", workDir,
       "--timeout-ms", "15000",
       "--",
-      smokeEnv.ComSpec,
-      "/d", "/s", "/c",
-      powerShellSmokeCommand,
+      powerShellPath,
+      "-NoLogo", "-NoProfile", "-NonInteractive",
+      "-ExecutionPolicy", "Bypass",
+      "-EncodedCommand", encodedPowerShellCommand,
     ],
   };
 }
@@ -298,9 +288,6 @@ export function runRestrictedTokenHelperSmoke({
   }
   const powerShellStdout = String(powerShellResult.stdout || "");
   const powerShellStderr = String(powerShellResult.stderr || "");
-  if (!powerShellStdout.includes("HANA_RESTRICTED_POWERSHELL_PROXY_ENTERED")) {
-    throw new Error("[verify-standalone] restricted-token PowerShell proxy did not start its command string");
-  }
   if (!powerShellStdout.includes("HANA_RESTRICTED_POWERSHELL_OK")) {
     throw new Error("[verify-standalone] restricted-token PowerShell smoke did not emit its success marker");
   }
