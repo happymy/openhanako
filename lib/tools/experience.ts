@@ -158,6 +158,32 @@ export function createExperienceTools(agentDir, opts: { isEnabled?: () => boolea
     name: "recall_experience",
     label: "Recall Experience",
     description: "Browse the experience library. Without parameters, returns an overview of all categories. With a category name, returns specific experiences in that category. When the user asks you to do a concrete task (write code, research, create documents, analyze problems, etc.), check this tool first for relevant experience before starting. Not needed for casual chat, Q&A, or everyday conversation.",
+    sessionPermission: {
+      resolveInvocation: (params: any = {}) => {
+        if (params.category !== undefined && typeof params.category !== "string") return null;
+        const category = typeof params.category === "string" ? params.category.trim() : "";
+        if (!category) {
+          return { action: "read", kind: "read", capability: "recall_experience.read" };
+        }
+        try {
+          const normalized = normalizeExperienceCategory(category);
+          return {
+            action: "read",
+            kind: "read",
+            capability: "recall_experience.read",
+            target: {
+              type: "experience_category",
+              id: Buffer.from(normalized, "utf-8").toString("base64url"),
+              label: normalized,
+            },
+          };
+        } catch {
+          // 无法规范化的分类名仍是本地只读查询：交给 execute 返回"分类未找到"，
+          // 权限层不制造与工具本身不同的失败面
+          return { action: "read", kind: "read", capability: "recall_experience.read" };
+        }
+      },
+    },
     parameters: Type.Object({
       category: Type.Optional(
         Type.String({ description: "Category name. Omit to get an overview of all categories" }),

@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:d3fe31febfa3d66822d881f473a5804c4166babe432991fe47a13fa196d5e02f",
+  "payloadFingerprint": "sha256:95c729d8e4b3989fd12c15d0ccf4d784dedb2d1d533aba55fd8a1b7f48c08c38",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2878,15 +2878,15 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Tool outcome, permission, and session availability changes leave persistent store schemas, paths, ownership, and data epoch unchanged.",
-    "payloadFingerprint": "sha256:d3fe31febfa3d66822d881f473a5804c4166babe432991fe47a13fa196d5e02f"
+    "compatibilityReason": "recall_experience gains a tool-owned read permission descriptor; experience Markdown store schemas, paths, ownership, and data epoch are unchanged.",
+    "payloadFingerprint": "sha256:95c729d8e4b3989fd12c15d0ccf4d784dedb2d1d533aba55fd8a1b7f48c08c38"
   },
   "schemas": [
     {
       "contract": "user profile, DM, experience index, and diary Markdown conventions",
       "kind": "directory-contract",
       "module": "lib/tools/experience.ts",
-      "sourceHash": "sha256:2f54ddeed8fafe0314c36f1c3caf8fe6ed1568b5bd7dfd0c407eb1774fdc7254",
+      "sourceHash": "sha256:89bfa71c0d328b91da38945de18ccfd81a7d8b8781a9ba510395996cca1b379c",
       "storeId": "agent-authored-records"
     },
     {

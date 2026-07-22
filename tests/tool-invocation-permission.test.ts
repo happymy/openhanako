@@ -400,6 +400,39 @@ describe("action-level tool descriptors", () => {
     });
   });
 
+  it("describes experience read targets", () => {
+    const [recall] = createExperienceTools("/tmp/agent", { isEnabled: () => true });
+
+    const overview = resolveDescriptor(recall, {}).descriptor;
+    expect(overview).toMatchObject({
+      action: "read",
+      kind: "read",
+      capability: "recall_experience.read",
+    });
+    expect(overview.target).toBeUndefined();
+
+    expect(resolveDescriptor(recall, { category: "Tool usage" }).descriptor).toMatchObject({
+      action: "read",
+      kind: "read",
+      capability: "recall_experience.read",
+      target: { type: "experience_category", label: "Tool usage" },
+    });
+
+    const invalidCategory = resolveDescriptor(recall, { category: "bad/../name" }).descriptor;
+    expect(invalidCategory).toMatchObject({
+      action: "read",
+      kind: "read",
+      capability: "recall_experience.read",
+    });
+    expect(invalidCategory.target).toBeUndefined();
+
+    expect(resolveToolInvocationPermission(recall, { category: 42 })).toMatchObject({
+      ok: false,
+      source: "resolver",
+      error: { reason: "resolver_rejected" },
+    });
+  });
+
   it("sorts multi-file targets and classifies direct terminal input for review", () => {
     const stage = createStageFilesTool();
     const [, writeStdin] = createExecCommandTools();
