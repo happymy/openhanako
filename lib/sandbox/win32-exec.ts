@@ -1411,11 +1411,11 @@ export function createWin32Exec({ sandbox = null } = {}) {
             onData: diagnosticOnData,
             signal,
             timeout,
-            // Windows PowerShell and pwsh can stall during runtime initialization
-            // on a newly created private USER32 desktop. This only changes their
-            // desktop attachment; the restricted token, file ACLs, and Job remain
-            // the authorization and process-lifetime boundaries.
-            desktopMode: "inherit",
+            // CreateProcessAsUser does not attach a null lpDesktop to the helper's
+            // current desktop. PowerShell needs that desktop named explicitly for
+            // runtime initialization; the restricted token, file ACLs, and Job
+            // remain the authorization and process-lifetime boundaries.
+            desktopMode: "current",
           }),
         });
       }

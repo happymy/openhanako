@@ -121,6 +121,7 @@ export function createRestrictedTokenSmokeRuntimeEnv({
     HANA_ROOT: path.win32.join(layoutRoot, "server"),
     HANA_SERVER_ENTRY: path.win32.join(layoutRoot, "server", "bundle", "index.js"),
     HANA_WIN32_SANDBOX_HELPER: helperPath,
+    HANA_WIN32_SANDBOX_DEBUG: "1",
   };
 
   // Carry the small set of host identity/system keys production inherits, but
@@ -176,6 +177,17 @@ export function standaloneRestrictedTokenSmokeSpec({
     + ` && (echo SHOULD_NOT_WRITE>${blockedDirName}\\${deniedFileName})`
     + " && exit 73"
     + " || echo HANA_DENY_WRITE_OK";
+  const powerShellPath = path.win32.join(
+    smokeEnv.SystemRoot,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
+  const powerShellCommand =
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+    + "$OutputEncoding = [Console]::OutputEncoding; "
+    + "Write-Output HANA_RESTRICTED_POWERSHELL_OK";
   return {
     helperPath,
     markerPath: path.win32.join(workDir, markerFileName),
@@ -192,6 +204,21 @@ export function standaloneRestrictedTokenSmokeSpec({
       smokeEnv.ComSpec,
       "/d", "/s", "/c",
       shellCommand,
+    ],
+    powerShellArgs: [
+      "--cwd", workDir,
+      "--current-desktop",
+      "--writable-root", workDir,
+      "--timeout-ms", "15000",
+      "--",
+      powerShellPath,
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      powerShellCommand,
     ],
   };
 }
@@ -245,6 +272,35 @@ export function runRestrictedTokenHelperSmoke({
   );
   if (fs.existsSync(spec.deniedMarkerPath)) {
     throw new Error("[verify-standalone] restricted-token sandbox wrote inside an explicit deny-write path");
+  }
+
+  const powerShellResult = spawnSyncImpl(spec.helperPath, spec.powerShellArgs, {
+    cwd: workDir,
+    env: spec.env,
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: 25_000,
+  });
+  if (powerShellResult.error || powerShellResult.status !== 0) {
+    throw new Error(
+      "[verify-standalone] restricted-token PowerShell smoke failed"
+        + ` (status=${String(powerShellResult.status)}, signal=${String(powerShellResult.signal)})`
+        + (powerShellResult.error ? `: ${powerShellResult.error.message}` : "")
+        + (powerShellResult.stdout ? `\nstdout: ${powerShellResult.stdout.trim()}` : "")
+        + (powerShellResult.stderr ? `\nstderr: ${powerShellResult.stderr.trim()}` : ""),
+    );
+  }
+  const powerShellStdout = String(powerShellResult.stdout || "");
+  const powerShellStderr = String(powerShellResult.stderr || "");
+  if (!powerShellStdout.includes("HANA_RESTRICTED_POWERSHELL_OK")) {
+    throw new Error("[verify-standalone] restricted-token PowerShell smoke did not emit its success marker");
+  }
+  const powerShellTerminalRecord =
+    'hana-win-sandbox: terminal-v1 status="exited" exitCode="0" timeoutMs="15000" win32Error="0"';
+  if (!powerShellStderr.includes(powerShellTerminalRecord)) {
+    throw new Error(
+      `[verify-standalone] restricted-token PowerShell smoke emitted no successful terminal record\nstderr: ${powerShellStderr.trim()}`,
+    );
   }
   return spec;
 }

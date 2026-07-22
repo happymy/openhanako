@@ -181,16 +181,16 @@ describe("buildWin32SandboxHelperArgs", () => {
     }
   });
 
-  it("opts into the inherited process desktop only when the caller requests it", () => {
+  it("opts into the helper's explicitly named current desktop only when requested", () => {
     expect(buildWin32SandboxHelperArgs({
       cwd: "C:\\work",
       timeoutMs: 5000,
-      desktopMode: "inherit",
+      desktopMode: "current",
       executable: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
       args: ["-NoProfile", "-Command", "Write-Output ok"],
     })).toEqual([
       "--cwd", "C:\\work",
-      "--inherit-desktop",
+      "--current-desktop",
       "--timeout-ms", "5000",
       "--", "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
       "-NoProfile", "-Command", "Write-Output ok",
@@ -200,7 +200,7 @@ describe("buildWin32SandboxHelperArgs", () => {
       cwd: "C:\\work",
       timeoutMs: 5000,
       executable: "C:\\Windows\\System32\\cmd.exe",
-    })).not.toContain("--inherit-desktop");
+    })).not.toContain("--current-desktop");
 
     expect(() => buildWin32SandboxHelperArgs({
       cwd: "C:\\work",

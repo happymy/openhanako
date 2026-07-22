@@ -440,7 +440,7 @@ describe("createWin32Exec", () => {
     expect(spawnAndStream).toHaveBeenCalledWith(
       helper,
       expect.arrayContaining([
-        "--inherit-desktop",
+        "--current-desktop",
         "--",
         powerShellExe,
         "-NoLogo",
@@ -454,7 +454,7 @@ describe("createWin32Exec", () => {
       expect.objectContaining({ cwd: "C:\\work" }),
     );
     expect(spawnAndStream.mock.calls[0][1]).not.toContain(pwshExe);
-    expect(spawnAndStream.mock.calls[0][1].indexOf("--inherit-desktop"))
+    expect(spawnAndStream.mock.calls[0][1].indexOf("--current-desktop"))
       .toBeLessThan(spawnAndStream.mock.calls[0][1].indexOf("--"));
   });
 

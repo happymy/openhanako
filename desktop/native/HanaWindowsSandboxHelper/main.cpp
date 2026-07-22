@@ -49,7 +49,7 @@ struct Options {
     std::vector<std::wstring> legacyProfileCleanupNames;
     bool cleanupLegacyAcl = false;
     bool diagnoseToken = false;
-    bool inheritDesktop = false;
+    bool currentDesktop = false;
     std::wstring executable;
     std::vector<std::wstring> args;
 };
@@ -404,9 +404,9 @@ static Options parseArgs(int argc, wchar_t** argv) {
             opts.diagnoseToken = true;
             continue;
         }
-        if (arg == L"--inherit-desktop") {
-            if (opts.inheritDesktop) throw std::runtime_error("duplicate --inherit-desktop");
-            opts.inheritDesktop = true;
+        if (arg == L"--current-desktop") {
+            if (opts.currentDesktop) throw std::runtime_error("duplicate --current-desktop");
+            opts.currentDesktop = true;
             continue;
         }
         if (arg == L"--network" || arg == L"--grant-read" || arg == L"--grant-read-optional" ||
@@ -422,7 +422,7 @@ static Options parseArgs(int argc, wchar_t** argv) {
         !opts.legacyProfileCleanupNames.empty() ||
         opts.cleanupLegacyAcl;
     if (maintenanceMode) {
-        if (!opts.cwd.empty() || !opts.executable.empty() || !opts.writableRoots.empty() || !opts.denyWritePaths.empty() || opts.diagnoseToken || opts.inheritDesktop || opts.timeoutSpecified || opts.superviseServer || opts.parentPidSpecified) {
+        if (!opts.cwd.empty() || !opts.executable.empty() || !opts.writableRoots.empty() || !opts.denyWritePaths.empty() || opts.diagnoseToken || opts.currentDesktop || opts.timeoutSpecified || opts.superviseServer || opts.parentPidSpecified) {
             throw std::runtime_error("maintenance arguments cannot be combined with sandbox execution arguments");
         }
         return opts;
@@ -431,7 +431,7 @@ static Options parseArgs(int argc, wchar_t** argv) {
         if (!opts.parentPidSpecified) throw std::runtime_error("missing --parent-pid");
         if (opts.cwd.empty()) throw std::runtime_error("missing --cwd");
         if (opts.executable.empty()) throw std::runtime_error("missing executable after --");
-        if (opts.timeoutSpecified || !opts.writableRoots.empty() || !opts.denyWritePaths.empty() || opts.diagnoseToken || opts.inheritDesktop) {
+        if (opts.timeoutSpecified || !opts.writableRoots.empty() || !opts.denyWritePaths.empty() || opts.diagnoseToken || opts.currentDesktop) {
             throw std::runtime_error("server guardian arguments cannot be combined with sandbox execution arguments");
         }
         return opts;
@@ -1188,23 +1188,50 @@ static std::wstring probeRestrictedDesktopAccess(HANDLE restrictedToken, const S
     return L"error:" + std::to_wstring(rc) + L":" + win32Message(rc);
 }
 
-static std::wstring probeProcessWindowStationName() {
-    HWINSTA station = GetProcessWindowStation();
-    if (!station) {
-        DWORD rc = GetLastError();
-        return L"error:" + std::to_wstring(rc) + L":" + win32Message(rc);
+static bool queryUserObjectName(HANDLE object, std::wstring& name) {
+    name.clear();
+    if (!object) {
+        SetLastError(ERROR_INVALID_HANDLE);
+        return false;
     }
-
     DWORD needed = 0;
-    GetUserObjectInformationW(station, UOI_NAME, nullptr, 0, &needed);
-    if (needed == 0) return L"ok";
+    GetUserObjectInformationW(object, UOI_NAME, nullptr, 0, &needed);
+    if (needed == 0) return false;
 
-    std::wstring name((needed / sizeof(wchar_t)) + 1, L'\0');
-    if (!GetUserObjectInformationW(station, UOI_NAME, name.data(), needed, &needed)) {
+    std::vector<wchar_t> buffer((needed / sizeof(wchar_t)) + 1, L'\0');
+    if (!GetUserObjectInformationW(
+        object,
+        UOI_NAME,
+        buffer.data(),
+        static_cast<DWORD>(buffer.size() * sizeof(wchar_t)),
+        &needed
+    )) {
+        return false;
+    }
+    name.assign(buffer.data());
+    if (name.empty()) {
+        SetLastError(ERROR_INVALID_NAME);
+        return false;
+    }
+    return true;
+}
+
+static bool resolveCurrentDesktop(SandboxDesktop& desktop) {
+    HWINSTA station = GetProcessWindowStation();
+    HDESK threadDesktop = GetThreadDesktop(GetCurrentThreadId());
+    if (!station || !threadDesktop) return false;
+    if (!queryUserObjectName(station, desktop.stationName)) return false;
+    if (!queryUserObjectName(threadDesktop, desktop.desktopName)) return false;
+    desktop.qualifiedName = desktop.stationName + L"\\" + desktop.desktopName;
+    return true;
+}
+
+static std::wstring probeProcessWindowStationName() {
+    std::wstring name;
+    if (!queryUserObjectName(GetProcessWindowStation(), name)) {
         DWORD rc = GetLastError();
         return L"error:" + std::to_wstring(rc) + L":" + win32Message(rc);
     }
-    while (!name.empty() && name.back() == L'\0') name.pop_back();
     return L"ok:" + name;
 }
 
@@ -1621,8 +1648,11 @@ static int superviseServer(const Options& opts) {
 
 static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
     SandboxDesktop desktop;
-    const bool usesPrivateDesktop = !opts.inheritDesktop;
-    if (usesPrivateDesktop && !createSandboxDesktop(desktop)) {
+    const bool usesPrivateDesktop = !opts.currentDesktop;
+    const bool desktopReady = usesPrivateDesktop
+        ? createSandboxDesktop(desktop)
+        : resolveCurrentDesktop(desktop);
+    if (!desktopReady) {
         DWORD errorCode = GetLastError();
         emitTerminalRecord(L"launch_failed", false, 0, opts.timeoutMs, errorCode);
         return HELPER_LAUNCH_FAILED_EXIT_CODE;
@@ -1634,7 +1664,7 @@ static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
     startup.StartupInfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     startup.StartupInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
     startup.StartupInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-    startup.StartupInfo.lpDesktop = usesPrivateDesktop ? const_cast<LPWSTR>(desktop.qualifiedName.c_str()) : nullptr;
+    startup.StartupInfo.lpDesktop = const_cast<LPWSTR>(desktop.qualifiedName.c_str());
 
     std::vector<HANDLE> inheritedHandles;
     pushUniqueHandle(inheritedHandles, startup.StartupInfo.hStdInput);
@@ -1659,10 +1689,9 @@ static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
         flags |= EXTENDED_STARTUPINFO_PRESENT;
         inheritHandles = TRUE;
     }
-    const std::wstring prelaunchDesktopProbe =
-        usesPrivateDesktop ? probeRestrictedDesktopAccess(restrictedToken, desktop) : L"inherited";
+    const std::wstring prelaunchDesktopProbe = probeRestrictedDesktopAccess(restrictedToken, desktop);
     emitPrelaunchDesktopProbeDiagnostic(prelaunchDesktopProbe);
-    if (usesPrivateDesktop && prelaunchDesktopProbe != L"ok") {
+    if (prelaunchDesktopProbe != L"ok") {
         emitPrelaunchDesktopProbeFailureDiagnostic(prelaunchDesktopProbe);
         freeStartupAttributeList(inheritedAttributes);
         closeSandboxDesktop(desktop);
