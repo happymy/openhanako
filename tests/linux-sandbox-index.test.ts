@@ -173,6 +173,7 @@ describe("createSandboxedTools on Linux", () => {
     await execCommand.execute("call-escalated", {
       cmd: "npm view vitest version",
       sandbox_permissions: "require_escalated",
+      justification: "Check the latest published vitest version?",
     });
     expect(createBwrapExec).toHaveBeenCalledTimes(2);
     const escalatedOptions = createBwrapExec.mock.calls[1][1];

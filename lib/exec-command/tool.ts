@@ -18,6 +18,13 @@ import {
   resolveExecShell,
 } from "./shell.ts";
 
+const JUSTIFICATION_MAX_LENGTH = 300;
+
+function truncateJustification(value: any) {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed.length > JUSTIFICATION_MAX_LENGTH ? trimmed.slice(0, JUSTIFICATION_MAX_LENGTH) : trimmed;
+}
+
 export function createExecCommandTools({
   bashTool,
   escalatedBashTool,
@@ -36,10 +43,14 @@ export function createExecCommandTools({
     description: execCommandDescription({ platform }),
     sessionPermission: {
       sideEffect: { kind: "command", commandParam: "cmd" },
-      describeSideEffect: (params: any = {}) => ({
-        kind: params.tty ? "interactive_command" : "command",
-        command: params.cmd || params.command || "",
-      }),
+      describeSideEffect: (params: any = {}) => {
+        const justification = truncateJustification(params.justification);
+        return {
+          kind: params.tty ? "interactive_command" : "command",
+          command: params.cmd || params.command || "",
+          ...(justification ? { justification } : {}),
+        };
+      },
       resolveInvocation: (params: any = {}) => {
         const command = typeof (params.cmd || params.command) === "string"
           ? (params.cmd || params.command).trim()
@@ -53,6 +64,7 @@ export function createExecCommandTools({
           === EXEC_COMMAND_SANDBOX_PERMISSIONS.REQUIRE_ESCALATED;
         const networkIsolated = sandboxed && platform !== "win32" && !requiresEscalated;
         const containedOneShot = sandboxed && networkIsolated && !requiresEscalated;
+        const justification = truncateJustification(params.justification);
         return {
           action: "run",
           kind: containedOneShot ? "routine" : "review",
@@ -64,6 +76,7 @@ export function createExecCommandTools({
             sandboxPermissions: sandboxPermissions.value,
             networkAccess: networkIsolated ? "blocked" : "review_required",
             hostIpcAccess: containedOneShot ? "available" : "review_required",
+            ...(justification ? { justification } : {}),
           },
         };
       },
@@ -78,6 +91,9 @@ export function createExecCommandTools({
         Type.Literal(EXEC_COMMAND_SANDBOX_PERMISSIONS.REQUIRE_ESCALATED),
       ], {
         description: "Use use_default for the normal contained command path. Use require_escalated only when the command needs reviewed network-capable execution.",
+      })),
+      justification: Type.Optional(Type.String({
+        description: "One-sentence approval question shown to the user; required with require_escalated (e.g. \"Run a WMI read query to inspect the GPU driver?\").",
       })),
       yield_time_ms: Type.Optional(Type.Number({ description: "Requested initial wait budget in milliseconds. Recorded for scheduling; not a command timeout." })),
       max_output_tokens: Type.Optional(Type.Number({ description: "Approximate maximum output token budget returned by this call." })),
@@ -126,6 +142,7 @@ export function createExecCommandTools({
         shellRequested: shell.requested,
         tty: value.tty,
         sandboxPermissions: value.sandboxPermissions,
+        ...(value.justification ? { justification: value.justification } : {}),
         platform,
         classification,
         yieldTimeMs: value.yieldTimeMs,

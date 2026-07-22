@@ -68,6 +68,17 @@ export function normalizeExecCommandParams(params: any = {}, ctx: any = {}, {
     };
   }
 
+  const justification = typeof params.justification === "string" ? params.justification.trim() : "";
+  if (sandboxPermissions.value === EXEC_COMMAND_SANDBOX_PERMISSIONS.REQUIRE_ESCALATED && !justification) {
+    return {
+      ok: false,
+      error: textResult(
+        "sandbox_permissions=\"require_escalated\" requires a one-sentence justification phrased as a question asking the user for approval.",
+        { errorCode: "EXEC_COMMAND_JUSTIFICATION_REQUIRED" },
+      ),
+    };
+  }
+
   const workdir = typeof params.workdir === "string" && params.workdir.trim()
     ? params.workdir.trim()
     : typeof params.cwd === "string" && params.cwd.trim()
@@ -87,6 +98,7 @@ export function normalizeExecCommandParams(params: any = {}, ctx: any = {}, {
       shell: typeof params.shell === "string" ? params.shell.trim() : "",
       tty: params.tty === true,
       sandboxPermissions: sandboxPermissions.value,
+      justification,
       maxOutputTokens,
       yieldTimeMs,
       timeout,
