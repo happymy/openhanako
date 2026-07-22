@@ -3,14 +3,14 @@
   "entries": [
     {
       "schemaVersion": 1,
-      "tag": "v0.416.25",
-      "version": "0.416.25",
-      "previousTag": "v0.416.4",
-      "generatedAt": "2026-07-22T09:27:13.000Z",
+      "tag": "v0.416.26",
+      "version": "0.416.26",
+      "previousTag": "v0.416.12",
+      "generatedAt": "2026-07-22T09:50:27.000Z",
       "noUserFacingChanges": false,
       "summary": {
-        "zh": "修复 Windows 受限执行环境无法启动命令的问题，并加强真实 Windows 发布校验，减少安装包发布后才发现沙箱不可用的风险。",
-        "en": "Fix command startup in the restricted Windows environment and strengthen real Windows release verification, reducing the risk of shipping an installer with an unusable sandbox."
+        "zh": "修复 Windows 受限命令因 PowerShell 初始化缺陷而卡死的问题，并加强真实 Windows 发布校验，避免安装包发布后才发现命令执行不可用。",
+        "en": "Fix restricted Windows commands hanging during PowerShell initialization and strengthen real Windows release verification, preventing unusable command execution from reaching published installers."
       },
       "counts": {
         "feature": 0,
@@ -21,8 +21,8 @@
       "source": {
         "owner": "liliMozi",
         "repo": "openhanako",
-        "commitRange": "v0.416.4..v0.416.25",
-        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.416.25",
+        "commitRange": "v0.416.12..v0.416.26",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.416.26",
         "releaseNotes": ""
       },
       "items": [
@@ -31,34 +31,19 @@
           "kind": "fix",
           "importance": "high",
           "title": {
-            "zh": "Windows 沙箱命令恢复启动",
-            "en": "Windows sandbox commands start correctly"
+            "zh": "Windows 受限命令不再卡死",
+            "en": "Restricted Windows commands no longer hang"
           },
           "summary": {
-            "zh": "Windows 受限执行环境现在会保留进程初始化所需的最小权限和句柄契约，同时继续限制文件写入范围；PowerShell 会使用兼容其内部管道的子对象权限、显式 Unicode 环境和原子 Job 归属直接启动，发布校验也会关闭一次性命令的标准输入，并在真实 Windows 环境中启动打包后的沙箱命令。",
-            "en": "The restricted Windows environment now preserves the minimum privileges and handle contract needed for process initialization while keeping file writes scoped; PowerShell starts directly with child-object permissions compatible with its internal pipelines, an explicit Unicode environment, and atomic Job membership, while release verification closes one-shot command stdin and starts the packaged sandbox command on real Windows."
+            "zh": "Windows 一次性命令现在默认使用稳定的 cmd.exe 受限执行路径；显式 PowerShell 在受限令牌下会立即提示改用 cmd 或经审查运行，不再等待超时。发布流程会在真实 Windows 环境中验证打包后的默认 cmd、Git、写入范围和拒绝写入规则。",
+            "en": "Windows one-shot commands now default to the stable restricted cmd.exe path; explicit PowerShell immediately asks for cmd-compatible syntax or reviewed execution instead of timing out under a restricted token. Releases verify packaged default cmd, Git, writable roots, and denied writes on real Windows."
           },
           "details": [],
           "sources": [
             {
               "type": "commit",
-              "ref": "0899aef11",
-              "title": "fix(windows): let restricted children initialize"
-            },
-            {
-              "type": "commit",
-              "ref": "aa1762ac3",
-              "title": "fix(windows): use a private WinSta0 desktop"
-            },
-            {
-              "type": "commit",
-              "ref": "dca46c4eb",
-              "title": "fix(windows): make child stdio inheritable"
-            },
-            {
-              "type": "commit",
-              "ref": "1fe75665a",
-              "title": "fix(windows): complete restricted token initialization"
+              "ref": "v0.416.12..v0.416.26",
+              "title": "Windows restricted command startup and packaged release verification"
             }
           ]
         }

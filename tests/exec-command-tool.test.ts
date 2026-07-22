@@ -91,7 +91,7 @@ describe("exec_command tools", () => {
       ok: false,
       exitCode: 127,
       errorCode: "EXEC_COMMAND_DEPENDENCY_MISSING",
-      shell: "powershell",
+      shell: "cmd",
       classification: { kind: "probe" },
     });
   });
@@ -136,7 +136,7 @@ describe("exec_command tools", () => {
         ok: false,
         exitCode: 1,
         errorCode: "EXEC_COMMAND_EXIT_NONZERO",
-        shell: "powershell",
+        shell: "cmd",
       },
     });
   });

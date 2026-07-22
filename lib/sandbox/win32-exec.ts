@@ -850,15 +850,7 @@ function resolvePowerShellExecutable(token, env = process.env) {
   });
 }
 
-function resolveDefaultPowerShellExecutable(env = process.env, {
-  sandboxed = false,
-}: { sandboxed?: boolean } = {}) {
-  // PowerShell 7 can remain alive indefinitely during startup under the
-  // restricted token/private desktop used by one-shot commands. The inbox
-  // Windows PowerShell runtime has a stable restricted-token startup path.
-  // Keep preferring pwsh for unsandboxed defaults, and preserve explicit
-  // `pwsh` requests through parsePowerShellCommand.
-  if (sandboxed) return resolvePowerShellExecutable("powershell.exe", env);
+function resolveDefaultPowerShellExecutable(env = process.env) {
   return resolveWin32DefaultPowerShellExecutable(env, {
     resolveOnPath: (commandName) => firstPathResult(commandName, env),
     exists: existsSync,
@@ -886,7 +878,7 @@ function parsePowerShellFileCommand(command, env, options = {}) {
     throw new Error(`[win32-exec] Internal error: PowerShell file runner received non-.ps1 command: ${command}`);
   }
   return {
-    executable: resolveDefaultPowerShellExecutable(env, options),
+    executable: resolveDefaultPowerShellExecutable(env),
     args: [
       ...powerShellBaseArgs(options),
       "-Command",
@@ -897,7 +889,7 @@ function parsePowerShellFileCommand(command, env, options = {}) {
 
 function parseDefaultPowerShellCommand(command, env, options = {}) {
   return {
-    executable: resolveDefaultPowerShellExecutable(env, options),
+    executable: resolveDefaultPowerShellExecutable(env),
     args: [
       ...powerShellBaseArgs(options),
       "-Command",
@@ -1274,7 +1266,7 @@ async function spawnViaSandboxHelper({
 // ── 导出 ──
 
 /**
- * 创建 Windows 平台的 bash exec 函数
+ * 创建 Windows 平台的命令执行函数
  *
  * spawn 失败时自动降级到下一个可用 shell（清缓存 + 重试）。
  * 只对 spawn 级错误（ENOENT/EACCES/EPERM）降级，abort/timeout/命令错误原样抛出。
@@ -1385,42 +1377,22 @@ export function createWin32Exec({ sandbox = null } = {}) {
     }
 
     if (route.runner === "powershell" || route.runner === "powershell-file" || route.runner === "powershell-command") {
-      const powerShellOptions = { sandboxed: sandboxIsEnabled(sandbox) };
+      if (sandboxIsEnabled(sandbox)) {
+        const error: any = new Error(
+          "[win32-sandbox] PowerShell cannot run reliably inside the Windows restricted-token sandbox. "
+          + "Use a cmd.exe-compatible command, or retry explicit PowerShell with "
+          + "sandbox_permissions=\"require_escalated\".",
+        );
+        error.code = "HANA_WIN32_SANDBOX_POWERSHELL_UNSUPPORTED";
+        error.runner = route.runner;
+        throw error;
+      }
+      const powerShellOptions = { sandboxed: false };
       const powerShellInfo = route.runner === "powershell"
         ? parsePowerShellCommand(command, shellEnv, powerShellOptions)
         : route.runner === "powershell-file"
           ? parsePowerShellFileCommand(command, shellEnv, powerShellOptions)
           : parseDefaultPowerShellCommand(command, shellEnv, powerShellOptions);
-
-      if (sandboxIsEnabled(sandbox)) {
-        const helperPath = sandbox.helperPath || resolveWin32SandboxHelper({ env: shellEnv });
-        // The helper gives PowerShell an explicit Unicode environment, a private
-        // desktop, inherited stdio, and atomic Job membership at process creation.
-        // Launch it directly so CREATE_NO_WINDOW applies to PowerShell itself and
-        // no intermediate cmd.exe creates a new console host during startup.
-        return runWithWin32Diagnostics({
-          route,
-          mode: "sandbox-helper",
-          executable: powerShellInfo.executable,
-          args: powerShellInfo.args,
-          cwd,
-          env: shellEnv,
-          onData,
-          helperPath,
-          sandbox,
-          run: (diagnosticOnData) => spawnViaSandboxHelper({
-            sandbox,
-            executable: powerShellInfo.executable,
-            args: powerShellInfo.args,
-            cwd,
-            env: shellEnv,
-            onData: diagnosticOnData,
-            signal,
-            timeout,
-            desktopMode: "private",
-          }),
-        });
-      }
 
       return runWithWin32Diagnostics({
         route,

@@ -29,7 +29,10 @@
  *   3. @vercel/nft traces of the compiled bundles for the CLI and server
  *      roots, for bundle externals / third-party runtime files -- same nft
  *      usage pattern as scripts/build-server.mjs:491-535 (read-only
- *      precedent, not modified here);
+ *      precedent, not modified here). Target-built `.node` addon binaries
+ *      are excluded because build-server.mjs installs them with the target
+ *      server runtime; their local presence depends on npm install-script
+ *      policy and is not a stable repository-closure input;
  *   4. an explicit, evidence-backed inventory of non-import runtime assets
  *      (package.json, lib/ model + identity/ishiki template data) that
  *      core code reads via fs.readFileSync/path.join rather than
@@ -730,6 +733,21 @@ export function scanAndValidateDynamicCallSites({
 // Evidence source 3: nft trace of compiled bundles.
 // ---------------------------------------------------------------------------
 
+export function normalizeNftTraceFiles({ fileList, scratchRel }) {
+  return [...fileList]
+    .map(toPosix)
+    .filter((relPath) => {
+      if (relPath === scratchRel || relPath === "package.json") return false;
+      // Native addon bytes are produced for a specific OS, architecture, and
+      // Node ABI. The packaged server installs them with its target runtime;
+      // including a locally rebuilt copy here would make this source closure
+      // change when npm ignore-scripts changes, while omitting the package's
+      // JavaScript and metadata would still be incorrect.
+      return path.posix.extname(relPath).toLowerCase() !== ".node";
+    })
+    .sort();
+}
+
 export async function traceNftRoot({ rootDir, root }) {
   const entryAbs = path.join(rootDir, root.path);
   if (!fs.existsSync(entryAbs)) {
@@ -775,10 +793,7 @@ export async function traceNftRoot({ rootDir, root }) {
       ignore: [...NFT_IGNORE_PATTERNS, repoRelative(rootDir, scratchPath)],
     });
     const scratchRel = repoRelative(rootDir, scratchPath);
-    const files = [...fileList]
-      .map(toPosix)
-      .filter((f) => f !== scratchRel && f !== "package.json")
-      .sort();
+    const files = normalizeNftTraceFiles({ fileList, scratchRel });
     return { files, warnings: [...warnings].map((w) => w.message) };
   } finally {
     fs.rmSync(scratchPath, { force: true });

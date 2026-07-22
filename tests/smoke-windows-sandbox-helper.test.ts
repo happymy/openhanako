@@ -28,7 +28,7 @@ describe("Windows sandbox helper CI smoke", () => {
     })).toThrow(/helper is missing/);
   });
 
-  it("runs PowerShell directly with the restricted helper on the private desktop", () => {
+  it("runs cmd directly with the restricted helper on the private desktop", () => {
     const spec = standaloneRestrictedTokenSmokeSpec({
       layoutRoot: "C:\\HanaCore",
       workDir: "C:\\smoke\\work",
@@ -38,15 +38,10 @@ describe("Windows sandbox helper CI smoke", () => {
     });
 
     expect(spec.env.HANA_WIN32_SANDBOX_DEBUG).toBe("1");
-    expect(spec.powerShellArgs).not.toContain("--current-desktop");
-    expect(spec.powerShellArgs).not.toContain("--verbatim-last-arg");
-    expect(spec.powerShellArgs).toContain(
-      "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-    );
-    expect(spec.powerShellArgs).not.toContain("C:\\Windows\\System32\\cmd.exe");
-    expect(spec.powerShellArgs).toContain("-EncodedCommand");
-    const decodedCommand = Buffer.from(spec.powerShellArgs.at(-1) || "", "base64").toString("utf16le");
-    expect(decodedCommand).toContain("HANA_RESTRICTED_POWERSHELL_OK");
+    expect(spec.args).not.toContain("--current-desktop");
+    expect(spec.args).not.toContain("--verbatim-last-arg");
+    expect(spec.args).toContain("C:\\Windows\\System32\\cmd.exe");
+    expect(spec.args.at(-1)).toContain("HANA_RESTRICTED_TOKEN_OK");
   });
 
   it("keeps restricted helper smoke stdin closed like production one-shot execution", () => {

@@ -112,11 +112,11 @@ export async function runPackagedStandaloneRuntimeSmoke({
     "exec_command Git route",
     "git version ",
   );
-  const powershell = assertExecResult(
-    await invoke("standalone-powershell", {
-      cmd: "Write-Output HANA_EXEC_COMMAND_OK",
+  const cmd = assertExecResult(
+    await invoke("standalone-cmd", {
+      cmd: "echo HANA_EXEC_COMMAND_OK",
     }),
-    "exec_command default PowerShell route",
+    "exec_command default cmd route",
     "HANA_EXEC_COMMAND_OK",
   );
 
@@ -125,7 +125,7 @@ export async function runPackagedStandaloneRuntimeSmoke({
     hanaRoot: env.HANA_ROOT,
     helper: resolvedHelper,
     git,
-    powershell,
+    cmd,
   };
   process.stdout.write(`HANA_STANDALONE_EXEC_RECEIPT=${JSON.stringify(receipt)}\n`);
   return receipt;

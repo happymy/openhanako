@@ -9,10 +9,10 @@ export function execCommandDescription({ platform = process.platform }: { platfo
   if (platform === "win32") {
     common.push(
       "Windows cannot isolate command networking; sandbox_permissions=\"use_default\" still uses the restricted-token runner but requires the same permission review.",
-      "On Windows the default shell is PowerShell. Use PowerShell cmdlets and syntax by default.",
-      "Use shell=\"cmd\" only for cmd.exe builtins or batch files.",
+      "On Windows the default one-shot shell is cmd.exe. Use cmd.exe syntax for builtins, chaining, pipelines, and redirection.",
+      "PowerShell cannot start reliably inside the Windows restricted-token sandbox. Use shell=\"powershell\" only with sandbox_permissions=\"require_escalated\".",
       "Use shell=\"bash\" only for explicit POSIX commands; the bundled runtime provides an sh-compatible shell (POSIX sh syntax, not full Bash). Bash-specific features require a system Git Bash install.",
-      "Avoid POSIX heredocs on Windows; use python -c, PowerShell here-strings, or a temporary file instead.",
+      "Avoid POSIX heredocs on Windows; use python -c or a temporary file instead.",
     );
   } else {
     common.push("On macOS/Linux the default shell is the existing POSIX shell runner.");

@@ -36,7 +36,7 @@ export function resolveExecShell({
     if (normalized !== "auto") {
       return { requested: normalized, family: "auto", label: normalized, explicit };
     }
-    return { requested: "auto", family: "powershell", label: "powershell", explicit: false };
+    return { requested: "auto", family: "cmd", label: "cmd", explicit: false };
   }
   if (normalized !== "auto" && normalized !== "bash") {
     return { requested: normalized, family: "posix", label: normalized, explicit };

@@ -10,6 +10,7 @@ import {
   classifyRepoPath,
   computeCliRuntimeClosure,
   computeOpenBoundaryBaseline,
+  normalizeNftTraceFiles,
   scanAndValidateDynamicCallSites,
   scanDynamicCallSites,
   traceSourceGraph,
@@ -48,6 +49,28 @@ describe("compute-cli-closure: fail-closed validation", () => {
 
   it("does not throw when every declared runtime asset exists", () => {
     expect(() => validateRuntimeAssets({ rootDir: REPOSITORY_ROOT })).not.toThrow();
+  });
+
+  it("keeps nft closure output stable whether a local native binding exists", () => {
+    const scratchRel = "build/.cli-closure-nft-scratch-test.mjs";
+    const commonFiles = [
+      scratchRel,
+      "package.json",
+      "node_modules/better-sqlite3/lib/database.js",
+      "node_modules/better-sqlite3/package.json",
+    ];
+    const nativeBinding = "node_modules/better-sqlite3/build/Release/better_sqlite3.node";
+
+    const withoutBinding = normalizeNftTraceFiles({ fileList: new Set(commonFiles), scratchRel });
+    const withBinding = normalizeNftTraceFiles({
+      fileList: new Set([...commonFiles, nativeBinding]),
+      scratchRel,
+    });
+
+    expect(withBinding).toEqual(withoutBinding);
+    expect(withBinding).toContain("node_modules/better-sqlite3/lib/database.js");
+    expect(withBinding).toContain("node_modules/better-sqlite3/package.json");
+    expect(withBinding).not.toContain(nativeBinding);
   });
 
   it("flags a non-literal dynamic import() as a hit", () => {

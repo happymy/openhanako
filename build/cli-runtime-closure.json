@@ -65428,21 +65428,6 @@
       "reason": "nft-runtime-trace via nft-server-bundle (see roots[] for the full explanation)"
     },
     {
-      "path": "node_modules/better-sqlite3/build/Release/better_sqlite3.node",
-      "inputType": "nft-runtime-trace",
-      "provenance": [
-        {
-          "root": "nft-cli-bundle",
-          "kind": "nft-trace"
-        },
-        {
-          "root": "nft-server-bundle",
-          "kind": "nft-trace"
-        }
-      ],
-      "reason": "nft-runtime-trace via nft-cli-bundle (see roots[] for the full explanation)"
-    },
-    {
       "path": "node_modules/better-sqlite3/lib/database.js",
       "inputType": "nft-runtime-trace",
       "provenance": [
@@ -111894,11 +111879,11 @@
     }
   ],
   "stats": {
-    "totalFiles": 9598,
+    "totalFiles": 9597,
     "byInputType": {
       "source-graph": 619,
       "runtime-asset": 11,
-      "nft-runtime-trace": 8968
+      "nft-runtime-trace": 8967
     }
   }
 }

@@ -177,18 +177,6 @@ export function standaloneRestrictedTokenSmokeSpec({
     + ` && (echo SHOULD_NOT_WRITE>${blockedDirName}\\${deniedFileName})`
     + " && exit 73"
     + " || echo HANA_DENY_WRITE_OK";
-  const powerShellPath = path.win32.join(
-    smokeEnv.SystemRoot,
-    "System32",
-    "WindowsPowerShell",
-    "v1.0",
-    "powershell.exe",
-  );
-  const powerShellCommand =
-    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
-    + "$OutputEncoding = [Console]::OutputEncoding; "
-    + "Write-Output HANA_RESTRICTED_POWERSHELL_OK";
-  const encodedPowerShellCommand = Buffer.from(powerShellCommand, "utf16le").toString("base64");
   return {
     helperPath,
     markerPath: path.win32.join(workDir, markerFileName),
@@ -205,16 +193,6 @@ export function standaloneRestrictedTokenSmokeSpec({
       smokeEnv.ComSpec,
       "/d", "/s", "/c",
       shellCommand,
-    ],
-    powerShellArgs: [
-      "--cwd", workDir,
-      "--writable-root", workDir,
-      "--timeout-ms", "15000",
-      "--",
-      powerShellPath,
-      "-NoLogo", "-NoProfile", "-NonInteractive",
-      "-ExecutionPolicy", "Bypass",
-      "-EncodedCommand", encodedPowerShellCommand,
     ],
   };
 }
@@ -268,32 +246,6 @@ export function runRestrictedTokenHelperSmoke({
     throw new Error("[verify-standalone] restricted-token sandbox wrote inside an explicit deny-write path");
   }
 
-  const powerShellResult = spawnSyncImpl(
-    spec.helperPath,
-    spec.powerShellArgs,
-    restrictedTokenSmokeSpawnOptions({ cwd: workDir, env: spec.env, timeout: 25_000 }),
-  );
-  if (powerShellResult.error || powerShellResult.status !== 0) {
-    throw new Error(
-      "[verify-standalone] restricted-token PowerShell smoke failed"
-        + ` (status=${String(powerShellResult.status)}, signal=${String(powerShellResult.signal)})`
-        + (powerShellResult.error ? `: ${powerShellResult.error.message}` : "")
-        + (powerShellResult.stdout ? `\nstdout: ${powerShellResult.stdout.trim()}` : "")
-        + (powerShellResult.stderr ? `\nstderr: ${powerShellResult.stderr.trim()}` : ""),
-    );
-  }
-  const powerShellStdout = String(powerShellResult.stdout || "");
-  const powerShellStderr = String(powerShellResult.stderr || "");
-  if (!powerShellStdout.includes("HANA_RESTRICTED_POWERSHELL_OK")) {
-    throw new Error("[verify-standalone] restricted-token PowerShell smoke did not emit its success marker");
-  }
-  const powerShellTerminalRecord =
-    'hana-win-sandbox: terminal-v1 status="exited" exitCode="0" timeoutMs="15000" win32Error="0"';
-  if (!powerShellStderr.includes(powerShellTerminalRecord)) {
-    throw new Error(
-      `[verify-standalone] restricted-token PowerShell smoke emitted no successful terminal record\nstderr: ${powerShellStderr.trim()}`,
-    );
-  }
   return spec;
 }
 
@@ -304,8 +256,7 @@ export function restrictedTokenSmokeSpawnOptions({ cwd, env, timeout }) {
     encoding: "utf8",
     windowsHide: true,
     // Production one-shot execution gives the helper a closed stdin. Keep the
-    // smoke on the same contract: Windows PowerShell 5.1 may wait indefinitely
-    // for an inherited pipe whose writer stays open in the intermediary parent.
+    // smoke on the same process contract.
     stdio: ["ignore", "pipe", "pipe"],
     timeout,
   };
