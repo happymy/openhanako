@@ -676,7 +676,6 @@ static bool queryTokenDefaultDacl(HANDLE token, TokenDefaultDaclSnapshot& snapsh
 
 static PACL buildTokenDefaultDacl(
     const std::vector<WritableRoot>& roots,
-    PACL baseDefaultDacl,
     PSID everyoneSid,
     PSID logonSid,
     DWORD permissions
@@ -704,7 +703,7 @@ static PACL buildTokenDefaultDacl(
     DWORD rc = SetEntriesInAclW(
         static_cast<ULONG>(entries.size()),
         entries.data(),
-        baseDefaultDacl,
+        nullptr,
         &dacl
     );
     if (rc != ERROR_SUCCESS) {
@@ -904,13 +903,6 @@ static HANDLE createRestrictedWriteToken(const std::vector<WritableRoot>& roots)
         fail(L"OpenProcessToken failed: " + win32Message(GetLastError()));
         return nullptr;
     }
-    TokenDefaultDaclSnapshot baseDefaultDacl;
-    if (!queryTokenDefaultDacl(baseToken, baseDefaultDacl)) {
-        CloseHandle(baseToken);
-        fail(L"cannot preserve the token default DACL for restricted child objects");
-        return nullptr;
-    }
-
     std::vector<SID_AND_ATTRIBUTES> restrictingSids;
     std::vector<PSID> ownedRestrictingSids;
     PSID everyoneSid = nullptr;
@@ -950,7 +942,6 @@ static HANDLE createRestrictedWriteToken(const std::vector<WritableRoot>& roots)
 
     PACL defaultDacl = buildTokenDefaultDacl(
         roots,
-        baseDefaultDacl.dacl,
         everyoneSid,
         logonSid,
         GENERIC_ALL

@@ -369,15 +369,23 @@ describe("Windows sandbox helper build script", () => {
     expect(source).toContain("applyWriteAcls(opts.writableRoots, opts.denyWritePaths, aclRestores)");
   });
 
-  it("preserves the token default DACL owner context when adding write SIDs", () => {
+  it("builds a fresh restricted-token default DACL for child IPC objects", () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, "../desktop/native/HanaWindowsSandboxHelper/main.cpp"),
       "utf8"
     );
+    const buildDefaultDacl = source.match(
+      /static PACL buildTokenDefaultDacl\([\s\S]*?\n\}/
+    )?.[0] || "";
+    const createToken = source.match(
+      /static HANDLE createRestrictedWriteToken\([\s\S]*?\n\}/
+    )?.[0] || "";
 
-    expect(source).toContain("queryTokenDefaultDacl");
-    expect(source).toContain("SetEntriesInAclW(");
-    expect(source).toContain("baseDefaultDacl");
+    expect(buildDefaultDacl).toContain("SetEntriesInAclW(");
+    expect(buildDefaultDacl).toMatch(/entries\.data\(\),\s*nullptr,\s*&dacl/);
+    expect(buildDefaultDacl).not.toContain("baseDefaultDacl");
+    expect(createToken).not.toContain("queryTokenDefaultDacl");
+    expect(createToken).not.toContain("baseDefaultDacl");
   });
 
   it("keeps restricted child object creation compatible with Windows initialization", () => {
