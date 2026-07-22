@@ -444,6 +444,7 @@ describe("createWin32Exec", () => {
         powerShellExe,
         "-NoLogo",
         "-NoProfile",
+        "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-Command",

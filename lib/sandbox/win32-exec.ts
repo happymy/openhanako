@@ -771,8 +771,14 @@ function findPythonRuntime({ command, cwd, env = process.env }: { command?: any;
   );
 }
 
-function powerShellBaseArgs() {
-  return ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass"];
+function powerShellBaseArgs({ sandboxed = false }: { sandboxed?: boolean } = {}) {
+  return [
+    "-NoLogo",
+    "-NoProfile",
+    ...(sandboxed ? ["-NonInteractive"] : []),
+    "-ExecutionPolicy",
+    "Bypass",
+  ];
 }
 
 const POWERSHELL_UTF8_PRELUDE =
@@ -860,7 +866,7 @@ function resolveDefaultPowerShellExecutable(env = process.env, {
   });
 }
 
-function parsePowerShellCommand(command, env) {
+function parsePowerShellCommand(command, env, options = {}) {
   const args = splitShellLikeArgs(command);
   const token = args[0] || "";
   const commandName = basenameRuntimePath(token).toLowerCase();
@@ -869,7 +875,7 @@ function parsePowerShellCommand(command, env) {
   }
   return {
     executable: resolvePowerShellExecutable(token, env),
-    args: powerShellArgsWithUtf8Prelude([...powerShellBaseArgs(), ...args.slice(1)]),
+    args: powerShellArgsWithUtf8Prelude([...powerShellBaseArgs(options), ...args.slice(1)]),
   };
 }
 
@@ -882,7 +888,7 @@ function parsePowerShellFileCommand(command, env, options = {}) {
   return {
     executable: resolveDefaultPowerShellExecutable(env, options),
     args: [
-      ...powerShellBaseArgs(),
+      ...powerShellBaseArgs(options),
       "-Command",
       withPowerShellUtf8Prelude(powerShellFileInvocation(script, args.slice(1))),
     ],
@@ -893,7 +899,7 @@ function parseDefaultPowerShellCommand(command, env, options = {}) {
   return {
     executable: resolveDefaultPowerShellExecutable(env, options),
     args: [
-      ...powerShellBaseArgs(),
+      ...powerShellBaseArgs(options),
       "-Command",
       withPowerShellUtf8Prelude(normalizeBackslashEscapedDoubleQuotes(command)),
     ],
@@ -1368,7 +1374,7 @@ export function createWin32Exec({ sandbox = null } = {}) {
     if (route.runner === "powershell" || route.runner === "powershell-file" || route.runner === "powershell-command") {
       const powerShellOptions = { sandboxed: sandboxIsEnabled(sandbox) };
       const powerShellInfo = route.runner === "powershell"
-        ? parsePowerShellCommand(command, shellEnv)
+        ? parsePowerShellCommand(command, shellEnv, powerShellOptions)
         : route.runner === "powershell-file"
           ? parsePowerShellFileCommand(command, shellEnv, powerShellOptions)
           : parseDefaultPowerShellCommand(command, shellEnv, powerShellOptions);
