@@ -289,7 +289,7 @@ describe("exec_command tools", () => {
 
     const resolved = resolveExecShell({ platform: "win32" });
     const description = execCommandDescription({ platform: "win32" });
-    const cmdParamDescription = execCommandTool.parameters.properties.cmd.description;
+    const cmdParamDescription = (execCommandTool.parameters.properties as any).cmd.description;
 
     expect(description).toContain(`default one-shot shell is ${WIN32_DEFAULT_ONE_SHOT_SHELL.display}`);
     // Parameter description must be platform-neutral: no per-platform shell claim here,
