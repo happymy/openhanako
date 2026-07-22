@@ -333,6 +333,7 @@ describe("Windows standalone server artifact", () => {
 
     expect(spec.command).toBe("C:\\Windows\\System32\\cmd.exe");
     expect(spec.args.join(" ")).toContain('call "C:\\downloads\\HanaCore\\hana-server.cmd"');
+    expect(spec.windowsVerbatimArguments).toBe(true);
     expect(spec.env.Path).not.toContain("Program Files\\Git");
     expect(spec.env.HANA_ROOT).toBe("Z:\\hana-poison\\server");
     expect(spec.env.HANA_STANDALONE_EXPECTED_ROOT).toBe("C:\\downloads\\HanaCore\\server");

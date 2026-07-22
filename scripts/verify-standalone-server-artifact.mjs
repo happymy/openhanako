@@ -260,6 +260,12 @@ export function standaloneExecCommandSmokeSpec({ layoutRoot, workDir, hanaHome, 
   return {
     command: baseEnv.ComSpec,
     args: ["/d", "/s", "/c", `call "${path.win32.join(layoutRoot, "hana-server.cmd")}"`],
+    // cmd.exe parses its raw command line instead of CommandLineToArgvW output.
+    // Letting libuv quote the final /c argument turns the inner batch-file
+    // quotes into literal \" characters, so cmd tries to execute a filename
+    // that includes quotes. The command is fully generated here; preserve it
+    // verbatim so `call "...\\hana-server.cmd"` reaches cmd.exe unchanged.
+    windowsVerbatimArguments: true,
     env: {
       ...baseEnv,
       HANA_HOME: hanaHome,
@@ -306,6 +312,7 @@ function smokeExtractedRuntime({ rootDir, layoutRoot }) {
       env: execSpec.env,
       encoding: "utf8",
       windowsHide: true,
+      windowsVerbatimArguments: execSpec.windowsVerbatimArguments,
       timeout: 90_000,
     });
     if (execResult.error || execResult.status !== 0) {
