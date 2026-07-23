@@ -70,6 +70,24 @@ export function lookupModelMeta(modelId: string, provider?: string): any {
   };
 }
 
+/**
+ * 刷新 settingsConfig 快照，保留 _identity / _ishiki / _publicIshiki / _userProfile / _experience。
+ * 调用方：per-agent 保存成功后同步刷新，避免下次读到 stale 快照。
+ */
+export async function refreshSettingsConfigSnapshot(): Promise<void> {
+  const ownerId = useSettingsStore.getState().getSettingsAgentId();
+  if (!ownerId) return;
+  const cfgRes = await hanaFetch(`/api/agents/${ownerId}/config`);
+  const newConfig = await cfgRes.json();
+  // 刷新期间 settings owner 可能已切换，晚到的响应不覆盖新 owner 的快照
+  if (useSettingsStore.getState().getSettingsAgentId() !== ownerId) return;
+  const prev = useSettingsStore.getState().settingsConfig || {};
+  for (const k of ['_identity', '_ishiki', '_publicIshiki', '_userProfile', '_experience']) {
+    if (k in prev && !(k in newConfig)) newConfig[k] = (prev as any)[k];
+  }
+  useSettingsStore.setState({ settingsConfig: newConfig });
+}
+
 /** 通用 per-agent 自动保存 */
 export async function autoSaveConfig(
   partial: Record<string, any>,
@@ -86,14 +104,7 @@ export async function autoSaveConfig(
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     if (!opts.silent) store.showToast(t('settings.autoSaved'), 'success');
-    // 刷新 config 快照，保留 _identity / _ishiki / _userProfile
-    const cfgRes = await hanaFetch(`/api/agents/${agentId}/config`);
-    const newConfig = await cfgRes.json();
-    const prev = useSettingsStore.getState().settingsConfig || {};
-    for (const k of ['_identity', '_ishiki', '_publicIshiki', '_userProfile', '_experience']) {
-      if (k in prev && !(k in newConfig)) newConfig[k] = (prev as any)[k];
-    }
-    useSettingsStore.setState({ settingsConfig: newConfig });
+    await refreshSettingsConfigSnapshot();
     return true;
   } catch (err: any) {
     store.showToast(t('settings.saveFailed') + ': ' + err.message, 'error');
