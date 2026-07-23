@@ -1686,11 +1686,19 @@ describe("session-coordinator tool snapshot (createSession)", () => {
       expect(appliedList).toContain("browser");
 
       // session-meta 同步更新：toolNames + promptSnapshot 重建，dismiss 状态清空
-      const meta = JSON.parse(await fsp.readFile(path.join(sessionDir, "session-meta.json"), "utf-8"));
+      // promptSnapshot 一律外置为 sidecar 引用，需经 hydrate 才能看到实际内容
+      const metaPath = path.join(sessionDir, "session-meta.json");
+      const meta = JSON.parse(await fsp.readFile(metaPath, "utf-8"));
       const entry = meta[path.basename(fakeSessionPath)];
       expect(entry.toolNames).toContain("office");
-      expect(entry.promptSnapshot.systemPrompt).toBe("mock-prompt");
+      expect(entry.promptSnapshot).toMatchObject({
+        kind: "session-meta-payload",
+        field: "promptSnapshot",
+      });
       expect(entry.capabilityDriftDismissedFingerprint).toBeNull();
+
+      const hydrated = await coord._readMetaCached(metaPath);
+      expect(hydrated[path.basename(fakeSessionPath)].promptSnapshot.systemPrompt).toBe("mock-prompt");
 
       // 刷新后无漂移
       expect(coord.getSessionCapabilityDriftNotice(sessionPath)).toBeNull();

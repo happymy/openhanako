@@ -3068,7 +3068,14 @@ describe("SessionCoordinator", () => {
     expect(agent.buildMemoryReflectionSnapshot).toHaveBeenCalledWith({
       forceMemoryEnabled: false,
     });
-    expect(meta[path.basename(sessionFile)].memoryReflectionSnapshot).toEqual({
+    // memoryReflectionSnapshot 一律外置为 sidecar 引用，需经 hydrate 才能看到实际内容
+    expect(meta[path.basename(sessionFile)].memoryReflectionSnapshot).toMatchObject({
+      kind: "session-meta-payload",
+      field: "memoryReflectionSnapshot",
+    });
+    const metaPath = path.join(tempDir, "hana", "sessions", "session-meta.json");
+    const hydrated = await coordinator._readMetaCached(metaPath);
+    expect(hydrated[path.basename(sessionFile)].memoryReflectionSnapshot).toEqual({
       version: 1,
       agentName: "Hana",
       userName: "测试用户",

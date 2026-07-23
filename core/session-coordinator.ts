@@ -131,7 +131,8 @@ import {
 const log = createModuleLogger("session");
 const SESSION_META_PAYLOAD_DIR = "session-meta-payloads";
 const SESSION_META_PAYLOAD_FIELDS = ["promptSnapshot", "memoryReflectionSnapshot"];
-const SESSION_META_PAYLOAD_INLINE_LIMIT_BYTES = 256 * 1024;
+// payload 字段一律外置为 sidecar 文件，索引文件只承载小标量，防止快照全文把共享索引撑大
+const SESSION_META_PAYLOAD_INLINE_LIMIT_BYTES = 0;
 const SESSION_META_INDEX_MAX_BYTES = 1024 * 1024;
 const REMINDER_HEADER_RE = /^\[hana_reminder at \d{4}-\d{2}-\d{2} \d{2}:\d{2}\]$/;
 const SESSION_MODEL_UNAVAILABLE_API = "hana-unavailable-model";
