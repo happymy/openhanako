@@ -439,7 +439,7 @@ describe("session-derived memory invalidation", () => {
     expect(summaryManager.saveSummary).toHaveBeenCalledWith("sess-retried", originalSummary);
   });
 
-  it("rejects retry invalidation while an aggregate compile can still publish an older summary", async () => {
+  it("invalidates immediately while an aggregate compile is still in flight (never blocks Retry)", async () => {
     const sessionPath = path.join(tmpDir, "sessions", "compile-race.jsonl");
     fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
     writeSession(sessionPath);
@@ -450,7 +450,7 @@ describe("session-derived memory invalidation", () => {
       saveSummary: vi.fn(),
     };
     const factStore = {
-      deleteBySession: vi.fn().mockReturnValue(0),
+      deleteBySession: vi.fn().mockReturnValue(2),
     };
     let releaseCompile: ((value: string) => void) | null = null;
     (compileToday as any).mockImplementationOnce(() => new Promise((resolve) => {
@@ -464,15 +464,151 @@ describe("session-derived memory invalidation", () => {
     const flush = ticker.flushSessionAndCompile(sessionPath);
     await vi.waitFor(() => expect(compileToday).toHaveBeenCalled());
 
-    expect(() => ticker.invalidateSessionDerivedState({
+    expect(ticker.invalidateSessionDerivedState({
       sessionId: "sess-race",
       sessionPath,
-    })).toThrow("session_memory_busy");
-    expect(summaryManager.invalidateSession).not.toHaveBeenCalled();
-    expect(factStore.deleteBySession).not.toHaveBeenCalled();
+    })).toEqual({
+      sessionId: "sess-race",
+      summaryInvalidated: true,
+      factsDeleted: 2,
+      aggregateHistoryPreserved: true,
+    });
+    expect(summaryManager.invalidateSession).toHaveBeenCalledWith("sess-race");
+    expect(factStore.deleteBySession).toHaveBeenCalledWith("sess-race");
 
     releaseCompile?.("compiled");
     await flush;
+  });
+
+  it("invalidates immediately while the daily job is running (never blocks Retry)", async () => {
+    const summaryManager = {
+      rollingSummary: vi.fn().mockResolvedValue("summary"),
+      getSummary: vi.fn().mockReturnValue(null),
+      invalidateSession: vi.fn().mockReturnValue(true),
+      saveSummary: vi.fn(),
+    };
+    const factStore = {
+      deleteBySession: vi.fn().mockReturnValue(0),
+    };
+    let releaseDaily: ((value: string) => void) | null = null;
+    (compileDaily as any).mockImplementationOnce(() => new Promise((resolve) => {
+      releaseDaily = resolve;
+    }));
+    ticker = makeTicker(tmpDir, summaryManager, {
+      factStore,
+      getSessionIdForPath: vi.fn(() => "sess-daily-race"),
+    });
+
+    const tickJob = ticker.tick();
+    await vi.waitFor(() => expect(compileDaily).toHaveBeenCalled());
+
+    expect(() => ticker.invalidateSessionDerivedState({
+      sessionId: "sess-daily-race",
+      sessionPath: path.join(tmpDir, "sessions", "daily-race.jsonl"),
+    })).not.toThrow();
+    expect(summaryManager.invalidateSession).toHaveBeenCalledWith("sess-daily-race");
+
+    releaseDaily?.("compiled");
+    await tickJob;
+  });
+
+  it("does not self-lock when Retry's own branch-head rewind is still marking the session busy", () => {
+    // Retry 第一步 setSessionBranchHead 会同步调用 notifyBranchChanged，
+    // 其内部 _doRollingSummary 在第一个 await 之前就把 sessionId 记为“摘要在途”。
+    // 紧随其后（不等待这个后台任务）的 invalidate 曾经会撞上自己触发的任务而报 busy。
+    const sessionPath = path.join(tmpDir, "sessions", "self-lock.jsonl");
+    fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
+    writeSession(sessionPath);
+    const summaryManager = {
+      rollingSummary: vi.fn().mockResolvedValue({}),
+      getSummary: vi.fn().mockReturnValue(null),
+      invalidateSession: vi.fn().mockReturnValue(true),
+      saveSummary: vi.fn(),
+    };
+    const factStore = {
+      deleteBySession: vi.fn().mockReturnValue(1),
+    };
+    ticker = makeTicker(tmpDir, summaryManager, {
+      factStore,
+      getSessionIdForPath: vi.fn(() => "sess-selflock"),
+    });
+
+    const branchJob = ticker.notifyBranchChanged(sessionPath);
+
+    expect(() => ticker.invalidateSessionDerivedState({
+      sessionId: "sess-selflock",
+      sessionPath,
+    })).not.toThrow();
+    expect(summaryManager.invalidateSession).toHaveBeenCalledWith("sess-selflock");
+    expect(factStore.deleteBySession).toHaveBeenCalledWith("sess-selflock");
+
+    return branchJob;
+  });
+
+  it("has an in-flight stale summary write-back overwritten by the branch-replacement rerun", async () => {
+    // 时间线：
+    // 1) 一个按旧分支启动的摘要任务在途（LLM 调用被挡住）
+    // 2) 在途期间 Retry 改写分支头（bump epoch）并 invalidate 作废当前摘要/事实
+    // 3) 放行旧任务，它把“旧分支”的摘要写回（这是被接受的语义：在途任务只是把
+    //    重试前的历史沉淀进去，不追溯改写）
+    // 4) 既有的 epoch 收尾机制自动重跑一次，覆盖掉第 3 步写回的旧摘要
+    const sessionPath = path.join(tmpDir, "sessions", "rerun-race.jsonl");
+    fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
+    writeSession(sessionPath);
+
+    let currentSummary: any = null;
+    let callCount = 0;
+    const releases: Array<() => void> = [];
+    const summaryManager = {
+      rollingSummary: vi.fn(() => {
+        callCount += 1;
+        const thisCall = callCount;
+        return new Promise((resolve) => {
+          releases[thisCall] = () => {
+            currentSummary = {
+              session_id: "sess-rerun",
+              summary: thisCall === 1 ? "stale-old-branch" : "fresh-new-branch",
+              messageCount: thisCall,
+            };
+            resolve({});
+          };
+        });
+      }),
+      getSummary: vi.fn(() => currentSummary),
+      invalidateSession: vi.fn(() => { currentSummary = null; return true; }),
+      saveSummary: vi.fn((_id, snapshot) => { currentSummary = snapshot; }),
+    };
+    const factStore = {
+      deleteBySession: vi.fn().mockReturnValue(0),
+    };
+    ticker = makeTicker(tmpDir, summaryManager, {
+      factStore,
+      getSessionIdForPath: vi.fn(() => "sess-rerun"),
+    });
+
+    // 1) 旧分支摘要任务在途
+    const firstFlush = ticker.flushSession(sessionPath);
+    await vi.waitFor(() => expect(summaryManager.rollingSummary).toHaveBeenCalledTimes(1));
+
+    // 2) Retry 改写分支头 + invalidate
+    const branchJob = ticker.notifyBranchChanged(sessionPath);
+    expect(() => ticker.invalidateSessionDerivedState({
+      sessionId: "sess-rerun",
+      sessionPath,
+    })).not.toThrow();
+    expect(currentSummary).toBeNull();
+
+    // 3) 放行旧任务，写回旧分支的摘要
+    releases[1]();
+    await firstFlush;
+    expect(currentSummary?.summary).toBe("stale-old-branch");
+
+    // 4) epoch 收尾机制应已自动重跑，最终摘要是新分支的产物
+    await vi.waitFor(() => expect(summaryManager.rollingSummary).toHaveBeenCalledTimes(2));
+    releases[2]();
+    await vi.waitFor(() => expect(currentSummary?.summary).toBe("fresh-new-branch"));
+
+    await branchJob;
   });
 });
 

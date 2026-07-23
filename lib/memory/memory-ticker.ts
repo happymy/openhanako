@@ -1076,12 +1076,15 @@ export function createMemoryTicker(opts) {
     const sessionPath = typeof ref?.sessionPath === "string" ? ref.sessionPath : "";
     const sessionId = explicitSessionId || (sessionPath ? _sessionIdentityForPath(sessionPath) : "");
     if (!sessionId) throw new Error("memory invalidation requires sessionId");
-    if (_summaryInProgress.has(sessionId) || _dailyRunning || _aggregateCompileInFlight > 0) {
-      const error: any = new Error("session_memory_busy");
-      error.code = "session_memory_busy";
-      error.status = 409;
-      throw error;
-    }
+    // 不与任何在途记忆任务互斥：编译/摘要是记忆侧的观察者，永远要给用户发起的
+    // 操作让道，绝不能让 Retry 因为后台记忆任务恰好在跑而报错回滚。
+    // 这里的同步删除和一个在途旧分支任务之间确实存在竞态——旧任务可能在
+    // 删除之后才把（属于被丢弃分支的）摘要写回。但这个竞态已经被分支替换
+    // epoch 的收尾重跑机制闭合：Retry 改分支头时已经 bump 过 epoch，旧任务
+    // 收尾时发现 epoch 前进了，会在 finally 里自动用新分支重新跑一遍摘要，
+    // 把旧任务刚写回的内容覆盖掉。聚合产物（today.md / facts.md / memory.md）
+    // 本就声明不追溯改写，一次在途的聚合编译最多把 Retry 之前的历史沉淀进去，
+    // 这是既有语义下可以接受的结果，不需要为此阻塞用户操作。
     const result = invalidateSessionDerivedStateSync({
       sessionId,
       retainedMessageCount: ref?.retainedMessageCount,
