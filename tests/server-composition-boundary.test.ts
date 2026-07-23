@@ -188,7 +188,9 @@ describe("composition boundary behavior lock: bootstrap contract (no silent non-
 
       expect(result.timeout).not.toBe(true);
       expect(result).toMatchObject({ code: 0, signal: null });
-      expect(stdout).toContain("exports: startServer");
+      // 除了 startServer 本身，还导出 resolveSessionMetadataRecoveryStatusForHealth
+      // ——/api/health 的 sessionStore 兜底逻辑单测直接覆盖它，不需要真的拉起服务器。
+      expect(stdout).toContain("exports: resolveSessionMetadataRecoveryStatusForHealth,startServer");
       // No engine/store side effects: no server-info.json written, no
       // agents/user directory seeded by ensureFirstRun.
       expect(fs.existsSync(path.join(hanaHome, "server-info.json"))).toBe(false);

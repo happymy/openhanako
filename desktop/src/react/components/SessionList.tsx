@@ -219,6 +219,7 @@ function SessionListInner() {
   const projectCatalog = useStore(s => s.sessionProjectCatalog);
   const projectCatalogLoaded = useStore(s => s.sessionProjectCatalogLoaded);
   const activeServerConnection = useStore(s => s.activeServerConnection);
+  const metaRecovery = useStore(s => s.metaRecovery);
 
   const [browserSessions, setBrowserSessions] = useState<Record<string, BrowserSessionState>>({});
   const [viewMode, setViewModeState] = useState<SessionViewMode>(readInitialSessionViewMode);
@@ -740,7 +741,9 @@ function SessionListInner() {
     ));
   }
   const content = showEmptyState ? (
-    <div className={styles.sessionEmpty}>{t('sidebar.empty')}</div>
+    <div className={styles.sessionEmpty}>
+      {metaRecovery?.degraded ? t('sidebar.metaRecoveryEmpty') : t('sidebar.empty')}
+    </div>
   ) : isSearching ? (
     <SessionSearchResults
       titleResults={titleResults}

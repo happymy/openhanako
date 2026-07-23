@@ -23,7 +23,7 @@ import { snapshotStreamBuffer, type StreamBufferSnapshot } from './stream-invali
 import { renderMarkdown } from '../utils/markdown';
 import type { ChatMessage, ContentBlock } from './chat-types';
 import { readMessageLiveVersion } from './message-live-version';
-import type { SessionPermissionMode } from '../types';
+import type { SessionMetaRecoveryStatus, SessionPermissionMode } from '../types';
 
 // ── 防竞争计数器 ──
 
@@ -546,9 +546,28 @@ export function reconcileCurrentSessionMessages(reason = 'unknown'): Promise<voi
 // Session 列表
 // ══════════════════════════════════════════════════════
 
-export async function loadSessions(): Promise<void> {
+// 与 /api/sessions 并行探测 session 元数据待恢复状态（/api/health 的
+// sessionStore 附块）。失败/超时一律静默忽略——这只是一个附加提示信号，绝不能
+// 让健康检查探测的失败反过来拖垮或延后会话列表本身的加载。
+async function fetchSessionMetaRecoveryStatus(): Promise<SessionMetaRecoveryStatus | null> {
   try {
-    const res = await hanaFetch('/api/sessions');
+    const res = await hanaFetch('/api/health');
+    const data = await res.json();
+    return (data && typeof data === 'object' && data.sessionStore) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadSessions(): Promise<void> {
+  // 先发起 /api/sessions（调用顺序上排在前面，保持它是 loadSessions() 触发的
+  // 第一个 hanaFetch 调用——调用方/测试对"/api/sessions 是这次加载的第一个
+  // 请求"这个顺序有既有假设），紧接着不等待地发起 /api/health 探测：两个请求
+  // 仍然背靠背同时打到网络上，只是调用顺序固定，不会因为并行而变得不确定。
+  const sessionsFetchPromise = hanaFetch('/api/sessions');
+  const metaRecoveryPromise = fetchSessionMetaRecoveryStatus();
+  try {
+    const res = await sessionsFetchPromise;
     const data = await res.json();
     const serverSessions = Array.isArray(data) ? data.map(normalizeServerSessionProjection) : [];
     const localSessions = useStore.getState().sessions || [];
@@ -584,6 +603,7 @@ export async function loadSessions(): Promise<void> {
       await switchSession(sessions[0].path);
     }
   } catch { /* ignore */ }
+  useStore.getState().setSessionMetaRecovery(await metaRecoveryPromise);
 }
 
 const EMPTY_FIRST_MESSAGE_PLACEHOLDER = '(no messages)';

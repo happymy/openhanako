@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useI18n } from '../../hooks/use-i18n';
+import { useStore } from '../../stores';
 import { useTrainUpdateState } from '../../hooks/use-train-update-state';
 import type { TrainUpdatePhase, TrainUpdateProgressState } from '../../hooks/use-train-update-state';
-import type { CrashFallbackNotice } from '../../types';
+import type { CrashFallbackNotice, SessionMetaRecoveryStatus } from '../../types';
 import styles from './SidebarNoticeSlot.module.css';
 
 /**
@@ -27,6 +28,13 @@ import styles from './SidebarNoticeSlot.module.css';
  * 状态归属在主进程内存，见 desktop/main.cjs 的 `_crashFallbackNotice`），
  * 不用 dismissed-key，也不用组件内存——数据源是 hook 里的
  * `fallbackNotice`，本组件只负责渲染与转发 ack 动作。
+ *
+ * 第四种触发态 meta-recovery（session 元数据待恢复）优先级次于 fallback、
+ * 高于 blocked/train——同样是"已经发生的事情"（session-meta 损坏/隔离），
+ * 但不像 fallback 那样有主进程一次性 ack 通道，叉号语义退化成 blocked 那种
+ * 组件内存态（本 session 安静，下次挂载/刷新重新出现）。数据源是
+ * store.metaRecovery（loadSessions() 从 /api/health 的 sessionStore 附块写入），
+ * 没有可点击的动作——点击卡面无事发生，只能叉掉。
  */
 const DISMISSED_TRAIN_UPDATE_KEY = 'hana-sidebar-train-update-dismissed-key';
 
@@ -38,6 +46,7 @@ interface SidebarUpdateNoticeCardProps {
   phase: TrainUpdatePhase;
   progress: TrainUpdateProgressState | null;
   fallbackNotice?: CrashFallbackNotice | null;
+  metaRecovery?: SessionMetaRecoveryStatus | null;
   onInstallShell?: () => void | Promise<unknown>;
   onApplyTrain?: () => void | Promise<unknown>;
   onAckFallback?: () => void | Promise<unknown>;
@@ -112,16 +121,17 @@ function AlertIcon() {
 }
 
 interface StickerContent {
-  kind: 'blocked' | 'train' | 'fallback';
+  kind: 'blocked' | 'train' | 'fallback' | 'meta-recovery';
   title: string;
   /** 内容版本号小字：显示已激活内容版本，不显示壳版本或 train 号。 */
   subtitle: string | null;
 }
 
 /**
- * 三态选择，fallbackNotice 优先级最高（已经发生的事必须先说清楚），其次
- * minShellBlocked（唯一"壳"相关的触发源，不再看壳自动更新器自己的
- * 'downloaded' 状态），最后才是默认的 train 形态。纯函数，独立可测。
+ * 四态选择，fallbackNotice 优先级最高（已经发生的事必须先说清楚），其次
+ * meta-recovery（同样是"已经发生的事情"，但没有 fallback 那样的主进程 ack
+ * 通道），再次 minShellBlocked（唯一"壳"相关的触发源，不再看壳自动更新器
+ * 自己的 'downloaded' 状态），最后才是默认的 train 形态。纯函数，独立可测。
  */
 function resolveStickerContent({
   available,
@@ -129,8 +139,9 @@ function resolveStickerContent({
   phase,
   progress,
   fallbackNotice,
+  metaRecovery,
   translate,
-}: Pick<SidebarUpdateNoticeCardProps, 'available' | 'minShellBlocked' | 'phase' | 'progress' | 'fallbackNotice'> & {
+}: Pick<SidebarUpdateNoticeCardProps, 'available' | 'minShellBlocked' | 'phase' | 'progress' | 'fallbackNotice' | 'metaRecovery'> & {
   translate: Window['t'];
 }): StickerContent | null {
   if (fallbackNotice) {
@@ -141,6 +152,13 @@ function resolveStickerContent({
         toVersion: fallbackNotice.toVersion ?? '?',
       }),
       subtitle: null,
+    };
+  }
+  if (metaRecovery?.degraded) {
+    return {
+      kind: 'meta-recovery',
+      title: translate('sidebar.metaRecoveryNoticeTitle'),
+      subtitle: translate('sidebar.metaRecoveryNoticeBody'),
     };
   }
   if (minShellBlocked) {
@@ -178,6 +196,7 @@ export function SidebarUpdateNoticeCard({
   phase,
   progress,
   fallbackNotice,
+  metaRecovery,
   onInstallShell,
   onApplyTrain,
   onAckFallback,
@@ -189,6 +208,9 @@ export function SidebarUpdateNoticeCard({
   // blocked 形态的叉号状态只活在组件内存里（不落 localStorage）：进程
   // 重启 = 组件重新挂载 = 天然重置为"未叉过"，这正是"下次启动重新出现"的实现。
   const [blockedDismissed, setBlockedDismissed] = useState(false);
+  // meta-recovery 没有 fallback 那样的主进程一次性 ack 通道，叉号语义比照
+  // blocked：本 session 内存态，组件重新挂载（含刷新/重启）天然重置。
+  const [metaRecoveryDismissed, setMetaRecoveryDismissed] = useState(false);
 
   const trainKey = trainNoticeKey(available);
   const [trainDismissedKey, setTrainDismissedKey] = useState<string | null>(
@@ -207,10 +229,12 @@ export function SidebarUpdateNoticeCard({
     phase,
     progress,
     fallbackNotice,
+    metaRecovery,
     translate: t,
   });
 
   if (!content) return null;
+  if (content.kind === 'meta-recovery' && metaRecoveryDismissed) return null;
   if (content.kind === 'blocked' && blockedDismissed) return null;
   if (content.kind === 'train' && trainKey && trainDismissedKey === trainKey) return null;
 
@@ -220,6 +244,10 @@ export function SidebarUpdateNoticeCard({
       // ackFallbackNotice），不是本组件的本地 dismissed 状态——组件卸载/
       // 重挂载不应该让已 ack 的通知重新出现。
       void onAckFallback?.();
+      return;
+    }
+    if (content.kind === 'meta-recovery') {
+      setMetaRecoveryDismissed(true);
       return;
     }
     if (content.kind === 'blocked') {
@@ -233,7 +261,7 @@ export function SidebarUpdateNoticeCard({
   };
 
   const handleAction = () => {
-    if (content.kind === 'fallback') return; // 没有可执行的动作，点卡面无事发生
+    if (content.kind === 'fallback' || content.kind === 'meta-recovery') return; // 没有可执行的动作，点卡面无事发生
     if (content.kind === 'blocked') {
       void onInstallShell?.();
     } else {
@@ -246,7 +274,7 @@ export function SidebarUpdateNoticeCard({
       <section className={styles.card} role="status" aria-live="polite">
         <button type="button" className={styles.cardButton} onClick={handleAction}>
           <span className={styles.refreshIcon}>
-            {content.kind === 'fallback' ? <AlertIcon /> : <RefreshIcon />}
+            {content.kind === 'fallback' || content.kind === 'meta-recovery' ? <AlertIcon /> : <RefreshIcon />}
           </span>
           <span className={styles.textBlock}>
             <span className={styles.title}>{content.title}</span>
@@ -268,6 +296,7 @@ export function SidebarUpdateNoticeCard({
 
 export function SidebarNoticeSlot() {
   const { available, minShellBlocked, phase, progress, fallbackNotice, applyNow, ackFallbackNotice } = useTrainUpdateState();
+  const metaRecovery = useStore((s) => s.metaRecovery);
 
   return (
     <SidebarUpdateNoticeCard
@@ -276,6 +305,7 @@ export function SidebarNoticeSlot() {
       phase={phase}
       progress={progress}
       fallbackNotice={fallbackNotice}
+      metaRecovery={metaRecovery}
       onInstallShell={() => window.hana?.autoUpdateInstall?.()}
       onApplyTrain={() => applyNow()}
       onAckFallback={() => ackFallbackNotice()}

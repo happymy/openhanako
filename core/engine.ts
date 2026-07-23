@@ -125,6 +125,7 @@ import { SessionManifestResolver } from "./session-manifest/resolver.ts";
 import { SessionManifestStore } from "./session-manifest/store.ts";
 import { ensureSessionRefForPath as establishSessionRefForPath } from "./session-manifest/ref.ts";
 import { ensureLegacySessionManifestMigration } from "./session-manifest/startup-migration.ts";
+import { listSkippedMetaSources } from "./session-manifest/legacy-migration.ts";
 import {
   moveSessionManifestDbFilesAside,
   sanitizeSessionManifestFileSuffix,
@@ -206,6 +207,16 @@ export function runBestEffortStartupMigrationStep(label, operation, log: any = (
     log(`[migrations] ${label} 失败，应用继续启动；该步骤将在下次启动重试`);
     return { ok: false, error };
   }
+}
+
+// getSessionMetadataRecoveryStatus() 聚合三源 meta 恢复信号供 /api/health 消费。
+// detail 只保留"所属 agent 目录名 / 文件 basename"两段，绝不透传绝对路径或
+// 底层 error.message（两者都可能带 hanaHome 绝对路径前缀）——/api/health 可能
+// 被远程前端（mobile PWA / Bridge）读取，隐私边界比调试可读性优先。
+function describeMetaSourcePath(filePath: any) {
+  const base = path.basename(String(filePath || ""));
+  const agentDirName = path.basename(path.dirname(path.dirname(String(filePath || ""))));
+  return agentDirName ? `${agentDirName}/${base}` : base;
 }
 
 function sessionBelongsToProject(projectId) {
@@ -1291,6 +1302,34 @@ export class HanaEngine {
       };
     }
   }
+  /**
+   * 聚合三路 session 元数据"待恢复"信号，供 /api/health 附块与侧边栏提示消费。
+   * 三源：① manifest store 本身不可用/被隔离重建（_sessionManifestStoreRecovery）
+   * ② 运行期发生过的 session-meta 隔离（_sessionCoord.listMetaQuarantines）
+   * ③ 迁移账本里全集的 too_large/parse_error legacy 源（listSkippedMetaSources）。
+   * 三源全空 → { degraded: false, reasons: [] }。纯读聚合，不产生副作用。
+   */
+  getSessionMetadataRecoveryStatus() {
+    const reasons: Array<{ kind: string; detail: string }> = [];
+
+    const recoveryStatus = this._sessionManifestStoreRecovery?.status;
+    if (recoveryStatus === "unavailable") {
+      reasons.push({ kind: "store_unavailable", detail: "session manifest database unavailable" });
+    } else if (recoveryStatus === "quarantined") {
+      reasons.push({ kind: "store_quarantined", detail: "session manifest database was quarantined and recreated" });
+    }
+
+    for (const quarantine of this._sessionCoord?.listMetaQuarantines?.() || []) {
+      reasons.push({ kind: "meta_quarantined", detail: describeMetaSourcePath(quarantine?.metaPath) });
+    }
+
+    for (const skipped of listSkippedMetaSources(this._sessionManifestStore)) {
+      reasons.push({ kind: "meta_skipped", detail: describeMetaSourcePath(skipped?.path) });
+    }
+
+    return { degraded: reasons.length > 0, reasons };
+  }
+
   async createDetachedSession( opts: any = {}) {
     return this._sessionCoord.createDetachedSession(opts);
   }

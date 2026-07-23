@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { HanaEngine } from "../core/engine.ts";
 import { SessionManifestResolver } from "../core/session-manifest/resolver.ts";
 import { LEGACY_SESSION_MANIFEST_MIGRATION_KEY } from "../core/session-manifest/startup-migration.ts";
+import { LEGACY_META_SCAN_LEDGER_KEY } from "../core/session-manifest/legacy-migration.ts";
 import { SessionManifestStore } from "../core/session-manifest/store.ts";
 import { SessionFileRegistry } from "../lib/session-files/session-file-registry.ts";
 
@@ -235,5 +236,117 @@ describe("HanaEngine session manifest startup migration", () => {
       manifestDbNames.some((name) => name.startsWith("session-manifest.db-wal.quarantine-"))
       || !activeWalIsOriginalBadSidecar,
     ).toBe(true);
+  });
+});
+
+describe("HanaEngine getSessionMetadataRecoveryStatus", () => {
+  let tmpDir;
+  let store;
+  let engine;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-session-meta-recovery-"));
+    store = new SessionManifestStore({
+      dbPath: path.join(tmpDir, "session-manifest.db"),
+      idGenerator: () => `sess_recovery_${Math.random()}`,
+      now: () => "2026-07-23T00:00:00.000Z",
+    });
+    engine = Object.create(HanaEngine.prototype);
+    engine._sessionManifestStore = store;
+    engine._sessionManifestStoreRecovery = null;
+    engine._sessionCoord = { listMetaQuarantines: () => [] };
+  });
+
+  afterEach(() => {
+    store?.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("three sources empty → not degraded", () => {
+    expect(engine.getSessionMetadataRecoveryStatus()).toEqual({ degraded: false, reasons: [] });
+  });
+
+  it("runtime meta quarantine → degraded with meta_quarantined reason", () => {
+    const metaPath = path.join(tmpDir, "agents", "hana", "sessions", "session-meta.json");
+    engine._sessionCoord = {
+      listMetaQuarantines: () => [{
+        metaPath,
+        backupPath: path.join(tmpDir, "agents", "hana", "sessions", "session-meta.oversized.111.json"),
+        quarantinedAt: "2026-07-23T00:00:00.000Z",
+      }],
+    };
+
+    const result = engine.getSessionMetadataRecoveryStatus();
+
+    expect(result.degraded).toBe(true);
+    expect(result.reasons).toEqual([
+      { kind: "meta_quarantined", detail: "hana/session-meta.json" },
+    ]);
+  });
+
+  it("unavailable session manifest store → degraded with store_unavailable reason", () => {
+    engine._sessionManifestStoreRecovery = { status: "unavailable", error: new Error(`boom at ${tmpDir}`) };
+
+    const result = engine.getSessionMetadataRecoveryStatus();
+
+    expect(result.degraded).toBe(true);
+    expect(result.reasons).toEqual([
+      { kind: "store_unavailable", detail: expect.any(String) },
+    ]);
+    // 隐私契约：detail 不得携带 hanaHome 绝对路径（不能直接透传 error.message）。
+    expect(result.reasons[0].detail).not.toContain(tmpDir);
+  });
+
+  it("quarantined session manifest store → degraded with store_quarantined reason", () => {
+    engine._sessionManifestStoreRecovery = { status: "quarantined", error: new Error("corrupt") };
+
+    const result = engine.getSessionMetadataRecoveryStatus();
+
+    expect(result.degraded).toBe(true);
+    expect(result.reasons).toEqual([
+      { kind: "store_quarantined", detail: expect.any(String) },
+    ]);
+  });
+
+  it("legacy scan ledger with too_large entries → degraded with meta_skipped reason", () => {
+    const skippedPath = path.join(tmpDir, "agents", "bob", "sessions", "session-meta.json");
+    store.setState(LEGACY_META_SCAN_LEDGER_KEY, {
+      [skippedPath]: { size: 999_999_999, mtimeMs: 1, status: "too_large", recordedAt: "2026-07-23T00:00:00.000Z" },
+    });
+
+    const result = engine.getSessionMetadataRecoveryStatus();
+
+    expect(result.degraded).toBe(true);
+    expect(result.reasons).toEqual([
+      { kind: "meta_skipped", detail: "bob/session-meta.json" },
+    ]);
+  });
+
+  it("all three sources firing at once → all reasons present", () => {
+    const quarantinedPath = path.join(tmpDir, "agents", "hana", "sessions", "session-meta.json");
+    const skippedPath = path.join(tmpDir, "agents", "bob", "sessions", "session-titles.json");
+    engine._sessionManifestStoreRecovery = { status: "unavailable", error: new Error("boom") };
+    engine._sessionCoord = {
+      listMetaQuarantines: () => [{
+        metaPath: quarantinedPath,
+        backupPath: `${quarantinedPath}.oversized.1.json`,
+        quarantinedAt: "2026-07-23T00:00:00.000Z",
+      }],
+    };
+    store.setState(LEGACY_META_SCAN_LEDGER_KEY, {
+      [skippedPath]: { size: 1, mtimeMs: 1, status: "parse_error", recordedAt: "2026-07-23T00:00:00.000Z" },
+    });
+
+    const result = engine.getSessionMetadataRecoveryStatus();
+
+    expect(result.degraded).toBe(true);
+    expect(result.reasons.map((r) => r.kind).sort()).toEqual(
+      ["meta_quarantined", "meta_skipped", "store_unavailable"].sort(),
+    );
+  });
+
+  it("getter throwing does not propagate — caller (server route) is responsible for its own fallback, this only proves listSkippedMetaSources tolerates a null store", () => {
+    engine._sessionManifestStore = null;
+    expect(engine.getSessionMetadataRecoveryStatus()).toEqual({ degraded: false, reasons: [] });
   });
 });

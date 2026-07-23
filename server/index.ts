@@ -94,6 +94,21 @@ const productDir = fromRoot("lib");
 const BIND_FALLBACK_CANDIDATE_CODES = new Set(["EADDRINUSE", "EACCES", "EPERM"]);
 
 /**
+ * /api/health 的 sessionStore 附块：如实转发 engine.getSessionMetadataRecoveryStatus()。
+ * /api/health 是探测端点，本身不得因为这一个附加信号的探测失败而 500——探测失败
+ * 时兜底成一个显式 degraded 状态（而不是静默吞掉、也不是让整个健康检查跟着炸），
+ * 让前端看到"探测本身失败了"这个明确信号。纯函数，独立于 startServer() 之外，方便
+ * 单测直接覆盖抛错分支而不必真的拉起一个服务器。
+ */
+export function resolveSessionMetadataRecoveryStatusForHealth(engine: any) {
+  try {
+    return engine.getSessionMetadataRecoveryStatus();
+  } catch {
+    return { degraded: true, reasons: [{ kind: "store_unavailable", detail: "recovery status probe failed" }] };
+  }
+}
+
+/**
  * startServer — 组合根(open by default)。
  *
  * 无条件静态 import composition/open-root.ts 并调用它，挂载全部开放路由/WS 面，
@@ -935,6 +950,7 @@ export async function startServer(root: CompositionRoot = {}): Promise<void> {
       model: engine.currentModel?.name,
       avatars,
       network: createServerRuntimeNetworkSummary(),
+      sessionStore: resolveSessionMetadataRecoveryStatusForHealth(engine),
     });
   });
 

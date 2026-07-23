@@ -2492,9 +2492,14 @@
           "root": "server-bootstrap",
           "from": "core/session-manifest/startup-migration.ts",
           "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "core/engine.ts",
+          "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/session-manifest/startup-migration.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/session-manifest/startup-migration.ts (import-statement); core/engine.ts (import-statement)."
     },
     {
       "path": "core/session-manifest/path-normalizer.ts",

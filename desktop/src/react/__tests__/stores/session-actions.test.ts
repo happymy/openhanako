@@ -86,6 +86,7 @@ const initialStateFactory = (): MockState => ({
   cwdHistory: [] as string[],
   selectedAgentId: null,
   thinkingLevel: 'medium',
+  metaRecovery: null as unknown,
 });
 
 const dispatchedEvents: CustomEvent[] = [];
@@ -281,6 +282,7 @@ function installStoreMethods() {
   s.setDeskFiles = vi.fn((files: unknown[]) => { mockState.deskFiles = files; });
   s.setDeskJianContent = vi.fn((content: string | null) => { mockState.deskJianContent = content; });
   s.clearStaleMessageLocate = vi.fn();
+  s.setSessionMetaRecovery = vi.fn((status: unknown) => { mockState.metaRecovery = status; });
 }
 
 import { hanaFetch } from '../../hooks/use-hana-fetch';
@@ -1337,7 +1339,9 @@ function mockPermissionDefault(mode = 'ask') {
       expect(mockState.sessionLocatorsById).toMatchObject({
         sess_a: { path: '/session/current-b.jsonl' },
       });
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      // 只断言没有多打一次 /api/sessions（没有触发额外 reload）——loadSessions()
+      // 并行探测 /api/health 是另一个调用，不属于本用例要锁的"没有多余重载"行为。
+      expect(mockFetch.mock.calls.filter(([url]) => url === '/api/sessions')).toHaveLength(1);
     });
 
     it('uses reconciled state before deciding whether the first session needs auto-switching', async () => {
@@ -1357,7 +1361,9 @@ function mockPermissionDefault(mode = 'ask') {
       expect(mockState.currentSessionId).toBe('sess_b');
       expect(mockState.currentSessionPath).toBe('/session/b.jsonl');
       expect(mockState.pendingSessionSwitchPath).toBeNull();
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      // 只断言没有多打一次 /api/sessions（没有触发额外 reload）——loadSessions()
+      // 并行探测 /api/health 是另一个调用，不属于本用例要锁的"没有多余重载"行为。
+      expect(mockFetch.mock.calls.filter(([url]) => url === '/api/sessions')).toHaveLength(1);
     });
 
     it('does not infer focused identity from path when currentSessionId is absent', async () => {
@@ -1411,7 +1417,9 @@ function mockPermissionDefault(mode = 'ask') {
       ]);
       expect(mockState.currentSessionPath).toBeNull();
       expect(mockState.pendingSessionSwitchPath).toBe('/b');
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      // 只断言没有多打一次 /api/sessions（没有触发额外 reload）——loadSessions()
+      // 并行探测 /api/health 是另一个调用，不属于本用例要锁的"没有多余重载"行为。
+      expect(mockFetch.mock.calls.filter(([url]) => url === '/api/sessions')).toHaveLength(1);
     });
 
     it('keeps the first optimistic user message when the server list is still empty for that session', async () => {
@@ -1986,6 +1994,10 @@ function mockPermissionDefault(mode = 'ask') {
 
       mockFetch.mockResolvedValueOnce(jsonResponse({ ok: true }));
       mockFetch.mockResolvedValueOnce(jsonResponse([{ path: '/other' }]));
+      // loadSessions() 内部紧跟 /api/sessions 并行探测 /api/health（session
+      // 元数据待恢复状态）——按调用顺序占掉这个位置的响应队列，空块即可，
+      // fetchSessionMetaRecoveryStatus 对缺失/形状不对的响应本就容错。
+      mockFetch.mockResolvedValueOnce(jsonResponse({}));
       mockFetch.mockResolvedValueOnce(jsonResponse({
         agentId: null,
         cwd: '/workspace-other',
