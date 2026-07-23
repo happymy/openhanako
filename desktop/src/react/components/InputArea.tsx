@@ -70,7 +70,7 @@ import { buildWaveformFromBlob, buildWaveformFromPcmChunks } from '../utils/audi
 import { prepareChatImageUpload } from '../utils/chat-image-upload-compression';
 import {
   XING_PROMPT, executeDiary, executeCompact, executeSlashViaWs, buildSlashCommands, getSlashMatches,
-  resolveSlashSubmitSelection,
+  resolveSlashSubmitSelection, applySlashCompletion,
   type SlashItem,
 } from './input/slash-commands';
 import { attachFilesFromPaths } from '../MainContent';
@@ -1574,7 +1574,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
         setSlashBusy,
         () => { editor?.commands.clearContent(); },
         setSlashMenuOpen,
-      )(slashText);
+      )(applySlashCompletion(slashText, item));
       return;
     }
     if (!editor) return;

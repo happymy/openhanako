@@ -47,6 +47,24 @@ export interface SlashItem {
 
 export const MAX_SLASH_TRIGGER_LENGTH = 20;
 
+/**
+ * applySlashCompletion — 菜单选择 server-command 后，把编辑器原始文本改写为
+ * canonical 命令文本（`/${item.name}`），保留首个 slash token 之后的一切内容
+ * （空格、参数、多行）。非 slash 开头的文本走菜单按钮时丢弃输入，回退为纯
+ * canonical 命令（复刻既有兜底语义）。一律替换为 canonical name（不保留用户
+ * 输入的 alias），因为服务端 dispatch 的 alias 解析能力未验证。
+ */
+export function applySlashCompletion(
+  text: string,
+  item: Pick<SlashItem, 'name'>,
+): string {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('/')) return `/${item.name}`;
+  const tokenMatch = /^\/(\S*)/.exec(trimmed);
+  if (!tokenMatch) return `/${item.name}`;
+  return `/${item.name}${trimmed.slice(tokenMatch[0].length)}`;
+}
+
 export function getSlashMatches(text: string, commands: SlashItem[]): SlashItem[] {
   const normalized = text.trim();
   if (!normalized.startsWith('/')) return [];
